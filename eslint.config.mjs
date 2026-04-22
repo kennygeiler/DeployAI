@@ -10,6 +10,7 @@ export default [
       "**/build/",
       "**/.next/",
       "**/target/",
+      "**/coverage/",
       "**/storybook-static/",
       "pnpm-lock.yaml",
     ],

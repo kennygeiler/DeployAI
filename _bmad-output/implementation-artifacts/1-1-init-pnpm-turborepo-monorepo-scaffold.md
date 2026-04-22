@@ -1,6 +1,6 @@
 # Story 1.1: Initialize pnpm + Turborepo monorepo scaffold
 
-Status: review
+Status: review (review findings: 7 patches applied, 8 deferred, 4 dismissed)
 
 <!-- Epic 1: Foundations, Canonical Memory & Citation Envelope -->
 <!-- Sprint position: First story in project. No predecessor. -->
@@ -111,8 +111,40 @@ So that every subsequent story has a canonical location for its code and shared 
   - [x] Scope fence verified — zero Next.js / Tauri / Go / FastAPI / Storybook / shadcn / axe / CI workflow files created
 
 - [x] **T9. Commit hygiene**
-  - [ ] Commit performed by the developer (separate user action); this story file is updated and ready for commit
-  - [x] `pnpm-lock.yaml` present and will be included in the commit
+  - [x] Commit `15f24d4` on branch `feat/story-1-1-monorepo-scaffold`; PR #1 opened
+  - [x] `pnpm-lock.yaml` included in the commit
+
+### Review Findings
+
+Adversarial review (2026-04-22) across three parallel layers — Blind Hunter (gpt-5.4-medium, diff-only), Edge Case Hunter (claude-4.6-sonnet-medium-thinking, diff + project read), Acceptance Auditor (gpt-5.3-codex, diff + spec). 22 raw findings → triaged to 4 dismissed, 7 patch, 8 deferred.
+
+**Patches (applied 2026-04-22):**
+
+- [x] [Review][Patch] Add `**/coverage/` to ESLint ignores [`eslint.config.mjs:12`] — `turbo.json` declares `test` emits `coverage/**` but ESLint flat config didn't ignore it. Fixed.
+- [x] [Review][Patch] Document `noEmit: false` override requirement in `docs/repo-layout.md` [`docs/repo-layout.md` §"Adding a new workspace" step 4] — Rewrote step 4 with two explicit "Critical overrides you almost always need" callouts: (a) library workspaces must set `"noEmit": false` + `"outDir": "./dist"`; (b) browser workspaces must override `"module"` + `"moduleResolution"` to `"bundler"`. Addresses both BH-04+ECH-03 and pre-empts the deferred ECH-02 Story 1.3 handoff.
+- [x] [Review][Patch] Fix `docs/repo-layout.md` pnpm-discovery wording [`docs/repo-layout.md` §"Adding a new workspace" step 3] — Rewrote to make clear that pnpm only discovers `package.json`-bearing workspaces; Python/Rust/Go workspaces are co-located and managed by `uv`/`cargo`/`go`. Step 5 updated to reflect this split. BH-05 + BH-06.
+- [x] [Review][Patch] Pin `.tool-versions` to specific 24.x patch [`.tool-versions:1`] — Pinned to `nodejs 24.15.0` (latest Node 24 LTS per nodejs.org/en/download/releases as of 2026-04-22). BH-09 + ECH-07.
+- [x] [Review][Patch] Fix "engines enforces" wording + add `.npmrc` with `engine-strict=true` [`.npmrc` (new), `docs/repo-layout.md:7`] — Created `.npmrc` with `engine-strict=true` + `frozen-lockfile=true` + `prefer-workspace-packages=true`. Updated docs to say "Enforcement is real: the root `.npmrc` sets `engine-strict=true`, which means pnpm hard-fails (not merely warns)". **Verified behavior:** `pnpm install` on Node 25.9.0 now exits with `ERR_PNPM_UNSUPPORTED_ENGINE` (no longer just a warning), and exits clean on Node 24.15.0. BH-10 + ECH-04.
+- [x] [Review][Patch] Add `env` / `globalEnv` to `turbo.json` [`turbo.json:4-5, 8`] — Added `"globalEnv": ["NODE_ENV", "CI"]` at the root plus `"env": ["NODE_ENV"]` on the `build` task. Cache keys are now deterministic across `NODE_ENV=development` and `NODE_ENV=production` builds. ECH-01.
+- [x] [Review][Patch] Swap `.env` → `.env.example` in `turbo.json` globalDependencies [`turbo.json:4`, new `.env.example`] — Removed gitignored `.env` from `globalDependencies` (was causing non-deterministic cache keys across contributors with/without a local `.env`) and added a committed `.env.example` template in its place. `.env.example` is hashed into every build's cache key and serves as the single source of truth for expected env vars. ECH-05.
+
+**Deferred (carried to `deferred-work.md`):**
+
+- [x] [Review][Defer] AC5's CI Node-major guard [`.github/workflows/*` — doesn't exist yet] — AC5 requires "A CI guard fails if the installed Node major is not 24." Pinning files exist (`.nvmrc`, `.tool-versions`, `engines`) but the CI guard half of AC5 is blocked by AC11's scope fence (workflows are Story 1.2's scope). This was a latent scope conflict in the story spec itself. Handoff to Story 1.2. Acceptance Auditor AA-01 (**HIGH priority for Story 1.2 author**).
+- [x] [Review][Defer] Machine-verifiable AC4 proof [no artifact] — Current AC4 evidence is completion-notes assertion. Story 1.2 will add CI running the exact smoke suite on every PR, which is the authoritative proof. AA-03.
+- [x] [Review][Defer] Browser-workspace tsconfig override pattern [`tsconfig.base.json` — `module: "nodenext"`] — Next.js / Tauri React workspaces cannot extend the base without overriding `module` + `moduleResolution` to `"bundler"`. Belongs to Story 1.3 when `apps/web` and `apps/edge-agent` first scaffold. ECH-02 (High).
+- [x] [Review][Defer] `verbatimModuleSyntax` + CJS default-import tension [`tsconfig.base.json:13-14`] — Modern TS 5+ strictness; workspaces importing CJS libraries must use `import * as foo from 'foo'`. Natural Story 1.3 learning curve; document in Story 1.3's tsconfig setup. ECH-06.
+- [x] [Review][Defer] ESLint `globals.node` on browser workspaces [`eslint.config.mjs:20`] — Any future browser workspace (`apps/web`) without its own `eslint.config.mjs` gets `window`/`document` as undefined. Story 1.3 adds per-workspace configs. ECH-09.
+- [x] [Review][Defer] Markdown format gate [`.prettierignore:9`] — `*.md` excluded from Prettier by design (per story spec: "preserved for manual formatting"). No alternate gate means CRLF / inconsistent heading levels go undetected. Accept the gap for V1; revisit if markdown drift becomes a pain. BH-07 + ECH-11.
+- [x] [Review][Defer] Windows portability (`rm -rf` clean + no `.gitattributes`) [`package.json:24`, no `.gitattributes`] — V1 is macOS-first per architecture.md (Tauri Edge Agent V1 is macOS-only). Cross-platform dev support is post-GA. BH-08 + ECH-08.
+- [x] [Review][Defer] `engines.node <25.0.0` reminder [`package.json:13`] — Intentional V1 guardrail; will need revisiting when Node 25 is validated for use (post-Story 1.2 CI is the natural forcing function). ECH-10.
+
+**Dismissed (4):**
+
+- BH-01 (turbo `test.dependsOn: ["build"]` is local-only) — **false positive**. Turbo expands transitively: `test → build`, `build → ^build`, so upstream workspace builds ARE resolved before downstream tests. Verified against turbo.com docs.
+- BH-02 (ESLint doesn't parse TS/TSX) — **scope-exonerated** by AC11 + story's explicit "Do NOT add @typescript-eslint/* in this story" (eslint.config.mjs canonical shape, story file lines 240–241). Story 1.3's scope.
+- AA-02 (version drift: turbo 2.9.6 vs spec 2.9.7; prettier 3.8.3 vs spec 3.8.2) — **already documented** in Completion Notes as the spec's target patches hadn't been published to npm; used latest-published stable patches instead.
+- AA-04 (`tsconfig.base.json` omits `"composite": false`) — **functionally equivalent**. TypeScript defaults `composite` to `false` when absent; the canonical shape's explicit `false` is informational redundancy.
 
 ## Dev Notes
 
@@ -529,3 +561,4 @@ All 11 acceptance criteria are satisfied. Story is ready for review.
 |------------|-------------------|------------------------------------------------------------------------------------------------|
 | 2026-04-21 | Paige (tech-writer)| Authored initial story context (ACs, Tasks/Subtasks, canonical shapes, scope fence).           |
 | 2026-04-22 | Kenny + Dev Agent | Implemented T1–T9: pnpm + Turborepo scaffold, base configs, docs, CODEOWNERS. Smoke tests green. Transitioned status → `review`. |
+| 2026-04-22 | Code-review pass (gpt-5.4 / claude-4.6-sonnet / gpt-5.3-codex) + Dev Agent | Applied 7 batch patches: ESLint coverage ignore, `noEmit:false`/browser-tsconfig docs, pnpm-discovery wording, `.tool-versions` → `nodejs 24.15.0`, new `.npmrc` (`engine-strict=true`), `turbo.json` `globalEnv`/`env`, `.env.example` replacing `.env` in globalDependencies. Installed Node 24.15.0 locally via Homebrew to validate under the newly-enforced engines. Smoke tests green. 8 items deferred to `deferred-work.md`, 4 dismissed. |

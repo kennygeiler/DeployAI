@@ -2,7 +2,7 @@
 
 This document is the canonical reference for how the DeployAI monorepo is organized, which workspace each future piece of code belongs to, and how to add new workspaces cleanly.
 
-**Runtime baseline:** Node.js 24 LTS · pnpm 10.33.0 · TypeScript 6.0 · Turborepo 2.9. See `.nvmrc` and `.tool-versions` for exact pins; the root `package.json` `engines` field enforces them.
+**Runtime baseline:** Node.js 24 LTS · pnpm 10.33.0 · TypeScript 6.0 · Turborepo 2.9. See `.nvmrc` and `.tool-versions` for exact pins. Enforcement is real: the root `.npmrc` sets `engine-strict=true`, which means pnpm hard-fails (not merely warns) any command when Node or pnpm is outside the `engines` range declared in `package.json`.
 
 ## Workspaces
 
@@ -32,8 +32,10 @@ The root `pnpm-workspace.yaml` declares five workspace roots. Every future top-l
 | `eslint.config.mjs` | ESLint **flat config** (ESLint 10+ default; no legacy `.eslintrc*`). |
 | `.prettierrc.json` / `.prettierignore` | Prettier rules + ignores. |
 | `.editorconfig` | Editor-level consistency (UTF-8, LF, 2-space default, 4-space Python, tab Go). |
+| `.npmrc` | pnpm config — turns on `engine-strict=true` (hard-fails non-conforming Node/pnpm) and `frozen-lockfile=true`. |
 | `.nvmrc` | Node major LTS pin (`24`). |
-| `.tool-versions` | asdf-compatible Node + pnpm pinning. |
+| `.tool-versions` | asdf-compatible Node + pnpm pinning (`nodejs 24.15.0`, `pnpm 10.33.0`). |
+| `.env.example` | Template for `.env`. Hashed by Turborepo via `globalDependencies` to keep build cache keys deterministic across contributors even though `.env` itself is gitignored. |
 | `.github/CODEOWNERS` | Ownership routing (currently `* @kennygeiler`). |
 | `.gitignore` | Stack-wide ignores for Node/Python/Go/Rust/Tauri/Terraform/Docker/OS/IDE/secrets. |
 
@@ -56,15 +58,17 @@ All workspace-aware scripts delegate to `turbo`:
 
 1. **Pick the right root.** User-facing deployables → `apps/`. Backend deployables → `services/`. Reusable libraries → `packages/`. Infra-as-code → `infra/`. Cross-workspace test harnesses → `tests/`.
 2. **Create the directory** under the chosen root, e.g., `packages/citation-envelope/`.
-3. **Author the manifest** appropriate to the language:
-   - TypeScript/JavaScript: `package.json` with `name`, `version`, and `build`/`lint`/`test`/`typecheck` scripts.
-   - Python: `pyproject.toml` managed by `uv` (locks `uv.lock`). Add a `Dockerfile` per `services/` convention.
-   - Rust: `Cargo.toml` (Tauri workspaces have one under `src-tauri/`).
-   - Go: `go.mod` rooted at a stable module path.
+3. **Author the manifest** appropriate to the language. Only `package.json`-bearing workspaces are discovered by pnpm and orchestrated by Turborepo; Python/Rust/Go workspaces are co-located (for tooling, docs, and cross-workspace tests) but managed by their own tools:
+   - **TypeScript/JavaScript** — `package.json` with `name`, `version`, and `build` / `lint` / `test` / `typecheck` scripts. pnpm discovers via the workspace glob; Turbo orchestrates via the root task graph.
+   - **Python** — `pyproject.toml` managed by `uv` (locks `uv.lock`). Add a `Dockerfile` per `services/` convention. pnpm will **not** pick it up; add a sibling `package.json` only if you want the workspace in the turbo graph as a thin wrapper around `uv run …`.
+   - **Rust** — `Cargo.toml` (Tauri workspaces live at `apps/edge-agent/src-tauri/`). Managed by `cargo`; Turbo integration is via a `package.json` wrapper calling `cargo build`.
+   - **Go** — `go.mod` rooted at a stable module path. Managed by `go`; same wrapper pattern for Turbo integration.
 4. **Extend shared configs** where applicable:
-   - TypeScript: `extends` from `../../tsconfig.base.json`, override `noEmit`/`outDir`.
-   - ESLint: if the workspace has TS/JSX, attach the appropriate ESLint plugins in its own `eslint.config.mjs` (Story 1.3 establishes the per-workspace pattern).
-5. **Run `pnpm install` from the repo root.** pnpm discovers the workspace via its glob and hydrates node_modules.
+   - **TypeScript** — `extends` from `../../tsconfig.base.json`. **Critical overrides you almost always need:**
+     - For **library workspaces that emit `.d.ts`** (most `packages/*`): set `"noEmit": false` and `"outDir": "./dist"`. The base sets `noEmit: true`, which silently suppresses `declaration: true` + `sourceMap: true` emission — so forgetting this override means the library produces no artifacts with no error.
+     - For **browser/bundler workspaces** (`apps/web` Next.js, `apps/edge-agent` Tauri frontend): override `"module": "bundler"` and `"moduleResolution": "bundler"`. The base's `"nodenext"` setting requires `.js` extensions on relative imports and targets Node runtime semantics — it will not work for Next.js or any Vite/Rollup/esbuild-bundled target.
+   - **ESLint** — if the workspace has TS/JSX, attach the appropriate ESLint plugins in its own `eslint.config.mjs`. The root config only wires plain JS + Node globals; browser workspaces must add `globals.browser` in their own config (Story 1.3 establishes the per-workspace pattern).
+5. **Run `pnpm install` from the repo root.** If the new workspace has a `package.json`, pnpm discovers it via the workspace glob and hydrates `node_modules`. If it's Python/Rust/Go-only, `pnpm install` is a no-op for that workspace — run `uv sync` / `cargo fetch` / `go mod download` in the workspace directory instead.
 6. **Verify the task graph picks it up:** `pnpm turbo run build --filter=<workspace-name>` and `pnpm turbo run lint --filter=<workspace-name>`.
 
 ## Filename conventions
