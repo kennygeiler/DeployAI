@@ -18,7 +18,7 @@ The root `pnpm-workspace.yaml` declares five workspace roots. Every future top-l
 | `infra/*` | Terraform + Terragrunt IaC (`infra/terraform/`), docker-compose reference dev env (`infra/compose/`), deferred Helm chart (`infra/helm/`) | Authored directly |
 | `tests/*` | Cross-workspace test harnesses: `11th-call/`, `continuity-of-reference/`, `phase-retrieval-matrix/`, `tenant-isolation-fuzz/`, `e2e-user-journeys/` | Authored directly |
 
-> **Status (post-Story-1.3):** `apps/web`, `apps/edge-agent`, `apps/foia-cli`, and `services/control-plane` are now initialized and green across `pnpm turbo run lint typecheck test build`. `packages/*`, remaining `services/*`, `infra/*`, and `tests/*` remain empty. Story 1.4 creates `packages/design-tokens/`; Story 1.7 lands `infra/compose/`; Story 1.10 lands `tests/tenant-isolation-fuzz/`; and so on.
+> **Status (post-Story-1.4):** `apps/web`, `apps/edge-agent`, `apps/foia-cli`, `services/control-plane`, and `packages/design-tokens` are now initialized and green across `pnpm turbo run lint typecheck test build` (20 tasks). Remaining `services/*`, `packages/*`, `infra/*`, and `tests/*` remain empty. Story 1.5 initializes shadcn/ui on top of `@deployai/design-tokens`; Story 1.7 lands `infra/compose/`; Story 1.10 lands `tests/tenant-isolation-fuzz/`; and so on.
 
 ## Root-level configuration
 
@@ -103,16 +103,31 @@ Additional root-level artifacts landed:
 
 Everything the CI smoke gate already enforces (`install → turbo build/lint/typecheck/test → prettier --check`) continues to pass on the 5-job CI pipeline introduced in Story 1.2.
 
-## What this repo does NOT yet contain (by design, as of Story 1.3)
+## What Story 1.4 shipped
+
+| Workspace | Stack | Entry point | Wrapper scripts |
+|---|---|---|---|
+| `packages/design-tokens` | Pure-TS token source + `wcag-contrast` AA tests, emits `dist/tokens.css` (raw vars) + `dist/tailwind.css` (Tailwind v4 `@theme` preset) | `src/index.ts` re-exports `colors`, `spacing`, `typography`, `shadows`, `radii`, `elevation`, `motion`. UX-DR1 + UX-DR2. | `build` (tsc + tsx CSS emitter), `lint`, `typecheck`, `test`, `clean` |
+
+Additional changes:
+
+- `apps/web` consumes `@deployai/design-tokens` via `workspace:*`; `src/app/globals.css` `@import`s both the Tailwind preset and the raw CSS bundle; `src/app/layout.tsx` loads Inter + IBM Plex Mono through `next/font/google` and exposes them as the `--font-inter` / `--font-mono` CSS variables the tokens consume. No hardcoded colors / spacing / fonts remain anywhere in `apps/web/src/`.
+- **Storybook 10** (`@storybook/nextjs-vite` — first major to support Next.js 16) initialized in `apps/web` with `@storybook/addon-a11y` + `@storybook/addon-docs`. Scripts: `pnpm storybook` (dev on `:6006`), `pnpm build-storybook` (static build to `storybook-static/`, already declared as a `build` output in `turbo.json`).
+- `apps/web/src/stories/Foundations/Tokens.stories.tsx` renders the palette, type ramp, spacing ladder, and radii + shadows library — the surface for design review and drift detection.
+- `docs/design-tokens.md` documents the palette rationale (no primary green), the 4 px spacing ladder, the Inter + IBM Plex Mono type ramp, the WCAG AA contrast methodology, the shadcn bridge plan for Story 1.5, and the "add a new token" checklist.
+- `@deployai/design-tokens` is the canonical **library workspace** shape — future `packages/*` clone its `tsconfig.build.json` pattern (`noEmit: false`, `declaration: true`, `outDir: ./dist`).
+
+## What this repo does NOT yet contain (by design, as of Story 1.4)
 
 - No additional `services/*` beyond `control-plane` — authored per story as features land (`canonical-memory` in 1.8, `api-gateway` in 1.9, `ingest`/`oracle`/`master-strategist` in later epics).
-- No `packages/*` shared libraries — Story 1.4 creates `packages/design-tokens/`, Story 1.11 creates `packages/citation-envelope/`, etc.
+- No additional `packages/*` shared libraries — Story 1.5 adds `packages/shared-ui` (shadcn primitives), Story 1.11 creates `packages/citation-envelope/`, etc.
 - No `infra/compose/` dev environment — Story 1.7.
 - No `tests/*` cross-workspace harnesses — first one lands in Story 1.10.
 - No shadcn/ui init — Story 1.5.
-- No accessibility gate stack — Story 1.6.
+- No accessibility CI-blocking gate stack (eslint-plugin-jsx-a11y at `error`, axe-playwright, pa11y, `.github/workflows/a11y.yml`) — Story 1.6. Story 1.4 ships only the local Storybook a11y addon.
+- No dark-mode token set — deferred; the variable layer already supports it.
 - No Alembic migrations or canonical-memory schema (Alembic async template only) — Story 1.8.
 - No real CLI commands in `apps/foia-cli` — Story 1.12+.
 - No real Tauri capture / signing / kill-switch logic — later Epic 1 + Epic 6 stories.
 
-Each future story adds exactly its deliverable; Stories 1.1–1.3 establish only the foundation on which they build.
+Each future story adds exactly its deliverable; Stories 1.1–1.4 establish only the foundation on which they build.

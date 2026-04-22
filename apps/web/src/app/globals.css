@@ -1,7 +1,37 @@
 @import "tailwindcss";
+@import "@deployai/design-tokens/tailwind";
+@import "@deployai/design-tokens/tokens.css";
+
+/*
+ * DeployAI global stylesheet. All concrete values live in
+ * @deployai/design-tokens — do not hardcode colors, spacing, radii, or
+ * shadows here. Add a new token to the package instead.
+ */
 
 html,
 body {
+  font-family: var(--font-family-sans);
+  color: var(--color-ink-950);
+  background: var(--color-paper-100);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-family-mono);
+}
+
+/* Respect user motion preferences — UX-DR34 floor. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: var(--duration-reducedMotion) !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: var(--duration-reducedMotion) !important;
+    scroll-behavior: auto !important;
+  }
 }
