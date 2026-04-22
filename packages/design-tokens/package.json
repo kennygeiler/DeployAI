@@ -1,0 +1,38 @@
+{
+  "name": "@deployai/design-tokens",
+  "version": "0.0.0",
+  "private": true,
+  "description": "DeployAI design tokens — colors, spacing, typography, shadows, radii, elevation (UX-DR1, UX-DR2).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./tokens.css": "./dist/tokens.css",
+    "./tailwind": "./dist/tailwind.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && tsx scripts/build-css.ts",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "@types/wcag-contrast": "^3.0.3",
+    "eslint": "^9.39.4",
+    "tsx": "^4.20.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.0",
+    "vitest": "^2.1.9",
+    "wcag-contrast": "^3.0.0"
+  }
+}

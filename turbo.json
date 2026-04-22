@@ -7,14 +7,12 @@
     "build": {
       "dependsOn": ["^build"],
       "env": ["NODE_ENV"],
-      "outputs": [
-        "dist/**",
-        ".next/**",
-        "!.next/cache/**",
-        "build/**",
-        "storybook-static/**",
-        "target/release/**"
-      ]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "build/**", "target/release/**"]
+    },
+    "build-storybook": {
+      "dependsOn": ["^build", "build"],
+      "env": ["NODE_ENV"],
+      "outputs": ["storybook-static/**"]
     },
     "lint": {
       "dependsOn": ["^lint"],
