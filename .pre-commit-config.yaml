@@ -1,0 +1,51 @@
+# DeployAI pre-commit hooks (Story 1.3)
+# Install: pre-commit install   (see docs/dev-environment.md)
+#
+# These hooks run on STAGED files only. They enforce formatting and lightweight
+# lint before every commit; full CI coverage remains in .github/workflows/ci.yml.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        exclude: ^\.github/workflows/ # GitHub Actions files use template-style YAML anchors that tripped check-yaml in the past.
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        types_or: [javascript, jsx, ts, tsx, json, yaml, markdown]
+        exclude: ^(pnpm-lock\.yaml|services/control-plane/uv\.lock)$
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.11
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+        files: ^services/control-plane/(src|tests|alembic)/.*\.py$
+      - id: ruff-format
+        files: ^services/control-plane/(src|tests|alembic)/.*\.py$
+
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-fmt
+        files: ^apps/foia-cli/.*\.go$
+      - id: go-vet
+        files: ^apps/foia-cli/.*\.go$
+
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt (edge-agent)
+        language: system
+        entry: bash -c 'cd apps/edge-agent/src-tauri && cargo fmt --check'
+        files: ^apps/edge-agent/src-tauri/.*\.rs$
+        pass_filenames: false

@@ -10,3 +10,12 @@ pnpm-lock.yaml
 _bmad/
 _bmad-output/
 .cursor/
+
+# Story 1.3: per-workspace generated / vendored artifacts
+apps/edge-agent/src-tauri/gen/
+apps/edge-agent/src-tauri/target/
+apps/foia-cli/bin/
+services/control-plane/.venv/
+services/control-plane/alembic/README
+services/control-plane/alembic/versions/
+services/control-plane/uv.lock

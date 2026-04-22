@@ -18,7 +18,7 @@ The root `pnpm-workspace.yaml` declares five workspace roots. Every future top-l
 | `infra/*` | Terraform + Terragrunt IaC (`infra/terraform/`), docker-compose reference dev env (`infra/compose/`), deferred Helm chart (`infra/helm/`) | Authored directly |
 | `tests/*` | Cross-workspace test harnesses: `11th-call/`, `continuity-of-reference/`, `phase-retrieval-matrix/`, `tenant-isolation-fuzz/`, `e2e-user-journeys/` | Authored directly |
 
-> **Status (post-Story-1.1):** Every workspace root exists as an empty directory (with `.gitkeep`). No workspaces have been initialized. Story 1.3 initializes `apps/*` and the first `services/*` project; Story 1.4 creates `packages/design-tokens/`; Story 1.7 lands `infra/compose/`; Story 1.10 lands `tests/tenant-isolation-fuzz/`; and so on.
+> **Status (post-Story-1.3):** `apps/web`, `apps/edge-agent`, `apps/foia-cli`, and `services/control-plane` are now initialized and green across `pnpm turbo run lint typecheck test build`. `packages/*`, remaining `services/*`, `infra/*`, and `tests/*` remain empty. Story 1.4 creates `packages/design-tokens/`; Story 1.7 lands `infra/compose/`; Story 1.10 lands `tests/tenant-isolation-fuzz/`; and so on.
 
 ## Root-level configuration
 
@@ -86,15 +86,33 @@ Source: architecture.md §Code Naming.
 - **pnpm version**: driven by Corepack. Enable once: `corepack enable`. Subsequent `pnpm` commands resolve from `packageManager` in `package.json`, so every contributor runs the exact same pnpm version.
 - **Do not** install pnpm globally via Homebrew/npm if you can avoid it — Corepack will shadow any global pnpm on PATH in most shells, but version drift can still cause surprises during debugging.
 
-## What this repo does NOT yet contain (by design, as of Story 1.1)
+## What Story 1.3 shipped
 
-- No framework projects (`apps/web`, `apps/edge-agent`, `apps/foia-cli`, any `services/*`) — deferred to Story 1.3.
-- No CI workflows (`.github/workflows/`) — deferred to Story 1.2 (baseline CI + SLSA L2 + Cosign + Syft SBOM + Grype).
-- No design system (`packages/design-tokens/`) — deferred to Story 1.4.
-- No shadcn/ui init — deferred to Story 1.5.
-- No accessibility gate stack — deferred to Story 1.6.
-- No docker-compose dev env — deferred to Story 1.7.
-- No Alembic migrations or canonical-memory schema — deferred to Story 1.8.
-- No pre-commit hooks — deferred to Story 1.3 (land alongside first TypeScript code).
+| Workspace | Stack | Entry point | Wrapper scripts |
+|---|---|---|---|
+| `apps/web` | Next.js 16.2 + React 19.2 + Tailwind v4 + Turbopack + Vitest | `src/app/page.tsx` ("DeployAI — initializing") | `dev`, `build`, `start`, `lint`, `typecheck`, `test`, `docker:build` |
+| `apps/edge-agent` | Tauri 2.10 + Rust 1.95 + React 19 frontend + capability-locked (`core:default` only) | `src-tauri/src/lib.rs` (empty modules for `transcription`, `signing`, `kill_switch`, `updater`) | `dev`, `build`, `tauri`, `cargo:check`, `lint`, `typecheck`, `test`, `docker:build` |
+| `apps/foia-cli` | Go 1.26 + static `CGO_ENABLED=0` binary, stripped (`-s -w`) | `cmd/foia/main.go` prints version + `verify.Description()` | `build`, `lint` (gofmt + go vet), `test`, `typecheck`, `docker:build` |
+| `services/control-plane` | FastAPI 0.136 + Pydantic v2 + SQLAlchemy 2.x async + Alembic (empty async template) + uv 0.11 | `src/control_plane/main.py` with `GET /healthz` → `{"status": "ok"}` | `dev`, `build` (uv sync), `lint` (ruff + ruff format), `typecheck` (mypy strict), `test` (pytest-asyncio), `docker:build` |
 
-Each future story adds exactly its deliverable; Story 1.1 establishes only the foundation on which they build.
+Additional root-level artifacts landed:
+- `rust-toolchain.toml` (Rust 1.95.0 + rustfmt + clippy), `.python-version` (3.13), `go.work` (single-module workspace).
+- `.pre-commit-config.yaml` — prettier, ruff, gofmt, go vet, cargo fmt on staged files.
+- `docs/dev-environment.md` — 5-minute bootstrap for the full polyglot stack.
+- `turbo.json` gains a `docker:build` task type.
+
+Everything the CI smoke gate already enforces (`install → turbo build/lint/typecheck/test → prettier --check`) continues to pass on the 5-job CI pipeline introduced in Story 1.2.
+
+## What this repo does NOT yet contain (by design, as of Story 1.3)
+
+- No additional `services/*` beyond `control-plane` — authored per story as features land (`canonical-memory` in 1.8, `api-gateway` in 1.9, `ingest`/`oracle`/`master-strategist` in later epics).
+- No `packages/*` shared libraries — Story 1.4 creates `packages/design-tokens/`, Story 1.11 creates `packages/citation-envelope/`, etc.
+- No `infra/compose/` dev environment — Story 1.7.
+- No `tests/*` cross-workspace harnesses — first one lands in Story 1.10.
+- No shadcn/ui init — Story 1.5.
+- No accessibility gate stack — Story 1.6.
+- No Alembic migrations or canonical-memory schema (Alembic async template only) — Story 1.8.
+- No real CLI commands in `apps/foia-cli` — Story 1.12+.
+- No real Tauri capture / signing / kill-switch logic — later Epic 1 + Epic 6 stories.
+
+Each future story adds exactly its deliverable; Stories 1.1–1.3 establish only the foundation on which they build.

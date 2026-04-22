@@ -34,6 +34,11 @@
     },
     "clean": {
       "cache": false
+    },
+    "docker:build": {
+      "cache": false,
+      "dependsOn": ["^build"],
+      "env": ["DOCKER_*", "GITHUB_*"]
     }
   }
 }

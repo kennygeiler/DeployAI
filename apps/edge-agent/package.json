@@ -1,0 +1,40 @@
+{
+  "name": "@deployai/edge-agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run --passWithNoTests",
+    "cargo:check": "cd src-tauri && cargo check",
+    "docker:build": "docker build -f apps/edge-agent/Dockerfile -t deployai/edge-agent:dev ../..",
+    "clean": "rm -rf dist node_modules src-tauri/target"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "@tauri-apps/api": "^2.10.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.10.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "globals": "^17.5.0",
+    "jsdom": "^26.0.0",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.4",
+    "vitest": "^2.1.9"
+  }
+}

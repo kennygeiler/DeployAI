@@ -1,0 +1,13 @@
+{
+  "name": "@deployai/foia-cli",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "CGO_ENABLED=0 go build -trimpath -ldflags '-s -w' -o bin/foia ./cmd/foia",
+    "lint": "bash -c 'out=$(gofmt -l . 2>&1); if [ -n \"$out\" ]; then echo \"gofmt differences:\"; echo \"$out\"; exit 1; fi' && go vet ./...",
+    "test": "go test ./...",
+    "typecheck": "go build -o /dev/null ./...",
+    "docker:build": "docker build -f apps/foia-cli/Dockerfile -t deployai/foia-cli:dev ../..",
+    "clean": "rm -rf bin"
+  }
+}
