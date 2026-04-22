@@ -59,9 +59,13 @@ jobs:
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version-file: ".nvmrc"
-          # NOTE: no `cache: pnpm` here — this job doesn't run `pnpm install`,
-          # and the post-action cache step would fail trying to hash a
-          # nonexistent pnpm store. Caching lives in the `smoke` job.
+          # setup-node v5 defaults package-manager-cache to `true`, which
+          # auto-detects pnpm from the preceding pnpm/action-setup step and
+          # tries to cache the store in a post-action hook. This job doesn't
+          # run `pnpm install`, so the post-action cache step fails with
+          # "Path Validation Error". Explicitly disable it; caching belongs
+          # in the `smoke` job where it's actually populated.
+          package-manager-cache: false
 
       - name: Assert Node major == 24
         run: |
