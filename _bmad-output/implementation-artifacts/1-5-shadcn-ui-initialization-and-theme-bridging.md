@@ -1,6 +1,6 @@
 # Story 1.5: shadcn/ui initialization and theme bridging
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -555,6 +555,19 @@ export function cn(...inputs: ClassValue[]) {
 - [x] Commit on `cursor/story-1-5-ready-for-dev` (already the active branch), push, open PR #5.
 - [x] Poll CI; iterate until all 5 jobs green (dependency-review still gated on GHAS).
 - [x] Flip story + sprint-status to `review`; fill Dev Agent Record (debug log, completion notes, file list, change log).
+
+### Review Findings
+
+Adversarial review on 2026-04-22 (Blind Hunter + Edge Case Hunter + Acceptance Auditor, all gpt-5.4-medium). Classification: 5 patch, 1 decision-needed, 2 dismissed. All patches applied in commit on `feat/story-1-5-shadcn-ui`; verification (lint + typecheck + 9/9 tests + build + build-storybook + format:check) all green.
+
+- [x] [Review][Decision→Defer] `exactOptionalPropertyTypes: false` scope — apps/web-wide vs narrower — the relaxation covers all user-authored app code, not just vendored `src/components/ui/**`. Story Open Questions (line 899) already flagged this for review. **Decision (deferred):** keep apps-wide (current) for Story 1.5; narrow-scope refactor to a `src/components/ui/**` reference-project tsconfig is logged as follow-up work — it would not have caught any bug in the Story 1.5 surface because `ExampleForm` and the stories already pass the strict type check, and the deferred refactor is cosmetic (restores the strict flag for app code). See `deferred-work.md`.
+- [x] [Review][Patch] ExampleForm email schema: empty input shows "Enter a valid email" instead of "Email is required" — added `.min(1, "Email is required")` before `.email()` [apps/web/src/components/forms/ExampleForm.tsx:35-38]
+- [x] [Review][Patch] ExampleForm message schema: whitespace-only (`"   "`) passes `.min(1)` — added `.trim()` before `.min(1)` [apps/web/src/components/forms/ExampleForm.tsx:39-43]
+- [x] [Review][Patch] globals.css dark-mode hint: rewrote the comment to recommend `:root.dark`/`[data-theme="dark"]` and call out that `.dark :root` is a descendant selector that never matches [apps/web/src/app/globals.css:28-33]
+- [x] [Review][Patch] ButtonVariants stories rewritten to render the full variant × size × state matrix (6 variants × 4 sizes × enabled/disabled = 48 cells) via a shared `MatrixSection` table — `EnabledMatrix`, `DisabledMatrix`, plus the dedicated `IconOnlyHasAriaLabel` story [apps/web/src/stories/Foundations/ButtonVariants.stories.tsx]
+- [x] [Review][Patch] ExampleForm tests expanded to AC7 completeness: added `toHaveAccessibleDescription` assertion on the message field (required-submit test), added a dedicated `htmlFor`-based label test that rejects `aria-label` shortcuts and verifies visible `<label>` appears before each input in document order, added two new schema-surface tests (whitespace-only message rejection, blank-email "Email is required" message) [apps/web/src/components/forms/ExampleForm.test.tsx]
+
+Dismissed as noise (not written above): (1) Blind Hunter flagged `radix-ui` umbrella package as missing `@radix-ui/react-*` deps — `rg '@radix-ui/react-' apps/web/src/components/ui/` returns 0 matches; the unified package fully satisfies the shadcn primitives. (2) Acceptance Auditor flagged `@theme inline` block as contradicting the non-inline guidance at spec line 673 — this deviation is already documented in Completion Notes line 866 + Debug Log line 851 as a deliberate extension of AC3 required for Tailwind v4 utility resolution.
 
 ---
 

@@ -5,16 +5,102 @@ import { Button } from "@/components/ui/button";
 
 /**
  * Foundations / ButtonVariants — renders the shadcn `<Button>` across every
- * variant × size × state combination required by `UX-DR39`. Under
- * `@storybook/addon-a11y` (runOnly = wcag2a + wcag2aa + wcag21aa + wcag22aa
- * per preview.ts) each story must produce zero axe-core violations, which
- * is why the icon-only cases ship an explicit `aria-label` and the inner
- * `<Mail />` is `aria-hidden`.
+ * variant × size × state combination required by `UX-DR39` and AC4 (lines
+ * 97–103 of the Story 1.5 spec: "every variant × size combination" plus
+ * "enabled and disabled for each variant"). Under `@storybook/addon-a11y`
+ * (runOnly = wcag2a + wcag2aa + wcag21aa + wcag22aa per preview.ts) each
+ * story must produce zero axe-core violations, which is why the icon-only
+ * cases ship an explicit `aria-label` and the inner `<Mail />` is
+ * `aria-hidden`.
  *
  * The surface exercised here is the one downstream stories (Epic 7
  * composites, Epic 8 surfaces) compose against — keep parity with the
  * shadcn primitive API.
  */
+
+type Variant = "default" | "secondary" | "ghost" | "destructive" | "link" | "outline";
+type Size = "sm" | "default" | "lg" | "icon";
+
+const VARIANTS: readonly Variant[] = [
+  "default",
+  "secondary",
+  "ghost",
+  "destructive",
+  "link",
+  "outline",
+] as const;
+
+const SIZES: readonly Size[] = ["sm", "default", "lg", "icon"] as const;
+
+function renderCell(variant: Variant, size: Size, disabled: boolean) {
+  const key = `${variant}-${size}-${disabled ? "disabled" : "enabled"}`;
+  const commonProps = {
+    variant,
+    size,
+    disabled,
+  } as const;
+  if (size === "icon") {
+    return (
+      <Button
+        key={key}
+        {...commonProps}
+        aria-label={`${variant} ${disabled ? "disabled" : "enabled"} icon button`}
+      >
+        <Mail aria-hidden />
+      </Button>
+    );
+  }
+  return (
+    <Button key={key} {...commonProps}>
+      {variant}
+    </Button>
+  );
+}
+
+function MatrixSection({
+  headingId,
+  heading,
+  disabled,
+}: {
+  headingId: string;
+  heading: string;
+  disabled: boolean;
+}) {
+  return (
+    <section aria-labelledby={headingId} className="space-y-2">
+      <h2 id={headingId} className="sr-only">
+        {heading}
+      </h2>
+      <table className="w-full border-separate border-spacing-2 text-left">
+        <thead>
+          <tr>
+            <th scope="col" className="sr-only">
+              Variant
+            </th>
+            {SIZES.map((size) => (
+              <th key={size} scope="col" className="text-muted-foreground text-sm">
+                {size}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {VARIANTS.map((variant) => (
+            <tr key={variant}>
+              <th scope="row" className="text-muted-foreground pr-2 text-sm">
+                {variant}
+              </th>
+              {SIZES.map((size) => (
+                <td key={size}>{renderCell(variant, size, disabled)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
 const meta = {
   title: "Foundations/ButtonVariants",
   component: Button,
@@ -23,7 +109,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "Canonical render of every shadcn <Button> variant, size, and disabled state. Mirrors UX-DR39 (primary/secondary/ghost/destructive hierarchy, 36 px min height, 44×44 hit area, icon-only aria-label).",
+          "Canonical render of every shadcn <Button> variant × size × state combination (6 variants × 4 sizes × enabled/disabled = 48 cells). Mirrors UX-DR39 (primary/secondary/ghost/destructive hierarchy, 36 px min height, 44×44 hit area, icon-only aria-label).",
       },
     },
   },
@@ -33,67 +119,25 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const AllVariants: Story = {
+export const EnabledMatrix: Story = {
+  name: "Enabled — variant × size",
   render: () => (
-    <section aria-labelledby="button-variants-heading" className="space-y-4">
-      <h2 id="button-variants-heading" className="sr-only">
-        All Button variants
-      </h2>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button>Default</Button>
-        <Button variant="secondary">Secondary</Button>
-        <Button variant="ghost">Ghost</Button>
-        <Button variant="destructive">Destructive</Button>
-        <Button variant="link">Link</Button>
-        <Button variant="outline">Outline</Button>
-      </div>
-    </section>
+    <MatrixSection
+      headingId="button-enabled-matrix-heading"
+      heading="Enabled Button variants by size"
+      disabled={false}
+    />
   ),
 };
 
-export const AllSizes: Story = {
+export const DisabledMatrix: Story = {
+  name: "Disabled — variant × size",
   render: () => (
-    <section aria-labelledby="button-sizes-heading" className="space-y-4">
-      <h2 id="button-sizes-heading" className="sr-only">
-        All Button sizes
-      </h2>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm">Small</Button>
-        <Button size="default">Default</Button>
-        <Button size="lg">Large</Button>
-        <Button size="icon" aria-label="Send mail">
-          <Mail aria-hidden />
-        </Button>
-      </div>
-    </section>
-  ),
-};
-
-export const DisabledStates: Story = {
-  render: () => (
-    <section aria-labelledby="button-disabled-heading" className="space-y-4">
-      <h2 id="button-disabled-heading" className="sr-only">
-        Disabled Button states
-      </h2>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button disabled>Default</Button>
-        <Button variant="secondary" disabled>
-          Secondary
-        </Button>
-        <Button variant="ghost" disabled>
-          Ghost
-        </Button>
-        <Button variant="destructive" disabled>
-          Destructive
-        </Button>
-        <Button variant="link" disabled>
-          Link
-        </Button>
-        <Button variant="outline" disabled>
-          Outline
-        </Button>
-      </div>
-    </section>
+    <MatrixSection
+      headingId="button-disabled-matrix-heading"
+      heading="Disabled Button variants by size"
+      disabled={true}
+    />
   ),
 };
 

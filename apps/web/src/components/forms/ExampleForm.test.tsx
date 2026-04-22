@@ -39,6 +39,29 @@ describe("ExampleForm", () => {
     expect(await screen.findByText(/message is required/i)).toBeInTheDocument();
     const messageInput = screen.getByRole("textbox", { name: /message/i });
     expect(messageInput).toHaveAttribute("aria-invalid", "true");
+    expect(messageInput).toHaveAccessibleDescription(/message is required/i);
+  });
+
+  it("rejects whitespace-only message content via schema.trim()", async () => {
+    const { user, onSubmit, emailInput, messageInput, submit } = setup();
+
+    await user.type(emailInput, "citizen@example.gov");
+    await user.type(messageInput, "     ");
+    await user.click(submit);
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(await screen.findByText(/message is required/i)).toBeInTheDocument();
+  });
+
+  it("reports 'Email is required' (not the format message) when email is blank", async () => {
+    const { user, onSubmit, messageInput, submit } = setup();
+
+    await user.type(messageInput, "Context for the review.");
+    await user.click(submit);
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(await screen.findByText(/email is required/i)).toBeInTheDocument();
+    expect(screen.queryByText(/enter a valid email/i)).not.toBeInTheDocument();
   });
 
   it("reports format errors on blur without submitting", async () => {
@@ -85,16 +108,24 @@ describe("ExampleForm", () => {
     expect(emailInput).toHaveAttribute("aria-invalid", "false");
   });
 
-  it("renders a visible label above every input (no placeholder-as-label)", () => {
-    setup();
+  it("renders a visible <label> above every input (no placeholder-as-label, no aria-label shortcut)", () => {
+    const { emailInput, messageInput } = setup();
 
-    const emailInput = screen.getByLabelText(/email/i);
-    const messageInput = screen.getByLabelText(/message/i);
+    for (const input of [emailInput, messageInput]) {
+      expect(input).not.toHaveAttribute("placeholder");
+      expect(input).not.toHaveAttribute("aria-label");
+      expect(input).not.toHaveAttribute("aria-labelledby");
 
-    expect(emailInput).toBeInTheDocument();
-    expect(messageInput).toBeInTheDocument();
-    expect(emailInput).not.toHaveAttribute("placeholder");
-    expect(messageInput).not.toHaveAttribute("placeholder");
+      const inputId = input.getAttribute("id");
+      expect(inputId).toBeTruthy();
+
+      const label = document.querySelector<HTMLLabelElement>(`label[for="${inputId}"]`);
+      expect(label).not.toBeNull();
+      expect(label!.tagName.toLowerCase()).toBe("label");
+      expect(label!.textContent).toMatch(/\*/);
+      expect(label!.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+
     expect(screen.getAllByText(/required/i).length).toBeGreaterThanOrEqual(2);
   });
 });

@@ -32,9 +32,10 @@ import { Textarea } from "@/components/ui/textarea";
  *    never conflicts with Cmd+K or other global hotkeys (Epic 8).
  */
 export const exampleFormSchema = z.object({
-  email: z.string().email("Enter a valid email"),
+  email: z.string().min(1, "Email is required").email("Enter a valid email"),
   message: z
     .string()
+    .trim()
     .min(1, "Message is required")
     .max(500, "Message must be 500 characters or fewer"),
 });

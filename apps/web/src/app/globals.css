@@ -27,8 +27,10 @@
  *
  * Dark mode is deferred — V1 ships light-only per
  * ux-design-specification.md §Visual Foundation (line 468). When dark mode
- * lands, add a `.dark :root { ... }` block mirroring the structure below;
- * no shadcn primitive code needs to change.
+ * lands, add a `:root.dark { ... }` (or `[data-theme="dark"] { ... }`)
+ * block mirroring the structure below; no shadcn primitive code needs to
+ * change. Do NOT write `.dark :root { ... }` — that is a descendant
+ * selector and `:root` is the document element, so the rule never matches.
  */
 @layer base {
   :root {
