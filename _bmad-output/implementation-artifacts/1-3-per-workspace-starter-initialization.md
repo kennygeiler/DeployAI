@@ -1,6 +1,6 @@
 # Story 1.3: Per-workspace starter initialization (Next.js 16, Tauri 2, Go 1.26, FastAPI + uv)
 
-Status: review
+Status: done
 
 ---
 
