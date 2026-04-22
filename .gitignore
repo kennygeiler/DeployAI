@@ -1,0 +1,192 @@
+# ───────────────────────── OS ─────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ─────────────────────── Editors / IDEs ───────────────────────
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# Cursor user-local state (keep shared rules/skills tracked; ignore per-user runtime)
+.cursor/cache/
+.cursor/logs/
+.cursor/tmp/
+
+# ─────────────────────── Node / pnpm / Turborepo ───────────────────────
+node_modules/
+.pnpm-store/
+.pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.npm/
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.yarn-integrity
+.pnp.*
+
+# Build output
+dist/
+build/
+out/
+.next/
+.nuxt/
+.turbo/
+.cache/
+.parcel-cache/
+.svelte-kit/
+.vercel/
+.netlify/
+storybook-static/
+
+# TypeScript
+*.tsbuildinfo
+.tscache/
+
+# ─────────────────────── Python (FastAPI services) ───────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+.installed.cfg
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.manifest
+*.spec
+.venv/
+venv/
+env/
+ENV/
+.env.python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.pyre/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+coverage.xml
+*.cover
+*.log
+uv.lock.bak
+
+# ─────────────────────── Go (FOIA CLI) ───────────────────────
+*.exe
+*.exe~
+*.dll
+*.test
+*.out
+bin/
+vendor/
+go.work.sum
+
+# ─────────────────────── Rust / Tauri (Edge Agent) ───────────────────────
+target/
+**/*.rs.bk
+Cargo.lock.bak
+.cargo/
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# ─────────────────────── Terraform / Terragrunt (IaC) ───────────────────────
+.terraform/
+.terragrunt-cache/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfplan.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# ─────────────────────── Docker ───────────────────────
+# Keep Dockerfile(s) and compose files; ignore local volume data
+.docker-data/
+docker-compose.override.yml
+
+# ─────────────────────── Secrets / Env ───────────────────────
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.jks
+secrets/
+credentials.json
+service-account*.json
+*.private.*
+
+# AWS / Cloud local state
+.aws/
+.chalice/deployments/
+.serverless/
+
+# ─────────────────────── Logs / Temp / Coverage ───────────────────────
+logs/
+*.log
+tmp/
+temp/
+coverage/
+.nyc_output/
+*.lcov
+reports/
+
+# ─────────────────────── BMAD / local agent state ───────────────────────
+# Track planning + implementation artifacts; ignore agent scratch
+_bmad-output/tmp/
+_bmad-output/cache/
+.bmad-cache/
+
+# ─────────────────────── Misc ───────────────────────
+*.tsbuildinfo
+.history/
+.vs/
+.eslintcache
+.stylelintcache

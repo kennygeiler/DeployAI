@@ -1,0 +1,250 @@
+# generated: 2026-04-21
+# last_updated: 2026-04-21
+# project: DeployAI
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-04-21
+last_updated: 2026-04-21
+project: DeployAI
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  # ======================================================================
+  # Epic 1: Foundations, Canonical Memory & Citation Envelope (w1–6)
+  # ======================================================================
+  epic-1: backlog
+  1-1-init-pnpm-turborepo-monorepo-scaffold: backlog
+  1-2-baseline-ci-cd-with-supply-chain-signing: backlog
+  1-3-per-workspace-starter-initialization: backlog
+  1-4-design-tokens-package: backlog
+  1-5-shadcn-ui-initialization-and-theme-bridging: backlog
+  1-6-accessibility-ci-gate-stack: backlog
+  1-7-docker-compose-reference-dev-environment: backlog
+  1-8-canonical-memory-schema: backlog
+  1-9-three-layer-tenant-isolation: backlog
+  1-10-cross-tenant-isolation-fuzz-ci-gate: backlog
+  1-11-citation-envelope-contract-v0-1: backlog
+  1-12-continuity-of-reference-contract-tests: backlog
+  1-13-rfc-3161-signed-timestamps: backlog
+  1-14-llm-provider-abstraction-interface: backlog
+  1-15-tauri-signed-hello-world-spike: backlog
+  1-16-minimal-admin-shell: backlog
+  1-17-cartographer-schema-evolution-staging: backlog
+  epic-1-retrospective: optional
+
+  # ======================================================================
+  # Epic 2: Identity, Tenancy & SSO (w4–6)
+  # ======================================================================
+  epic-2: backlog
+  2-1-role-matrix-and-authz-resolver-interface: backlog
+  2-2-microsoft-entra-id-saml-oidc-sso: backlog
+  2-3-scim-2-0-provisioning-endpoint: backlog
+  2-4-tenant-scoped-session-store: backlog
+  2-5-account-provisioning-flow: backlog
+  2-6-integration-kill-switch-plumbing: backlog
+  2-7-break-glass-plumbing: backlog
+  epic-2-retrospective: optional
+
+  # ======================================================================
+  # Epic 3: Ingestion Pipelines (w7–9)
+  # ======================================================================
+  epic-3: backlog
+  3-1-m365-calendar-oauth-ingestion: backlog
+  3-2-exchange-m365-email-oauth-ingestion: backlog
+  3-3-microsoft-teams-transcript-import: backlog
+  3-4-voice-meeting-file-upload: backlog
+  3-5-thread-level-extraction-unit-enforcement: backlog
+  3-6-transient-failure-tolerance-idempotent-writes: backlog
+  3-7-throttling-aware-backpressure: backlog
+  3-8-ingestion-run-telemetry-admin-runs-wire-up: backlog
+  epic-3-retrospective: optional
+
+  # ======================================================================
+  # Epic 4: Agent Runtime Contracts & Replay-Parity Harness (w8–11)
+  # ======================================================================
+  epic-4: backlog
+  4-1-langgraph-postgres-checkpointing-stub-agent: backlog
+  4-2-citation-aware-llamaindex-adapter: backlog
+  4-3-golden-fixture-authoring-tool-and-schema: backlog
+  4-4-golden-query-corpus-authoring: backlog
+  4-5-rule-based-evaluator: backlog
+  4-6-llm-judge-evaluator: backlog
+  4-7-human-adjudication-surface: backlog
+  4-8-eleventh-call-ci-gate-quarterly-report-generator: backlog
+  epic-4-retrospective: optional
+
+  # ======================================================================
+  # Epic 5: Agent Runtime Foundation (w10–12)
+  # ======================================================================
+  epic-5: backlog
+  5-1-anthropic-claude-sonnet-4-provider: backlog
+  5-2-openai-gpt-4o-provider-with-failover: backlog
+  5-3-prompt-infrastructure-tool-calling-scaffolding: backlog
+  5-4-seven-phase-deployment-framework-state-machine: backlog
+  5-5-tiered-solidification-classifier: backlog
+  5-6-phase-context-modulation-retrieval-thresholds: backlog
+  epic-5-retrospective: optional
+
+  # ======================================================================
+  # Epic 6: Cartographer, Oracle & Master Strategist (w12–16)
+  # ======================================================================
+  epic-6: backlog
+  6-1-cartographer-mission-relevance-triage: backlog
+  6-2-cartographer-entity-relationship-extraction: backlog
+  6-3-oracle-phase-gated-retrieval-ccm-null-result: backlog
+  6-4-oracle-three-item-budget-ranked-out-footer: backlog
+  6-5-oracle-suggestions-only-posture: backlog
+  6-6-master-strategist-arbitration-action-queue-ranking: backlog
+  6-7-master-strategist-phase-transition-proposals: backlog
+  6-8-agent-graceful-degradation-contract: backlog
+  epic-6-retrospective: optional
+
+  # ======================================================================
+  # Epic 7: Design System Component Library (w14–16)
+  # ======================================================================
+  epic-7: backlog
+  7-1-citation-chip-component: backlog
+  7-2-evidence-panel-component: backlog
+  7-3-phase-indicator-component: backlog
+  7-4-freshness-chip-component: backlog
+  7-5-override-composer-component: backlog
+  7-6-in-meeting-alert-card-component: backlog
+  7-7-validation-queue-card-component: backlog
+  7-8-tombstone-card-component: backlog
+  7-9-agent-outage-banner-component: backlog
+  7-10-session-banner-primitive: backlog
+  7-11-empty-state-loading-memory-syncing-glyph-primitives: backlog
+  7-12-button-form-modal-sheet-popover-consistency-patterns: backlog
+  7-13-tablet-mobile-read-only-responsive-tokens: backlog
+  7-14-storybook-governance-axe-chromatic: backlog
+  7-15-vpat-automation-evidence-pipeline: backlog
+  epic-7-retrospective: optional
+
+  # ======================================================================
+  # Epic 8: Morning Digest, Phase Tracking & Evening Synthesis (w16–19)
+  # ======================================================================
+  epic-8: backlog
+  8-1-morning-digest-surface: backlog
+  8-2-phase-task-tracking-surface: backlog
+  8-3-evening-synthesis-surface: backlog
+  8-4-expand-inline-citation-deep-link-resolution: backlog
+  8-5-left-rail-top-rail-nav-chrome: backlog
+  8-6-cmd-k-command-palette: backlog
+  8-7-agent-error-ingestion-in-progress-states-on-surfaces: backlog
+  epic-8-retrospective: optional
+
+  # ======================================================================
+  # Epic 9: In-Meeting Alert, Action Queue & Validation Queues (w19–22)
+  # ======================================================================
+  epic-9: backlog
+  9-1-in-meeting-alert-detection-and-eight-second-render: backlog
+  9-2-three-item-hard-budget-enforcement: backlog
+  9-3-correction-vs-dismissal-non-confusable-actions: backlog
+  9-4-unattended-alert-items-persist-as-action-queue: backlog
+  9-5-action-queue-lifecycle-claim-in-progress-resolve: backlog
+  9-6-user-validation-queue-surface: backlog
+  9-7-solidification-review-queue-surface: backlog
+  9-8-alert-card-draggable-position-persistence: backlog
+  epic-9-retrospective: optional
+
+  # ======================================================================
+  # Epic 10: Override, Trust Repair & Personal Audit (w20–22)
+  # ======================================================================
+  epic-10: backlog
+  10-1-override-event-schema-canonical-log-entry: backlog
+  10-2-override-composer-submission-endpoint: backlog
+  10-3-override-applied-sub-citation-in-reasoning-trails: backlog
+  10-4-trust-earn-back-confidence-cue: backlog
+  10-5-private-scope-annotations: backlog
+  10-6-override-history-surface: backlog
+  10-7-personal-audit-surface: backlog
+  epic-10-retrospective: optional
+
+  # ======================================================================
+  # Epic 11: Edge Capture Agent — Tauri macOS V1 (w16–22)
+  # ======================================================================
+  epic-11: backlog
+  11-1-tauri-capability-based-permissions-scaffold: backlog
+  11-2-per-device-hardware-backed-signing-key: backlog
+  11-3-tamper-evident-local-transcript: backlog
+  11-4-audio-capture-and-two-party-consent-ux: backlog
+  11-5-sparkle-auto-updater-with-signed-appcast: backlog
+  11-6-offline-verification-via-foia-cli-integration: backlog
+  11-7-edge-agent-kill-switch: backlog
+  epic-11-retrospective: optional
+
+  # ======================================================================
+  # Epic 12: FOIA Export, Compliance, Operability & External Auditor (w17–23)
+  # ======================================================================
+  epic-12: backlog
+  12-1-go-foia-cli-signed-binary-offline-verifier: backlog
+  12-2-foia-bundle-construction-four-hour-ten-gb: backlog
+  12-3-external-auditor-jit-read-only-shell: backlog
+  12-4-break-glass-end-to-end-operability: backlog
+  12-5-immutable-audit-log-with-s3-object-lock: backlog
+  12-6-quarterly-compliance-packet-generator: backlog
+  12-7-procurement-package-artifact-set: backlog
+  12-8-nist-ai-rmf-mapping-doc: backlog
+  12-9-self-hosted-reference-build-fresh-laptop-acceptance: backlog
+  12-10-slos-grafana-dashboards-oncall-paging: backlog
+  12-11-unleash-feature-flags-canary-deploy: backlog
+  12-12-monthly-chaos-drills-backup-dr-verification: backlog
+  12-13-cost-per-account-telemetry: backlog
+  12-14-platform-admin-privileged-override-audit-log: backlog
+  epic-12-retrospective: optional
+
+  # ======================================================================
+  # Epic 13: Usability Validation & VPAT Authoring (w18–23)
+  # ======================================================================
+  epic-13: backlog
+  13-1-usability-study-recruiting: backlog
+  13-2-top-five-v1-journeys-scripted-with-axe-playwright: backlog
+  13-3-usability-study-execution-triaged-findings: backlog
+  13-4-vpat-authoring-and-publication: backlog
+  13-5-post-ship-n8-usability-study: backlog
+  epic-13-retrospective: optional
+
+  # ======================================================================
+  # Epic 14: V1.5 Scaffolding & Successor Inheritance (post-V1)
+  # ======================================================================
+  epic-14: backlog
+  14-1-successor-strategist-inheritance-activation: backlog
+  14-2-timeline-surface: backlog
+  14-3-customer-admin-self-service-user-management: backlog
+  14-4-siem-egress-syslog-cef-ocsf-pull-api: backlog
+  14-5-edge-agent-windows-port: backlog
+  14-6-helm-chart-and-byok-hsm-interface: backlog
+  epic-14-retrospective: optional
