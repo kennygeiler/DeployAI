@@ -1,6 +1,6 @@
 # Story 1.2: Baseline CI/CD with supply-chain signing
 
-Status: in-progress
+Status: review (all 13 ACs satisfied; PR #2 green; GHAS-gated features dormant per vars.GHAS_ENABLED gate)
 
 <!-- Epic 1: Foundations, Canonical Memory & Citation Envelope -->
 <!-- Sprint position: 2 of 14 stories in Epic 1. Depends on: 1.1 (monorepo scaffold). -->
