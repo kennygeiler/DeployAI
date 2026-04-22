@@ -58,14 +58,20 @@ Never grant write scopes at the workflow level. Jobs that need `id-token: write`
 
 ### 2b. GitHub Advanced Security (GHAS) dependency
 
-Two `ci.yml` steps currently run with `continue-on-error: true` because they require GHAS on private repos:
+Two `ci.yml` features require **GitHub Advanced Security** on private repos:
 
-- `cve-scan → Upload SARIF to Security tab` (uploads Grype findings to Security → Code scanning).
-- `dependency-review` job (PR-diff CVE + license review).
+- `cve-scan → Upload SARIF to Security tab` — uploads Grype findings to Security → Code scanning.
+- `dependency-review` job — PR-diff CVE + license review.
 
-Until GHAS is enabled (expected during StateRAMP procurement), these show as yellow/warning status and CI remains green. The Grype JSON triage path + sticky PR comment in `cve-scan` continues to fail PRs on Critical findings per NFR65 regardless of GHAS, so no compliance control is lost in the interim.
+Both are gated by the repo-level Actions variable **`GHAS_ENABLED`**. When this variable is unset (default), they skip cleanly (gray checkmark in PR UI, no red failure). This makes the private-no-GHAS workflow clean out of the box — no noisy failures.
 
-When GHAS is enabled on the repo: remove the `continue-on-error: true` lines from both locations in `ci.yml` (grep for "GitHub Advanced Security") and the features activate immediately.
+**Activation (when GHAS is enabled, likely during StateRAMP procurement):**
+
+1. Enable GHAS on the repo: Settings → Security and analysis → enable "Dependency graph", "Dependabot alerts", "Code scanning", "Secret scanning".
+2. Set the variable: Settings → Secrets and variables → Actions → Variables → New repository variable → name `GHAS_ENABLED`, value `true`.
+3. The next PR run will exercise both features automatically.
+
+**Compliance posture in the meantime:** NFR65 (CVE scanning) is still enforced by the Grype JSON triage step in `cve-scan` — Critical findings fail CI, High findings warn + post a sticky PR comment. The GHAS-gated features only add the "Security tab" surface and PR-diff scope; they don't replace the core gate.
 
 ### 3. Fork-PR safety (AC11)
 

@@ -201,13 +201,13 @@ jobs:
           cache-db: true
 
       - name: Upload SARIF to Security tab
-        # continue-on-error because SARIF upload requires GitHub Advanced
-        # Security on private repos. When GHAS is enabled (likely during
-        # StateRAMP procurement), this step will succeed and SARIF will
-        # appear under Security → Code scanning. Until then, findings still
-        # flow through the JSON triage path + sticky PR comment.
-        continue-on-error: true
-        if: ${{ !cancelled() && steps.scan-sarif.outputs.sarif != '' }}
+        # Gated by repo variable GHAS_ENABLED because SARIF upload requires
+        # GitHub Advanced Security on private repos. To activate: enable
+        # GHAS on the repo, then set `GHAS_ENABLED=true` under
+        # Settings → Secrets and variables → Actions → Variables.
+        # Until then, grype's JSON triage step (below) still enforces
+        # NFR65 Critical-blocking — no compliance control is lost.
+        if: ${{ !cancelled() && steps.scan-sarif.outputs.sarif != '' && vars.GHAS_ENABLED == 'true' }}
         uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
         with:
           sarif_file: ${{ steps.scan-sarif.outputs.sarif }}
@@ -278,17 +278,15 @@ jobs:
   # ------------------------------------------------------------------
   dependency-review:
     name: Dependency review (PR diff)
-    if: github.event_name == 'pull_request'
+    # Gated by repo variable GHAS_ENABLED because dependency-review-action
+    # requires GitHub Advanced Security on private repos. To activate:
+    # enable GHAS + set `GHAS_ENABLED=true` at Settings → Variables.
+    # Until then, grype's whole-tree JSON triage in `cve-scan` covers the
+    # same NFR65 surface with only the PR-diff view missing.
+    if: github.event_name == 'pull_request' && vars.GHAS_ENABLED == 'true'
     needs: [toolchain-check]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    # continue-on-error because actions/dependency-review-action requires
-    # GitHub Advanced Security on private repos. When GHAS is enabled
-    # (likely during StateRAMP procurement), this job will succeed and
-    # auto-post PR-diff CVE summaries. Until then, grype's whole-tree JSON
-    # triage in the `cve-scan` job covers the same NFR65 surface, with the
-    # only loss being the diff-scoped view.
-    continue-on-error: true
     permissions:
       contents: read
       pull-requests: write
