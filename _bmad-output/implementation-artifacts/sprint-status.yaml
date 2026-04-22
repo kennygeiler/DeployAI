@@ -1,6 +1,7 @@
 # generated: 2026-04-21
 # last_updated: 2026-04-22
 # project: DeployAI
+# note: last_updated bumps as stories transition; story 1-1 completed implementation and moved to review on 2026-04-22 (re-transitioned after code-review patches applied same day)
 # project_key: NOKEY
 # tracking_system: file-system
 # story_location: _bmad-output/implementation-artifacts
@@ -46,7 +47,7 @@ development_status:
   # Epic 1: Foundations, Canonical Memory & Citation Envelope (w1–6)
   # ======================================================================
   epic-1: in-progress
-  1-1-init-pnpm-turborepo-monorepo-scaffold: ready-for-dev
+  1-1-init-pnpm-turborepo-monorepo-scaffold: review
   1-2-baseline-ci-cd-with-supply-chain-signing: backlog
   1-3-per-workspace-starter-initialization: backlog
   1-4-design-tokens-package: backlog

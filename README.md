@@ -12,34 +12,21 @@ This repository is the monorepo home for DeployAI. Today it contains the BMAD-me
 
 ## Repository layout
 
+See [`docs/repo-layout.md`](./docs/repo-layout.md) for the canonical, detailed layout (workspace purposes, root-level config files, scripts, and the rules for adding a new workspace).
+
+At a glance:
+
 ```
 DeployAI/
-├── _bmad/                        # BMAD agent & workflow configuration
-│   ├── _config/                  # Agent manifest, project config
-│   ├── bmm/                      # BMAD method config
-│   └── core/                     # Core BMAD config
-│
-├── _bmad-output/                 # BMAD-generated planning + tracking artifacts
-│   ├── planning-artifacts/       # prd.md · architecture.md · ux-design-specification.md · epics.md · product brief(s)
-│   ├── implementation-artifacts/ # sprint-status.yaml + future story spec files (1-1-*.md, 1-2-*.md, …)
-│   └── brainstorming/            # Brainstorming session notes
-│
-├── .cursor/                      # Cursor IDE config (rules, skills, commands)
-│   ├── skills/                   # BMAD skill definitions (bmad-*, etc.)
-│   └── rules/                    # Project-wide AI guidance rules
-│
-└── docs/                         # Additional reference docs (non-BMAD)
-```
-
-Future top-level directories (to land per epic):
-
-```
-apps/       web (Next.js 16 / React 19) · edge agent (Tauri 2.x / Rust) · foia-cli (Go)
-services/   FastAPI Python services (async SQLAlchemy 2.x, Pydantic v2)
-packages/   design-tokens · ui · citation-lib · shared schemas
-infra/      Terraform + Terragrunt (AWS: ECS Fargate, RDS pgvector, S3, SQS, EventBridge)
-tests/      integration, e2e, compliance replay-parity fixtures
-.github/    workflows (CI, SLSA provenance, SBOM, a11y gates)
+├── apps/          # (Story 1.3) Next.js web · Tauri edge agent · Go FOIA CLI
+├── services/      # (Story 1.3+) FastAPI Python services
+├── packages/      # (Story 1.4+) design-tokens, citation-envelope, shared-ui, …
+├── infra/         # (Story 1.7+) docker-compose dev env · Terraform + Terragrunt
+├── tests/         # (Story 1.10+) cross-workspace harnesses
+├── docs/          # Reference docs (repo-layout.md, future VPAT, etc.)
+├── .github/       # CODEOWNERS (Story 1.2 adds workflows)
+├── _bmad/         # BMAD agent & workflow configuration
+└── _bmad-output/  # Planning + implementation artifacts (prd, epics, sprint-status)
 ```
 
 ## Planning artifacts (start here)
