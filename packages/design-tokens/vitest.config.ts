@@ -5,6 +5,7 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.{test,spec}.ts"],
     globals: false,
-    passWithNoTests: true,
+    // Do NOT set passWithNoTests — this package exists to house token tests.
+    // A missing test file means something broke in the discovery, not "no tests".
   },
 });

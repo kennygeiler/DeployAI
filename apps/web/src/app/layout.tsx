@@ -11,14 +11,13 @@ const inter = Inter({
 const ibmPlexMono = IBM_Plex_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
-  variable: "--font-mono",
+  variable: "--font-ibm-plex-mono",
   display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "DeployAI — initializing",
-  description:
-    "DeployAI web scaffold. Feature surfaces (Digest, In-Meeting, Phase Tracking) land in Stories 1.5+.",
+  description: "DeployAI web scaffold. Feature surfaces land progressively.",
 };
 
 export default function RootLayout({

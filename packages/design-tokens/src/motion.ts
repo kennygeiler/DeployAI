@@ -10,7 +10,7 @@
 export const motion = {
   duration: {
     instant: "0ms",
-    reducedMotion: "50ms",
+    "reduced-motion": "50ms",
     fast: "120ms",
     base: "200ms",
   },

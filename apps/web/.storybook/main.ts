@@ -10,7 +10,9 @@ const config: StorybookConfig = {
   staticDirs: ["../public"],
   typescript: {
     check: false,
-    reactDocgen: false,
+    // `addon-docs` + `tags: ["autodocs"]` in preview.ts expect docgen metadata
+    // to render prop tables; leave the default `react-docgen` parser enabled.
+    reactDocgen: "react-docgen",
   },
 };
 

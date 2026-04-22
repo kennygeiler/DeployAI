@@ -5,7 +5,7 @@ export default function Home() {
         DeployAI — initializing
       </h1>
       <p className="max-w-md text-body text-ink-600">
-        Scaffold in place. Feature surfaces land in Stories 1.5+.
+        Scaffold in place. Feature surfaces are landing progressively.
       </p>
     </main>
   );

@@ -19,8 +19,8 @@ export const ink = {
   800: "#1A1D23",
   /** Tertiary text, icons. */
   600: "#3D4148",
-  /** Disabled / placeholder. Must still pass AA on paper-100. */
-  400: "#737780",
+  /** Disabled / placeholder. ≈ 4.95:1 on paper-100 — passes WCAG AA for body text. */
+  400: "#6A6E78",
 } as const;
 
 /** Paper tones — backgrounds and surfaces. */
@@ -31,7 +31,12 @@ export const paper = {
   200: "#F2F2F0",
   /** Panel, card. */
   300: "#E5E5E2",
-  /** Divider. */
+  /**
+   * Divider — decorative-only (WCAG SC 1.4.11 "Understanding" exempts pure
+   * visual separators). NEVER use for form borders, focus rings, toggles, or
+   * any actionable UI chrome — those MUST use `stone.500` or darker to clear
+   * the 3:1 non-text floor.
+   */
   400: "#D1D1CD",
 } as const;
 

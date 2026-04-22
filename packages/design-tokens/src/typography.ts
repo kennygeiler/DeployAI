@@ -10,7 +10,7 @@ export const fontFamilies = {
   /** Primary sans stack. `--font-inter` is the next/font CSS variable. */
   sans: "var(--font-inter), 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif",
   /** Mono stack for citations, IDs, code. */
-  mono: "var(--font-mono), 'IBM Plex Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace",
+  mono: "var(--font-ibm-plex-mono), 'IBM Plex Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace",
 } as const;
 
 /**

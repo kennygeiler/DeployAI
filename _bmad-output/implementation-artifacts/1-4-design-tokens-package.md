@@ -323,6 +323,39 @@ docs/
 
 ---
 
+### Review Findings (2026-04-22, PR #4)
+
+Adversarial review via `bmad-code-review` (Blind Hunter + Edge Case Hunter + Acceptance Auditor, 3 layers run in parallel). 3 HIGH (AC misses) · 8 MEDIUM (safety/consistency) · 6 LOW (hygiene). Per user directive, all `[AI-Review]` patches below are batch-applied in the same branch before merge.
+
+- [x] [Review][Patch][HIGH] AC3 `ink-400/paper-100` fails 4.5:1 (measured ~4.30:1) — darken hex to `#6A6E78` (≈ 4.95:1), move assertion back into body-text AA block. `[packages/design-tokens/src/colors.ts, src/tokens.test.ts]`
+- [x] [Review][Patch][HIGH] AC2 literal naming — emit `--space-*` alongside `--spacing-*` in `tokens.css`; keep `--spacing: 4px` base in `tailwind.css` for Tailwind v4's dynamic scale. `[packages/design-tokens/scripts/build-css.ts, src/tokens.spec.ts]`
+- [x] [Review][Patch][HIGH] AC3 inverted-chip coverage — add `paper-100 / signal-700` + `paper-100 / null-600` assertions; add card-surface pairs (`ink-950/paper-300`, `ink-800/paper-300`, `ink-600/paper-200`) and non-text UI 3:1 floor (`paper-400/paper-100`, `stone-500/paper-100`). `[packages/design-tokens/src/tokens.test.ts]`
+- [x] [Review][Patch][HIGH] Invariant `walk()` in `tokens.spec.ts` only covered `colors/spacing/radii/shadows` — extend to `typography/motion/elevation`. `[packages/design-tokens/src/tokens.spec.ts]`
+- [x] [Review][Patch][MED] `--duration-reducedMotion` camelCase identifier breaks kebab-case convention and mutes reduced-motion consumers who spell it kebab. Rename source key → emit `--duration-reduced-motion`. `[packages/design-tokens/src/motion.ts, apps/web/src/app/globals.css]`
+- [x] [Review][Patch][MED] Reduced-motion rule forces `animation-iteration-count: 1 !important` globally — breaks essential infinite animations (spinners, indeterminate progress). Drop the iteration-count clamp; keep the duration clamp. `[apps/web/src/app/globals.css]`
+- [x] [Review][Patch][MED] `addon-docs` + `reactDocgen: false` contradict — autodocs pages render without prop tables. Enable `reactDocgen`. `[apps/web/.storybook/main.ts]`
+- [x] [Review][Patch][MED] axe `runOnly: ["wcag2a","wcag2aa"]` misses WCAG 2.1 / 2.2 rules that cover SC 1.4.11 non-text contrast (3:1 UI floor the package claims to guard). Expand to `["wcag2a","wcag2aa","wcag21aa","wcag22aa"]`. `[apps/web/.storybook/preview.ts]`
+- [x] [Review][Patch][MED] `next/font` variable naming asymmetric — `Inter→--font-inter` (source-named) but `IBM_Plex_Mono→--font-mono` (intent-named). Rename IBM_Plex_Mono's variable to `--font-ibm-plex-mono`; `typography.ts#fontFamilies.mono` references the source variable; tokens' own `--font-mono` points at it. `[apps/web/src/app/layout.tsx, packages/design-tokens/src/typography.ts]`
+- [x] [Review][Patch][MED] AC15 `build-storybook` not wired into Turbo graph — add a `build-storybook` task in `turbo.json` that depends on `^build`, with `storybook-static/**` as outputs. `[turbo.json, apps/web/package.json]`
+- [x] [Review][Patch][MED] `shadows.ts` focus ring hardcodes `#FAFAF9` / `#1F4A8C` — reference the imported `paper`/`evidence` constants to eliminate drift risk. `[packages/design-tokens/src/shadows.ts]`
+- [x] [Review][Patch][MED] CSS emitter does not validate token values — a stray `;`, `}`, or newline silently produces malformed CSS. Add a `validateTokenValue()` that throws with the token path on bad input. `[packages/design-tokens/scripts/build-css.ts]`
+- [x] [Review][Patch][MED] `tokens.spec.ts` crashes with raw `ENOENT` if dist isn't built — guard `beforeAll` with a readable error pointing at `pnpm build`. `[packages/design-tokens/src/tokens.spec.ts]`
+- [x] [Review][Patch][MED] `--passWithNoTests` in `packages/design-tokens` test script silently passes CI if token tests get renamed/moved. Drop it — the tests must exist. `[packages/design-tokens/package.json]`
+- [x] [Review][Patch][LOW] `.gitignore` does not exclude `storybook-static/` — accidental commit risk. `[.gitignore]`
+- [x] [Review][Patch][LOW] `clean` scripts delete `node_modules/` in workspace packages, breaking pnpm symlinks until root reinstall. Drop `node_modules` from `clean` — leave that to `pnpm clean` at root. `[apps/web/package.json, packages/design-tokens/package.json]`
+- [x] [Review][Patch][LOW] `Tokens.stories.tsx#Section` id generation only replaces whitespace — headings with `(`, `)`, `&`, etc. produce invalid CSS-selector anchors. Slugify more aggressively. `[apps/web/src/stories/Foundations/Tokens.stories.tsx]`
+- [x] [Review][Patch][LOW] Sprint-number references in user-visible `metadata.description` + `page.tsx` — replace "Stories 1.5+" with evergreen copy so the marketing string isn't churned every story. `[apps/web/src/app/layout.tsx, apps/web/src/app/page.tsx]`
+- [x] [Review][Defer][LOW] AC8 — library-workspace emit overrides moved to `tsconfig.build.json` (split from `tsconfig.json`), not merged into one file as AC8's literal text says. Pragmatic and already documented as an intentional deviation; the two-file shape IS the new library-workspace template. Accepted as the canonical pattern; ECH-02 considered closed by the split.
+- [x] [Review][Defer][LOW] AC17 — Storybook story glob does not reach into `packages/design-tokens/src/**`. Story lives in `apps/web/src/stories/` to keep the tokens package framework-free. Documented intentional deviation.
+- [x] [Review][Defer][LOW] AC1 file literally named `tokens.ts` — export surface composed via `src/index.ts` instead. Equivalent behavior; no functional impact. Keeping `index.ts` to match the rest of the monorepo.
+- [x] [Review][Defer][MED] UX-DR2 8-step type ramp contracted to 5 in AC1 — resolve via spec edit in a follow-up tech-writer pass. Tracked as deferred.
+- [x] [Review][Defer][LOW] Docs hardcode hex values in prose (`#1F4A8C`, `#7A5211`, `#9F1A1A`). Low drift risk today; doc-test enforcement can be added later.
+- [x] [Review][Defer][LOW] `next/font/google` build-time fetch requires network. Air-gapped builds out-of-scope for V1; `next/font/local` migration is a future story.
+- [x] [Review][Defer][LOW] `dist/` build atomicity — partial write leaves mixed state on disk-full / SIGKILL. Build is re-runnable and fast; write-to-temp + atomic rename is overkill for dev tooling.
+- [x] [Review][Defer][LOW] `colors.null` key collision with reserved word / ad-blockers. UX spec canonically names the scale "null-retrieval"; ad-blocker filtering is speculative.
+
+---
+
 ## Dev Agent Record
 
 ### Agent Model Used

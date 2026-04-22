@@ -72,6 +72,19 @@ function Swatch({ name, value }: { name: string; value: string }) {
   );
 }
 
+/**
+ * Slugify a heading to a CSS-selector-safe anchor id (lowercase, alnum + `-`).
+ * Protects against headings like `Spacing (4 px base)` that would otherwise
+ * emit `#section-spacing-(4-px-base)` and need manual escaping at the call
+ * site.
+ */
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function Section({
   heading,
   description,
@@ -81,9 +94,10 @@ function Section({
   description?: string;
   children: React.ReactNode;
 }) {
+  const anchorId = `section-${slugify(heading)}`;
   return (
     <section
-      aria-labelledby={`section-${heading.replace(/\s+/g, "-").toLowerCase()}`}
+      aria-labelledby={anchorId}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -94,7 +108,7 @@ function Section({
     >
       <header style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-1)" }}>
         <h2
-          id={`section-${heading.replace(/\s+/g, "-").toLowerCase()}`}
+          id={anchorId}
           style={{
             fontFamily: "var(--font-sans)",
             fontSize: "var(--text-heading)",

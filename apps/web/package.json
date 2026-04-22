@@ -12,7 +12,7 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build -o storybook-static",
     "docker:build": "docker build -f apps/web/Dockerfile -t deployai/web:dev ../..",
-    "clean": "rm -rf .next storybook-static node_modules"
+    "clean": "rm -rf .next storybook-static"
   },
   "dependencies": {
     "@deployai/design-tokens": "workspace:*",
