@@ -84,6 +84,13 @@ var/
 wheels/
 pip-wheel-metadata/
 share/python-wheels/
+# Un-ignore JavaScript/TypeScript lib directories that collided with the
+# Python venv `lib/` pattern above. The Python `lib/` rule is unanchored and
+# silently swallowed shadcn-initialized `apps/web/src/lib/` (the `cn` helper
+# at `apps/web/src/lib/utils.ts`). Keep this list explicit — if a new
+# workspace adds a `src/lib/` tree, add an allow-entry here.
+!apps/web/src/lib/
+!apps/web/src/lib/**
 *.manifest
 *.spec
 .venv/

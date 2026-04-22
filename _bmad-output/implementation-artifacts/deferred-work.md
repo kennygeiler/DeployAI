@@ -29,3 +29,9 @@ Items surfaced during adversarial review that were intentionally deferred (not i
 ## Deferred from: implementation of story-1-2-baseline-ci-cd-with-supply-chain-signing (2026-04-22)
 
 - **SARIF-based merge gate for Medium / High CVE findings** — Story 1.2's `cve-scan` job uploads Grype SARIF to GitHub's Security tab and blocks merges only on **Critical** (per NFR65). **Medium** and **High** findings currently surface as warnings + sticky PR comment but don't hard-fail CI. When the security team formalizes a stricter threshold (e.g., StateRAMP 3PAO asks for `high` blocking), re-wire `severity-cutoff` + add a codeql-action required-check status. Track in a follow-up story or Epic 1 retrospective. _Source: Story 1.2 implementation self-review._
+
+---
+
+## Deferred from: code review of story-1-5-shadcn-ui-initialization-and-theme-bridging (2026-04-22)
+
+- **Narrow `exactOptionalPropertyTypes: false` to vendored primitives only** — Story 1.5 scopes the opt-out to the whole `apps/web` tsconfig to unblock the 3 shadcn/Radix prop-surface errors (`context-menu.tsx`, `dropdown-menu.tsx`, `sonner.tsx`). The opt-out is broader than the "vendored code only" discipline the story otherwise maintains: `ExampleForm.tsx`, stories, and future app code under `apps/web/src/**` now skip the strict flag too. Follow-up: split `apps/web/tsconfig.json` into a strict parent (covers app code) + a reference-project tsconfig that includes `src/components/ui/**` with the flag disabled, so the strict guard comes back for user-authored code. Low priority — Story 1.5's authored code already passes `tsc --noEmit` against the strict flag (verified pre-relaxation), and the narrowing is cosmetic. Revisit when a future Epic adds more app-authored forms/components and drift becomes measurable. _Source: Acceptance Auditor on code review of Story 1.5; also flagged in Story 1.5 Open Questions line 899._

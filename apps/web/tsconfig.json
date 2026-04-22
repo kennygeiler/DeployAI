@@ -13,7 +13,14 @@
     "isolatedModules": true,
     "paths": { "@/*": ["./src/*"] },
     "plugins": [{ "name": "next" }],
-    "types": ["vitest/globals", "@testing-library/jest-dom"]
+    "types": ["vitest/globals", "@testing-library/jest-dom"],
+    // Story 1.5: shadcn/Radix prop surfaces (e.g. CheckboxItem#checked,
+    // Toaster#theme) type their optional props without `| undefined`, which
+    // the base's `exactOptionalPropertyTypes: true` rejects. Scoping the
+    // opt-out to `apps/web` preserves the strict flag everywhere else while
+    // letting us treat `src/components/ui/**` as vendored third-party code
+    // (see eslint.config.mjs + .prettierignore).
+    "exactOptionalPropertyTypes": false
   },
   "include": [
     "next-env.d.ts",
