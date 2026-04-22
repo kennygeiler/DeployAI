@@ -57,6 +57,13 @@ export function ExampleForm({ onSubmit }: ExampleFormProps) {
 
   return (
     <Form {...form}>
+      {/* jsx-a11y gate-appeal: `<form onKeyDown>` for Cmd/Ctrl+Enter submit
+          is a keyboard-accessibility *enhancement* additive to the submit
+          button's native behavior — it gives keyboard-only users a
+          shortcut and costs no SR discoverability (the button remains
+          the primary path). See docs/a11y-gates.md §Appeal process and
+          Story 1.6 Dev Agent Record for rationale. */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <form
         onSubmit={submit}
         onKeyDown={(event) => {

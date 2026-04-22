@@ -67,7 +67,35 @@ This wires `.pre-commit-config.yaml` into `.git/hooks/pre-commit` so that format
 pnpm turbo run lint typecheck test build
 ```
 
-Should report `16 successful, 16 total` across `@deployai/web`, `@deployai/edge-agent`, `@deployai/foia-cli`, and `@deployai/control-plane`. Anything less means one of the toolchains above is missing or a version drifted.
+Should report `20 successful, 20 total` across `@deployai/web`, `@deployai/edge-agent`, `@deployai/foia-cli`, `@deployai/control-plane`, and the `packages/design-tokens` / `build-storybook` fan-out added in Stories 1.4–1.5. Anything less means one of the toolchains above is missing or a version drifted.
+
+## 4a. Verify the accessibility gate stack (Story 1.6)
+
+The four a11y gates that `.github/workflows/a11y.yml` runs can be exercised locally. See [`docs/a11y-gates.md`](./a11y-gates.md) for the full "what each runner catches" + appeal-process reference. Quick commands:
+
+```bash
+# Static lint (fastest — matches CI job 1)
+pnpm --filter @deployai/web lint
+
+# Storybook per-story axe (matches CI job 2)
+pnpm --filter @deployai/web build-storybook
+pnpm dlx http-server apps/web/storybook-static --port 6006 --silent &
+pnpm --filter @deployai/web storybook:test
+
+# Playwright E2E + axe (matches CI job 3) — needs Playwright browsers:
+pnpm --filter @deployai/web exec playwright install --with-deps chromium
+pnpm --filter @deployai/web build
+pnpm --filter @deployai/web test:e2e
+
+# pa11y-ci (matches CI job 4) — needs puppeteer Chrome:
+node node_modules/.pnpm/@puppeteer+browsers@2.13.0/node_modules/@puppeteer/browsers/lib/cjs/main-cli.js \
+  install chrome@147.0.7727.57 --path "$HOME/.cache/puppeteer"
+pnpm --filter @deployai/web build
+pnpm --filter @deployai/web exec next start --port 3000 &
+pnpm --filter @deployai/web test:a11y
+```
+
+`@axe-core/react` also logs violations to the browser console when running `pnpm --filter @deployai/web dev` — no setup required, tree-shaken out of prod builds.
 
 ## 5. Run each workspace
 

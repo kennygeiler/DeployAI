@@ -133,16 +133,37 @@ Additional changes:
 - `docs/shadcn.md` (new) documents the theme-bridge pattern, `components.json` field-by-field, the form stack, anti-patterns, and "how to add a primitive" recipe.
 - `docs/design-tokens.md`'s shadcn-bridge section is updated in place with the real CSS that shipped.
 
-## What this repo does NOT yet contain (by design, as of Story 1.5)
+## What Story 1.6 shipped
+
+| Workspace / Path | Addition | Primary files |
+|---|---|---|
+| `apps/web` | `eslint-plugin-jsx-a11y` at `error` severity (all 34 recommended rules) | `apps/web/eslint.config.mjs` |
+| `apps/web` | Shared a11y config module (single source of truth for axe WCAG tag list + disabled-rules ledger) | `apps/web/src/lib/a11y-config.ts` |
+| `apps/web` | `@axe-core/react` dev runtime (tree-shaken from prod) | `apps/web/src/lib/axe.ts`, `apps/web/src/app/axe-dev.tsx`, `apps/web/src/app/layout.tsx` |
+| `apps/web` | Skip-to-main-content link (WCAG 2.4.1) | `apps/web/src/app/layout.tsx` |
+| `apps/web` | `@storybook/test-runner` CI gate with `@axe-core/playwright` `postVisit` hook | `apps/web/.storybook/test-runner.ts` |
+| `apps/web` | Playwright E2E + axe baseline + gate-proof fixture | `apps/web/playwright.config.ts`, `apps/web/tests/e2e/homepage.a11y.spec.ts`, `apps/web/tests/e2e/gate-catches-violation.spec.ts`, `apps/web/tests/e2e/fixtures/violating-page.html` |
+| `apps/web` | `pa11y-ci` config with dual `axe` + `htmlcs` runners | `apps/web/.pa11yci.json` |
+| `.github/workflows` | 4-job a11y workflow (`jsx-a11y`, `storybook-a11y`, `playwright-a11y`, `pa11y`) | `.github/workflows/a11y.yml` |
+| `docs/` | Full a11y-gates reference: runner coverage, WCAG tag policy, axe version alignment, appeal process, on-call | `docs/a11y-gates.md` |
+
+Additional changes:
+
+- `turbo.json` gains `test:e2e` and `test:a11y` task definitions; root `package.json` gains `test:e2e` and `test:a11y` convenience scripts.
+- `.gitignore` gains entries for `playwright-report/`, `test-results/`, and `pa11y-screenshots/`.
+- `apps/web/src/components/forms/ExampleForm.tsx` carries one jsx-a11y appeal (inline `eslint-disable` for `<form onKeyDown>` Cmd/Ctrl+Enter shortcut) with rationale + doc pointer, per the appeal process in `docs/a11y-gates.md`.
+
+## What this repo does NOT yet contain (by design, as of Story 1.6)
 
 - No additional `services/*` beyond `control-plane` — authored per story as features land (`canonical-memory` in 1.8, `api-gateway` in 1.9, `ingest`/`oracle`/`master-strategist` in later epics).
 - No `packages/shared-ui/` workspace yet — the first DeployAI-specific composite (CitationChip) creates it in Epic 7.
 - No `infra/compose/` dev environment — Story 1.7.
 - No `tests/*` cross-workspace harnesses — first one lands in Story 1.10.
-- No accessibility CI-blocking gate stack (eslint-plugin-jsx-a11y at `error`, axe-playwright, pa11y, `.github/workflows/a11y.yml`) — Story 1.6. Story 1.4 + 1.5 ship only the local Storybook a11y addon.
 - No dark-mode token set — deferred; the variable layer already supports it.
+- No mobile-viewport a11y runs (Chromium-desktop only at V1) — covered by Story 7.13.
+- No screen-reader automation (NVDA / VoiceOver / JAWS) — manual verification remains required for release candidates.
 - No Alembic migrations or canonical-memory schema (Alembic async template only) — Story 1.8.
 - No real CLI commands in `apps/foia-cli` — Story 1.12+.
 - No real Tauri capture / signing / kill-switch logic — later Epic 1 + Epic 6 stories.
 
-Each future story adds exactly its deliverable; Stories 1.1–1.4 establish only the foundation on which they build.
+Each future story adds exactly its deliverable; Stories 1.1–1.6 establish only the foundation on which they build.

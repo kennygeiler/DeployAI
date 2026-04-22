@@ -1,0 +1,23 @@
+{
+  "_comment": "Story 1.6 AC5: pa11y-ci config. Two runners (axe + htmlcs) provide complementary coverage — see docs/a11y-gates.md §Why two runners. Standards list mirrors AXE_WCAG_TAGS in src/lib/a11y-config.ts (keep in sync manually; JSON cannot import TS).",
+  "defaults": {
+    "runners": ["axe", "htmlcs"],
+    "standard": "WCAG2AA",
+    "includeNotices": false,
+    "includeWarnings": false,
+    "timeout": 30000,
+    "wait": 500,
+    "chromeLaunchConfig": {
+      "args": ["--no-sandbox", "--disable-dev-shm-usage"]
+    },
+    "ignore": [
+      "_comment: intentionally empty at Story 1.6. Add an entry here only after the appeal process in docs/a11y-gates.md is used."
+    ]
+  },
+  "urls": [
+    {
+      "url": "http://127.0.0.1:3000/",
+      "screenCapture": "pa11y-screenshots/homepage.png"
+    }
+  ]
+}

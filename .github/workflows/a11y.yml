@@ -1,0 +1,229 @@
+# Accessibility CI gate stack — four jobs enforcing WCAG 2.1/2.2 AA +
+# Section 508 as a merge-blocker on every PR + push to main.
+#
+# Satisfies Story 1.6 AC1-AC7 and UX-DR26/29/34, FR44, NFR28, NFR41,
+# NFR42, NFR43, AR25. One workflow, four jobs, each localizing failure
+# to a specific a11y layer so dev feedback is actionable:
+#
+#   jsx-a11y         — static JSX lint               (fastest feedback)
+#   storybook-a11y   — per-story axe via test-runner (component surface)
+#   playwright-a11y  — E2E axe on prod build         (full-page surface)
+#   pa11y            — axe + htmlcs dual runners     (contrast + structure)
+#
+# See .github/workflows/README.md §Conventions for SHA-pinning, least-
+# privilege, and fork-PR safety rules. See docs/a11y-gates.md for the
+# full story-1-6 rationale (what each runner catches, appeal process,
+# on-call who-to-page, etc.).
+
+name: a11y
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: a11y-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # ------------------------------------------------------------------
+  # Job 1 — jsx-a11y (AC1)
+  # Static JSX lint via eslint-plugin-jsx-a11y @ error severity. This
+  # is the fastest feedback loop in the stack (~30 seconds vs 3-5
+  # minutes for the runtime jobs), so we run it first and independent
+  # of the others — a dev who only breaks a missing alt attribute
+  # gets the fail in under a minute.
+  # ------------------------------------------------------------------
+  jsx-a11y:
+    name: jsx-a11y (static lint)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5.0.0
+
+      - name: Install Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint @deployai/web (jsx-a11y @ error)
+        run: pnpm --filter @deployai/web lint
+
+  # ------------------------------------------------------------------
+  # Job 2 — storybook-a11y (AC2)
+  # Builds storybook-static, serves it with http-server, runs
+  # @storybook/test-runner which re-invokes axe-core on each story
+  # via @axe-core/playwright. Catches component-level a11y issues
+  # before they land on a page.
+  # ------------------------------------------------------------------
+  storybook-a11y:
+    name: storybook-a11y (per-story axe)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5.0.0
+
+      - name: Install Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      # test-runner uses Playwright under the hood; install its
+      # Chromium + system deps (`--with-deps` pulls libnss3 etc.).
+      - name: Install Playwright (Chromium only)
+        run: pnpm --filter @deployai/web exec playwright install --with-deps chromium
+
+      - name: Build storybook-static
+        run: pnpm --filter @deployai/web build-storybook
+
+      - name: Serve + run @storybook/test-runner
+        # Uses `concurrently` via `start-server-and-test` pattern
+        # emulated inline with bash job control: background the
+        # server, wait for port, run tests, kill the server on exit.
+        run: |
+          pnpm dlx http-server apps/web/storybook-static --port 6006 --silent >/tmp/sb.log 2>&1 &
+          SB_PID=$!
+          # shellcheck disable=SC2064
+          trap "kill $SB_PID 2>/dev/null || true" EXIT
+          # Poll for readiness (up to 30s).
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:6006/ > /dev/null 2>&1; then
+              echo "storybook-static ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          pnpm --filter @deployai/web storybook:test
+
+  # ------------------------------------------------------------------
+  # Job 3 — playwright-a11y (AC4, AC10)
+  # Builds the Next.js app, spins up `next start` on :3000, and runs
+  # Playwright E2E specs that use @axe-core/playwright. The
+  # gate-catches-violation.spec.ts (AC10) is env-gated to off by
+  # default — it's a self-test of the gate itself, not a PR blocker.
+  # ------------------------------------------------------------------
+  playwright-a11y:
+    name: playwright-a11y (E2E axe)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5.0.0
+
+      - name: Install Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright (Chromium only)
+        run: pnpm --filter @deployai/web exec playwright install --with-deps chromium
+
+      - name: Build apps/web (prod mode)
+        run: pnpm --filter @deployai/web build
+
+      - name: Run Playwright E2E (a11y baseline)
+        # playwright.config.ts's webServer boots `pnpm start` and waits
+        # for http://127.0.0.1:3000 — we don't need to background it
+        # manually here.
+        run: pnpm --filter @deployai/web test:e2e
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 14
+
+  # ------------------------------------------------------------------
+  # Job 4 — pa11y (AC5)
+  # Runs pa11y-ci with both `axe` and `htmlcs` runners against `/`
+  # on a production build. htmlcs catches structural issues (heading
+  # order, landmark presence) that axe doesn't; axe catches the rules
+  # our other gates rely on. Complementary coverage.
+  # ------------------------------------------------------------------
+  pa11y:
+    name: pa11y (axe + htmlcs)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5.0.0
+
+      - name: Install Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      # pa11y-ci uses puppeteer-core which expects a Chrome binary in
+      # ~/.cache/puppeteer. Install the pinned Chrome-for-Testing
+      # version that matches puppeteer-core@24.42.0's expectation.
+      - name: Install puppeteer Chrome
+        run: |
+          node node_modules/.pnpm/@puppeteer+browsers@2.13.0/node_modules/@puppeteer/browsers/lib/cjs/main-cli.js \
+            install chrome@147.0.7727.57 --path "$HOME/.cache/puppeteer"
+
+      - name: Build apps/web (prod mode)
+        run: pnpm --filter @deployai/web build
+
+      - name: Serve apps/web + run pa11y-ci
+        run: |
+          pnpm --filter @deployai/web exec next start --port 3000 >/tmp/next.log 2>&1 &
+          NEXT_PID=$!
+          # shellcheck disable=SC2064
+          trap "kill $NEXT_PID 2>/dev/null || true" EXIT
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:3000/ > /dev/null 2>&1; then
+              echo "next start ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          pnpm --filter @deployai/web test:a11y
