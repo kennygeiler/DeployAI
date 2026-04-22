@@ -201,6 +201,12 @@ jobs:
           cache-db: true
 
       - name: Upload SARIF to Security tab
+        # continue-on-error because SARIF upload requires GitHub Advanced
+        # Security on private repos. When GHAS is enabled (likely during
+        # StateRAMP procurement), this step will succeed and SARIF will
+        # appear under Security → Code scanning. Until then, findings still
+        # flow through the JSON triage path + sticky PR comment.
+        continue-on-error: true
         if: ${{ !cancelled() && steps.scan-sarif.outputs.sarif != '' }}
         uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
         with:
@@ -276,6 +282,13 @@ jobs:
     needs: [toolchain-check]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    # continue-on-error because actions/dependency-review-action requires
+    # GitHub Advanced Security on private repos. When GHAS is enabled
+    # (likely during StateRAMP procurement), this job will succeed and
+    # auto-post PR-diff CVE summaries. Until then, grype's whole-tree JSON
+    # triage in the `cve-scan` job covers the same NFR65 surface, with the
+    # only loss being the diff-scoped view.
+    continue-on-error: true
     permissions:
       contents: read
       pull-requests: write

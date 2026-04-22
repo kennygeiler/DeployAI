@@ -56,6 +56,17 @@ gh api repos/<owner>/<repo>/commits/<tag> --jq '.sha'
 
 Never grant write scopes at the workflow level. Jobs that need `id-token: write` (OIDC), `attestations: write` (SLSA), `packages: write` (OCI push), or `pull-requests: write` (sticky comments) declare them locally on that job only. This is least-privilege per AC10.
 
+### 2b. GitHub Advanced Security (GHAS) dependency
+
+Two `ci.yml` steps currently run with `continue-on-error: true` because they require GHAS on private repos:
+
+- `cve-scan → Upload SARIF to Security tab` (uploads Grype findings to Security → Code scanning).
+- `dependency-review` job (PR-diff CVE + license review).
+
+Until GHAS is enabled (expected during StateRAMP procurement), these show as yellow/warning status and CI remains green. The Grype JSON triage path + sticky PR comment in `cve-scan` continues to fail PRs on Critical findings per NFR65 regardless of GHAS, so no compliance control is lost in the interim.
+
+When GHAS is enabled on the repo: remove the `continue-on-error: true` lines from both locations in `ci.yml` (grep for "GitHub Advanced Security") and the features activate immediately.
+
 ### 3. Fork-PR safety (AC11)
 
 PRs from forks cannot access `GITHUB_TOKEN` with write scopes or use OIDC to request signing identities. Any step that calls `cosign`, `actions/attest-*`, or posts write-scope API calls **must** be guarded:
