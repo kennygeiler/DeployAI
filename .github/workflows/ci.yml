@@ -59,7 +59,9 @@ jobs:
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version-file: ".nvmrc"
-          cache: "pnpm"
+          # NOTE: no `cache: pnpm` here — this job doesn't run `pnpm install`,
+          # and the post-action cache step would fail trying to hash a
+          # nonexistent pnpm store. Caching lives in the `smoke` job.
 
       - name: Assert Node major == 24
         run: |
