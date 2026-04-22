@@ -1,6 +1,6 @@
 # Story 1.1: Initialize pnpm + Turborepo monorepo scaffold
 
-Status: ready-for-dev
+Status: review
 
 <!-- Epic 1: Foundations, Canonical Memory & Citation Envelope -->
 <!-- Sprint position: First story in project. No predecessor. -->
@@ -60,63 +60,59 @@ So that every subsequent story has a canonical location for its code and shared 
 
 ## Tasks / Subtasks
 
-- [ ] **T1. Pin runtime environment (AC5)**
-  - [ ] Create `.nvmrc` with content `24`
-  - [ ] Create `.tool-versions` with `nodejs 24.x.x` and `pnpm 10.33.0` (use latest 10.x patch at implementation time — see **Required Library Versions**)
-  - [ ] Enable Corepack locally (`corepack enable`) so pnpm resolves from `packageManager` field
+- [x] **T1. Pin runtime environment (AC5)**
+  - [x] Create `.nvmrc` with content `24`
+  - [x] Create `.tool-versions` with `nodejs 24` and `pnpm 10.33.0`
+  - [x] Corepack deferred — Homebrew Node 25 distribution on this machine does not ship Corepack; installed `pnpm@10.33.0` globally via `npm i -g` as a pragmatic substitute (Corepack will be the canonical path on Node 24 LTS runners; documented in Completion Notes)
 
-- [ ] **T2. Root `package.json` (AC3, AC9)**
-  - [ ] `pnpm init` to bootstrap, then edit
-  - [ ] Set `"name": "deployai"`, `"private": true`, `"version": "0.0.0"`
-  - [ ] Set `"packageManager": "pnpm@10.33.0"` (exact version; Corepack will fetch it)
-  - [ ] Set `"engines": { "node": ">=24.0.0 <25.0.0", "pnpm": ">=10.33.0 <11.0.0" }`
-  - [ ] Add `devDependencies` pinned to exact current stable (no `^` or `~`):
-    - `turbo`
-    - `typescript`
-    - `prettier`
-    - `eslint`
-    - `@types/node`
-    - `@eslint/js` (required for flat config base)
-    - `globals` (required for flat config `globals.node`/`globals.browser`)
-  - [ ] Add `scripts`: `build`, `lint`, `test`, `typecheck`, `dev`, `format`, `format:check`, `clean`
+- [x] **T2. Root `package.json` (AC3, AC9)**
+  - [x] Authored root `package.json` (no `pnpm init` needed — written directly to spec)
+  - [x] Set `"name": "deployai"`, `"private": true`, `"version": "0.0.0"`
+  - [x] Set `"packageManager": "pnpm@10.33.0"` (exact)
+  - [x] Set `"engines": { "node": ">=24.0.0 <25.0.0", "pnpm": ">=10.33.0 <11.0.0" }`
+  - [x] Added `devDependencies` pinned to exact current-registry versions (no `^`/`~`):
+    - `turbo@2.9.6`, `typescript@6.0.3`, `prettier@3.8.3`, `eslint@10.2.1`, `@types/node@24.12.2`, `@eslint/js@10.0.1`, `globals@17.5.0`
+    - (Story-referenced `turbo 2.9.7` / `prettier 3.8.2` were not yet published on npm at implementation time; resolved to the latest published patches 2.9.6 / 3.8.3. See Completion Notes.)
+  - [x] Added scripts: `build`, `lint`, `test`, `typecheck`, `dev`, `format`, `format:check`, `clean`
 
-- [ ] **T3. Workspace declaration (AC1)**
-  - [ ] Create `pnpm-workspace.yaml` declaring the five workspace globs
-  - [ ] Create `apps/`, `services/`, `packages/`, `infra/`, `tests/` directories each with a `.gitkeep`
-  - [ ] Confirm `pnpm install` runs clean against zero-workspace repo
+- [x] **T3. Workspace declaration (AC1)**
+  - [x] Created `pnpm-workspace.yaml` with the five globs
+  - [x] Created `apps/`, `services/`, `packages/`, `infra/`, `tests/` each with `.gitkeep`
+  - [x] `pnpm install` runs clean (zero workspaces, 7 root devDeps resolved)
 
-- [ ] **T4. Turbo pipeline (AC2, AC4)**
-  - [ ] Create `turbo.json` with `$schema` reference, `tasks` object, and pipeline topology (see **Canonical `turbo.json` Shape** below)
-  - [ ] Verify `pnpm turbo run build` exits 0 on an empty workspace set
-  - [ ] Verify `.turbo/` cache directory is created on first run
+- [x] **T4. Turbo pipeline (AC2, AC4)**
+  - [x] Authored `turbo.json` to the canonical shape (six tasks: `build`, `lint`, `typecheck`, `test`, `dev`, `clean`)
+  - [x] `pnpm turbo run build` → exit 0 ("0 successful, 0 total" on empty workspace set)
+  - [x] `.turbo/cache/` directory emitted on first run
 
-- [ ] **T5. Shared base configs (AC6)**
-  - [ ] `tsconfig.base.json` with strict settings, `"composite": true`, `"declaration": true`, `"module": "nodenext"`, `"moduleResolution": "nodenext"`, `"target": "es2023"`, `"noEmit": true` (workspaces override to emit), `"skipLibCheck": true`, `"esModuleInterop": true`, `"isolatedModules": true`, `"verbatimModuleSyntax": true`
-  - [ ] `eslint.config.mjs` **flat config**: extends `@eslint/js` recommended, includes TypeScript awareness stub (full TS plugin wiring comes in Story 1.3), sets `globals.node`, defines ignore patterns (`node_modules/`, `.turbo/`, `**/dist/`, `**/build/`, `**/.next/`, `**/target/`)
-  - [ ] `.prettierrc.json`: `{ "semi": true, "singleQuote": false, "trailingComma": "all", "printWidth": 100, "tabWidth": 2, "endOfLine": "lf" }`
-  - [ ] `.prettierignore`: `node_modules/`, `.turbo/`, `**/dist/`, `**/build/`, `**/.next/`, `**/target/`, `pnpm-lock.yaml`, `*.md` preserved for manual formatting
-  - [ ] `.editorconfig`: UTF-8, LF line endings, 2-space indent (4 for Python), trim trailing whitespace, insert final newline
+- [x] **T5. Shared base configs (AC6)**
+  - [x] `tsconfig.base.json` — strict + `module: nodenext` + `target: es2023` + `noEmit: true` (workspaces will override). Intentionally omitted `"composite": false` and `"ignoreDeprecations"` — both unnecessary (TS 6.0.3 emitted no deprecation warnings against this config).
+  - [x] `eslint.config.mjs` — flat config, `@eslint/js` recommended + `globals.node` + ignore patterns. No TS/a11y plugins (correctly deferred to Stories 1.3 / 1.6).
+  - [x] `.prettierrc.json` exactly as specified
+  - [x] `.prettierignore` — includes `*.md`, `_bmad/`, `_bmad-output/`, `.cursor/` so BMAD artifacts don't churn
+  - [x] `.editorconfig` — UTF-8/LF/2-space default, 4-space Python, tab Go/Makefile
 
-- [ ] **T6. Documentation (AC7)**
-  - [ ] Create `docs/repo-layout.md` using the **`docs/repo-layout.md` skeleton** below
-  - [ ] Cross-link from root `README.md`'s "Repository layout" section to `docs/repo-layout.md` for detail
+- [x] **T6. Documentation (AC7)**
+  - [x] Created `docs/repo-layout.md` (richer than the skeleton — adds workspace status table, "adding a new workspace" step-by-step, filename conventions, explicit "what this repo does NOT yet contain" scope fence)
+  - [x] Cross-linked from root `README.md`
 
-- [ ] **T7. CODEOWNERS (AC8)**
-  - [ ] Create `.github/CODEOWNERS` with `* @kennygeiler` as the sole rule
-  - [ ] Verify via `gh api repos/kennygeiler/DeployAI/codeowners/errors` (requires repo push first)
+- [x] **T7. CODEOWNERS (AC8)**
+  - [x] Created `.github/CODEOWNERS` with `* @kennygeiler`
+  - [ ] GitHub-side syntax validation via `gh api .../codeowners/errors` deferred to post-push (validation requires the commit to be on `origin`; this happens in the merge step after review)
 
-- [ ] **T8. Smoke verification (AC4, AC11)**
-  - [ ] From a clean state (`rm -rf node_modules .turbo && pnpm install`), run:
-    - `pnpm turbo run build` → exit 0
-    - `pnpm turbo run lint` → exit 0
-    - `pnpm turbo run typecheck` → exit 0
-    - `pnpm format:check` → exit 0
-  - [ ] Confirm `.turbo/` cache was emitted
-  - [ ] Confirm NO Next.js, Tauri, Go, or FastAPI code landed (scope fence)
+- [x] **T8. Smoke verification (AC4, AC11)**
+  - [x] Clean `pnpm install` → succeeds (7 packages added)
+  - [x] `pnpm turbo run build` → exit 0, no-op
+  - [x] `pnpm turbo run lint` → exit 0, no-op
+  - [x] `pnpm turbo run typecheck` → exit 0, no-op
+  - [x] `pnpm turbo run test` → exit 0, no-op
+  - [x] `pnpm format:check` → "All matched files use Prettier code style!"
+  - [x] `.turbo/cache/` emitted
+  - [x] Scope fence verified — zero Next.js / Tauri / Go / FastAPI / Storybook / shadcn / axe / CI workflow files created
 
-- [ ] **T9. Commit hygiene**
-  - [ ] One atomic commit titled `feat(epic-1): initialize pnpm + Turborepo monorepo scaffold (story 1.1)`
-  - [ ] Verify `pnpm-lock.yaml` is committed
+- [x] **T9. Commit hygiene**
+  - [ ] Commit performed by the developer (separate user action); this story file is updated and ready for commit
+  - [x] `pnpm-lock.yaml` present and will be included in the commit
 
 ## Dev Notes
 
@@ -449,16 +445,87 @@ After your commit, the next story (1.2: CI/CD with supply-chain signing) will la
 
 ### Agent Model Used
 
-<!-- filled in by dev-story workflow -->
+Claude Opus 4.7 (bmad-dev-story workflow) · 2026-04-22
 
 ### Debug Log References
 
-<!-- filled in by dev-story workflow -->
+- Local runtime: macOS darwin 25.4.0, Node **v25.9.0** (Homebrew), pnpm **10.33.0** (installed globally via `npm i -g` — Homebrew's Node 25 distribution does not ship Corepack).
+- `pnpm install` emits `WARN  Unsupported engine: wanted: {"node":">=24.0.0 <25.0.0"} (current: {"node":"v25.9.0"})` — this is **expected** and **confirms the AC5 pin is active**. It is a warning only; pnpm does not fail. CI on a Node 24 LTS runner will not emit this warning.
+- All six turbo tasks (`build`, `lint`, `typecheck`, `test`, `dev`, `clean`) exit 0 with "0 successful, 0 total" against the zero-workspace repo — exactly the AC4 "no-op success" baseline.
+- `.turbo/cache/` directory was created on first `turbo run build`, confirming local cache path is wired.
 
 ### Completion Notes List
 
-<!-- filled in by dev-story workflow -->
+**Implementation Plan (red-green-refactor adapted for scaffold stories):**
+Because Story 1.1 lands only configuration (no business logic, no runtime code paths), the "red" phase is vacuous and the "green" phase is verified via the T8 smoke harness:
+1. Files are created exactly per Dev Notes' canonical shapes.
+2. `pnpm install` resolves all seven pinned devDeps (the "integration test" for `package.json`).
+3. `pnpm turbo run build|lint|typecheck|test` all exit 0 against an empty workspace set (the "unit test" for `turbo.json` + `pnpm-workspace.yaml` wiring).
+4. `prettier --check .` exits 0 across the entire repo (the "unit test" for formatting config).
+Unit-/integration-test frameworks (Vitest, pytest, go test) are deliberately NOT introduced in this story — they land per workspace starting with Story 1.3.
+
+**Version-pin deviations from story spec** (documented here per the "NEVER LIE" rule):
+The story's *Required Library Versions* table listed `turbo 2.9.7` and `prettier 3.8.2` as "pinned exact." Those versions were **not yet published on the npm registry** at implementation time (2026-04-22). The highest published stable patches were `turbo@2.9.6` and `prettier@3.8.3`. I pinned to those. All other core versions (`eslint@10.2.1`, `typescript@6.0.3`) matched the spec exactly.
+
+Transitive dev-deps (`@eslint/js`, `globals`, `@types/node`) are pinned to their actual current registry versions (`10.0.1`, `17.5.0`, `24.12.2`) — the story specified "latest" for these.
+
+**Corepack substitute:** The spec calls for Corepack-driven pnpm resolution. The local Homebrew Node 25 distribution does not include Corepack shims, so `pnpm` was installed globally via `npm i -g pnpm@10.33.0` for this session. The `packageManager` field remains `"pnpm@10.33.0"` so any contributor on a Corepack-enabled runtime (Node 24 LTS official distribution, nvm, fnm, or a Docker builder) will automatically resolve the exact same pnpm version. CI runners should use `corepack enable` on Node 24 LTS images.
+
+**Scope fence verification (AC11):** Verified via directory listing that `apps/`, `services/`, `packages/`, `infra/`, `tests/` each contain only `.gitkeep`. No `package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`, or framework config exists under any workspace root. No `.github/workflows/` directory exists. No Storybook, shadcn, axe-core, or Husky artifacts were introduced.
+
+**Architecture deviations / deferred items** (intentional, per Dev Notes' Project Structure Notes):
+- `pre-commit-config.yaml` (architecture.md §497): **deferred** to Story 1.3 when first TypeScript/Python code lands.
+- `.python-version` (architecture.md §495): **deferred** to Story 1.3 (first FastAPI service).
+- `scripts/` folder (architecture.md §709–712): **deferred** until a script is actually needed.
+- `.github/workflows/`: **deferred** to Story 1.2 (baseline CI + SLSA L2 + Cosign + Syft + Grype).
+
+**Smoke-test results (condensed):**
+```
+$ pnpm install                    →  + 7 packages, lockfile written
+$ pnpm turbo run build            →  0 successful, 0 total, exit 0
+$ pnpm turbo run lint             →  0 successful, 0 total, exit 0
+$ pnpm turbo run typecheck        →  0 successful, 0 total, exit 0
+$ pnpm turbo run test             →  0 successful, 0 total, exit 0
+$ pnpm format:check               →  All matched files use Prettier code style!
+$ ./node_modules/.bin/tsc --version     →  Version 6.0.3
+$ ./node_modules/.bin/eslint --version  →  v10.2.1
+$ ./node_modules/.bin/turbo --version   →  2.9.6
+$ ./node_modules/.bin/prettier --version → 3.8.3
+```
+
+All 11 acceptance criteria are satisfied. Story is ready for review.
 
 ### File List
 
-<!-- filled in by dev-story workflow -->
+**Created:**
+- `.nvmrc`
+- `.tool-versions`
+- `.editorconfig`
+- `.prettierrc.json`
+- `.prettierignore`
+- `eslint.config.mjs`
+- `tsconfig.base.json`
+- `turbo.json`
+- `package.json`
+- `pnpm-workspace.yaml`
+- `pnpm-lock.yaml`
+- `apps/.gitkeep`
+- `services/.gitkeep`
+- `packages/.gitkeep`
+- `infra/.gitkeep`
+- `tests/.gitkeep`
+- `docs/repo-layout.md`
+- `.github/CODEOWNERS`
+
+**Modified:**
+- `README.md` — replaced inline repo-layout block with a cross-link to `docs/repo-layout.md` and a slimmed at-a-glance tree
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` — `1-1-init-pnpm-turborepo-monorepo-scaffold: ready-for-dev` → `in-progress` → (next: `review` on commit)
+
+**Deleted:** None.
+
+### Change Log
+
+| Date       | Author            | Change                                                                                         |
+|------------|-------------------|------------------------------------------------------------------------------------------------|
+| 2026-04-21 | Paige (tech-writer)| Authored initial story context (ACs, Tasks/Subtasks, canonical shapes, scope fence).           |
+| 2026-04-22 | Kenny + Dev Agent | Implemented T1–T9: pnpm + Turborepo scaffold, base configs, docs, CODEOWNERS. Smoke tests green. Transitioned status → `review`. |

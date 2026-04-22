@@ -1,0 +1,11 @@
+# CODEOWNERS for DeployAI
+# https://docs.github.com/en/repositories/managing-your-repositories-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Syntax: <path glob> <owner> [<owner> ...]
+# The last matching rule wins.
+#
+# V1 / Founding-engineer posture: all paths owned by @kennygeiler.
+# Future stories will refine ownership (e.g., @platform-team for infra/,
+# @security-team for services/control-plane/, etc.).
+
+* @kennygeiler
