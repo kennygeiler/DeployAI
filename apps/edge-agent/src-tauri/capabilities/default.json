@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Minimum viable capability set for Story 1.3 scaffold. Per NFR20 + Story 1.3 AC7: capability additions MUST include explicit story-level rationale. Do not add filesystem-write, shell, http, or plugin-opener capabilities here without explicit approval.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

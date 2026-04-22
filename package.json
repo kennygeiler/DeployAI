@@ -24,9 +24,9 @@
     "clean": "turbo run clean && rm -rf node_modules .turbo"
   },
   "devDependencies": {
-    "@eslint/js": "10.0.1",
+    "@eslint/js": "9.39.4",
     "@types/node": "24.12.2",
-    "eslint": "10.2.1",
+    "eslint": "9.39.4",
     "globals": "17.5.0",
     "prettier": "3.8.3",
     "turbo": "2.9.6",

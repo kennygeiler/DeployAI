@@ -1,0 +1,14 @@
+{
+  "name": "@deployai/control-plane",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "uv sync --frozen",
+    "lint": "uv run ruff check src tests alembic && uv run ruff format --check src tests alembic",
+    "typecheck": "uv run mypy",
+    "test": "uv run pytest",
+    "dev": "uv run uvicorn control_plane.main:app --reload",
+    "docker:build": "docker build -f services/control-plane/Dockerfile -t deployai/control-plane:dev ../..",
+    "clean": "rm -rf .venv .pytest_cache .mypy_cache .ruff_cache"
+  }
+}
