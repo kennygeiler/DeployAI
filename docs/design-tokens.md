@@ -177,26 +177,80 @@ state persists across machines.
 
 ## shadcn/ui bridge — Story 1.5
 
-In Story 1.5, `apps/web/src/app/globals.css` gains a second `@layer base`
-block that maps shadcn/ui's semantic CSS variables onto DeployAI tokens:
+Story 1.5 initialized shadcn/ui in `apps/web` and authored the theme
+bridge: a two-layer cascade in `apps/web/src/app/globals.css` that maps
+shadcn's semantic CSS variables onto the DeployAI tokens this package
+emits. See [shadcn.md](./shadcn.md) for the full initialization contract.
+
+**Layer A (`@layer base :root`)** — aliases shadcn's semantic names onto
+DeployAI tokens. Zero literal colors.
 
 ```css
 @layer base {
   :root {
+    /* Surface */
     --background: var(--color-paper-100);
     --foreground: var(--color-ink-950);
+    --card: var(--color-paper-200);
+    --card-foreground: var(--color-ink-950);
+    --popover: var(--color-paper-100);
+    --popover-foreground: var(--color-ink-950);
+
+    /* Intent */
     --primary: var(--color-evidence-700);
     --primary-foreground: var(--color-paper-100);
-    --destructive: var(--color-destructive-700);
-    --destructive-foreground: var(--color-paper-100);
+    --secondary: var(--color-paper-200);
+    --secondary-foreground: var(--color-ink-800);
     --muted: var(--color-paper-200);
     --muted-foreground: var(--color-ink-600);
-    --border: var(--color-paper-400);
+    --accent: var(--color-null-100);
+    --accent-foreground: var(--color-null-600);
+    --destructive: var(--color-destructive-700);
+    --destructive-foreground: var(--color-paper-100);
+
+    /* UI chrome */
+    --border: var(--color-paper-300);
+    --input: var(--color-stone-500);
     --ring: var(--color-evidence-700);
-    /* …etc — full mapping per UX-DR3 primitive set. */
+
+    /* Geometry */
+    --radius: var(--radius-md);
   }
 }
 ```
+
+**Layer B (`@theme inline`)** — re-exports the same names back into
+Tailwind v4's theme layer so utilities like `bg-primary`,
+`text-muted-foreground`, `ring-ring`, and `rounded-md` resolve.
+
+```css
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  /* …full mapping per shadcn.md */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
+}
+```
+
+Three mapping choices worth calling out (full rationale lives in
+[shadcn.md](./shadcn.md) §Theme bridge):
+
+- **`--border: var(--color-paper-300)`** — shadcn's "subtle divider"
+  wants a surface-tone neutral, not the mid-neutral `stone-500` we
+  reserve for high-emphasis UI chrome. `paper-400` is **not** used here
+  because the Story 1.4 code review declared it decorative-only (it
+  fails the 3:1 SC 1.4.11 non-text floor).
+- **`--input: var(--color-stone-500)`** — form field borders are
+  high-emphasis UI; `stone-500` clears ≥ 3:1 non-text contrast against
+  `paper-100`.
+- **`--ring: var(--color-evidence-700)`** — aligns with this package's
+  `shadows.focus` (`0 0 0 2px paper[100], 0 0 0 4px evidence[700]`) so
+  DOM `outline` focus and `box-shadow` focus agree on color.
 
 The semantic-variable layer means shadcn primitives render in the
 DeployAI palette without per-component re-theming, and every component
@@ -206,7 +260,8 @@ story in Epic 7 composes correctly.
 
 **This package does not:**
 
-- Install or configure shadcn/ui (Story 1.5).
+- Install or configure shadcn/ui (landed in Story 1.5 — see
+  [shadcn.md](./shadcn.md) for the initialization contract).
 - Ship the axe-core / ESLint a11y / pa11y CI-blocking gates (Story 1.6).
 - Publish a dark-mode token set (deferred; variable layer supports it).
 - Host visual regression infrastructure (Chromatic, Epic 7).

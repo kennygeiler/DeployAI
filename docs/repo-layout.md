@@ -117,14 +117,29 @@ Additional changes:
 - `docs/design-tokens.md` documents the palette rationale (no primary green), the 4 px spacing ladder, the Inter + IBM Plex Mono type ramp, the WCAG AA contrast methodology, the shadcn bridge plan for Story 1.5, and the "add a new token" checklist.
 - `@deployai/design-tokens` is the canonical **library workspace** shape — future `packages/*` clone its `tsconfig.build.json` pattern (`noEmit: false`, `declaration: true`, `outDir: ./dist`).
 
-## What this repo does NOT yet contain (by design, as of Story 1.4)
+## What Story 1.5 shipped
+
+| Workspace | Addition | Primary files | Notes |
+|---|---|---|---|
+| `apps/web` | shadcn/ui initialized with the 23-primitive core set and theme-bridged to `@deployai/design-tokens` | `apps/web/components.json`, `apps/web/src/components/ui/*.tsx` (23 files), `apps/web/src/lib/utils.ts`, `apps/web/src/app/globals.css` (`@layer base :root` + `@theme inline`) | No dark-mode block, no `<Toaster />` mount, no `packages/shared-ui/` (deferred to Epic 7). See [shadcn.md](./shadcn.md) for the full contract. |
+| `apps/web` | Reference form component + test suite | `apps/web/src/components/forms/ExampleForm.tsx`, `apps/web/src/components/forms/ExampleForm.test.tsx` | Canonical `react-hook-form` + `zod` + shadcn `<Form>` composition; exercises on-blur format + on-submit completeness + Cmd+Enter submit. |
+| `apps/web` | `Foundations/ButtonVariants` Storybook surface | `apps/web/src/stories/Foundations/ButtonVariants.stories.tsx` | Renders every variant × size × state combination required by UX-DR39; clean under `@storybook/addon-a11y` (wcag2a + wcag2aa + wcag21aa + wcag22aa). |
+
+Additional changes:
+
+- `apps/web/eslint.config.mjs` and root `.prettierignore` both ignore `apps/web/src/components/ui/**` so shadcn-authored files stay diff-clean through future `shadcn add` regenerations (treated as vendored third-party code).
+- `apps/web/tsconfig.json` scopes `exactOptionalPropertyTypes: false` (the rest of the monorepo keeps the strict flag from `tsconfig.base.json`) — shadcn + Radix optional-prop surfaces type `prop?: T` rather than `prop?: T | undefined`, which the strict flag rejects.
+- Runtime deps gained in `apps/web`: `@hookform/resolvers`, `class-variance-authority`, `clsx`, `cmdk`, `lucide-react`, `next-themes` (Sonner peer), `radix-ui` (shadcn v4 unified surface), `react-hook-form`, `sonner`, `tailwind-merge`, `tw-animate-css`, `zod`. Dev deps gained: `@testing-library/user-event`.
+- `docs/shadcn.md` (new) documents the theme-bridge pattern, `components.json` field-by-field, the form stack, anti-patterns, and "how to add a primitive" recipe.
+- `docs/design-tokens.md`'s shadcn-bridge section is updated in place with the real CSS that shipped.
+
+## What this repo does NOT yet contain (by design, as of Story 1.5)
 
 - No additional `services/*` beyond `control-plane` — authored per story as features land (`canonical-memory` in 1.8, `api-gateway` in 1.9, `ingest`/`oracle`/`master-strategist` in later epics).
-- No additional `packages/*` shared libraries — Story 1.5 adds `packages/shared-ui` (shadcn primitives), Story 1.11 creates `packages/citation-envelope/`, etc.
+- No `packages/shared-ui/` workspace yet — the first DeployAI-specific composite (CitationChip) creates it in Epic 7.
 - No `infra/compose/` dev environment — Story 1.7.
 - No `tests/*` cross-workspace harnesses — first one lands in Story 1.10.
-- No shadcn/ui init — Story 1.5.
-- No accessibility CI-blocking gate stack (eslint-plugin-jsx-a11y at `error`, axe-playwright, pa11y, `.github/workflows/a11y.yml`) — Story 1.6. Story 1.4 ships only the local Storybook a11y addon.
+- No accessibility CI-blocking gate stack (eslint-plugin-jsx-a11y at `error`, axe-playwright, pa11y, `.github/workflows/a11y.yml`) — Story 1.6. Story 1.4 + 1.5 ship only the local Storybook a11y addon.
 - No dark-mode token set — deferred; the variable layer already supports it.
 - No Alembic migrations or canonical-memory schema (Alembic async template only) — Story 1.8.
 - No real CLI commands in `apps/foia-cli` — Story 1.12+.

@@ -19,3 +19,8 @@ services/control-plane/.venv/
 services/control-plane/alembic/README
 services/control-plane/alembic/versions/
 services/control-plane/uv.lock
+
+# Story 1.5: shadcn-authored primitive files — vendored third-party code.
+# See docs/shadcn.md for the rationale on treating this directory as
+# external: formatting would create diff noise on every `shadcn add`.
+apps/web/src/components/ui/

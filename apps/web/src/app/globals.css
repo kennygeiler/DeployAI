@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 @import "@deployai/design-tokens/tailwind";
 @import "@deployai/design-tokens/tokens.css";
 
@@ -8,11 +9,90 @@
  * shadows here. Add a new token to the package instead.
  */
 
+/*
+ * shadcn/ui theme bridge — Story 1.5.
+ *
+ * Two-layer cascade:
+ *
+ *   1. `:root` below aliases shadcn's ~20 semantic variable names
+ *      (--background, --primary, --ring, --radius, ...) onto tokens emitted
+ *      by `@deployai/design-tokens`. Every value is `var(--color-...)`,
+ *      `var(--radius-...)`, etc. — zero literal colors.
+ *
+ *   2. `@theme inline { ... }` re-exports the same shadcn names back into
+ *      Tailwind v4's theme layer so utilities like `bg-primary`,
+ *      `text-muted-foreground`, `ring-ring`, and `rounded-md` resolve. The
+ *      `inline` modifier copies the value at compile time, so the Tailwind
+ *      utility does not drag a second indirection at runtime.
+ *
+ * Dark mode is deferred — V1 ships light-only per
+ * ux-design-specification.md §Visual Foundation (line 468). When dark mode
+ * lands, add a `.dark :root { ... }` block mirroring the structure below;
+ * no shadcn primitive code needs to change.
+ */
+@layer base {
+  :root {
+    /* Surface */
+    --background: var(--color-paper-100);
+    --foreground: var(--color-ink-950);
+    --card: var(--color-paper-200);
+    --card-foreground: var(--color-ink-950);
+    --popover: var(--color-paper-100);
+    --popover-foreground: var(--color-ink-950);
+
+    /* Intent */
+    --primary: var(--color-evidence-700);
+    --primary-foreground: var(--color-paper-100);
+    --secondary: var(--color-paper-200);
+    --secondary-foreground: var(--color-ink-800);
+    --muted: var(--color-paper-200);
+    --muted-foreground: var(--color-ink-600);
+    --accent: var(--color-null-100);
+    --accent-foreground: var(--color-null-600);
+    --destructive: var(--color-destructive-700);
+    --destructive-foreground: var(--color-paper-100);
+
+    /* UI chrome — see docs/shadcn.md for rationale on each mapping. */
+    --border: var(--color-paper-300);
+    --input: var(--color-stone-500);
+    --ring: var(--color-evidence-700);
+
+    /* Geometry */
+    --radius: var(--radius-md);
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
+}
+
 html,
 body {
   font-family: var(--font-sans);
-  color: var(--color-ink-950);
-  background: var(--color-paper-100);
+  color: var(--foreground);
+  background: var(--background);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

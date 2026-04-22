@@ -13,6 +13,10 @@ const eslintConfig = defineConfig([
     "node_modules/**",
     "coverage/**",
     "next-env.d.ts",
+    // shadcn-authored primitive files — treated as vendored third-party code
+    // so future `pnpm dlx shadcn@latest add` regenerations stay diff-clean.
+    // See docs/shadcn.md for the full rationale.
+    "src/components/ui/**",
   ]),
 ]);
 
