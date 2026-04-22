@@ -1,7 +1,7 @@
 # generated: 2026-04-21
 # last_updated: 2026-04-22
 # project: DeployAI
-# note: last_updated bumps as stories transition; story 1-1 completed implementation, code-review patches applied, and was squash-merged to main on 2026-04-22 (PR #1 → status done). Story 1-2 context authored, implementation delivered (PR #2 all jobs green on the 5-job CI gate: toolchain-check, smoke, sbom-source, cve-scan, dependency-review [GHAS-gated]; release.yml scaffold dormant until Story 1.3; dependabot 5-ecosystem config live) → status review on 2026-04-22.
+# note: last_updated bumps as stories transition; story 1-1 completed implementation, code-review patches applied, and was squash-merged to main on 2026-04-22 (PR #1 → status done). Story 1-2 context authored, implementation delivered (PR #2 all jobs green on the 5-job CI gate: toolchain-check, smoke, sbom-source, cve-scan, dependency-review [GHAS-gated]; release.yml scaffold dormant until Story 1.3; dependabot 5-ecosystem config live), reviewed, and squash-merged to main on 2026-04-22 (PR #2 → status done). Story 1-3 (per-workspace starter initialization — Next.js 16.2 + Tauri 2.10 + Go 1.26 + FastAPI 0.136/uv 0.11) context authored with 22 ACs, 9 task phases, and pinned latest-stable versions → status ready-for-dev on 2026-04-22.
 # project_key: NOKEY
 # tracking_system: file-system
 # story_location: _bmad-output/implementation-artifacts
@@ -48,8 +48,8 @@ development_status:
   # ======================================================================
   epic-1: in-progress
   1-1-init-pnpm-turborepo-monorepo-scaffold: done
-  1-2-baseline-ci-cd-with-supply-chain-signing: review
-  1-3-per-workspace-starter-initialization: backlog
+  1-2-baseline-ci-cd-with-supply-chain-signing: done
+  1-3-per-workspace-starter-initialization: ready-for-dev
   1-4-design-tokens-package: backlog
   1-5-shadcn-ui-initialization-and-theme-bridging: backlog
   1-6-accessibility-ci-gate-stack: backlog

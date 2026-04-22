@@ -1,6 +1,6 @@
 # Story 1.2: Baseline CI/CD with supply-chain signing
 
-Status: review (all 13 ACs satisfied; PR #2 green; GHAS-gated features dormant per vars.GHAS_ENABLED gate)
+Status: done (all 13 ACs satisfied; PR #2 green across 5 CI jobs; reviewed and squash-merged to main on 2026-04-22 as commit ba1a238; GHAS-gated features dormant per vars.GHAS_ENABLED gate)
 
 <!-- Epic 1: Foundations, Canonical Memory & Citation Envelope -->
 <!-- Sprint position: 2 of 14 stories in Epic 1. Depends on: 1.1 (monorepo scaffold). -->
