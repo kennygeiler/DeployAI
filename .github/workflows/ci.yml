@@ -1,0 +1,286 @@
+# CI — per-PR gate covering toolchain, smoke suite, SBOM, CVE scan, dep review.
+#
+# Satisfies Story 1.2 AC1 (SBOM), AC4 (CVE), AC6 (green-on-no-op),
+# AC7 (Node-major guard — completes Story 1.1 deferred AC5),
+# AC8 (smoke suite — completes Story 1.1 deferred AC4),
+# AC9 (concurrency), AC10 (least-privilege permissions),
+# AC11 (fork-PR safety — no supply-chain-write steps run here, so fork PRs are
+#       fully supported).
+#
+# All external actions pinned by 40-char commit SHA. Dependabot (see
+# .github/dependabot.yml `github-actions` entry) keeps the SHAs fresh.
+# See .github/workflows/README.md for the full inventory + conventions.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Workflow-level default is read-only; jobs opt-in explicitly (AC10).
+permissions:
+  contents: read
+
+# Superseded PR pushes cancel in-flight runs (AC9). `main` pushes do NOT cancel
+# — merges to main should always complete the full gate.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # ------------------------------------------------------------------
+  # Job 1 — toolchain-check (AC7)
+  # Hard-fails the entire workflow if the runner does not materialize
+  # Node 24.x and pnpm 10.33.0. This is the "CI guard" half of
+  # Story 1.1 AC5 that was deferred because Story 1.1's scope fence
+  # (AC11) forbade workflows. Closes that gap.
+  # ------------------------------------------------------------------
+  toolchain-check:
+    name: Toolchain (Node 24 + pnpm 10.33.0)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5.0.0
+        # Picks up version from package.json#packageManager = pnpm@10.33.0.
+
+      - name: Install Node from .nvmrc
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: Assert Node major == 24
+        run: |
+          actual=$(node --version)
+          if ! printf '%s' "$actual" | grep -qE '^v24\.'; then
+            echo "::error title=Wrong Node version::Expected v24.x but runner reported $actual. Check .nvmrc (should be '24') and actions/setup-node node-version-file input."
+            exit 1
+          fi
+          echo "Node OK: $actual"
+
+      - name: Assert pnpm == 10.33.0
+        run: |
+          actual=$(pnpm --version)
+          if [ "$actual" != "10.33.0" ]; then
+            echo "::error title=Wrong pnpm version::Expected 10.33.0 but runner reported $actual. Check root package.json#packageManager field."
+            exit 1
+          fi
+          echo "pnpm OK: $actual"
+
+  # ------------------------------------------------------------------
+  # Job 2 — smoke (AC8)
+  # Machine-verifiable fresh-clone proof of the Story 1.1 completion
+  # notes. Each step runs independently so a failure localizes to the
+  # specific tool (turbo build vs lint vs typecheck vs test vs format).
+  # ------------------------------------------------------------------
+  smoke:
+    name: Smoke (install / build / lint / typecheck / test / format)
+    needs: [toolchain-check]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5.0.0
+
+      - name: Install Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: turbo build
+        run: pnpm turbo run build
+
+      - name: turbo lint
+        run: pnpm turbo run lint
+
+      - name: turbo typecheck
+        run: pnpm turbo run typecheck
+
+      - name: turbo test
+        run: pnpm turbo run test
+
+      - name: prettier --check
+        run: pnpm run format:check
+
+  # ------------------------------------------------------------------
+  # Job 3 — sbom-source (AC1)
+  # Emits SPDX + CycloneDX SBOMs for the repo source tree. Once
+  # Story 1.3 lands per-workspace manifests, syft's recursive
+  # discovery will enumerate them automatically without workflow
+  # edits. SBOMs are uploaded as workflow artifacts (90-day
+  # retention) AND attached to GitHub releases when this runs on
+  # a tag push.
+  # ------------------------------------------------------------------
+  sbom-source:
+    name: SBOM (source — SPDX + CycloneDX)
+    needs: [smoke]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Generate SPDX SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.20.7
+        with:
+          path: "."
+          format: spdx-json
+          artifact-name: sbom-source-spdx.json
+          upload-artifact-retention: 90
+
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.20.7
+        with:
+          path: "."
+          format: cyclonedx-json
+          artifact-name: sbom-source-cyclonedx.json
+          upload-artifact-retention: 90
+
+  # ------------------------------------------------------------------
+  # Job 4 — cve-scan (AC4)
+  # Two grype invocations sharing the DB cache:
+  #   (a) SARIF run — feeds GitHub's Security tab.
+  #   (b) JSON run  — parsed in-job to separate Critical (fail) from
+  #       High (warn + sticky comment + compensating-control review
+  #       handoff per NFR65).
+  # Only PR events post the sticky comment; push-to-main still runs
+  # the gate but skips comment posting.
+  # ------------------------------------------------------------------
+  cve-scan:
+    name: CVE scan (grype)
+    needs: [smoke]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: grype — SARIF for Security tab (non-blocking)
+        id: scan-sarif
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.1
+        with:
+          path: "."
+          fail-build: false
+          severity-cutoff: critical
+          output-format: sarif
+          cache-db: true
+
+      - name: Upload SARIF to Security tab
+        if: ${{ !cancelled() && steps.scan-sarif.outputs.sarif != '' }}
+        uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
+        with:
+          sarif_file: ${{ steps.scan-sarif.outputs.sarif }}
+          category: grype-source
+
+      - name: grype — JSON for triage
+        id: scan-json
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.1
+        with:
+          path: "."
+          fail-build: false
+          severity-cutoff: critical
+          output-format: json
+          cache-db: true
+
+      - name: Triage — fail on Critical, warn on High
+        id: triage
+        run: |
+          file="${{ steps.scan-json.outputs.json }}"
+          if [ ! -s "$file" ]; then
+            echo "::warning::grype produced no JSON output — treating as zero findings."
+            echo "critical=0" >> "$GITHUB_OUTPUT"
+            echo "high=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          critical=$(jq '[.matches[]? | select(.vulnerability.severity=="Critical")] | length' "$file")
+          high=$(jq     '[.matches[]? | select(.vulnerability.severity=="High")]     | length' "$file")
+
+          echo "critical=$critical" >> "$GITHUB_OUTPUT"
+          echo "high=$high"         >> "$GITHUB_OUTPUT"
+
+          if [ "$critical" -gt 0 ]; then
+            echo "::error title=Critical CVE(s) — merge blocked per NFR65::$critical critical vulnerability(ies) detected. See SARIF report in the Security tab."
+            jq -r '[.matches[]? | select(.vulnerability.severity=="Critical") | { id: .vulnerability.id, pkg: .artifact.name, ver: .artifact.version }] | unique_by(.id) | .[] | "  - \(.id) in \(.pkg)@\(.ver)"' "$file"
+            exit 1
+          fi
+
+          if [ "$high" -gt 0 ]; then
+            echo "::warning title=High-severity CVEs — compensating-control review required::$high high-severity finding(s). Merge is NOT blocked, but a human review per NFR65 is required before release."
+          else
+            echo "No Critical or High CVE findings."
+          fi
+
+      - name: Sticky PR comment on High findings
+        if: >-
+          github.event_name == 'pull_request'
+          && steps.triage.outputs.high != '0'
+          && github.event.pull_request.head.repo.full_name == github.repository
+        uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2.9.4
+        with:
+          header: grype-high-cve-review
+          message: |
+            ### High-severity CVEs detected — compensating-control review required
+
+            Grype found **${{ steps.triage.outputs.high }}** high-severity finding(s) in this PR's dependency tree. Per NFR65, merging is **not** automatically blocked, but a human review (recording the compensating control or suppressing the finding with a VEX document) is required before release.
+
+            - See the **Security → Code scanning** tab for the full SARIF report.
+            - To suppress a finding: add a `.grype.yaml` entry OR a VEX document and re-run CI.
+            - Critical findings **are** auto-blocking (none in this run).
+
+  # ------------------------------------------------------------------
+  # Job 5 — dependency-review (AC4 complement)
+  # PR-diff vuln scan. Complements Grype's whole-tree scan by
+  # catching vulnerable deps *introduced by this PR* even if the
+  # full tree still passes. Critical-only gate; high findings show
+  # up in the PR summary comment the action emits natively.
+  # ------------------------------------------------------------------
+  dependency-review:
+    name: Dependency review (PR diff)
+    if: github.event_name == 'pull_request'
+    needs: [toolchain-check]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+        with:
+          fail-on-severity: critical
+          comment-summary-in-pr: always

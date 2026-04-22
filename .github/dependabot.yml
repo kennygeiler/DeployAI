@@ -1,0 +1,117 @@
+# Dependabot — weekly dependency updates across the DeployAI polyglot stack.
+# Satisfies Story 1.2 AC5 + NFR65.
+#
+# Coverage:
+#   - npm           (Node dev deps today; per-workspace deps once Story 1.3 lands)
+#   - pip           (FastAPI services — Story 1.3+)
+#   - gomod         (Go FOIA CLI — Story 1.3+)
+#   - cargo         (Tauri Rust backend — Story 1.3+)
+#   - github-actions (keep pinned SHAs in .github/workflows/* fresh)
+#
+# Cooldowns delay adoption of brand-new major releases so we're never
+# on the zero-day of a breaking upstream change. Semver-major bumps
+# wait 30 days; everything else waits 7.
+#
+# `open-pull-requests-limit: 10` per ecosystem prevents PR flood during
+# weekly windows; excess updates queue for the following week.
+
+version: 2
+
+updates:
+  # ------------------------------------------------------------------
+  # Node — pnpm monorepo. Dependabot's pnpm support reads
+  # pnpm-workspace.yaml natively; `directory: "/"` discovers the root
+  # package.json and (once Story 1.3 lands) each workspace's manifest.
+  # ------------------------------------------------------------------
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "epic-1"
+      - "ecosystem:npm"
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 14
+      semver-patch-days: 7
+
+  # ------------------------------------------------------------------
+  # Python — FastAPI services. Pre-wired; activates when Story 1.3 adds
+  # services/*/pyproject.toml files.
+  # ------------------------------------------------------------------
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "ecosystem:pip"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+
+  # ------------------------------------------------------------------
+  # Go — FOIA CLI. Pre-wired; activates with Story 1.3.
+  # ------------------------------------------------------------------
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "ecosystem:gomod"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+
+  # ------------------------------------------------------------------
+  # Rust — Tauri edge-agent backend. Pre-wired; activates with Story 1.3.
+  # ------------------------------------------------------------------
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "ecosystem:cargo"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+
+  # ------------------------------------------------------------------
+  # GitHub Actions — keep workflow SHA pins fresh. This is WHY we can
+  # safely require SHA-pinning: Dependabot reads the
+  #   `uses: foo/bar@<sha>  # v1.2.3`
+  # format and opens a PR bumping both the SHA and the comment atomically.
+  # ------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "ecosystem:actions"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
