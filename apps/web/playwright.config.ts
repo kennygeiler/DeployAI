@@ -18,7 +18,11 @@ export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  // axe over a stable DOM is deterministic — any intermittent failure
+  // is signal (hydration race, font-face timing, network flake), not
+  // noise. Retries would mask it and produce green PRs that flake
+  // elsewhere. Keep retries: 0 for all environments.
+  retries: 0,
   workers: process.env.CI ? 1 : undefined,
   timeout: 30_000,
   reporter: [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]],

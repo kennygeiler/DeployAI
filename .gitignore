@@ -201,9 +201,10 @@ test-results/
 pa11y-screenshots/
 # Local Chrome install created by `@puppeteer/browsers install` if run
 # without `--path` — we always redirect to ~/.cache/puppeteer, but
-# defensive-ignore the CWD fallback so an accidental install doesn't
-# balloon the commit.
-/chrome/
+# defensive-ignore the CWD fallback anywhere in the tree (pnpm filter
+# commands run from root, but direct `cd apps/web && ...` invocations
+# are routine) so an accidental install doesn't balloon the commit.
+**/chrome/
 
 # ─────────────────────── Misc ───────────────────────
 *.tsbuildinfo

@@ -20,9 +20,19 @@ import { AXE_WCAG_TAGS } from "./a11y-config";
  * remain the contract-enforcing layer — this is a developer-convenience
  * signal, not a PR-blocker.
  */
+
+// Module-scoped guard against React 19 Strict Mode's double-invoke of
+// `useEffect` — without this, each dev-server mount stacks another
+// axe-core MutationObserver and duplicates console violations. The
+// module survives Strict Mode's mount/unmount/re-mount cycle because it
+// is loaded once per client session.
+let initialized = false;
+
 export async function initAxeInDev(): Promise<void> {
   if (process.env.NODE_ENV !== "development") return;
   if (typeof window === "undefined") return;
+  if (initialized) return;
+  initialized = true;
 
   try {
     const [React, ReactDOM, axeMod] = await Promise.all([
@@ -31,10 +41,20 @@ export async function initAxeInDev(): Promise<void> {
       import("@axe-core/react"),
     ]);
     const axe = axeMod.default ?? axeMod;
+    // Use the object-form `{type: 'tag', values: [...]}` rather than a
+    // bare string[]. axe-core's runtime auto-detects arrays of known
+    // tags as tags (so the bare form worked), but any typo silently
+    // falls through to rule-ID matching → zero rules execute → silent
+    // no-op. The object form is unambiguous and self-documenting.
     await axe(React, ReactDOM, 1000, {
-      runOnly: [...AXE_WCAG_TAGS],
-    });
+      runOnly: { type: "tag", values: [...AXE_WCAG_TAGS] },
+      // @axe-core/react's ReactSpec types `runOnly` as `string[]`,
+      // but axe-core's RunOptions also accepts the object form used
+      // above. Cast through `unknown` to bypass the upstream type
+      // bug without losing our config's shape.
+    } as unknown as Parameters<typeof axe>[3]);
   } catch (error) {
+    initialized = false;
     console.warn("[a11y] @axe-core/react failed to initialize:", error);
   }
 }

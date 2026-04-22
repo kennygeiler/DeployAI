@@ -27,7 +27,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: a11y-${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
@@ -44,8 +44,10 @@ jobs:
   # gets the fail in under a minute.
   # ------------------------------------------------------------------
   jsx-a11y:
-    name: jsx-a11y (static lint)
+    name: jsx-a11y
     runs-on: ubuntu-24.04
+    # Spec AC6 budget. Static lint is the fastest feedback loop in the
+    # stack — 10 min is generous relative to the ~30s observed runtime.
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -76,8 +78,10 @@ jobs:
   # before they land on a page.
   # ------------------------------------------------------------------
   storybook-a11y:
-    name: storybook-a11y (per-story axe)
+    name: storybook-a11y
     runs-on: ubuntu-24.04
+    # Spec AC6 budget. Build + test-runner over N stories; today's N is
+    # ~7, so 15 min has ample headroom.
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -102,8 +106,11 @@ jobs:
       - name: Install Playwright (Chromium only)
         run: pnpm --filter @deployai/web exec playwright install --with-deps chromium
 
+      # Use turbo so `@deployai/design-tokens` (required by apps/web's
+      # globals.css via `@import "@deployai/design-tokens/tailwind"`)
+      # is built first per turbo.json's `^build` dependency.
       - name: Build storybook-static
-        run: pnpm --filter @deployai/web build-storybook
+        run: pnpm turbo run build-storybook --filter=@deployai/web
 
       - name: Serve + run @storybook/test-runner
         # Uses `concurrently` via `start-server-and-test` pattern
@@ -124,6 +131,14 @@ jobs:
           done
           pnpm --filter @deployai/web storybook:test
 
+      - name: Upload http-server log on failure
+        if: failure()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: storybook-http-server-log
+          path: /tmp/sb.log
+          retention-days: 7
+
   # ------------------------------------------------------------------
   # Job 3 — playwright-a11y (AC4, AC10)
   # Builds the Next.js app, spins up `next start` on :3000, and runs
@@ -132,8 +147,11 @@ jobs:
   # default — it's a self-test of the gate itself, not a PR blocker.
   # ------------------------------------------------------------------
   playwright-a11y:
-    name: playwright-a11y (E2E axe)
+    name: playwright-a11y
     runs-on: ubuntu-24.04
+    # Spec AC6 budget. Playwright install (~45s cold) + `next build`
+    # (~60s) + E2E runs (~30s). 20 min leaves headroom for CI cold
+    # starts and image pulls.
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -156,8 +174,10 @@ jobs:
       - name: Install Playwright (Chromium only)
         run: pnpm --filter @deployai/web exec playwright install --with-deps chromium
 
+      # Use turbo so `@deployai/design-tokens` is built first
+      # (apps/web's globals.css `@import`s its tailwind preset).
       - name: Build apps/web (prod mode)
-        run: pnpm --filter @deployai/web build
+        run: pnpm turbo run build --filter=@deployai/web
 
       - name: Run Playwright E2E (a11y baseline)
         # playwright.config.ts's webServer boots `pnpm start` and waits
@@ -181,8 +201,12 @@ jobs:
   # our other gates rely on. Complementary coverage.
   # ------------------------------------------------------------------
   pa11y:
-    name: pa11y (axe + htmlcs)
+    name: pa11y
     runs-on: ubuntu-24.04
+    # Spec AC6 budget was 15 min; bumped to 20 because puppeteer Chrome
+    # install (~2-3 min cold) wasn't anticipated in the original
+    # budget. `timeout: 60000` per-URL in .pa11yci.json plus ~60s
+    # `next build` + ~20s Chrome install + ~10s pa11y = well under 20.
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -204,17 +228,27 @@ jobs:
 
       # pa11y-ci uses puppeteer-core which expects a Chrome binary in
       # ~/.cache/puppeteer. Install the pinned Chrome-for-Testing
-      # version that matches puppeteer-core@24.42.0's expectation.
+      # version matching puppeteer-core@24.42.0's expectation.
+      #
+      # Invoke `@puppeteer/browsers` via `pnpm dlx` rather than the
+      # pnpm-internal store path (`node_modules/.pnpm/@puppeteer+browsers@X.Y.Z/...`)
+      # — the store path encodes the exact version and breaks silently
+      # when a dependabot bump of pa11y-ci / puppeteer-core shifts
+      # @puppeteer/browsers to a different minor.
       - name: Install puppeteer Chrome
         run: |
-          node node_modules/.pnpm/@puppeteer+browsers@2.13.0/node_modules/@puppeteer/browsers/lib/cjs/main-cli.js \
-            install chrome@147.0.7727.57 --path "$HOME/.cache/puppeteer"
+          pnpm dlx @puppeteer/browsers@2.13.0 install chrome@147.0.7727.57 --path "$HOME/.cache/puppeteer"
 
+      # Use turbo so `@deployai/design-tokens` is built first
+      # (apps/web's globals.css `@import`s its tailwind preset).
       - name: Build apps/web (prod mode)
-        run: pnpm --filter @deployai/web build
+        run: pnpm turbo run build --filter=@deployai/web
 
       - name: Serve apps/web + run pa11y-ci
         run: |
+          # Ensure screenshot output dir exists — puppeteer's
+          # `page.screenshot({ path })` does not auto-create parents.
+          mkdir -p apps/web/pa11y-screenshots
           pnpm --filter @deployai/web exec next start --port 3000 >/tmp/next.log 2>&1 &
           NEXT_PID=$!
           # shellcheck disable=SC2064
@@ -227,3 +261,19 @@ jobs:
             sleep 1
           done
           pnpm --filter @deployai/web test:a11y
+
+      - name: Upload pa11y screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: pa11y-screenshots
+          path: apps/web/pa11y-screenshots/
+          retention-days: 14
+
+      - name: Upload next start log on failure
+        if: failure()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: pa11y-next-start-log
+          path: /tmp/next.log
+          retention-days: 7

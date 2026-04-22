@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-21
-last_updated: 2026-04-22 # story 1-6 implementation complete → review
+last_updated: 2026-04-22 # story 1-6 review-triage commit pushed (PR #7)
 project: DeployAI
 project_key: NOKEY
 tracking_system: file-system

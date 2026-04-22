@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
+import { AXE_WCAG_TAGS } from "../../src/lib/a11y-config";
+
 /**
  * Story 1.6 AC10: gate-proof self-test.
  *
@@ -31,7 +33,11 @@ test.describe("gate-proof: axe catches a known violation", () => {
     const fixture = pathToFileURL(resolve(__dirname, "fixtures", "violating-page.html")).toString();
     await page.goto(fixture);
 
-    const results = await new AxeBuilder({ page }).analyze();
+    // Exercise the *same* tag pipeline production specs use — if the
+    // shared config is silently corrupted (e.g., a typo turns a tag
+    // into a rule ID and matches nothing), this self-test must fail
+    // too. Otherwise the gate-proof is a false alarm generator.
+    const results = await new AxeBuilder({ page }).withTags([...AXE_WCAG_TAGS]).analyze();
     const imageAltViolation = results.violations.find((v) => v.id === "image-alt");
 
     expect(

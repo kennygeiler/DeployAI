@@ -28,14 +28,17 @@ test.describe("homepage a11y baseline", () => {
     ).toEqual([]);
   });
 
-  test("first Tab lands on a focusable element, not <body>", async ({ page }) => {
+  test("first Tab lands on the skip-to-main-content link", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator("main")).toBeVisible();
     await page.keyboard.press("Tab");
-    const active = await page.evaluate(() => document.activeElement?.tagName ?? "BODY");
-    expect(
-      ["A", "BUTTON", "INPUT", "TEXTAREA", "SELECT"],
-      `first Tab landed on ${active}`,
-    ).toContain(active);
+    // Assert the focused element IS the skip link — not just any
+    // focusable element. A looser tag check (e.g. `tagName === "A"`)
+    // would silently regress WCAG 2.4.1 if a future surface prepends
+    // a search <input> or nav <a> above the skip link in DOM order.
+    const focusedHref = await page.evaluate(
+      () => (document.activeElement as HTMLAnchorElement | null)?.getAttribute("href") ?? null,
+    );
+    expect(focusedHref, "first Tab must focus the skip-to-main-content link").toBe("#main");
   });
 });

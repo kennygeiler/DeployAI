@@ -98,6 +98,68 @@ Pin the runner version explicitly (e.g., `runs-on: ubuntu-24.04`, not `ubuntu-la
 
 ---
 
+## Required checks on `main`
+
+Branch protection on `main` must require the exact set of check-runs
+below before a PR can merge. The strings are the literal `<workflow>
+/ <job-name>` GitHub displays on the PR status UI — copy them verbatim
+into Settings → Branches → Branch protection rule → "Require status
+checks to pass before merging".
+
+Required checks (9 total):
+
+From `ci.yml` (workflow `name: CI`):
+
+- `CI / Toolchain (Node 24 + pnpm 10.33.0)`
+- `CI / Smoke (install / build / lint / typecheck / test / format)`
+- `CI / SBOM (source — SPDX + CycloneDX)`
+- `CI / CVE scan (grype)`
+- `CI / Dependency review (PR diff)`
+
+From `a11y.yml` (workflow `name: a11y`):
+
+- `a11y / jsx-a11y`
+- `a11y / storybook-a11y`
+- `a11y / playwright-a11y`
+- `a11y / pa11y`
+
+> The `ci.yml` names carry parenthetical descriptors for historical
+> reasons (Story 1.2) — branch protection matches the literal string,
+> so leave them as-is until a dedicated rename PR updates both this
+> table and the GitHub branch-protection rule in one commit. The
+> `a11y.yml` names were deliberately stabilized (Story 1.6) without
+> parentheticals to avoid repeating that lock-in.
+
+Conditionally skipping checks (configured via `if:` in the workflow,
+not via branch-protection settings):
+
+- `ci / cve-scan` and `ci / dependency-review` are gated by the
+  `GHAS_ENABLED` repository variable (see §2b above). When GHAS is off,
+  they report a neutral conclusion — branch protection treats neutral
+  as passing. **Do not** mark them as "required" only when GHAS is on;
+  the neutral-conclusion pattern handles this transparently.
+- PR fork runs skip write-scope steps via the §3 `if:` guard. None of
+  the required checks listed above are gated by that guard, so fork
+  PRs can still reach mergeable.
+
+**Conventions that protect these strings:**
+
+1. Job `name:` values MUST match the bare patterns above (no
+   parenthetical descriptors like `jsx-a11y (static lint)`) so the
+   branch-protection matcher is stable across job-body edits. Rename
+   the job only when there's a genuine semantic change — and do it in
+   a PR that updates this table in the same commit.
+2. Workflow `name:` values likewise. `a11y.yml` declares `name: a11y`;
+   don't change to `Accessibility` without updating this list AND
+   branch protection AND any downstream tooling (VPAT pipeline,
+   compliance exports) that greps for the workflow name.
+3. When adding a new job to `ci.yml` or `a11y.yml`, default to NOT
+   adding it to the required set. Most new jobs are experimental; only
+   promote to required after a stabilization window where the job has
+   been running on PRs without false positives.
+
+---
+
 ## SLSA provenance: why `actions/attest-build-provenance@v4`, not `slsa-github-generator`
 
 The architecture doc (`_bmad-output/planning-artifacts/architecture.md` §"CI/CD") names `slsa-github-generator` as the SLSA L2 provenance tool. As of 2026, GitHub offers a first-class, less-ceremony alternative: **`actions/attest-build-provenance@v4`**.
