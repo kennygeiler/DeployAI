@@ -1,17 +1,36 @@
 """FastAPI entrypoint for the DeployAI Control Plane.
 
-Story 1.3 ships only a liveness endpoint. Real routes land in Epic 1
-Stories 1.9+ (tenant isolation, authz) and Epic 5 (compliance + audit).
+Story 1.3 shipped the liveness probe. Story 1.7 adds the `/health` alias
+for the docker-compose healthcheck (AC matches the literal `/health`
+path in the epic). Real routes land in Stories 1.9+ (tenant isolation,
+authz) and Epic 5 (compliance + audit).
 """
 
 from __future__ import annotations
 
+from importlib import metadata
+
 from fastapi import FastAPI
 
-app = FastAPI(title="DeployAI Control Plane", version="0.0.0-scaffold")
+try:
+    _version = metadata.version("control-plane")
+except metadata.PackageNotFoundError:  # editable/unbuilt installs
+    _version = "0.0.0-scaffold"
+
+app = FastAPI(title="DeployAI Control Plane", version=_version)
+
+
+def _health_body() -> dict[str, str]:
+    return {"status": "ok", "service": "control-plane", "version": _version}
 
 
 @app.get("/healthz")
 async def healthz() -> dict[str, str]:
-    """Liveness probe used by docker-compose (Story 1.7) and the CI smoke test."""
-    return {"status": "ok"}
+    """Liveness probe (k8s convention). Used by docker-compose (Story 1.7)."""
+    return _health_body()
+
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    """Alias of `/healthz`. Satisfies Story 1.7 AC literal `/health`."""
+    return _health_body()

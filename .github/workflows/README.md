@@ -11,6 +11,7 @@ This directory holds the GitHub Actions workflows that enforce DeployAI's compli
 | `ci.yml` | PR against `main`; push to `main` | Toolchain guard, smoke suite, source-tree SBOM, Grype CVE scan, Dependency Review | NFR62 (SBOM), NFR65 (CVE), Story 1.1 deferred AC4 + AC5 | active | Story 1.2 |
 | `release.yml` | Tag push matching `v*.*.*`; `workflow_dispatch` | Signs + attests release artifacts (cosign keyless, SLSA v1.0 provenance) | NFR63 (signing), NFR64 (SLSA L2) | scaffolded; dormant until Story 1.3 lands buildable workspaces | Story 1.2 |
 | `a11y.yml` | PR against `main`; push to `main` | 4-job a11y gate: `jsx-a11y` lint, `storybook-a11y` test-runner, `playwright-a11y` E2E axe, `pa11y` axe + htmlcs | FR44, NFR28, NFR41, NFR42, NFR43, AR25 | active | Story 1.6 |
+| `compose-smoke.yml` | PR against `main` (path-filtered on `infra/**`, `services/**`, `apps/web/Dockerfile`, `packages/design-tokens/**`, `Makefile`, `pnpm-lock.yaml`); push to `main` | Brings up the full local stack (postgres + pgvector/pgcrypto, redis, minio, freetsa-stub, control-plane, web) via `make dev`, runs `make dev-verify`, fails if wall-clock exceeds 30 min | NFR67, NFR68, NFR77 | active | Story 1.7 |
 
 Dependabot (`.github/dependabot.yml`) runs weekly across npm, pip, gomod, cargo, and github-actions ecosystems — keeping every dependency and every workflow action SHA fresh. That configuration is the 5th-ecosystem enforcement of NFR65.
 
@@ -106,7 +107,7 @@ below before a PR can merge. The strings are the literal `<workflow>
 into Settings → Branches → Branch protection rule → "Require status
 checks to pass before merging".
 
-Required checks (9 total):
+Required checks (10 total):
 
 From `ci.yml` (workflow `name: CI`):
 
@@ -122,6 +123,10 @@ From `a11y.yml` (workflow `name: a11y`):
 - `a11y / storybook-a11y`
 - `a11y / playwright-a11y`
 - `a11y / pa11y`
+
+From `compose-smoke.yml` (workflow `name: compose-smoke`):
+
+- `compose-smoke / compose-smoke`
 
 > The `ci.yml` names carry parenthetical descriptors for historical
 > reasons (Story 1.2) — branch protection matches the literal string,

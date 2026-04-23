@@ -152,6 +152,8 @@ terraform.rc
 # Keep Dockerfile(s) and compose files; ignore local volume data
 .docker-data/
 docker-compose.override.yml
+# Story 1.7: guard against accidental bind-mount configs (volumes are named by default)
+infra/compose/**/data/
 
 # ─────────────────────── Secrets / Env ───────────────────────
 .env
