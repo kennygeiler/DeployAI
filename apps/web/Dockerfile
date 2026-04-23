@@ -3,10 +3,10 @@
 # (from repository root; Dockerfile needs the full workspace context to copy lockfile + workspace manifests)
 #
 # Story 1.7: fixed to honor the pnpm workspace graph. `apps/web` imports
-# `@deployai/design-tokens/tailwind`; without the packages/ source the
-# Next build fails exactly like the Story 1.6 CI topology bug. The deps
-# stage copies all workspace manifests; the builder stage runs
-# `pnpm --filter @deployai/web... build` so design-tokens builds first.
+# `@deployai/design-tokens/tailwind` and `@deployai/authz`; without the
+# packages/ source the Next build fails. The deps stage copies all
+# workspace manifests; the builder stage runs
+# `pnpm turbo run build --filter=@deployai/web` so ^build (authz, design-tokens) runs first.
 
 FROM node:24-alpine AS base
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -16,14 +16,17 @@ WORKDIR /repo
 FROM base AS deps
 COPY pnpm-lock.yaml package.json pnpm-workspace.yaml tsconfig.base.json turbo.json ./
 COPY apps/web/package.json ./apps/web/
+COPY packages/authz/package.json ./packages/authz/
 COPY packages/design-tokens/package.json ./packages/design-tokens/
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile --filter "@deployai/web..."
 
 FROM base AS builder
 COPY --from=deps /repo/node_modules ./node_modules
 COPY --from=deps /repo/apps/web/node_modules ./apps/web/node_modules
+COPY --from=deps /repo/packages/authz/node_modules ./packages/authz/node_modules
 COPY --from=deps /repo/packages/design-tokens/node_modules ./packages/design-tokens/node_modules
 COPY pnpm-lock.yaml package.json pnpm-workspace.yaml tsconfig.base.json turbo.json ./
+COPY packages/authz ./packages/authz
 COPY packages/design-tokens ./packages/design-tokens
 COPY apps/web ./apps/web
 RUN pnpm turbo run build --filter=@deployai/web
