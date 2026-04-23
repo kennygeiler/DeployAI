@@ -7,7 +7,11 @@ function roleFromHeaders(h: Headers): V1Role | null {
   if (r === "platform_admin" || r === "external_auditor" || r === "customer_admin") {
     return r;
   }
-  if (r === "deployment_strategist" || r === "successor_strategist" || r === "customer_records_officer") {
+  if (
+    r === "deployment_strategist" ||
+    r === "successor_strategist" ||
+    r === "customer_records_officer"
+  ) {
     return r;
   }
   return null;

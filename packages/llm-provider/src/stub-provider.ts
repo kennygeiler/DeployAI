@@ -14,7 +14,8 @@ const stubCaps: CapabilityMatrix = {
 export function createStubLlmProvider(prefix = "stub-out"): LLMProvider {
   return {
     id: "stub",
-    async chatComplete(messages: readonly ChatMessage[], _options: LLMCallOptions | undefined) {
+    async chatComplete(messages: readonly ChatMessage[], options: LLMCallOptions | undefined) {
+      void options;
       const last = messages.filter((m) => m.role !== "system").at(-1)?.content ?? "";
       return `${prefix}:${last.length}`;
     },

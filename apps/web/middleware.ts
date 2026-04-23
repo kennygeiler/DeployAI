@@ -1,8 +1,8 @@
-import { NextResponse, type NextRequest } from "next/server"
+import { NextResponse, type NextRequest } from "next/server";
 
-import { isAllowedByMatrix, type Action, type V1Role } from "@deployai/authz"
+import { isAllowedByMatrix, type Action, type V1Role } from "@deployai/authz";
 
-const isAdmin = (p: string) => p === "/admin/runs" || p.startsWith("/admin/schema-proposals")
+const isAdmin = (p: string) => p === "/admin/runs" || p.startsWith("/admin/schema-proposals");
 
 function parseRole(r: string | null): V1Role | null {
   const allowed: V1Role[] = [
@@ -12,36 +12,40 @@ function parseRole(r: string | null): V1Role | null {
     "successor_strategist",
     "customer_records_officer",
     "external_auditor",
-  ]
+  ];
   if (!r) {
-    return null
+    return null;
   }
-  return (allowed as string[]).includes(r) ? (r as V1Role) : null
+  return (allowed as string[]).includes(r) ? (r as V1Role) : null;
 }
 
 function actionForPath(pathname: string): Action {
   if (pathname.startsWith("/admin/schema-proposals")) {
-    return "admin:view_schema_proposals"
+    return "admin:view_schema_proposals";
   }
-  return "ingest:view_runs"
+  return "ingest:view_runs";
 }
 
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl
+  const { pathname } = request.nextUrl;
   if (!isAdmin(pathname)) {
-    return NextResponse.next()
+    return NextResponse.next();
   }
-  const role = parseRole(request.headers.get("x-deployai-role"))
+  const role = parseRole(request.headers.get("x-deployai-role"));
   if (!role) {
-    return new NextResponse("Forbidden: missing or invalid x-deployai-role (see docs).", { status: 403 })
+    return new NextResponse("Forbidden: missing or invalid x-deployai-role (see docs).", {
+      status: 403,
+    });
   }
-  const a = actionForPath(pathname)
+  const a = actionForPath(pathname);
   if (!isAllowedByMatrix(role, a)) {
-    return new NextResponse("Forbidden: role cannot access this admin surface in V1.", { status: 403 })
+    return new NextResponse("Forbidden: role cannot access this admin surface in V1.", {
+      status: 403,
+    });
   }
-  return NextResponse.next()
+  return NextResponse.next();
 }
 
 export const config = {
   matcher: ["/admin/runs", "/admin/schema-proposals", "/admin/schema-proposals/:path*"],
-}
+};

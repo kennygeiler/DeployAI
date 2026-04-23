@@ -7,16 +7,66 @@
   ],
   "phases": ["morning_digest", "in_meeting", "phase_tracking", "evening", "adjudication"],
   "nodes": [
-    { "id": "aaaaaaaa-aaaa-7aaa-8aaa-000000000001", "tenantIndex": 0, "phaseIndex": 0, "label": "N1" },
-    { "id": "aaaaaaaa-aaaa-7aaa-8aaa-000000000002", "tenantIndex": 0, "phaseIndex": 1, "label": "N2" },
-    { "id": "aaaaaaaa-aaaa-7aaa-8aaa-000000000003", "tenantIndex": 0, "phaseIndex": 2, "label": "N3" },
-    { "id": "bbbbbbbb-bbbb-7bbb-8bbb-000000000001", "tenantIndex": 1, "phaseIndex": 0, "label": "N4" },
-    { "id": "bbbbbbbb-bbbb-7bbb-8bbb-000000000002", "tenantIndex": 1, "phaseIndex": 3, "label": "N5" },
-    { "id": "bbbbbbbb-bbbb-7bbb-8bbb-000000000003", "tenantIndex": 1, "phaseIndex": 4, "label": "N6" },
-    { "id": "cccccccc-cccc-7ccc-8ccc-000000000001", "tenantIndex": 2, "phaseIndex": 1, "label": "N7" },
-    { "id": "cccccccc-cccc-7ccc-8ccc-000000000002", "tenantIndex": 2, "phaseIndex": 2, "label": "N8" },
-    { "id": "cccccccc-cccc-7ccc-8ccc-000000000003", "tenantIndex": 2, "phaseIndex": 0, "label": "N9" },
-    { "id": "cccccccc-cccc-7ccc-8ccc-000000000004", "tenantIndex": 2, "phaseIndex": 3, "label": "N10" }
+    {
+      "id": "aaaaaaaa-aaaa-7aaa-8aaa-000000000001",
+      "tenantIndex": 0,
+      "phaseIndex": 0,
+      "label": "N1"
+    },
+    {
+      "id": "aaaaaaaa-aaaa-7aaa-8aaa-000000000002",
+      "tenantIndex": 0,
+      "phaseIndex": 1,
+      "label": "N2"
+    },
+    {
+      "id": "aaaaaaaa-aaaa-7aaa-8aaa-000000000003",
+      "tenantIndex": 0,
+      "phaseIndex": 2,
+      "label": "N3"
+    },
+    {
+      "id": "bbbbbbbb-bbbb-7bbb-8bbb-000000000001",
+      "tenantIndex": 1,
+      "phaseIndex": 0,
+      "label": "N4"
+    },
+    {
+      "id": "bbbbbbbb-bbbb-7bbb-8bbb-000000000002",
+      "tenantIndex": 1,
+      "phaseIndex": 3,
+      "label": "N5"
+    },
+    {
+      "id": "bbbbbbbb-bbbb-7bbb-8bbb-000000000003",
+      "tenantIndex": 1,
+      "phaseIndex": 4,
+      "label": "N6"
+    },
+    {
+      "id": "cccccccc-cccc-7ccc-8ccc-000000000001",
+      "tenantIndex": 2,
+      "phaseIndex": 1,
+      "label": "N7"
+    },
+    {
+      "id": "cccccccc-cccc-7ccc-8ccc-000000000002",
+      "tenantIndex": 2,
+      "phaseIndex": 2,
+      "label": "N8"
+    },
+    {
+      "id": "cccccccc-cccc-7ccc-8ccc-000000000003",
+      "tenantIndex": 2,
+      "phaseIndex": 0,
+      "label": "N9"
+    },
+    {
+      "id": "cccccccc-cccc-7ccc-8ccc-000000000004",
+      "tenantIndex": 2,
+      "phaseIndex": 3,
+      "label": "N10"
+    }
   ],
   "contextByNodeId": {
     "aaaaaaaa-aaaa-7aaa-8aaa-000000000001": {

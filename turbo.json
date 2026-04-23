@@ -51,6 +51,12 @@
     "contract:check": {
       "outputs": []
     },
+    "contract:continuity": {
+      "outputs": []
+    },
+    "validate:llm-matrix": {
+      "outputs": []
+    },
     "fuzz:cross-tenant": {
       "cache": false,
       "env": [

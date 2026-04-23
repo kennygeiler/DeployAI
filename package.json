@@ -24,6 +24,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "contract:check": "pnpm --filter @deployai/contracts run contract:check",
+    "contract:continuity": "pnpm turbo run contract:continuity",
+    "validate:llm-matrix": "pnpm turbo run validate:llm-matrix",
     "clean": "turbo run clean && rm -rf node_modules .turbo"
   },
   "devDependencies": {

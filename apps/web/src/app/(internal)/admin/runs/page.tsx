@@ -1,16 +1,16 @@
-import type { Metadata } from "next"
-import { notFound } from "next/navigation"
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
-import { decideSync } from "@deployai/authz"
+import { decideSync } from "@deployai/authz";
 
-import { getActorFromHeaders } from "@/lib/internal/actor"
+import { getActorFromHeaders } from "@/lib/internal/actor";
 
-import { type RunRow, RunsTable } from "./RunsTable.client"
+import { type RunRow, RunsTable } from "./RunsTable.client";
 
 export const metadata: Metadata = {
   title: "Admin — Ingestion runs",
   description: "Platform Admin cockpit for ingestion runs (Story 1-16).",
-}
+};
 
 const seed: RunRow[] = [
   {
@@ -31,20 +31,24 @@ const seed: RunRow[] = [
     eventCount: 42,
     raw: { run: "run-002", cursor: "opaque" },
   },
-]
+];
 
 export default async function AdminRunsPage() {
-  const actor = await getActorFromHeaders()
+  const actor = await getActorFromHeaders();
   if (!actor) {
-    notFound()
+    notFound();
   }
-  const d = decideSync(actor, "ingest:view_runs", { kind: "ingestion_runs" })
+  const d = decideSync(actor, "ingest:view_runs", { kind: "ingestion_runs" });
   if (!d.allow) {
-    notFound()
+    notFound();
   }
 
   return (
-    <main id="main" tabIndex={-1} className="mx-auto flex max-w-5xl flex-col gap-6 p-8 outline-none">
+    <main
+      id="main"
+      tabIndex={-1}
+      className="mx-auto flex max-w-5xl flex-col gap-6 p-8 outline-none"
+    >
       <div>
         <h1 className="text-display font-semibold tracking-tight text-ink-950">Ingestion runs</h1>
         <p className="text-body text-ink-600">
@@ -53,5 +57,5 @@ export default async function AdminRunsPage() {
       </div>
       <RunsTable rows={seed} />
     </main>
-  )
+  );
 }

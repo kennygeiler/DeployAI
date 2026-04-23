@@ -17,12 +17,7 @@ export type LLMCallOptions = {
 /**
  * What this provider can do. Keys line up with `services/config/llm-capability-matrix.yaml`.
  */
-export type CapabilityKey =
-  | "extraction"
-  | "retrieval"
-  | "arbitration"
-  | "embeddings"
-  | "tool_use";
+export type CapabilityKey = "extraction" | "retrieval" | "arbitration" | "embeddings" | "tool_use";
 
 export type CapabilityMatrix = Record<CapabilityKey, boolean>;
 

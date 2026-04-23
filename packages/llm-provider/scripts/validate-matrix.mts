@@ -9,7 +9,15 @@ import { load } from "js-yaml";
 import { createStubLlmProvider } from "../src/stub-provider.js";
 
 const _root = dirname(fileURLToPath(import.meta.url));
-const matrixPath = join(_root, "..", "..", "..", "services", "config", "llm-capability-matrix.yaml");
+const matrixPath = join(
+  _root,
+  "..",
+  "..",
+  "..",
+  "services",
+  "config",
+  "llm-capability-matrix.yaml",
+);
 const raw = readFileSync(matrixPath, "utf-8");
 const doc = load(raw) as {
   version: number;

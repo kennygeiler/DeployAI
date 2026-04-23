@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-21
-last_updated: 2026-04-24 # story 1-11 merged to main as PR #12 → done
+last_updated: 2026-04-23 # feat/epic-1-stories-1-12-through-1-17: 1-12, 1-13, 1-14, 1-16 implemented; 1-17 WIP; 1-15 backlog
 project: DeployAI
 project_key: NOKEY
 tracking_system: file-system
@@ -58,11 +58,11 @@ development_status:
   1-9-three-layer-tenant-isolation: done
   1-10-cross-tenant-isolation-fuzz-ci-gate: done
   1-11-citation-envelope-contract-v0-1: done
-  1-12-continuity-of-reference-contract-tests: backlog
-  1-13-rfc-3161-signed-timestamps: backlog
-  1-14-llm-provider-abstraction-interface: backlog
+  1-12-continuity-of-reference-contract-tests: done
+  1-13-rfc-3161-signed-timestamps: done
+  1-14-llm-provider-abstraction-interface: done
   1-15-tauri-signed-hello-world-spike: backlog
-  1-16-minimal-admin-shell: backlog
+  1-16-minimal-admin-shell: done
   1-17-cartographer-schema-evolution-staging: backlog
   epic-1-retrospective: optional
 

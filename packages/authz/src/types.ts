@@ -7,7 +7,10 @@ export type Action =
   | "admin:promote_schema"
   | "foia:export";
 
-export type Resource = { kind: "ingestion_runs" } | { kind: "schema_proposals" } | { kind: "tenant"; id: string };
+export type Resource =
+  | { kind: "ingestion_runs" }
+  | { kind: "schema_proposals" }
+  | { kind: "tenant"; id: string };
 
 export type Decision =
   | { allow: true }
@@ -15,4 +18,8 @@ export type Decision =
 
 export type AuthActor = { role: V1Role; tenantId?: string };
 
-export type AuthzResolver = (actor: AuthActor, action: Action, resource: Resource) => Promise<Decision> | Decision;
+export type AuthzResolver = (
+  actor: AuthActor,
+  action: Action,
+  resource: Resource,
+) => Promise<Decision> | Decision;

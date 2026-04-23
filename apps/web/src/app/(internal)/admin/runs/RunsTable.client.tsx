@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useMemo, useState } from "react"
+import { useMemo, useState } from "react";
 
 import {
   Sheet,
@@ -8,24 +8,31 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+} from "@/components/ui/sheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export type RunRow = {
-  id: string
-  tenant: string
-  source: string
-  startedAt: string
-  status: string
-  eventCount: number
-  raw: Record<string, string>
-}
+  id: string;
+  tenant: string;
+  source: string;
+  startedAt: string;
+  status: string;
+  eventCount: number;
+  raw: Record<string, string>;
+};
 
 function matchesFilter(row: RunRow, q: string): boolean {
   if (!q.trim()) {
-    return true
+    return true;
   }
-  const s = q.trim().toLowerCase()
+  const s = q.trim().toLowerCase();
   return (
     row.id.toLowerCase().includes(s) ||
     row.tenant.toLowerCase().includes(s) ||
@@ -33,15 +40,15 @@ function matchesFilter(row: RunRow, q: string): boolean {
     row.status.toLowerCase().includes(s) ||
     row.startedAt.toLowerCase().includes(s) ||
     String(row.eventCount).includes(s)
-  )
+  );
 }
 
 export function RunsTable({ rows }: { rows: RunRow[] }) {
-  const [open, setOpen] = useState(false)
-  const [detail, setDetail] = useState<RunRow | null>(null)
-  const [query, setQuery] = useState("")
+  const [open, setOpen] = useState(false);
+  const [detail, setDetail] = useState<RunRow | null>(null);
+  const [query, setQuery] = useState("");
 
-  const visible = useMemo(() => rows.filter((r) => matchesFilter(r, query)), [rows, query])
+  const visible = useMemo(() => rows.filter((r) => matchesFilter(r, query)), [rows, query]);
 
   return (
     <>
@@ -75,8 +82,8 @@ export function RunsTable({ rows }: { rows: RunRow[] }) {
               key={r.id}
               className="cursor-pointer"
               onClick={() => {
-                setDetail(r)
-                setOpen(true)
+                setDetail(r);
+                setOpen(true);
               }}
             >
               <TableCell>{r.tenant}</TableCell>
@@ -93,13 +100,17 @@ export function RunsTable({ rows }: { rows: RunRow[] }) {
         <SheetContent side="right" className="sm:max-w-lg">
           <SheetHeader>
             <SheetTitle>Run {detail?.id}</SheetTitle>
-            <SheetDescription>Raw metadata (Story 1-16 shell; Epic 3 wires real runs).</SheetDescription>
+            <SheetDescription>
+              Raw metadata (Story 1-16 shell; Epic 3 wires real runs).
+            </SheetDescription>
           </SheetHeader>
           {detail ? (
-            <pre className="mt-4 overflow-x-auto rounded-md border p-4 text-xs">{JSON.stringify(detail.raw, null, 2)}</pre>
+            <pre className="mt-4 overflow-x-auto rounded-md border p-4 text-xs">
+              {JSON.stringify(detail.raw, null, 2)}
+            </pre>
           ) : null}
         </SheetContent>
       </Sheet>
     </>
-  )
+  );
 }

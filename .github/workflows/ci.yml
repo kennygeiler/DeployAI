@@ -154,6 +154,11 @@ jobs:
       - name: contract gate (citation envelope v0.1.0)
         run: pnpm turbo run contract:check
 
+      # NFR52 continuity tests run under `turbo test` (@deployai/continuity-of-reference). Use
+      # `pnpm contract:continuity` locally or in release to invoke the same suite by name.
+      - name: LLM capability matrix (Story 1-14, NFR70)
+        run: pnpm turbo run validate:llm-matrix
+
       - name: prettier --check
         run: pnpm run format:check
 

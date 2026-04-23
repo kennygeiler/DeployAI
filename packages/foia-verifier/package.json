@@ -12,7 +12,10 @@
       "default": "./dist/verify.js"
     }
   },
-  "files": ["dist/**", "certs/README.md"],
+  "files": [
+    "dist/**",
+    "certs/README.md"
+  ],
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "lint": "eslint . --max-warnings 0",

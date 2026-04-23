@@ -40,7 +40,8 @@ export function getStateVersion() {
   return stateVersion;
 }
 
-export function resolveNode(nodeId: string, _surface: SurfaceId): NodeView | undefined {
+export function resolveNode(nodeId: string, surface: SurfaceId): NodeView | undefined {
+  void surface;
   const v = views.get(nodeId);
   if (!v) {
     return undefined;
