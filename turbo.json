@@ -48,6 +48,9 @@
       "dependsOn": ["^build"],
       "env": ["DOCKER_*", "GITHUB_*"]
     },
+    "contract:check": {
+      "outputs": []
+    },
     "fuzz:cross-tenant": {
       "cache": false,
       "env": [

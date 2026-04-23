@@ -14,7 +14,7 @@ The root `pnpm-workspace.yaml` declares five workspace roots. Every future top-l
 | `apps/edge-agent` | Tauri 2.x desktop edge-capture agent (macOS V1 per FR13, FR14, NFR20) | `pnpm create tauri-app@latest . --template react-ts` |
 | `apps/foia-cli` | Go FOIA verification CLI — single static binary, Sigstore-signed (FR60, FR61) | `go mod init github.com/kennygeiler/deployai/foia-cli` |
 | `services/*` | FastAPI + Pydantic v2 + SQLAlchemy 2.x async Python services (`api-gateway`, `canonical-memory`, `ingest`, `cartographer`, `oracle`, `master-strategist`, `control-plane`, `foia-export`, `replay-parity-harness`). Authored from reference patterns, not a single generator. | `uv init` per service |
-| `packages/*` | Shared cross-workspace libraries: `design-tokens`, `citation-envelope`, `canonical-memory-primitives`, `llm-provider-abstraction`, `tenant-scope`, `shared-ui`, `event-contracts` | Authored directly |
+| `packages/*` | Shared cross-workspace libraries: `design-tokens`, `contracts` (citation envelope v0.1+), `llm-provider` (1.14), `shared-ui` (Epic 7) | Authored directly |
 | `infra/*` | Terraform + Terragrunt IaC (`infra/terraform/`), docker-compose reference dev env (`infra/compose/`), deferred Helm chart (`infra/helm/`) | Authored directly |
 | `tests/*` | Cross-workspace test harnesses: `11th-call/`, `continuity-of-reference/`, `phase-retrieval-matrix/`, `tenant-isolation-fuzz/`, `e2e-user-journeys/` | Authored directly |
 
@@ -190,20 +190,38 @@ Seed fixtures (Story 1.7) still live in the separate `fixtures.*` schema — Sto
 | `services/control-plane/pyproject.toml` | `deployai-tenancy` editable path dep, `[tool.uv.sources]`, `aiosqlite` dev dep, importlib mode for tests (resolves tenancy ↔ control-plane `tests.unit.*` namespace clash) | `services/control-plane/pyproject.toml` |
 | `docs/` | `docs/security/tenant-isolation.md` (new) — three-layer defense walkthrough, BYPASSRLS gotcha, fail-closed semantics, scope fences (KMS, rotation, role swap). `docs/canonical-memory.md` updated to reference 1.9 migration + tenancy package. | `docs/security/tenant-isolation.md`, `docs/canonical-memory.md` |
 
-## What this repo does NOT yet contain (by design, as of Story 1.9)
+## What Story 1.10 shipped
+
+| Path | Addition | Primary files |
+|---|---|---|
+| `services/control-plane/src/control_plane/fuzz/` | Cross-tenant RLS/SQLi/`SET ROLE` harness + JSON report; CLI `python -m control_plane.fuzz.cross_tenant` | `cross_tenant.py`, `attacks.py`, `report.py` |
+| `services/control-plane/tests/fuzz/` | Meta-tests, production-gated pytest run, anti-test for disabled-RLS detection | `test_cross_tenant_harness.py`, `test_cli_production_run.py` |
+| `.github/workflows/` | Path-filtered `fuzz.yml` (not a required check yet) | `.github/workflows/fuzz.yml` |
+| `docs/security/` | Operator-facing triage for the harness | `docs/security/cross-tenant-fuzz.md` |
+| `turbo.json` / `package.json` | `fuzz:cross-tenant` task + pnpm script with `--seed` | `services/control-plane/package.json`, `turbo.json` |
+
+## What Story 1.11 shipped
+
+| Path | Addition | Primary files |
+|---|---|---|
+| `packages/contracts` | `@deployai/contracts` — Zod citation envelope v0.1.0, Vitest contract tests, committed JSON Schema, `contract:check` (CI) | `src/citation-envelope.ts`, `schema/citation-envelope-0.1.0.schema.json` |
+| `migrations/contracts/` | Human-readable breaking-change policy for future semver bumps | `migrations/contracts/README.md` |
+| `services/_shared/citation` | `deployai-citation` Pydantic mirror (path dep of control-plane) | `src/deployai_citation/citation.py` |
+| `docs/contracts/` | Field semantics (FR27) | `docs/contracts/citation-envelope.md` |
+| `.github/workflows/ci.yml` | `pnpm turbo run contract:check` on the main smoke job | `ci.yml` (smoke job) |
+
+## What this repo does NOT yet contain (by design, as of Story 1.11)
 
 - No additional `services/*` beyond `control-plane` — authored per story as features land (`canonical-memory` in 1.8, `api-gateway` in 1.9, `ingest`/`oracle`/`master-strategist` in later epics).
 - No `packages/shared-ui/` workspace yet — the first DeployAI-specific composite (CitationChip) creates it in Epic 7.
 - No Grafana / Prometheus / Loki / Tempo observability stack in compose — Story 12.10.
-- No `tests/*` cross-workspace harnesses — first one lands in Story 1.10.
+- No continuity-of-reference contract suite in `tests/*` — Story 1.12.
 - No dark-mode token set — deferred; the variable layer already supports it.
 - No mobile-viewport a11y runs (Chromium-desktop only at V1) — covered by Story 7.13.
 - No screen-reader automation (NVDA / VoiceOver / JAWS) — manual verification remains required for release candidates.
 - No AWS-KMS-backed DEK provider — `KMSEnvelopeDEKProvider` lands Story 3.x when AWS infra is provisioned. Story 1.9 ships the protocol + `InMemoryDEKProvider` for dev/test.
 - No `deployai_app` role swap as the control-plane default connection user — Story 2.4 flips it. Story 1.9 creates the role + grants; all current connections still go through the superuser, so RLS only applies to code paths that explicitly `SET SESSION AUTHORIZATION` (integration tests do this; Story 1.10's fuzz harness will attack both paths).
 - No encrypted columns on canonical tables (`private_annotation`, `raw_transcript_content`) — the envelope-encryption mechanism ships in 1.9, but actual column migrations land per-feature in Epic 10 and Epic 11.
-- No cross-tenant fuzz harness — Story 1.10.
-- No citation envelope contract — Story 1.11.
 - No RFC 3161 signing wired into tombstones (`tombstones.tsa_timestamp` remains nullable) — Story 1.13.
 - No schema-proposal review surface — Story 1.17.
 - No real CLI commands in `apps/foia-cli` — Story 1.12+.

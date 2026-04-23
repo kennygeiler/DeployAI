@@ -9,8 +9,9 @@ WORKDIR /app
 # Shared workspace packages must live at paths that match the control-plane's
 # `[tool.uv.sources]` declarations (relative `../_shared/<pkg>`), so we mirror
 # the monorepo layout inside the image: /app holds control-plane, /_shared
-# holds deployai-tenancy (and future siblings).
+# holds deployai-tenancy, deployai-citation, etc.
 COPY services/_shared/tenancy /_shared/tenancy
+COPY services/_shared/citation /_shared/citation
 
 COPY services/control-plane/pyproject.toml services/control-plane/uv.lock services/control-plane/README.md ./
 RUN uv sync --frozen --no-install-project --no-dev
@@ -20,7 +21,7 @@ RUN uv sync --frozen --no-dev
 FROM python:3.13-slim AS runtime
 WORKDIR /app
 COPY --from=build /app /app
-# Editable installs in /app/.venv point at /_shared/tenancy; preserve that tree.
+# Editable installs in /app/.venv point at /_shared/*; preserve that tree.
 COPY --from=build /_shared /_shared
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
 EXPOSE 8000

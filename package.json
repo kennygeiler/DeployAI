@@ -23,6 +23,7 @@
     "dev": "turbo run dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "contract:check": "pnpm --filter @deployai/contracts run contract:check",
     "clean": "turbo run clean && rm -rf node_modules .turbo"
   },
   "devDependencies": {

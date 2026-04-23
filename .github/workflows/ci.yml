@@ -151,6 +151,9 @@ jobs:
       - name: turbo test
         run: pnpm turbo run test
 
+      - name: contract gate (citation envelope v0.1.0)
+        run: pnpm turbo run contract:check
+
       - name: prettier --check
         run: pnpm run format:check
 

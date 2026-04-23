@@ -8,7 +8,7 @@ This directory holds the GitHub Actions workflows that enforce DeployAI's compli
 
 | Workflow | Trigger | Purpose | Compliance control(s) | Status | Landed in |
 |---|---|---|---|---|---|
-| `ci.yml` | PR against `main`; push to `main` | Toolchain guard, smoke suite, source-tree SBOM, Grype CVE scan, Dependency Review | NFR62 (SBOM), NFR65 (CVE), Story 1.1 deferred AC4 + AC5 | active | Story 1.2 |
+| `ci.yml` | PR against `main`; push to `main` | Toolchain guard, smoke suite (`pnpm turbo run contract:check` for citation envelope v0.1), source-tree SBOM, Grype CVE scan, Dependency Review | NFR62 (SBOM), NFR65 (CVE), FR27 contract gate, Story 1.1 deferred AC4 + AC5 | active | Story 1.2 |
 | `release.yml` | Tag push matching `v*.*.*`; `workflow_dispatch` | Signs + attests release artifacts (cosign keyless, SLSA v1.0 provenance) | NFR63 (signing), NFR64 (SLSA L2) | scaffolded; dormant until Story 1.3 lands buildable workspaces | Story 1.2 |
 | `a11y.yml` | PR against `main`; push to `main` | 4-job a11y gate: `jsx-a11y` lint, `storybook-a11y` test-runner, `playwright-a11y` E2E axe, `pa11y` axe + htmlcs | FR44, NFR28, NFR41, NFR42, NFR43, AR25 | active | Story 1.6 |
 | `compose-smoke.yml` | PR against `main` (path-filtered on `infra/**`, `services/**`, `apps/web/Dockerfile`, `packages/design-tokens/**`, `Makefile`, `pnpm-lock.yaml`); push to `main` | Brings up the full local stack (postgres + pgvector/pgcrypto, redis, minio, freetsa-stub, control-plane, web) via `make dev`, runs `make dev-verify`, fails if wall-clock exceeds 30 min | NFR67, NFR68, NFR77 | active | Story 1.7 |

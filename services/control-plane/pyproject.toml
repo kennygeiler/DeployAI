@@ -13,10 +13,13 @@ dependencies = [
   "python-dotenv>=1.0.1",
   # Story 1.9 — shared tenancy primitives (TenantScopedSession + RLS glue).
   "deployai-tenancy",
+  # Story 1.11 — citation envelope Pydantic mirror of @deployai/contracts.
+  "deployai-citation",
 ]
 
 [tool.uv.sources]
 deployai-tenancy = { path = "../_shared/tenancy", editable = true }
+deployai-citation = { path = "../_shared/citation", editable = true }
 
 [dependency-groups]
 dev = [
@@ -64,7 +67,7 @@ asyncio_mode = "auto"
 # Test both the control-plane tree AND the shared tenancy package's unit
 # tests in one invocation (Story 1.9). CI `Smoke` → `uv run pytest` covers
 # both surfaces without a second invocation or a workspace-level config.
-testpaths = ["tests", "../_shared/tenancy/tests/unit"]
+testpaths = ["tests", "../_shared/tenancy/tests/unit", "../_shared/citation/tests"]
 pythonpath = ["src"]
 # importlib mode is required because both test trees otherwise collide on
 # the `tests.unit.test_*` package namespace — control-plane and tenancy
