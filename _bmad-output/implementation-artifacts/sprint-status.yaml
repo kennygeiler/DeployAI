@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-21
-last_updated: 2026-04-24 # story 1-11 citation envelope → ready-for-dev (PR open)
+last_updated: 2026-04-24 # story 1-11 merged to main as PR #12 → done
 project: DeployAI
 project_key: NOKEY
 tracking_system: file-system
@@ -57,7 +57,7 @@ development_status:
   1-8-canonical-memory-schema: done
   1-9-three-layer-tenant-isolation: done
   1-10-cross-tenant-isolation-fuzz-ci-gate: done
-  1-11-citation-envelope-contract-v0-1: review
+  1-11-citation-envelope-contract-v0-1: done
   1-12-continuity-of-reference-contract-tests: backlog
   1-13-rfc-3161-signed-timestamps: backlog
   1-14-llm-provider-abstraction-interface: backlog
