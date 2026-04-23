@@ -106,7 +106,7 @@ pnpm --filter @deployai/control-plane dev     # FastAPI on :8000 (uvicorn --relo
 pnpm --filter @deployai/foia-cli build && apps/foia-cli/bin/foia
 ```
 
-## 6. Docker sanity check (optional, Story 1.7 will wire these into docker-compose)
+## 6. Docker sanity check (per-workspace)
 
 ```bash
 docker build -f apps/web/Dockerfile -t deployai/web:dev .
@@ -114,6 +114,65 @@ docker build -f apps/foia-cli/Dockerfile -t deployai/foia-cli:dev .
 docker build -f services/control-plane/Dockerfile -t deployai/control-plane:dev .
 # apps/edge-agent Dockerfile only does `cargo check` — shippable bundles need native OS runners.
 ```
+
+## 7. Local stack via docker-compose (Story 1.7)
+
+The reference local stack brings up Postgres 16 (with pgvector + pgcrypto),
+Redis 7, MinIO, a FreeTSA stub (Story 1.13 placeholder), the FastAPI
+control-plane, and the Next.js web surface — seeded with a synthetic tenant
++ ≥ 20 canonical fixture events.
+
+**Prerequisites:**
+
+- Docker Desktop ≥ 4.30 (or Docker Engine + Compose v2 on Linux), ≥ 8 GB RAM allocated, ≥ 20 GB disk free.
+- macOS / Linux shell. Windows: use WSL2.
+
+**Bring up:**
+
+```bash
+make dev            # builds images, starts stack, waits for healthchecks, runs seeder
+make dev-verify     # probes every service's health endpoint + /admin/runs render
+```
+
+**Expected port matrix:**
+
+| Service        | Port        | URL                                  |
+|----------------|-------------|--------------------------------------|
+| web            | 3000        | http://localhost:3000                |
+| control-plane  | 8000        | http://localhost:8000/health         |
+| postgres       | 5432        | `psql postgresql://deployai:deployai-local-dev@localhost:5432/deployai` |
+| redis          | 6379        | `redis-cli -h localhost`             |
+| minio api      | 9000        | http://localhost:9000/minio/health/live |
+| minio console  | 9001        | http://localhost:9001                |
+| freetsa-stub   | 2020        | http://localhost:2020/health         |
+
+**Tear down:**
+
+```bash
+make dev-down       # stops stack, removes named volumes
+make dev-logs       # tail all compose logs
+```
+
+**First-run budget:** ≤ 30 minutes on a clean machine (NFR77). CI enforces
+this via `.github/workflows/compose-smoke.yml`.
+
+**Fixtures:** Seed data lives in the `fixtures.*` schema (separate from
+`public` so Story 1.8's canonical-memory migrations land cleanly). Query:
+
+```bash
+docker compose --env-file infra/compose/.env -f infra/compose/docker-compose.yml \
+  exec postgres psql -U deployai -d deployai -c "SELECT count(*) FROM fixtures.canonical_events;"
+```
+
+**Troubleshooting:**
+
+| Symptom | Fix |
+|---|---|
+| `make dev` errors "port 3000 already in use" | Edit `infra/compose/.env` to override `WEB_PORT` (or `CONTROL_PLANE_PORT`, etc.). |
+| Healthchecks time out on cold run | `make dev-down && make dev` — first run with empty layer cache may exceed the default 15-min wait. Check `make dev-logs` for which service is stalling. |
+| `seed: fixtures/schema.sql not found` | Rerun from repo root; the script expects `infra/compose/seed/schema.sql` relative to itself. |
+| `pgvector` / `pgcrypto` missing | Rebuild the postgres image: `docker compose build postgres && make dev-down && make dev`. Init scripts only run on an empty data volume. |
+| Corpnet proxy blocks image pulls | Configure Docker Desktop → Settings → Resources → Proxies. The compose file has no hardcoded proxy. |
 
 ## Troubleshooting
 

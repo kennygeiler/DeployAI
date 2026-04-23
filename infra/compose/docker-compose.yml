@@ -1,0 +1,153 @@
+# Story 1.7 — DeployAI local development stack.
+# Bring-up:   make dev         (from repo root)
+# Verify:     make dev-verify
+# Tear-down:  make dev-down
+#
+# This file is the reference compose topology. It is also the target of
+# Story 12.9 (self-hosted reference build) — anything added here should be
+# evaluated for parity with production (NFR67).
+#
+# Scope explicitly excluded per Story 1.7 AC16:
+#   - observability (Grafana/Prometheus/Loki/Tempo — Story 12.10)
+#   - edge-agent / foia-cli (not server processes)
+#   - TLS / SSO (local HTTP only)
+
+name: deployai
+
+services:
+  postgres:
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    image: deployai/postgres:local-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-deployai}
+      POSTGRES_USER: ${POSTGRES_USER:-deployai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-deployai-local-dev}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-deployai} -d ${POSTGRES_DB:-deployai}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    # Latest tag that publishes linux/amd64 + linux/arm64 manifests. MinIO
+    # paused new image releases in mid-2025; this pin is intentional.
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-deployai}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-deployai-local-dev}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      # The MinIO image ships `curl`; `/minio/health/live` returns 200
+      # once the server is ready. Use 127.0.0.1 (not `localhost`) so the
+      # probe bypasses IPv6 resolution — MinIO binds IPv4-only.
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  freetsa-stub:
+    build:
+      context: ./freetsa-stub
+      dockerfile: Dockerfile
+    image: deployai/freetsa-stub:local-dev
+    restart: unless-stopped
+    ports:
+      - "${FREETSA_STUB_PORT:-2020}:2020"
+    healthcheck:
+      # Use 127.0.0.1 (not `localhost`) because nginx:alpine listens on
+      # IPv4 only by default and BusyBox wget resolves `localhost` to
+      # `::1` first → Connection refused.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2020/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  control-plane:
+    build:
+      context: ../..
+      dockerfile: services/control-plane/Dockerfile
+    image: deployai/control-plane:local-dev
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${CONTROL_PLANE_DATABASE_URL:-postgresql+asyncpg://deployai:deployai-local-dev@postgres:5432/deployai}
+      REDIS_URL: ${CONTROL_PLANE_REDIS_URL:-redis://redis:6379/0}
+      S3_ENDPOINT: ${CONTROL_PLANE_S3_ENDPOINT:-http://minio:9000}
+      TSA_URL: ${CONTROL_PLANE_TSA_URL:-http://freetsa-stub:2020/tsr}
+    ports:
+      - "${CONTROL_PLANE_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # Use 127.0.0.1 (not `localhost`) to match IPv4-only uvicorn bind
+      # and avoid IPv6-resolution-into-refused-connection failure mode.
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen(''http://127.0.0.1:8000/health'',timeout=3).status==200 else 1)"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+    image: deployai/web:local-dev
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_CONTROL_PLANE_URL: ${NEXT_PUBLIC_CONTROL_PLANE_URL:-http://localhost:8000}
+      NODE_ENV: production
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      control-plane:
+        condition: service_started
+    healthcheck:
+      # Use 127.0.0.1 (not `localhost`) because Next.js standalone binds
+      # IPv4 only by default and BusyBox wget resolves `localhost` to
+      # `::1` first → Connection refused. Body-content verification runs
+      # in `make dev-verify` from the host (curl is available there).
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+volumes:
+  pg_data:
+  redis_data:
+  minio_data:

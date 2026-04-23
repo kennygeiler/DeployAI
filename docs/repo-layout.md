@@ -153,11 +153,23 @@ Additional changes:
 - `.gitignore` gains entries for `playwright-report/`, `test-results/`, and `pa11y-screenshots/`.
 - `apps/web/src/components/forms/ExampleForm.tsx` carries one jsx-a11y appeal (inline `eslint-disable` for `<form onKeyDown>` Cmd/Ctrl+Enter shortcut) with rationale + doc pointer, per the appeal process in `docs/a11y-gates.md`.
 
-## What this repo does NOT yet contain (by design, as of Story 1.6)
+## What Story 1.7 shipped
+
+| Path | Addition | Primary files |
+|---|---|---|
+| `infra/compose/` | Reference local-dev stack: Postgres 16 (pgvector + pgcrypto), Redis 7, MinIO, FreeTSA stub, control-plane, web — bootable via `make dev` in ≤ 30 min | `infra/compose/docker-compose.yml`, `infra/compose/.env.example`, `infra/compose/postgres/Dockerfile`, `infra/compose/postgres/init/01-extensions.sql`, `infra/compose/freetsa-stub/Dockerfile`, `infra/compose/freetsa-stub/default.conf` |
+| `infra/compose/seed/` | Idempotent seeder for `fixtures.*` schema (1 synthetic tenant, ≥ 6 stakeholders, ≥ 20 canonical events, 1 sample phase row) | `infra/compose/seed/schema.sql`, `infra/compose/seed/seed.sh` |
+| repo root | `make dev` / `make dev-verify` / `make dev-down` / `make dev-logs` / `make compose-smoke` targets | `Makefile` |
+| `.github/workflows` | 30-min-ceiling CI smoke gate for the local stack | `.github/workflows/compose-smoke.yml` |
+| `services/control-plane` | `GET /health` alias of `/healthz` (satisfies AC4 literal path) | `services/control-plane/src/control_plane/main.py`, `services/control-plane/tests/unit/test_healthz.py` |
+| `apps/web` | `/admin/runs` stub route (Story 1.16 ships the real shell); Dockerfile fixed to copy `packages/design-tokens/` so Next build resolves `@deployai/design-tokens/tailwind` | `apps/web/src/app/admin/runs/page.tsx`, `apps/web/Dockerfile` |
+| `docs/` | §"Local stack via docker-compose" added to `dev-environment.md` | `docs/dev-environment.md` |
+
+## What this repo does NOT yet contain (by design, as of Story 1.7)
 
 - No additional `services/*` beyond `control-plane` — authored per story as features land (`canonical-memory` in 1.8, `api-gateway` in 1.9, `ingest`/`oracle`/`master-strategist` in later epics).
 - No `packages/shared-ui/` workspace yet — the first DeployAI-specific composite (CitationChip) creates it in Epic 7.
-- No `infra/compose/` dev environment — Story 1.7.
+- No Grafana / Prometheus / Loki / Tempo observability stack in compose — Story 12.10.
 - No `tests/*` cross-workspace harnesses — first one lands in Story 1.10.
 - No dark-mode token set — deferred; the variable layer already supports it.
 - No mobile-viewport a11y runs (Chromium-desktop only at V1) — covered by Story 7.13.
