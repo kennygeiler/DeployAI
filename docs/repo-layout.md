@@ -179,7 +179,18 @@ Additional changes:
 
 Seed fixtures (Story 1.7) still live in the separate `fixtures.*` schema — Story 1.8's canonical memory lands in `public.*` so both coexist without conflict.
 
-## What this repo does NOT yet contain (by design, as of Story 1.8)
+## What Story 1.9 shipped
+
+| Path | Addition | Primary files |
+|---|---|---|
+| `services/_shared/tenancy/` | New `deployai-tenancy` uv workspace package — `TenantScopedSession`, `@requires_tenant_scope`, `DEKProvider`/`InMemoryDEKProvider`, `encrypt_field`/`decrypt_field`, error hierarchy, full unit suite | `services/_shared/tenancy/src/deployai_tenancy/*.py`, `services/_shared/tenancy/tests/unit/*.py` |
+| `services/control-plane/alembic/versions/` | RLS expand migration: `tenant_rls_<table>` on all 8 canonical tables, `FORCE ROW LEVEL SECURITY`, `deployai_app` role with grants | `services/control-plane/alembic/versions/20260422_0002_tenant_rls_policies.py` |
+| `services/control-plane/src/control_plane/db.py` | Cached async engine + `tenant_session(tenant_id)` convenience wrapper | `services/control-plane/src/control_plane/db.py` |
+| `services/control-plane/tests/integration/` | Three-layer isolation integration tests: scoped reads/writes, cross-tenant block, fail-closed raw session, envelope round-trip, FORCE-RLS proof on `deployai_app`, concurrent-scope context-var isolation | `services/control-plane/tests/integration/test_tenant_isolation.py` |
+| `services/control-plane/pyproject.toml` | `deployai-tenancy` editable path dep, `[tool.uv.sources]`, `aiosqlite` dev dep, importlib mode for tests (resolves tenancy ↔ control-plane `tests.unit.*` namespace clash) | `services/control-plane/pyproject.toml` |
+| `docs/` | `docs/security/tenant-isolation.md` (new) — three-layer defense walkthrough, BYPASSRLS gotcha, fail-closed semantics, scope fences (KMS, rotation, role swap). `docs/canonical-memory.md` updated to reference 1.9 migration + tenancy package. | `docs/security/tenant-isolation.md`, `docs/canonical-memory.md` |
+
+## What this repo does NOT yet contain (by design, as of Story 1.9)
 
 - No additional `services/*` beyond `control-plane` — authored per story as features land (`canonical-memory` in 1.8, `api-gateway` in 1.9, `ingest`/`oracle`/`master-strategist` in later epics).
 - No `packages/shared-ui/` workspace yet — the first DeployAI-specific composite (CitationChip) creates it in Epic 7.
@@ -188,7 +199,9 @@ Seed fixtures (Story 1.7) still live in the separate `fixtures.*` schema — Sto
 - No dark-mode token set — deferred; the variable layer already supports it.
 - No mobile-viewport a11y runs (Chromium-desktop only at V1) — covered by Story 7.13.
 - No screen-reader automation (NVDA / VoiceOver / JAWS) — manual verification remains required for release candidates.
-- No canonical-memory RLS policies, `TenantScopedSession`, or envelope encryption — Story 1.9. (Story 1.8 shipped the schema; Story 1.9 wires the three-layer tenant isolation on top.)
+- No AWS-KMS-backed DEK provider — `KMSEnvelopeDEKProvider` lands Story 3.x when AWS infra is provisioned. Story 1.9 ships the protocol + `InMemoryDEKProvider` for dev/test.
+- No `deployai_app` role swap as the control-plane default connection user — Story 2.4 flips it. Story 1.9 creates the role + grants; all current connections still go through the superuser, so RLS only applies to code paths that explicitly `SET SESSION AUTHORIZATION` (integration tests do this; Story 1.10's fuzz harness will attack both paths).
+- No encrypted columns on canonical tables (`private_annotation`, `raw_transcript_content`) — the envelope-encryption mechanism ships in 1.9, but actual column migrations land per-feature in Epic 10 and Epic 11.
 - No cross-tenant fuzz harness — Story 1.10.
 - No citation envelope contract — Story 1.11.
 - No RFC 3161 signing wired into tombstones (`tombstones.tsa_timestamp` remains nullable) — Story 1.13.

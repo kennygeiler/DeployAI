@@ -1,9 +1,9 @@
 # Canonical memory — schema contract
 
-> Landed in **Story 1.8**. Extended by Story 1.9 (RLS + envelope
-> encryption + `TenantScopedSession`), Story 1.10 (cross-tenant fuzz),
-> Story 1.13 (RFC 3161 `tsa_timestamp`), and Story 1.17
-> (`schema_proposals` review surface).
+> Landed in **Story 1.8**. Extended by **Story 1.9** (RLS +
+> envelope-encryption primitives + `TenantScopedSession`), Story 1.10
+> (cross-tenant fuzz), Story 1.13 (RFC 3161 `tsa_timestamp`), and Story
+> 1.17 (`schema_proposals` review surface).
 
 The canonical memory substrate is the immutable record of everything an
 account's Deployment Strategist has observed: events, people, learnings,
@@ -122,25 +122,39 @@ A tombstone is the canonical record of a destroyed node. Its fields:
 - `tsa_timestamp` — RFC 3161 TSR. **Nullable** until Story 1.13 wires
   the FreeTSA + AWS fallback into the signing pipeline.
 
-## What's coming in Story 1.9
+## Tenant isolation (Story 1.9)
 
-- `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` on every canonical-memory
-  table.
-- `CREATE POLICY tenant_rls_<table> USING (tenant_id = current_setting('app.current_tenant')::uuid)`.
-- `services/_shared/tenancy.py` — `TenantScopedSession` +
-  `@requires_tenant_scope` decorator. Every repository in the control
-  plane will route through this session.
-- Per-tenant DEK + pgcrypto envelope encryption for sensitive columns
-  (`evidence_span`, `payload` on specific event types,
-  `raw_transcript_content`).
+RLS policies `tenant_rls_<table>` are applied to every canonical-memory
+table by migration `20260422_0002_tenant_rls_policies.py` (expand).
+`FORCE ROW LEVEL SECURITY` is enabled so the table owner is not
+exempted. Every application query must pass through
+`deployai_tenancy.TenantScopedSession`, which issues
+`SELECT set_config('app.current_tenant', :tid, true)` inside the
+transaction that the policy reads via
+`current_setting('app.current_tenant', true)::uuid`. A `deployai_app`
+role is created as the application connection user (default swap in
+Story 2.4).
 
-Story 1.9 migrations land as separate expand migrations; the schema
-authored in Story 1.8 is the stable foundation they build on.
+The `@requires_tenant_scope` decorator in
+`deployai_tenancy.decorators` is the application-layer guard; it raises
+`MissingTenantScope` before any SQL leaves the process when a function
+is handed a raw unscoped session.
+
+Envelope-encryption helpers (`encrypt_field` / `decrypt_field`) wrap
+`pgcrypto`'s `pgp_sym_encrypt_bytea` / `pgp_sym_decrypt_bytea` and
+require a `TenantScopedSession`. The dev-mode `InMemoryDEKProvider`
+ships now; the AWS-KMS-backed provider lands in Story 3.x.
+
+See [`docs/security/tenant-isolation.md`](security/tenant-isolation.md)
+for the full three-layer rationale.
 
 ## Related files
 
-- Migration: `services/control-plane/alembic/versions/20260422_0001_canonical_memory_schema.py`
+- Migrations:
+  - `services/control-plane/alembic/versions/20260422_0001_canonical_memory_schema.py` (schema)
+  - `services/control-plane/alembic/versions/20260422_0002_tenant_rls_policies.py` (RLS, Story 1.9)
 - ORM models: `services/control-plane/src/control_plane/domain/canonical_memory/`
+- Tenancy package: `services/_shared/tenancy/` (Story 1.9)
 - Migration guardrail: `services/control-plane/tests/unit/test_migration_guardrails.py`
-- Integration tests: `services/control-plane/tests/integration/test_canonical_memory_schema.py`
+- Integration tests: `services/control-plane/tests/integration/test_canonical_memory_schema.py`, `test_tenant_isolation.py`
 - CI workflow: `.github/workflows/schema.yml`
