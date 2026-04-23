@@ -12,6 +12,7 @@ This directory holds the GitHub Actions workflows that enforce DeployAI's compli
 | `release.yml` | Tag push matching `v*.*.*`; `workflow_dispatch` | Signs + attests release artifacts (cosign keyless, SLSA v1.0 provenance) | NFR63 (signing), NFR64 (SLSA L2) | scaffolded; dormant until Story 1.3 lands buildable workspaces | Story 1.2 |
 | `a11y.yml` | PR against `main`; push to `main` | 4-job a11y gate: `jsx-a11y` lint, `storybook-a11y` test-runner, `playwright-a11y` E2E axe, `pa11y` axe + htmlcs | FR44, NFR28, NFR41, NFR42, NFR43, AR25 | active | Story 1.6 |
 | `compose-smoke.yml` | PR against `main` (path-filtered on `infra/**`, `services/**`, `apps/web/Dockerfile`, `packages/design-tokens/**`, `Makefile`, `pnpm-lock.yaml`); push to `main` | Brings up the full local stack (postgres + pgvector/pgcrypto, redis, minio, freetsa-stub, control-plane, web) via `make dev`, runs `make dev-verify`, fails if wall-clock exceeds 30 min | NFR67, NFR68, NFR77 | active | Story 1.7 |
+| `schema.yml` | PR against `main` (path-filtered on `services/control-plane/**`, `infra/compose/postgres/**`, the workflow itself); push to `main` | Runs the canonical-memory schema integration tests against a fresh `pgvector/pgvector:pg16` testcontainer — append-only trigger, UUID v7 defaults, partial-unique identity-attribute history, supersession CHECK, enum rejection, lifecycle transitions, tombstone bytea roundtrip | FR1–3, FR5, NFR74 | active; **not on required-checks yet** — promotes after one clean stabilization week | Story 1.8 |
 
 Dependabot (`.github/dependabot.yml`) runs weekly across npm, pip, gomod, cargo, and github-actions ecosystems — keeping every dependency and every workflow action SHA fresh. That configuration is the 5th-ecosystem enforcement of NFR65.
 
@@ -26,6 +27,7 @@ Not yet present — each is scoped to its owning story to avoid landing half-emp
 | `replay-parity-gate.yml` | Epic 4 (replay-parity harness) | NFR51 — citation-set-identical semantics on LLM model-version upgrades |
 | `11th-call-gate.yml` | Epic 5 (citation envelope) | NFR50 — zero hallucinated citations per release candidate |
 | `cross-tenant-fuzz.yml` | Epic 1 Story 1.10 | NFR52 — fuzz cross-tenant reads every night; fail CI on any success |
+| `schema.yml` required-checks promotion | Follow-up to Story 1.8 | Add `schema / canonical-memory-schema` to the Required-checks table after one clean week |
 
 When you add one of the above, mirror the conventions documented below and update the tables in this file in the same PR.
 
