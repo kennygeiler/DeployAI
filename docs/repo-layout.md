@@ -165,7 +165,21 @@ Additional changes:
 | `apps/web` | `/admin/runs` stub route (Story 1.16 ships the real shell); Dockerfile fixed to copy `packages/design-tokens/` so Next build resolves `@deployai/design-tokens/tailwind` | `apps/web/src/app/admin/runs/page.tsx`, `apps/web/Dockerfile` |
 | `docs/` | §"Local stack via docker-compose" added to `dev-environment.md` | `docs/dev-environment.md` |
 
-## What this repo does NOT yet contain (by design, as of Story 1.7)
+## What Story 1.8 shipped
+
+| Path | Addition | Primary files |
+|---|---|---|
+| `services/control-plane/alembic/versions/` | Initial canonical-memory migration: 8 tables in `public`, `deployai_uuid_v7()` plpgsql function, append-only trigger on `canonical_memory_events`, `learning_state_t` enum | `services/control-plane/alembic/versions/20260422_0001_canonical_memory_schema.py` |
+| `services/control-plane/src/control_plane/domain/` | SQLAlchemy 2.x async declarative models for every canonical-memory table; shared `Base` with naming conventions | `services/control-plane/src/control_plane/domain/base.py`, `services/control-plane/src/control_plane/domain/canonical_memory/*.py` |
+| `services/control-plane/alembic/env.py` | `target_metadata = Base.metadata`; dispatches async vs sync based on URL driver so the integration-test harness can feed a psycopg URL | `services/control-plane/alembic/env.py` |
+| `services/control-plane/tests/unit/` | Expand-contract migration guardrail (NFR74) — scans `alembic/versions/` and requires a `# expand-contract:` marker on any `ALTER COLUMN` touching a canonical-memory table | `services/control-plane/tests/unit/test_migration_guardrails.py` |
+| `services/control-plane/tests/integration/` | testcontainers[postgres]-driven integration suite (append-only trigger, UUID v7 ordering, partial-unique attribute history, supersession CHECK, enum rejection, lifecycle transitions, tombstone bytea) | `services/control-plane/tests/integration/conftest.py`, `services/control-plane/tests/integration/test_canonical_memory_schema.py` |
+| `.github/workflows/` | Path-filtered `schema.yml` CI job runs the integration suite on a fresh `pgvector/pgvector:pg16` testcontainer | `.github/workflows/schema.yml` |
+| `docs/` | `docs/canonical-memory.md` — schema inventory, append-only contract, UUID v7 rationale, expand-contract convention, forward references to 1.9/1.13/1.17 | `docs/canonical-memory.md` |
+
+Seed fixtures (Story 1.7) still live in the separate `fixtures.*` schema — Story 1.8's canonical memory lands in `public.*` so both coexist without conflict.
+
+## What this repo does NOT yet contain (by design, as of Story 1.8)
 
 - No additional `services/*` beyond `control-plane` — authored per story as features land (`canonical-memory` in 1.8, `api-gateway` in 1.9, `ingest`/`oracle`/`master-strategist` in later epics).
 - No `packages/shared-ui/` workspace yet — the first DeployAI-specific composite (CitationChip) creates it in Epic 7.
@@ -174,7 +188,11 @@ Additional changes:
 - No dark-mode token set — deferred; the variable layer already supports it.
 - No mobile-viewport a11y runs (Chromium-desktop only at V1) — covered by Story 7.13.
 - No screen-reader automation (NVDA / VoiceOver / JAWS) — manual verification remains required for release candidates.
-- No Alembic migrations or canonical-memory schema (Alembic async template only) — Story 1.8.
+- No canonical-memory RLS policies, `TenantScopedSession`, or envelope encryption — Story 1.9. (Story 1.8 shipped the schema; Story 1.9 wires the three-layer tenant isolation on top.)
+- No cross-tenant fuzz harness — Story 1.10.
+- No citation envelope contract — Story 1.11.
+- No RFC 3161 signing wired into tombstones (`tombstones.tsa_timestamp` remains nullable) — Story 1.13.
+- No schema-proposal review surface — Story 1.17.
 - No real CLI commands in `apps/foia-cli` — Story 1.12+.
 - No real Tauri capture / signing / kill-switch logic — later Epic 1 + Epic 6 stories.
 

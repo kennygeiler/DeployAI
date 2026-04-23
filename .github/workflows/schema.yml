@@ -1,0 +1,92 @@
+# Canonical-memory schema integration gate (Story 1.8).
+#
+# Runs the `-m integration` pytest selector in
+# `services/control-plane/` against a fresh Postgres 16 + pgvector
+# testcontainer. Enforces:
+#   - AC3  append-only trigger fires on UPDATE/DELETE
+#   - AC4+ every canonical-memory table accepts inserts with UUID v7 defaults
+#   - AC5  identity attribute-history versioning (partial-unique constraint)
+#   - AC6  supersession CHECK (different_ids)
+#   - AC7  learning_state_t enum rejection
+#   - AC12 lifecycle transition end-to-end + tombstone bytea roundtrip
+#
+# Path-filtered to only run when the schema, models, migration harness,
+# or postgres image can plausibly be affected. Not on the required-checks
+# list yet — per README.md §3 convention ("default to NOT adding to the
+# required set … promote only after a stabilization window").
+
+name: schema
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "services/control-plane/**"
+      - "infra/compose/postgres/**"
+      - ".github/workflows/schema.yml"
+  push:
+    branches: [main]
+    paths:
+      - "services/control-plane/**"
+      - "infra/compose/postgres/**"
+      - ".github/workflows/schema.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: schema-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  canonical-memory-schema:
+    name: canonical-memory-schema
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+        working-directory: services/control-plane
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version-file: "services/control-plane/.python-version"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.7"
+          enable-cache: true
+
+      - name: uv sync --frozen
+        run: uv sync --frozen
+
+      - name: Warm pgvector/pgvector:pg16 image cache
+        # Pre-pull so the first test hit doesn't pay ~15-20s of first-hit
+        # docker-pull latency inside the testcontainer fixture.
+        working-directory: ${{ github.workspace }}
+        run: docker pull pgvector/pgvector:pg16
+
+      - name: pytest -m integration (canonical memory schema)
+        run: |
+          uv run pytest -m integration tests/integration/ \
+            --junit-xml=schema-junit.xml \
+            -vv
+
+      - name: Upload pytest JUnit XML on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: schema-junit.xml
+          path: services/control-plane/schema-junit.xml
+          retention-days: 14
