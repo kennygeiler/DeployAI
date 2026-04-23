@@ -1,0 +1,77 @@
+name: Edge Agent Spike
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/edge-agent/**"
+      - "docs/edge-agent/**"
+      - ".github/workflows/edge-agent-spike.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  macos-spike-build:
+    name: macOS Tauri build (Story 1.15)
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5.0.0
+
+      - name: Install Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: Install Rust stable
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Select Rust stable
+        run: rustup default stable
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Tauri app bundle
+        run: pnpm --filter @deployai/edge-agent tauri build
+
+      - name: Optional ad-hoc signing/notary (requires secrets)
+        if: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' }}
+        env:
+          APPLE_DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          set -euo pipefail
+          app=$(ls apps/edge-agent/src-tauri/target/release/bundle/macos/*.app | head -n1)
+          if [[ -z "${app:-}" ]]; then
+            echo "No .app bundle found to sign."
+            exit 1
+          fi
+          codesign --force --deep --timestamp --options runtime --sign "$APPLE_DEVELOPER_ID_APPLICATION" "$app"
+          ditto -c -k --keepParent "$app" "${app}.zip"
+          xcrun notarytool submit "${app}.zip" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --wait
+          xcrun stapler staple "$app"
+
+      - name: Upload edge-agent artifacts
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+        with:
+          name: edge-agent-spike-macos
+          path: |
+            apps/edge-agent/src-tauri/target/release/bundle/**
+            apps/edge-agent/dist/appcast.xml
+          if-no-files-found: error

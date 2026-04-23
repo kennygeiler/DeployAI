@@ -47,6 +47,8 @@ lerna-debug.log*
 
 # Build output
 dist/
+!apps/edge-agent/dist/
+!apps/edge-agent/dist/appcast.xml
 build/
 out/
 .next/
