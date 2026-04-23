@@ -1,0 +1,128 @@
+# Cross-tenant isolation fuzz gate (Story 1.10, NFR52).
+#
+# Actively attempts unauthorized cross-tenant reads/writes across every
+# canonical-memory table and fails the build on any successful leak. Runs
+# against a Postgres 16 + pgvector testcontainer with Story 1.9's migrations
+# applied and the `deployai_app` non-superuser role enabled for LOGIN (so
+# FORCE ROW LEVEL SECURITY actually bites).
+#
+# Path-filtered to run only when the tenancy primitives, control-plane
+# service code, or Alembic migrations can plausibly affect the isolation
+# boundary. Not on the required-checks list yet — per
+# .github/workflows/README.md §3 convention ("default to NOT adding to the
+# required set … promote only after a stabilization window").
+#
+# Report artifact: `artifacts/fuzz/cross-tenant-report.json`, retained 14
+# days on both pass and fail — the JSON is the audit evidence NFR52 demands.
+
+name: fuzz
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "services/**"
+      - "services/_shared/tenancy/**"
+      - "services/control-plane/alembic/versions/**"
+      - ".github/workflows/fuzz.yml"
+  push:
+    branches: [main]
+    paths:
+      - "services/**"
+      - "services/_shared/tenancy/**"
+      - "services/control-plane/alembic/versions/**"
+      - ".github/workflows/fuzz.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  cross-tenant-fuzz:
+    name: cross-tenant-fuzz
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+        working-directory: services/control-plane
+    env:
+      # Fixed seed gives CI a reproducible run; local operators can override
+      # via `FUZZ_SEED=<num> pnpm turbo run fuzz:cross-tenant` when triaging.
+      FUZZ_SEED: "20260423"
+      FUZZ_APP_USER: "deployai_app"
+      FUZZ_APP_PASSWORD: "deployai-fuzz-ci"
+      # Turns on the production-weight CLI test (AC3's ≥500 attempts/table).
+      # The meta-tests still run at reduced scale to validate the harness
+      # shape; this flag gates the AC-minimum run behind CI alone so local
+      # `pytest -m fuzz` stays fast.
+      FUZZ_GATE_MODE: "production"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version-file: "services/control-plane/.python-version"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.7"
+          enable-cache: true
+
+      - name: uv sync --frozen
+        run: uv sync --frozen
+
+      - name: Warm pgvector/pgvector:pg16 image cache
+        working-directory: ${{ github.workspace }}
+        run: docker pull pgvector/pgvector:pg16
+
+      - name: Run fuzz gate (meta-tests + production-weight CLI)
+        # Three concentric rings:
+        #   1. Meta-tests at reduced scale (~20s) validate the harness itself.
+        #   2. The anti-test (`test_harness_detects_disabled_rls`) proves the
+        #      fuzzer catches a real leak — if it passes, we know the harness
+        #      is still actively attacking.
+        #   3. `test_cli_production_run_against_testcontainer` — gated by
+        #      FUZZ_GATE_MODE=production above — runs the real CLI at
+        #      AC-minimum scale (≥4k attempts), writes the audit-trail JSON
+        #      to `artifacts/fuzz/cross-tenant-report.json`, and asserts
+        #      `result == "pass"`.
+        run: |
+          uv run pytest -m fuzz tests/fuzz/ \
+            --junit-xml=fuzz-meta-junit.xml \
+            -vv
+
+      - name: Upload fuzz meta-test JUnit XML on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fuzz-meta-junit.xml
+          path: services/control-plane/fuzz-meta-junit.xml
+          retention-days: 14
+
+      - name: Upload cross-tenant-report.json (always)
+        # Always attempt to upload — the JSON is the audit trail for NFR52.
+        # Meta-tests write temp reports under tmp_path, so this picks up any
+        # harness-generated reports inside the service tree, not the pytest
+        # tmp-path fixtures.
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cross-tenant-report
+          path: |
+            services/control-plane/artifacts/fuzz/
+            artifacts/fuzz/
+          retention-days: 14
+          if-no-files-found: ignore

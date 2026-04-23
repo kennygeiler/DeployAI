@@ -13,6 +13,7 @@ This directory holds the GitHub Actions workflows that enforce DeployAI's compli
 | `a11y.yml` | PR against `main`; push to `main` | 4-job a11y gate: `jsx-a11y` lint, `storybook-a11y` test-runner, `playwright-a11y` E2E axe, `pa11y` axe + htmlcs | FR44, NFR28, NFR41, NFR42, NFR43, AR25 | active | Story 1.6 |
 | `compose-smoke.yml` | PR against `main` (path-filtered on `infra/**`, `services/**`, `apps/web/Dockerfile`, `packages/design-tokens/**`, `Makefile`, `pnpm-lock.yaml`); push to `main` | Brings up the full local stack (postgres + pgvector/pgcrypto, redis, minio, freetsa-stub, control-plane, web) via `make dev`, runs `make dev-verify`, fails if wall-clock exceeds 30 min | NFR67, NFR68, NFR77 | active | Story 1.7 |
 | `schema.yml` | PR against `main` (path-filtered on `services/control-plane/**`, `infra/compose/postgres/**`, the workflow itself); push to `main` | Runs the canonical-memory schema integration tests against a fresh `pgvector/pgvector:pg16` testcontainer — append-only trigger, UUID v7 defaults, partial-unique identity-attribute history, supersession CHECK, enum rejection, lifecycle transitions, tombstone bytea roundtrip | FR1–3, FR5, NFR74 | active; **not on required-checks yet** — promotes after one clean stabilization week | Story 1.8 |
+| `fuzz.yml` | PR against `main` (path-filtered on `services/**`, `services/_shared/tenancy/**`, `services/control-plane/alembic/versions/**`, the workflow itself); push to `main` | Cross-tenant isolation fuzz harness — seeds 3 synthetic tenants × 50 rows × 8 canonical tables, then runs **6 attack classes** (baseline RLS reads, no-scope reads, SET ROLE escalation, ORM escape hatches, cross-tenant writes, SQLi payloads) ≥ 500 attempts/table. GUC-override (class 3) is intentionally omitted — application-layer defense only, cannot be meaningfully exercised by a raw-SQL fuzzer. JSON report at `artifacts/fuzz/cross-tenant-report.json`; see [docs/security/cross-tenant-fuzz.md](../../docs/security/cross-tenant-fuzz.md) | NFR52, FR72 | active; **not on required-checks yet** — promotes after one clean stabilization week | Story 1.10 |
 
 Dependabot (`.github/dependabot.yml`) runs weekly across npm, pip, gomod, cargo, and github-actions ecosystems — keeping every dependency and every workflow action SHA fresh. That configuration is the 5th-ecosystem enforcement of NFR65.
 
@@ -26,8 +27,8 @@ Not yet present — each is scoped to its owning story to avoid landing half-emp
 |---|---|---|
 | `replay-parity-gate.yml` | Epic 4 (replay-parity harness) | NFR51 — citation-set-identical semantics on LLM model-version upgrades |
 | `11th-call-gate.yml` | Epic 5 (citation envelope) | NFR50 — zero hallucinated citations per release candidate |
-| `cross-tenant-fuzz.yml` | Epic 1 Story 1.10 | NFR52 — fuzz cross-tenant reads every night; fail CI on any success |
 | `schema.yml` required-checks promotion | Follow-up to Story 1.8 | Add `schema / canonical-memory-schema` to the Required-checks table after one clean week |
+| `fuzz.yml` required-checks promotion | Follow-up to Story 1.10 | Add `fuzz / cross-tenant-fuzz` to the Required-checks table after one clean week |
 
 When you add one of the above, mirror the conventions documented below and update the tables in this file in the same PR.
 
