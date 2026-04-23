@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://deployai.local/schema/citation-envelope/v0.1.0.json",
+  "title": "CitationEnvelope",
+  "description": "DeployAI mandatory citation envelope (Story 1.11). Zod in citation-envelope.ts is canonical.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "node_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "graph_epoch": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "evidence_span": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["start", "end", "source_ref"],
+      "additionalProperties": false
+    },
+    "retrieval_phase": {
+      "type": "string",
+      "enum": ["cartographer", "oracle", "master_strategist", "synthesis"]
+    },
+    "confidence_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "signed_timestamp": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "schema_version",
+    "node_id",
+    "graph_epoch",
+    "evidence_span",
+    "retrieval_phase",
+    "confidence_score",
+    "signed_timestamp"
+  ],
+  "additionalProperties": false
+}

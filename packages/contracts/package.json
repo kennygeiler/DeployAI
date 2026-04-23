@@ -1,0 +1,42 @@
+{
+  "name": "@deployai/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "DeployAI cross-language schema contracts (citation envelope v0.1, FR27, NFR55).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./citation-envelope": {
+      "types": "./dist/citation-envelope.d.ts",
+      "default": "./dist/citation-envelope.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/**",
+    "schema/**"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "emit-schema": "tsx scripts/emit-json-schema.mts",
+    "contract:check": "vitest run && tsx scripts/contract-check.mts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "eslint": "^9.39.4",
+    "tsx": "^4.20.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.0",
+    "vitest": "^2.1.9",
+    "zod": "^3.24.2",
+    "zod-to-json-schema": "^3.24.5"
+  }
+}
