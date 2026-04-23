@@ -1,6 +1,6 @@
 # Story 1.11: Citation envelope contract v0.1.0
 
-Status: **done** (merged via PR)
+Status: **done** (merged via [PR #12](https://github.com/kennygeiler/DeployAI/pull/12))
 
 ## Delivered
 
