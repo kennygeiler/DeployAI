@@ -4,12 +4,13 @@ This directory holds the GitHub Actions workflows that enforce DeployAI's compli
 
 ---
 
-## Current workflows (Story 1.2)
+## Current workflows
 
-| Workflow | Trigger | Purpose | Compliance control(s) | Status |
-|---|---|---|---|---|
-| `ci.yml` | PR against `main`; push to `main` | Toolchain guard, smoke suite, source-tree SBOM, Grype CVE scan, Dependency Review | NFR62 (SBOM), NFR65 (CVE), Story 1.1 deferred AC4 + AC5 | active |
-| `release.yml` | Tag push matching `v*.*.*`; `workflow_dispatch` | Signs + attests release artifacts (cosign keyless, SLSA v1.0 provenance) | NFR63 (signing), NFR64 (SLSA L2) | scaffolded; dormant until Story 1.3 lands buildable workspaces |
+| Workflow | Trigger | Purpose | Compliance control(s) | Status | Landed in |
+|---|---|---|---|---|---|
+| `ci.yml` | PR against `main`; push to `main` | Toolchain guard, smoke suite, source-tree SBOM, Grype CVE scan, Dependency Review | NFR62 (SBOM), NFR65 (CVE), Story 1.1 deferred AC4 + AC5 | active | Story 1.2 |
+| `release.yml` | Tag push matching `v*.*.*`; `workflow_dispatch` | Signs + attests release artifacts (cosign keyless, SLSA v1.0 provenance) | NFR63 (signing), NFR64 (SLSA L2) | scaffolded; dormant until Story 1.3 lands buildable workspaces | Story 1.2 |
+| `a11y.yml` | PR against `main`; push to `main` | 4-job a11y gate: `jsx-a11y` lint, `storybook-a11y` test-runner, `playwright-a11y` E2E axe, `pa11y` axe + htmlcs | FR44, NFR28, NFR41, NFR42, NFR43, AR25 | active | Story 1.6 |
 
 Dependabot (`.github/dependabot.yml`) runs weekly across npm, pip, gomod, cargo, and github-actions ecosystems — keeping every dependency and every workflow action SHA fresh. That configuration is the 5th-ecosystem enforcement of NFR65.
 
@@ -24,7 +25,6 @@ Not yet present — each is scoped to its owning story to avoid landing half-emp
 | `replay-parity-gate.yml` | Epic 4 (replay-parity harness) | NFR51 — citation-set-identical semantics on LLM model-version upgrades |
 | `11th-call-gate.yml` | Epic 5 (citation envelope) | NFR50 — zero hallucinated citations per release candidate |
 | `cross-tenant-fuzz.yml` | Epic 1 Story 1.10 | NFR52 — fuzz cross-tenant reads every night; fail CI on any success |
-| `a11y-gate.yml` | Epic 1 Story 1.6 | FR44 / NFR43 — axe-core + pa11y + eslint-plugin-jsx-a11y, CI-blocking |
 
 When you add one of the above, mirror the conventions documented below and update the tables in this file in the same PR.
 
@@ -95,6 +95,68 @@ Every job declares `timeout-minutes:`. Default to 20 for smoke-style jobs, 30 fo
 ### 6. Runner pinning
 
 Pin the runner version explicitly (e.g., `runs-on: ubuntu-24.04`, not `ubuntu-latest`). When GitHub deprecates a runner image, a pinned workflow fails loudly; an unpinned one silently changes behavior.
+
+---
+
+## Required checks on `main`
+
+Branch protection on `main` must require the exact set of check-runs
+below before a PR can merge. The strings are the literal `<workflow>
+/ <job-name>` GitHub displays on the PR status UI — copy them verbatim
+into Settings → Branches → Branch protection rule → "Require status
+checks to pass before merging".
+
+Required checks (9 total):
+
+From `ci.yml` (workflow `name: CI`):
+
+- `CI / Toolchain (Node 24 + pnpm 10.33.0)`
+- `CI / Smoke (install / build / lint / typecheck / test / format)`
+- `CI / SBOM (source — SPDX + CycloneDX)`
+- `CI / CVE scan (grype)`
+- `CI / Dependency review (PR diff)`
+
+From `a11y.yml` (workflow `name: a11y`):
+
+- `a11y / jsx-a11y`
+- `a11y / storybook-a11y`
+- `a11y / playwright-a11y`
+- `a11y / pa11y`
+
+> The `ci.yml` names carry parenthetical descriptors for historical
+> reasons (Story 1.2) — branch protection matches the literal string,
+> so leave them as-is until a dedicated rename PR updates both this
+> table and the GitHub branch-protection rule in one commit. The
+> `a11y.yml` names were deliberately stabilized (Story 1.6) without
+> parentheticals to avoid repeating that lock-in.
+
+Conditionally skipping checks (configured via `if:` in the workflow,
+not via branch-protection settings):
+
+- `ci / cve-scan` and `ci / dependency-review` are gated by the
+  `GHAS_ENABLED` repository variable (see §2b above). When GHAS is off,
+  they report a neutral conclusion — branch protection treats neutral
+  as passing. **Do not** mark them as "required" only when GHAS is on;
+  the neutral-conclusion pattern handles this transparently.
+- PR fork runs skip write-scope steps via the §3 `if:` guard. None of
+  the required checks listed above are gated by that guard, so fork
+  PRs can still reach mergeable.
+
+**Conventions that protect these strings:**
+
+1. Job `name:` values MUST match the bare patterns above (no
+   parenthetical descriptors like `jsx-a11y (static lint)`) so the
+   branch-protection matcher is stable across job-body edits. Rename
+   the job only when there's a genuine semantic change — and do it in
+   a PR that updates this table in the same commit.
+2. Workflow `name:` values likewise. `a11y.yml` declares `name: a11y`;
+   don't change to `Accessibility` without updating this list AND
+   branch protection AND any downstream tooling (VPAT pipeline,
+   compliance exports) that greps for the workflow name.
+3. When adding a new job to `ci.yml` or `a11y.yml`, default to NOT
+   adding it to the required set. Most new jobs are experimental; only
+   promote to required after a stabilization window where the job has
+   been running on PRs without false positives.
 
 ---
 

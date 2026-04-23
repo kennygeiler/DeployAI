@@ -1,0 +1,22 @@
+{
+  "_comment": "Story 1.6 AC5: pa11y-ci config. Runs both the axe runner (WCAG 2.1/2.2 AA via AxeBuilder tag set) and the htmlcs runner (HTML_CodeSniffer — WCAG 2.0 AA only; htmlcs has no 2.1/2.2 rules). htmlcs is *complementary coverage* (structural checks axe sometimes misses), NOT a mirror of AXE_WCAG_TAGS in src/lib/a11y-config.ts. See docs/a11y-gates.md §Why two runners. Keep `standard` at WCAG2AA — it only affects the htmlcs runner.",
+  "_ignore_comment": "Intentionally empty at Story 1.6. Add entries ONLY after filing an issue per the appeal process in docs/a11y-gates.md §Appeal process. Each entry must be a valid axe rule ID or htmlcs error code (e.g. 'color-contrast' or 'WCAG2AA.Principle1.Guideline1_4.1_4_3.G18.Fail').",
+  "defaults": {
+    "runners": ["axe", "htmlcs"],
+    "standard": "WCAG2AA",
+    "includeNotices": false,
+    "includeWarnings": false,
+    "timeout": 60000,
+    "wait": 2000,
+    "chromeLaunchConfig": {
+      "args": ["--no-sandbox", "--disable-dev-shm-usage"]
+    },
+    "ignore": []
+  },
+  "urls": [
+    {
+      "url": "http://127.0.0.1:3000/",
+      "screenCapture": "pa11y-screenshots/homepage.png"
+    }
+  ]
+}

@@ -57,6 +57,19 @@ export function ExampleForm({ onSubmit }: ExampleFormProps) {
 
   return (
     <Form {...form}>
+      {/* jsx-a11y gate-appeal (GRANDFATHERED, Story 1.6 landing set):
+          `<form onKeyDown>` for Cmd/Ctrl+Enter submit is a
+          keyboard-accessibility *enhancement* additive to the submit
+          button's native behavior — it gives keyboard-only users a
+          shortcut and costs no SR discoverability (the button remains
+          the primary path). No tracking issue; disposition is
+          documented in docs/a11y-gates.md §Current appeals and in the
+          Story 1.6 Dev Agent Record. Re-validate on next annual
+          sweep; file a tracking issue at that time if still needed.
+          NOTE: every appeal added AFTER Story 1.6 MUST follow the
+          4-step process in docs/a11y-gates.md §Appeal process — this
+          entry is not a template. */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <form
         onSubmit={submit}
         onKeyDown={(event) => {
