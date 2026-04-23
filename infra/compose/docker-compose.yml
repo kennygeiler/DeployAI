@@ -102,6 +102,7 @@ services:
       REDIS_URL: ${CONTROL_PLANE_REDIS_URL:-redis://redis:6379/0}
       S3_ENDPOINT: ${CONTROL_PLANE_S3_ENDPOINT:-http://minio:9000}
       TSA_URL: ${CONTROL_PLANE_TSA_URL:-http://freetsa-stub:2020/tsr}
+      DEPLOYAI_INTERNAL_API_KEY: ${DEPLOYAI_INTERNAL_API_KEY:-dev-internal-insecure}
     ports:
       - "${CONTROL_PLANE_PORT:-8000}:8000"
     depends_on:
@@ -130,6 +131,9 @@ services:
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_CONTROL_PLANE_URL: ${NEXT_PUBLIC_CONTROL_PLANE_URL:-http://localhost:8000}
+      # Server-to-server: use Docker service name from inside the web container
+      DEPLOYAI_CONTROL_PLANE_URL: ${DEPLOYAI_CONTROL_PLANE_URL:-http://control-plane:8000}
+      DEPLOYAI_INTERNAL_API_KEY: ${DEPLOYAI_INTERNAL_API_KEY:-dev-internal-insecure}
       NODE_ENV: production
     ports:
       - "${WEB_PORT:-3000}:3000"

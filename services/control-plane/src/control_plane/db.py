@@ -35,3 +35,8 @@ def get_engine() -> AsyncEngine:
 def tenant_session(tenant_id: UUID) -> AbstractAsyncContextManager[AsyncSession]:
     """Open a tenant-scoped session against the cached engine."""
     return TenantScopedSession(tenant_id, get_engine())
+
+
+def clear_engine_cache() -> None:
+    """Test hook: :func:`get_engine` is memoized; clear before switching ``DATABASE_URL``."""
+    get_engine.cache_clear()

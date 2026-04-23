@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-21
-last_updated: 2026-04-23 # feat/epic-1-stories-1-12-through-1-17: 1-12, 1-13, 1-14, 1-16 implemented; 1-17 WIP; 1-15 backlog
+last_updated: 2026-04-23 # Story 1-17: schema proposal internal API, web admin + BFF, integration tests; 1-15 remaining for Epic-1
 project: DeployAI
 project_key: NOKEY
 tracking_system: file-system
@@ -63,7 +63,7 @@ development_status:
   1-14-llm-provider-abstraction-interface: done
   1-15-tauri-signed-hello-world-spike: backlog
   1-16-minimal-admin-shell: done
-  1-17-cartographer-schema-evolution-staging: backlog
+  1-17-cartographer-schema-evolution-staging: done
   epic-1-retrospective: optional
 
   # ======================================================================
