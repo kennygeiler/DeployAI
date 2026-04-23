@@ -22,6 +22,7 @@ on:
       - "apps/web/Dockerfile"
       - "apps/web/next.config.*"
       - "apps/web/package.json"
+      - "packages/authz/**"
       - "packages/design-tokens/**"
       - "Makefile"
       - ".github/workflows/compose-smoke.yml"
