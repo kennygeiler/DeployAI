@@ -1,0 +1,12 @@
+# Declares minimum capabilities each agent class expects from a concrete LLMProvider
+# (Story 1-14, NFR70). `pnpm turbo run validate:llm-matrix` (via @deployai/llm-provider) fails
+# the build if a registered provider is missing a required key.
+
+version: 1
+agents:
+  cartographer:
+    require: [extraction, tool_use, embeddings]
+  oracle:
+    require: [retrieval, tool_use, embeddings]
+  master_strategist:
+    require: [arbitration, tool_use, embeddings]

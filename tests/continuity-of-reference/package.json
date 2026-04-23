@@ -1,0 +1,24 @@
+{
+  "name": "@deployai/continuity-of-reference",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "NFR52 continuity contract suite (Story 1-12, FR41–43)",
+  "scripts": {
+    "test": "vitest run",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "contract:continuity": "vitest run"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "@types/react": "^19.0.0",
+    "eslint": "^9.39.4",
+    "jsdom": "^25.0.0",
+    "react": "19.2.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.0",
+    "vitest": "^2.1.9"
+  }
+}

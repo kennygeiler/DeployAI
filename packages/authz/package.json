@@ -1,0 +1,29 @@
+{
+  "name": "@deployai/authz",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AuthzResolver contract — Epic 2 expands; Story 1-16 uses the stub in apps/web (Story 1-14).",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist/**"],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "eslint": "^9.39.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.0",
+    "vitest": "^2.1.9"
+  }
+}

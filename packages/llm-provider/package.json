@@ -1,0 +1,33 @@
+{
+  "name": "@deployai/llm-provider",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "LLMProvider contract for agents + replay harness (Epic 4/5, Story 1.14, NFR70).",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist/**"],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "validate:llm-matrix": "tsx scripts/validate-matrix.mts"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^24.12.2",
+    "eslint": "^9.39.4",
+    "js-yaml": "^4.1.0",
+    "tsx": "^4.20.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.0",
+    "vitest": "^2.1.9"
+  }
+}

@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import text
-from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID
+from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from control_plane.domain.base import Base
@@ -40,3 +40,8 @@ class SchemaProposal(Base):
     )
     reviewed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     reviewer_actor_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    proposer_agent: Mapped[str | None] = mapped_column(nullable=True)
+    proposed_field_path: Mapped[str | None] = mapped_column(nullable=True)
+    proposed_type: Mapped[str | None] = mapped_column(nullable=True)
+    sample_evidence: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    rejection_reason: Mapped[str | None] = mapped_column(nullable=True)

@@ -18,6 +18,7 @@
     "clean": "rm -rf .next storybook-static"
   },
   "dependencies": {
+    "@deployai/authz": "workspace:*",
     "@deployai/design-tokens": "workspace:*",
     "@hookform/resolvers": "^5.2.2",
     "class-variance-authority": "^0.7.1",

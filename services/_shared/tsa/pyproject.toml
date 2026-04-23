@@ -1,0 +1,39 @@
+[project]
+name = "deployai-tsa"
+version = "0.0.0"
+description = "RFC 3161 timestamp batcher + FreeTSA client (Story 1-13, NFR19)"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "httpx>=0.28.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/deployai_tsa"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+packages = ["deployai_tsa"]
+mypy_path = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3.3",
+  "pytest-asyncio>=0.24.0",
+  "ruff>=0.7.4",
+  "mypy>=1.13.0",
+  "respx>=0.22.0",
+]

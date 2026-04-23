@@ -1,0 +1,30 @@
+[project]
+name = "deployai-authz"
+version = "0.0.0"
+description = "Python authz contract mirror of @deployai/authz (Story 1-14/1-16)"
+requires-python = ">=3.13,<3.14"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/deployai_authz"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+packages = ["deployai_authz"]
+mypy_path = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[dependency-groups]
+dev = ["pytest>=8.3.3", "ruff>=0.7.4", "mypy>=1.13.0"]
