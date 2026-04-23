@@ -47,6 +47,18 @@
       "cache": false,
       "dependsOn": ["^build"],
       "env": ["DOCKER_*", "GITHUB_*"]
+    },
+    "fuzz:cross-tenant": {
+      "cache": false,
+      "env": [
+        "FUZZ_SEED",
+        "FUZZ_GATE_MODE",
+        "DATABASE_URL",
+        "FUZZ_APP_USER",
+        "FUZZ_APP_PASSWORD",
+        "GITHUB_RUN_ID"
+      ],
+      "outputs": ["artifacts/fuzz/**"]
     }
   }
 }

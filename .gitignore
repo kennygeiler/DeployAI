@@ -208,6 +208,12 @@ pa11y-screenshots/
 # are routine) so an accidental install doesn't balloon the commit.
 **/chrome/
 
+# ─────────────────────── Fuzz / contract evidence JSON (Story 1.10+) ───────────────────────
+# Generated locally and by `pnpm turbo run fuzz:cross-tenant`; CI uploads as a
+# workflow artifact — never commit the bytes.
+artifacts/fuzz/
+services/control-plane/artifacts/fuzz/
+
 # ─────────────────────── Misc ───────────────────────
 *.tsbuildinfo
 .history/

@@ -9,6 +9,7 @@
     "test": "uv run pytest",
     "dev": "uv run uvicorn control_plane.main:app --reload",
     "docker:build": "docker build -f services/control-plane/Dockerfile -t deployai/control-plane:dev ../..",
+    "fuzz:cross-tenant": "sh -c 'uv run python -m control_plane.fuzz.cross_tenant --seed \"${FUZZ_SEED:-${GITHUB_RUN_ID:-0}}\" --report ../../artifacts/fuzz/cross-tenant-report.json'",
     "clean": "rm -rf .venv .pytest_cache .mypy_cache .ruff_cache"
   }
 }

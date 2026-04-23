@@ -70,7 +70,8 @@ pythonpath = ["src"]
 # the `tests.unit.test_*` package namespace — control-plane and tenancy
 # both have a `tests/unit/__init__.py`. importlib resolves each test file
 # independently by path, so duplicate module names are fine.
-addopts = "-m 'not integration' --import-mode=importlib"
+addopts = "-m 'not integration and not fuzz' --import-mode=importlib"
 markers = [
   "integration: requires a reachable Docker daemon (testcontainers)",
+  "fuzz: cross-tenant isolation fuzz harness; opt-in via -m fuzz (Story 1.10)",
 ]
