@@ -9,7 +9,6 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from control_plane.db import tenant_session
 from control_plane.domain.app_identity.models import AppTenant, AppUser
 from control_plane.domain.canonical_memory.events import CanonicalMemoryEvent
 from control_plane.infra.tenant_dek import wrap_tenant_dek
@@ -26,12 +25,13 @@ async def provision_platform_account(
     actor_sub: str | None,
 ) -> PlatformAccountCreated:
     tid = uuid.uuid4()
+    email_norm = initial_strategist_email.strip().lower()
     dek_ct, key_id = wrap_tenant_dek()
     user = AppUser(
         tenant_id=tid,
         scim_external_id=None,
-        user_name=initial_strategist_email.strip().lower(),
-        email=initial_strategist_email.strip().lower(),
+        user_name=email_norm,
+        email=email_norm,
         active=True,
         roles=["deployment_strategist"],
     )
@@ -44,11 +44,22 @@ async def provision_platform_account(
         users=[user],
     )
     session.add(t)
+    await session.flush()
+    n = (
+        await session.execute(
+            select(func.count())
+            .select_from(CanonicalMemoryEvent)
+            .where(CanonicalMemoryEvent.tenant_id == tid)
+        )
+    ).scalar_one()
+    if int(n) != 0:
+        await session.rollback()
+        raise RuntimeError("canonical memory baseline is not empty for new tenant")
     await session.commit()
     await session.refresh(t)
     await session.refresh(user)
 
-    email_hash = hashlib.sha256(initial_strategist_email.encode("utf-8")).hexdigest()[:16]
+    email_hash = hashlib.sha256(email_norm.encode("utf-8")).hexdigest()[:16]
     logger.info(
         "account.provisioned",
         extra={
@@ -58,17 +69,6 @@ async def provision_platform_account(
             "strategist_email_sha256_16": email_hash,
         },
     )
-
-    async with tenant_session(tid) as ts:
-        n = (
-            await ts.execute(
-                select(func.count())
-                .select_from(CanonicalMemoryEvent)
-                .where(CanonicalMemoryEvent.tenant_id == tid)
-            )
-        ).scalar_one()
-        if int(n) != 0:
-            raise RuntimeError("canonical memory baseline is not empty for new tenant")
     if user.created_at is None:  # pragma: no cover — server_default
         raise RuntimeError("user created_at missing after refresh")
     return PlatformAccountCreated(

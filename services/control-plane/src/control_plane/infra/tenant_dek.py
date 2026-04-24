@@ -9,10 +9,12 @@ from control_plane.config.settings import get_settings
 
 
 def wrap_tenant_dek() -> tuple[str, str]:
-    """Generate a DEK and return ``(ciphertext_b64, key_id)`` for storage on ``app_tenants``.
+    """Generate a DEK and return ``(stored_b64, key_id)`` for ``app_tenants`` columns.
 
-    Production path will call KMS; local/tests use a deterministic-size random blob
-    and a well-known key id.
+    With ``tenant_dek_mode=aws_kms``, the stored value should be KMS-wrapped ciphertext.
+    The ``stub`` mode stores Base64-encoded raw key material under the same column names
+    so the row shape matches production; do not treat stub values as cryptographic proof
+    of KMS use.
     """
     s = get_settings()
     if s.tenant_dek_mode == "aws_kms":
