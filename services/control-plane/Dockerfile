@@ -12,6 +12,9 @@ WORKDIR /app
 # holds deployai-tenancy, deployai-citation, etc.
 COPY services/_shared/tenancy /_shared/tenancy
 COPY services/_shared/citation /_shared/citation
+COPY services/_shared/authz /_shared/authz
+# Path dep `deployai-ingest` in pyproject (`../ingest` from /app).
+COPY services/ingest /ingest
 
 COPY services/control-plane/pyproject.toml services/control-plane/uv.lock services/control-plane/README.md ./
 RUN uv sync --frozen --no-install-project --no-dev
@@ -21,8 +24,9 @@ RUN uv sync --frozen --no-dev
 FROM python:3.13-slim AS runtime
 WORKDIR /app
 COPY --from=build /app /app
-# Editable installs in /app/.venv point at /_shared/*; preserve that tree.
+# Editable installs in /app/.venv point at /_shared/* and /ingest; preserve.
 COPY --from=build /_shared /_shared
+COPY --from=build /ingest /ingest
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
 EXPOSE 8000
 CMD ["uvicorn", "control_plane.main:app", "--host", "0.0.0.0", "--port", "8000"]
