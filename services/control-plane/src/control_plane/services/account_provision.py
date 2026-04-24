@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.domain.app_identity.models import AppTenant, AppUser
 from control_plane.domain.canonical_memory.events import CanonicalMemoryEvent
+from control_plane.exceptions import CanonicalBaselineNotEmptyError, UserRecordIncompleteError
 from control_plane.infra.tenant_dek import wrap_tenant_dek
 from control_plane.schemas.platform import PlatformAccountCreated
 
@@ -54,7 +55,7 @@ async def provision_platform_account(
     ).scalar_one()
     if int(n) != 0:
         await session.rollback()
-        raise RuntimeError("canonical memory baseline is not empty for new tenant")
+        raise CanonicalBaselineNotEmptyError("canonical memory baseline is not empty for new tenant")
     await session.commit()
     await session.refresh(t)
     await session.refresh(user)
@@ -70,7 +71,7 @@ async def provision_platform_account(
         },
     )
     if user.created_at is None:  # pragma: no cover — server_default
-        raise RuntimeError("user created_at missing after refresh")
+        raise UserRecordIncompleteError("app_users.created_at missing after refresh")
     return PlatformAccountCreated(
         tenant_id=tid,
         initial_strategist_user_id=user.id,

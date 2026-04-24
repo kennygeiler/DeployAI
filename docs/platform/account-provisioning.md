@@ -11,6 +11,11 @@ Request body:
 
 Response: `201` with `tenant_id`, `initial_strategist_user_id`, and `created_at`.
 
+## Errors (client-safe)
+
+- `501` — `DEPLOYAI_TENANT_DEK_MODE=aws_kms` is set but that mode is not implemented in this build (detail: tenant encryption mode not available).
+- `500` — other invariant or internal failures during provisioning; the response body is generic (no internal exception text). Check server logs for `account.provision.failed`.
+
 ## Database effects
 
 - Inserts a row in `app_tenants` with a new random UUID, `name`, optional **null** `scim_bearer_token_hash` (SCIM is configured later; until then the SCIM API cannot resolve this tenant from a bearer hash).

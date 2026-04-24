@@ -252,3 +252,24 @@ async def test_post_platform_account_cross_tenant_canonical_isolation(
         assert n_b is None
     finally:
         await rls_engine.dispose()
+
+
+@pytest.mark.integration
+async def test_tenant_dek_aws_kms_not_implemented_returns_501(
+    platform_client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DEPLOYAI_TENANT_DEK_MODE", "aws_kms")
+    clear_settings_cache()
+    try:
+        token = await _mint_access(platform_client, roles=["platform_admin"])
+        r = await platform_client.post(
+            "/platform/accounts",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"organization_name": "KMS Co", "initial_strategist_email": "ops@kms.example"},
+        )
+        assert r.status_code == 501, r.text
+        assert "not available" in (r.json().get("detail") or "").lower()
+    finally:
+        monkeypatch.delenv("DEPLOYAI_TENANT_DEK_MODE", raising=False)
+        clear_settings_cache()

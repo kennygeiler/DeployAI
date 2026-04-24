@@ -6,6 +6,7 @@ import base64
 import os
 
 from control_plane.config.settings import get_settings
+from control_plane.exceptions import TenantDekModeNotAvailableError
 
 
 def wrap_tenant_dek() -> tuple[str, str]:
@@ -18,6 +19,6 @@ def wrap_tenant_dek() -> tuple[str, str]:
     """
     s = get_settings()
     if s.tenant_dek_mode == "aws_kms":
-        raise NotImplementedError("AWS KMS DEK wrap — TODO: wire boto3 + CMK from settings (Story 2-5+)")
+        raise TenantDekModeNotAvailableError("AWS KMS DEK wrap is not implemented in this build")
     raw = os.urandom(32)
     return base64.b64encode(raw).decode("ascii"), "stub-local"
