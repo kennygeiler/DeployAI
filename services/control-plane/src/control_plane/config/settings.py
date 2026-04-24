@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from typing import Literal
+
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -37,6 +39,9 @@ class ControlPlaneSettings(BaseSettings):
 
     allow_test_session_mint: bool = False
     """When True, ``POST /internal/v1/test/session-tokens`` may mint (still needs internal key)."""
+
+    tenant_dek_mode: Literal["stub", "aws_kms"] = "stub"
+    """``stub`` stores random key material (dev/tests). ``aws_kms`` — TODO(Story 2-5+): real KMS wrap."""
 
     @field_validator("allow_test_session_mint", mode="before")
     @classmethod
