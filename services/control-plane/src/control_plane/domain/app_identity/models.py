@@ -22,14 +22,10 @@ class AppTenant(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=func.gen_random_uuid()
     )
     name: Mapped[str] = mapped_column(Text(), nullable=False)
-    scim_bearer_token_hash: Mapped[str | None] = mapped_column(
-        Text(), nullable=True, index=True, unique=True
-    )
+    scim_bearer_token_hash: Mapped[str | None] = mapped_column(Text(), nullable=True, index=True, unique=True)
     tenant_dek_ciphertext: Mapped[str | None] = mapped_column(Text(), nullable=True)
     tenant_dek_key_id: Mapped[str | None] = mapped_column(Text(), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
     users: Mapped[list[AppUser]] = relationship("AppUser", back_populates="tenant", cascade="all, delete-orphan")
 
@@ -51,9 +47,7 @@ class AppUser(Base):
     active: Mapped[bool] = mapped_column(Boolean(), nullable=False, server_default="true")
     roles: Mapped[Any] = mapped_column(JSONB(), nullable=True)
     entra_sub: Mapped[str | None] = mapped_column(Text(), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
     tenant: Mapped[AppTenant] = relationship("AppTenant", back_populates="users")

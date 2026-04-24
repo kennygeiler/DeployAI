@@ -48,9 +48,7 @@ async def provision_platform_account(
     await session.flush()
     n = (
         await session.execute(
-            select(func.count())
-            .select_from(CanonicalMemoryEvent)
-            .where(CanonicalMemoryEvent.tenant_id == tid)
+            select(func.count()).select_from(CanonicalMemoryEvent).where(CanonicalMemoryEvent.tenant_id == tid)
         )
     ).scalar_one()
     if int(n) != 0:
