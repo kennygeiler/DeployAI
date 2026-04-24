@@ -1,6 +1,6 @@
 # Story 2.2: Microsoft Entra ID SAML + OIDC SSO (FR71)
 
-Status: ready-for-dev
+Status: in-progress (OIDC+PKCE + id_token verify landed; SAML + JIT + session on callback pending)
 
 ## Story
 
@@ -66,6 +66,11 @@ _(on implementation)_
 ### Completion Notes List
 
 ### File List
+
+- `services/control-plane/src/control_plane/auth/oidc_flow.py` — PKCE, metadata, token exchange, JWKS id_token verify
+- `services/control-plane/src/control_plane/api/routes/auth_oidc.py` — `/auth/login`, `/auth/oidc/login`, `/auth/oidc/callback`
+- `services/control-plane/src/control_plane/config/settings.py` — `DEPLOYAI_OIDC_*` settings
+- `docs/auth/sso-setup.md` — current-state update
 
 ---
 

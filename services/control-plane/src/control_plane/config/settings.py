@@ -45,6 +45,14 @@ class ControlPlaneSettings(BaseSettings):
     break_glass_bypass_webauthn: bool = False
     """When True (dev/tests only), skip ``X-DeployAI-WebAuthn-Assertion`` on break-glass routes. Production: False."""
 
+    # --- Story 2-2: Entra-compatible OIDC (SAML in a later slice) ---
+    oidc_issuer: str | None = None
+    # e.g. https://login.microsoftonline.com/<tenant-id>/v2.0 (must serve openid-configuration).
+    oidc_client_id: str | None = None
+    oidc_client_secret: str | None = None
+    oidc_redirect_uri: str | None = None
+    """Registered reply URL, e.g. ``https://cp.example.com/auth/oidc/callback`` (must match Entra app registration)."""
+
     @field_validator("allow_test_session_mint", "break_glass_bypass_webauthn", mode="before")
     @classmethod
     def _coerce_bool(cls, v: object) -> bool:

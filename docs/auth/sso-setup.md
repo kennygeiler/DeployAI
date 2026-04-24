@@ -2,6 +2,7 @@
 
 ## Current state (control plane)
 
+- **OIDC (Entra v2, PKCE).** When `DEPLOYAI_OIDC_ISSUER`, `DEPLOYAI_OIDC_CLIENT_ID`, `DEPLOYAI_OIDC_CLIENT_SECRET`, and `DEPLOYAI_OIDC_REDIRECT_URI` are all set, `GET /auth/login` (→ `/auth/oidc/login`) starts the code flow; `GET /auth/oidc/callback` exchanges the code, verifies the `id_token` against the issuer JWKS, and returns JSON with `sub` (and `email`/`name` when present). **App session cookies + JIT `app_users` upsert** are the next follow-ups in Story 2-2; until then, use the internal test session mint in dev.
 - **Sessions:** RS256 access JWT + Redis refresh (`POST /auth/refresh`, `POST /auth/logout`, `POST /auth/sessions/revoke-all/{user_id}`) per Story 2-4. Internal tests may mint short-lived tokens via `POST /internal/v1/test/session-tokens` with `X-DeployAI-Internal-Key` and `DEPLOYAI_ALLOW_TEST_SESSION_MINT=1`.
 - **Web UI (Next.js):** dev builds still honor `x-deployai-tenant` / `x-deployai-role` (see [role-matrix](../../authz/role-matrix.md)). Production **IdP-issued** cookies and `/auth/callback` flows are **not** shipped in this pass.
 - **SCIM:** per-tenant `POST/GET/… /scim/v2/Users` with bearer + `app_tenants.scim_bearer_token_hash` (Story 2-3) — operational once Entra points at the DeployAI base URL and a SCIM token is set on the tenant.

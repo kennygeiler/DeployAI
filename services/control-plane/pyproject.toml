@@ -22,6 +22,8 @@ dependencies = [
   "deployai-authz",
   # Story 1.11 — citation envelope Pydantic mirror of @deployai/contracts.
   "deployai-citation",
+  "authlib>=1.3.0",
+  "httpx>=0.28.0",
 ]
 
 [tool.uv.sources]
@@ -73,6 +75,10 @@ packages = ["control_plane"]
 
 [[tool.mypy.overrides]]
 module = ["deployai_authz", "deployai_authz.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["authlib", "authlib.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
