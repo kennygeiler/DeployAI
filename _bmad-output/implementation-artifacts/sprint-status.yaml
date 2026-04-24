@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-21
-last_updated: 2026-04-23 # Epic 3: 3-1–3-3 done (calendar, mail, Teams transcripts)
+last_updated: 2026-04-23 # Epic 3: 3-4 in progress (S3 presign slice); 3-1–3-3 done
 project: DeployAI
 project_key: NOKEY
 tracking_system: file-system
@@ -86,7 +86,7 @@ development_status:
   3-1-m365-calendar-oauth-ingestion: done
   3-2-exchange-m365-email-oauth-ingestion: done
   3-3-microsoft-teams-transcript-import: done
-  3-4-voice-meeting-file-upload: backlog
+  3-4-voice-meeting-file-upload: in-progress
   3-5-thread-level-extraction-unit-enforcement: backlog
   3-6-transient-failure-tolerance-idempotent-writes: backlog
   3-7-throttling-aware-backpressure: backlog
