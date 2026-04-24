@@ -7,9 +7,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy import text
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision: str = "20260501_0009"
 down_revision: str | None = "20260430_0008"

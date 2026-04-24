@@ -17,8 +17,6 @@ def test_chunk_under_60_min_single() -> None:
 
 
 def test_chunk_90_min_multi() -> None:
-    vtt = "WEBVTT\n\n" + "\n\n".join(
-        f"00:0{i}.0 --> 00:0{i}.1\n<v S{i}>L{i}</v>" for i in range(1, 10)
-    )
+    vtt = "WEBVTT\n\n" + "\n\n".join(f"00:0{i}.0 --> 00:0{i}.1\n<v S{i}>L{i}</v>" for i in range(1, 10))
     parts = _chunk_vtt_cues(vtt, 90.0)
     assert len(parts) >= 2

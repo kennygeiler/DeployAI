@@ -26,9 +26,7 @@ _EXPECTED_V: Final[int] = 1
 _POLL_WAIT: Final[int] = 20
 
 
-def _asr_plain_text(
-    *, upload_id: uuid.UUID, object_key: str, s3_object_size: int, recording_jurisdiction: str
-) -> str:
+def _asr_plain_text(*, upload_id: uuid.UUID, object_key: str, s3_object_size: int, recording_jurisdiction: str) -> str:
     mode = (get_settings().upload_asr_mode or "stub").strip()
     if mode == "transcribe":
         _LOG.info(
@@ -81,9 +79,7 @@ async def process_transcribe_job(*, job_body: str) -> str:
     )
     now = datetime.now(UTC)
     source_ref = f"upload:asr:{upload_id}"
-    dedup = canonical_ingestion_dedup_key(
-        provider="upload", source_id=f"asr_transcript:{upload_id}", version="v1"
-    )
+    dedup = canonical_ingestion_dedup_key(provider="upload", source_id=f"asr_transcript:{upload_id}", version="v1")
     rel = f"upload:artifact:{upload_id}"
     payload: dict[str, Any] = {
         "session_unit": "asr.transcript",
