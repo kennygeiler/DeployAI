@@ -45,6 +45,19 @@ def _redirect_scheme_https(redirect_uri: str) -> bool:
     return urllib.parse.urlparse(redirect_uri).scheme == "https"
 
 
+def _safe_return_to_url(raw: str | None) -> str | None:
+    """Block open redirects: only allow http(s) with a host (no javascript:/data:)."""
+    if not raw or not str(raw).strip():
+        return None
+    s = str(raw).strip()
+    if len(s) > 2048:
+        return None
+    p = urllib.parse.urlparse(s)
+    if p.scheme not in ("http", "https") or not p.netloc:
+        return None
+    return s
+
+
 def _m365_creds() -> tuple[str, str, str, str] | None:
     return m365_oauth_creds(get_settings())
 
@@ -99,7 +112,6 @@ async def m365_connect(
             tenant_id=tenant_id,
             provider="m365_calendar",
             display_name="Microsoft 365 Calendar",
-            state="pending_oauth",
         )
         session.add(it)
         await session.flush()
@@ -144,10 +156,11 @@ async def m365_connect(
             secure=secure,
             path="/integrations/m365-calendar",
         )
-    if return_to:
+    ret = _safe_return_to_url(return_to)
+    if ret:
         rdr.set_cookie(
             _C_RETURN,
-            return_to,
+            ret,
             max_age=_COOKIE_MAX_AGE,
             httponly=True,
             samesite="lax",

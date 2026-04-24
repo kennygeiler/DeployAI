@@ -86,6 +86,8 @@ async def _ensure_access_token(
     )
     at2 = str(new_toks["access_token"])
     new_rt = new_toks.get("refresh_token", rt)
+    if not isinstance(new_rt, str):
+        new_rt = rt
     ex_in = int(new_toks.get("expires_in") or 3600)
     it.config = {
         **c,

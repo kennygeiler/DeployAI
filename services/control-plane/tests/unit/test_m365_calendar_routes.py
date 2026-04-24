@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from httpx import ASGITransport, AsyncClient
 
+from control_plane.api.routes.integrations_m365_calendar import _safe_return_to_url
 from control_plane.auth.jwt_tokens import clear_jwt_key_cache, create_access_token
 from control_plane.config.settings import clear_settings_cache
 from control_plane.main import app
@@ -34,9 +35,14 @@ def _write_rsa(tmp: Path) -> tuple[Path, Path]:
     return priv, pub
 
 
-def _bearer(
-    priv: Path, *, tid: uuid.UUID, roles: list[str] | None = None, sub: str = "u1"
-) -> str:
+def test_safe_return_to_rejects_unsafe_schemes() -> None:
+    assert _safe_return_to_url("javascript:alert(1)") is None
+    assert _safe_return_to_url("https://ok.example/after") == "https://ok.example/after"
+    assert _safe_return_to_url("/relative") is None
+    assert _safe_return_to_url("data:text/html,xx") is None
+
+
+def _bearer(priv: Path, *, tid: uuid.UUID, roles: list[str] | None = None, sub: str = "u1") -> str:
     clear_jwt_key_cache()
     return create_access_token(
         sub=sub,
@@ -81,7 +87,9 @@ async def test_m365_connect_403_tenant_mismatch(tmp_path: Path, monkeypatch: pyt
     monkeypatch.setenv("DEPLOYAI_OIDC_ISSUER", "https://login.microsoftonline.com/tenant/v2.0")
     monkeypatch.setenv("DEPLOYAI_OIDC_CLIENT_ID", "cid")
     monkeypatch.setenv("DEPLOYAI_OIDC_CLIENT_SECRET", "sec")
-    monkeypatch.setenv("DEPLOYAI_M365_CALENDAR_REDIRECT_URI", "https://cp.example.com/integrations/m365-calendar/callback")
+    monkeypatch.setenv(
+        "DEPLOYAI_M365_CALENDAR_REDIRECT_URI", "https://cp.example.com/integrations/m365-calendar/callback"
+    )
     clear_settings_cache()
     clear_jwt_key_cache()
     tok_tid = uuid.uuid4()
@@ -106,7 +114,9 @@ async def test_m365_callback_400_without_cookies(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setenv("DEPLOYAI_OIDC_ISSUER", "https://login.microsoftonline.com/tenant/v2.0")
     monkeypatch.setenv("DEPLOYAI_OIDC_CLIENT_ID", "cid")
     monkeypatch.setenv("DEPLOYAI_OIDC_CLIENT_SECRET", "sec")
-    monkeypatch.setenv("DEPLOYAI_M365_CALENDAR_REDIRECT_URI", "https://cp.example.com/integrations/m365-calendar/callback")
+    monkeypatch.setenv(
+        "DEPLOYAI_M365_CALENDAR_REDIRECT_URI", "https://cp.example.com/integrations/m365-calendar/callback"
+    )
     clear_settings_cache()
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:

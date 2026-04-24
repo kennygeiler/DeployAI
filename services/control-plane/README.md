@@ -17,3 +17,9 @@ uv run uvicorn control_plane.main:app --reload
 ```bash
 uv run pytest
 ```
+
+Default `addopts` skips `integration` and `fuzz` markers. To run Docker-backed tests (Postgres testcontainer), e.g. M365 calendar flow:
+
+```bash
+env PYTEST_ADDOPTS= uv run pytest tests/integration/test_m365_calendar_flow.py -m integration
+```
