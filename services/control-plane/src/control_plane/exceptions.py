@@ -19,3 +19,7 @@ class TenantDekModeNotAvailableError(AccountProvisionError):
 
 class NotFoundError(Exception):
     """Generic missing row (map to 404 in HTTP layer)."""
+
+
+class UploadPresignNotConfiguredError(Exception):
+    """``DEPLOYAI_UPLOAD_ARTIFACT_S3_BUCKET`` (and AWS creds) are not set; presign is unavailable."""

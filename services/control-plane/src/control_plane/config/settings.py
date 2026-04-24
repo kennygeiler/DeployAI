@@ -73,6 +73,14 @@ class ControlPlaneSettings(BaseSettings):
     ingest_email_body_stub_dir: str | None = None
     """Base directory for stub email bodies; default uses a subdir of the system temp dir."""
 
+    # --- Epic 3 / Story 3-4: direct-to-S3 meeting audio upload (presigned POST) ---
+    upload_artifact_s3_bucket: str | None = None
+    """When set, ``POST /upload/artifacts/presign`` can mint S3 POST policies (see AR11)."""
+
+    upload_artifact_s3_region: str = "us-east-1"
+    upload_artifact_s3_key_prefix: str = "ingest/artifacts"
+    """Key prefix (no leading/trailing slash). Objects: ``{prefix}/tenant/{tid}/...``"""
+
     session_access_cookie: str = "dep_access"
     session_refresh_cookie: str = "dep_refresh"
     """HttpOnly cookies set on OIDC callback (browser clients); `POST /auth/refresh` still uses JSON body too."""

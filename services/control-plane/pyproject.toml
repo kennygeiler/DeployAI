@@ -24,6 +24,7 @@ dependencies = [
   "deployai-citation",
   "authlib>=1.3.0",
   "httpx>=0.28.0",
+  "boto3>=1.35.0",
 ]
 
 [tool.uv.sources]
@@ -47,6 +48,7 @@ dev = [
   # Story 1.9 — unit tests for deployai_tenancy.session use in-memory sqlite.
   "aiosqlite>=0.20.0",
   "fakeredis>=2.35.1",
+  "moto[s3]>=5.0.0",
 ]
 
 [build-system]
