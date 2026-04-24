@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
 import httpx
@@ -49,6 +49,32 @@ def _retry_after_sec(resp: httpx.Response) -> float:
         return 0.0
 
 
+async def m365_graph_get(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    auth: str,
+    params: Mapping[str, str] | None,
+    bucket: GraphTokenBucket,
+    timeout: float = 60.0,  # noqa: ASYNC109 — httpx client timeout, not asyncio timeout
+    odata_max_page: str | None = "100",
+) -> httpx.Response:
+    """Delegated Graph GET (M365 mail / Teams) with 429 + token-bucket; ``odata_max_page=None`` omits ``Prefer``."""
+    headers: dict[str, str] = {"Authorization": f"Bearer {auth}"}
+    if odata_max_page is not None and odata_max_page.strip() != "":
+        headers["Prefer"] = f"odata.maxpagesize={odata_max_page}"
+    return await graph_request(
+        client,
+        "GET",
+        str(url),
+        bucket=bucket,
+        reauthorize=None,
+        headers=headers,
+        params=params,
+        timeout=timeout,
+    )
+
+
 async def graph_request(
     client: httpx.AsyncClient,
     method: str,
@@ -73,7 +99,7 @@ async def graph_request(
         if attempt >= _MAX_429:
             return r
         ra = _retry_after_sec(r)
-        delay = max(0.0, min(300.0, ra if ra > 0 else 2.0**min(8, attempt)))
+        delay = max(0.0, min(300.0, ra if ra > 0 else 2.0 ** min(8, attempt)))
         _LOG.info("graph 429, sleeping %.1fs (attempt %s)", delay, attempt + 1)
         await asyncio.sleep(delay)
     return r

@@ -52,8 +52,6 @@ async def list_ingestion_runs(
     session: Annotated[AsyncSession, Depends(get_app_db_session)],
     limit: int = Query(100, le=500, ge=1),
 ) -> list[IngestionRunRead]:
-    r = await session.execute(
-        select(IngestionRun).order_by(desc(IngestionRun.started_at)).limit(int(limit))
-    )
+    r = await session.execute(select(IngestionRun).order_by(desc(IngestionRun.started_at)).limit(int(limit)))
     rows = r.scalars().all()
     return [IngestionRunRead.model_validate(x) for x in rows]

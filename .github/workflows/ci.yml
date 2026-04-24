@@ -197,6 +197,37 @@ jobs:
           uv run pytest tests/integration/test_m365_calendar_flow.py -m integration -q
 
   # ------------------------------------------------------------------
+  # services/ingest — package unit tests (idempotency, NFR12 helpers)
+  # ------------------------------------------------------------------
+  ingest-lib:
+    name: Ingest (pytest)
+    needs: [smoke]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.7"
+          enable-cache: true
+
+      - name: Ingest unit tests
+        working-directory: services/ingest
+        run: |
+          uv sync
+          uv run pytest -q
+
+  # ------------------------------------------------------------------
   # Job 3 — sbom-source (AC1)
   # Emits SPDX + CycloneDX SBOMs for the repo source tree. Once
   # Story 1.3 lands per-workspace manifests, syft's recursive

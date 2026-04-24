@@ -167,9 +167,7 @@ async def run_calendar_delta_sync(
                 source_ref = f"graph:calendar_event:{eid}"
                 pld = _event_payload_subset(ev)
                 occ = _event_occurred_at(ev)
-                dedup = canonical_ingestion_dedup_key(
-                    provider="m365", source_id=f"calendar_event:{eid}", version="v1"
-                )
+                dedup = canonical_ingestion_dedup_key(provider="m365", source_id=f"calendar_event:{eid}", version="v1")
                 async with tenant_session(tid) as t_sess:
                     ok = await try_insert_with_ingestion_dedup(
                         t_sess,

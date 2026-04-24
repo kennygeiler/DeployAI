@@ -29,9 +29,7 @@ _STUB_TRANSCRIPTION = (
 )
 
 
-async def _source_ref_exists(
-    t_session: AsyncSession, *, tenant_id: uuid.UUID, source_ref: str
-) -> bool:
+async def _source_ref_exists(t_session: AsyncSession, *, tenant_id: uuid.UUID, source_ref: str) -> bool:
     r = await t_session.execute(
         select(CanonicalMemoryEvent.id).where(
             CanonicalMemoryEvent.tenant_id == tenant_id,
@@ -41,9 +39,7 @@ async def _source_ref_exists(
     return r.scalar_one_or_none() is not None
 
 
-def _emit_ingest_job_stub(
-    *, tenant_id: uuid.UUID, object_key: str, content_length: int, transcript_ref: str
-) -> None:
+def _emit_ingest_job_stub(*, tenant_id: uuid.UUID, object_key: str, content_length: int, transcript_ref: str) -> None:
     _LOG.info(
         "ingest.upload.registered",
         extra={
@@ -69,9 +65,7 @@ async def complete_meeting_artifact(
     if len(j) < 2 or len(j) > 128:
         raise ValueError("recording_jurisdiction must be 2-128 characters (NFR39 metadata)")
 
-    assert_artifact_key_for_upload(
-        object_key=object_key, tenant_id=tenant_id, upload_id=upload_id
-    )
+    assert_artifact_key_for_upload(object_key=object_key, tenant_id=tenant_id, upload_id=upload_id)
     size = await asyncio.to_thread(head_upload_artifact_size, object_key=object_key)
     s = get_settings()
     b = (s.upload_artifact_s3_bucket or "").strip()

@@ -312,8 +312,6 @@ async def m365_sync(
         await session.commit()
         raise
     _meta = {"result": "delta" if out.get("delta_link") else "same"}
-    await complete_ingestion_run_success(
-        session, run_id, events_written=int(out.get("inserted", 0)), meta=_meta
-    )
+    await complete_ingestion_run_success(session, run_id, events_written=int(out.get("inserted", 0)), meta=_meta)
     await session.commit()
     return {"integration_id": str(integration_id), **out, "ingestion_run_id": str(run_id)}

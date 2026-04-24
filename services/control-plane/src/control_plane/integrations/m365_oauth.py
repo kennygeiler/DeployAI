@@ -16,9 +16,7 @@ GRAPH_CALENDAR_SCOPES: str = (
 )
 GRAPH_SCOPES = GRAPH_CALENDAR_SCOPES  # backward compat
 
-GRAPH_MAIL_SCOPES: str = (
-    "offline_access https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/User.Read"
-)
+GRAPH_MAIL_SCOPES: str = "offline_access https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/User.Read"
 
 # Story 3-3: calendar (discover online meetings) + online meeting + transcript read
 GRAPH_TEAMS_SCOPES: str = (

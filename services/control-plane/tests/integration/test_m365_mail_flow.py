@@ -113,9 +113,18 @@ class _GraphMailMockAsyncClient:
         async def post_impl(url: str, **kwargs: object) -> httpx.Response:
             return httpx.Response(200, json={**_TOKEN_JSON, "refresh_token": "refreshed"})
 
+        async def request_impl(method: str, url: str, **kwargs: object) -> httpx.Response:
+            m = str(method).upper()
+            if m == "GET":
+                return await get_impl(url, **kwargs)
+            if m == "POST":
+                return await post_impl(url, **kwargs)
+            return httpx.Response(405, json={"method": method, "url": str(url)[:200]})
+
         c = SimpleNamespace()
         c.get = get_impl
         c.post = post_impl
+        c.request = request_impl
         return c
 
     async def __aexit__(self, *a: object) -> None:

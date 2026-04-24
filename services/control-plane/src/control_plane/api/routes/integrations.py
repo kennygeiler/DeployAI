@@ -10,11 +10,66 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 
 from control_plane.api.jwt_actor import bearer_auth_actor
+from control_plane.config.settings import get_settings
 from control_plane.db import AppDbSession
 from control_plane.domain.integrations.models import Integration
 from control_plane.services.integration_kill_switch import disable_integration
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
+
+
+@router.get("/catalog", summary="Available ingestion connectors and stub endpoints")
+def get_integration_catalog() -> dict[str, object]:
+    """Static catalog plus which optional OAuth env vars are set (not secret values)."""
+    s = get_settings()
+    g_mail = bool(s.google_gmail_client_id and s.google_gmail_client_secret and s.google_gmail_redirect_uri)
+    slack_events = bool(s.slack_signing_secret)
+    return {
+        "version": 1,
+        "providers": [
+            {
+                "id": "m365_calendar",
+                "label": "Microsoft 365 Calendar",
+                "status": "available",
+                "auth": "oauth2",
+                "connect_path": "/integrations/m365-calendar/connect",
+            },
+            {
+                "id": "m365_mail",
+                "label": "Microsoft 365 Exchange / Outlook mail",
+                "status": "available",
+                "auth": "oauth2",
+                "connect_path": "/integrations/m365-mail/connect",
+            },
+            {
+                "id": "m365_teams",
+                "label": "Microsoft Teams (meeting transcripts)",
+                "status": "available",
+                "auth": "oauth2",
+                "connect_path": "/integrations/m365-teams/connect",
+            },
+            {
+                "id": "google_gmail",
+                "label": "Google Gmail",
+                "status": "preview" if g_mail else "stub",
+                "auth": "oauth2",
+                "connect_path": "/integrations/google-gmail/connect",
+            },
+            {
+                "id": "slack",
+                "label": "Slack",
+                "status": "preview" if slack_events else "stub",
+                "auth": "app_events",
+                "events_path": "/integrations/slack/events",
+            },
+            {
+                "id": "other_chat",
+                "label": "Other chat (Discord, Zoom chat, etc.)",
+                "status": "roadmap",
+                "note": "Use catalog + internal ingest API; vendor-specific workers ship incrementally",
+            },
+        ],
+    }
 
 
 @router.post(

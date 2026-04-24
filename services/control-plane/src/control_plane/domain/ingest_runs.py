@@ -30,11 +30,7 @@ class IngestionRun(Base):
     started_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))
     completed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(Text(), nullable=False, server_default="running")
-    events_written: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default=text("0")
-    )
-    error_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default=text("0")
-    )
+    events_written: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    error_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     error_summary: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
     meta: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))

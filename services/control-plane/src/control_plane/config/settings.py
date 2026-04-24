@@ -87,6 +87,15 @@ class ControlPlaneSettings(BaseSettings):
     graph_ingest_rps: float = 1000.0
     """Token-bucket rate for Microsoft Graph (Story 3-7); default 1000 req/s, configurable (NFR19)."""
 
+    # --- Gmail / Slack (Epic 3+): optional; stub routes work without these ---
+    google_gmail_client_id: str | None = None
+    google_gmail_client_secret: str | None = None
+    google_gmail_redirect_uri: str | None = None
+    """Registered redirect for ``/integrations/google-gmail/callback`` when Gmail OAuth is implemented."""
+
+    slack_signing_secret: str | None = None
+    """If set, ``/integrations/slack/events`` verifies Slack signatures; challenge works without it."""
+
     session_access_cookie: str = "dep_access"
     session_refresh_cookie: str = "dep_refresh"
     """HttpOnly cookies set on OIDC callback (browser clients); `POST /auth/refresh` still uses JSON body too."""

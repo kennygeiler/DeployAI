@@ -2,26 +2,24 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import logging
 import time
-import uuid
-from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 import httpx
-from sqlalchemy import select
+from ingest.idempotency import canonical_ingestion_dedup_key
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.config.settings import ControlPlaneSettings, get_settings
 from control_plane.db import tenant_session
-from control_plane.domain.canonical_memory.events import CanonicalMemoryEvent
 from control_plane.domain.integrations.models import Integration
+from control_plane.infra.canonical_idempotent_write import try_insert_with_ingestion_dedup
 from control_plane.infra.email_body_store import store_email_body
+from control_plane.integrations.graph_client import GraphTokenBucket, m365_graph_get
 from control_plane.integrations.m365_oauth import GRAPH_MAIL_SCOPES, fetch_metadata, refresh_delegation_access
 
 _LOG = logging.getLogger(__name__)
@@ -90,21 +88,12 @@ def _source_ref_for_thread(conversation_id: str, message_ids: list[str]) -> str:
     return f"graph:email_thread:{conversation_id}@{_fingerprint_for_thread(message_ids)}"
 
 
-async def _source_ref_exists(t_session: AsyncSession, *, tenant_id: uuid.UUID, source_ref: str) -> bool:
-    r = await t_session.execute(
-        select(CanonicalMemoryEvent.id).where(
-            CanonicalMemoryEvent.tenant_id == tenant_id,
-            CanonicalMemoryEvent.source_ref == source_ref,
-        )
-    )
-    return r.scalar_one_or_none() is not None
-
-
 async def _list_thread_messages_paged(
     gclient: httpx.AsyncClient,
     *,
     auth: str,
     conv: str,
+    bucket: GraphTokenBucket,
 ) -> list[dict[str, Any]]:
     """All messages in a conversation (Graph pages at 100)."""
     base = f"{_GRAPH}/me/messages"
@@ -118,7 +107,9 @@ async def _list_thread_messages_paged(
     url: str = base
     use_params: dict[str, str] | None = q
     while True:
-        r = await _graph_get(gclient, url, auth=auth, params=use_params)
+        r = await m365_graph_get(
+            gclient, url, auth=auth, params=use_params, bucket=bucket, timeout=60.0, odata_max_page="100"
+        )
         if r.is_error:
             _LOG.warning("thread messages page failed: %s", r.status_code)
             return out
@@ -132,29 +123,6 @@ async def _list_thread_messages_paged(
         url = nxt
         use_params = None
     return out
-
-
-async def _graph_get(
-    client: httpx.AsyncClient,
-    url: str,
-    *,
-    auth: str,
-    params: Mapping[str, str] | None = None,
-) -> httpx.Response:
-    h = {"Authorization": f"Bearer {auth}", "Prefer": "odata.maxpagesize=100"}
-    r = await client.get(str(url), headers=h, params=params, timeout=60.0)
-    if r.status_code == 429:
-        ra = r.headers.get("Retry-After")
-        wait = 2
-        if ra is not None:
-            try:
-                wait = int(float(ra))
-            except ValueError:
-                wait = 2
-        wait = min(max(wait, 1), 60)
-        await asyncio.sleep(float(wait))
-        r = await client.get(str(url), headers=h, params=params, timeout=60.0)
-    return r
 
 
 def _parse_graph_dt(s: str) -> datetime:
@@ -254,20 +222,23 @@ async def run_mail_delta_sync(
         meta = await fetch_metadata(gclient, issuer)
         atok = await _ensure_access_token(gclient, meta, it, s)
         await app_session.flush()
+        bucket = GraphTokenBucket(rate_per_sec=s.graph_ingest_rps)
 
         while next_url is not None or first_delta:
             u = str(next_url) if next_url else INBOX_DELTA_BASE
             is_initial = (not next_url) and first_delta
-            p_req: dict[str, str] | None = (
-                {"$select": _MAIL_SELECT} if is_initial and not delta_stored else None
+            p_req: dict[str, str] | None = {"$select": _MAIL_SELECT} if is_initial and not delta_stored else None
+            r = await m365_graph_get(
+                gclient, u, auth=atok, params=p_req, bucket=bucket, timeout=60.0, odata_max_page="100"
             )
-            r = await _graph_get(gclient, u, auth=atok, params=p_req)
             first_delta = False
 
             if r.status_code == 401:
                 atok = await _ensure_access_token(gclient, meta, it, s)
                 await app_session.flush()
-                r = await _graph_get(gclient, u, auth=atok, params=p_req)
+                r = await m365_graph_get(
+                    gclient, u, auth=atok, params=p_req, bucket=bucket, timeout=60.0, odata_max_page="100"
+                )
 
             if r.is_error:
                 _LOG.warning("graph mail delta failed: %s %s", r.status_code, r.text[:300])
@@ -297,8 +268,14 @@ async def run_mail_delta_sync(
             if conv.startswith("__msg__"):
                 mid = conv[7:]
                 enc = quote(mid, safe="")
-                rone = await _graph_get(
-                    gclient, f"{_GRAPH}/me/messages/{enc}", auth=atok, params={"$select": _MAIL_SELECT}
+                rone = await m365_graph_get(
+                    gclient,
+                    f"{_GRAPH}/me/messages/{enc}",
+                    auth=atok,
+                    params={"$select": _MAIL_SELECT},
+                    bucket=bucket,
+                    timeout=60.0,
+                    odata_max_page="100",
                 )
                 if rone.is_error or rone.status_code == 404:
                     continue
@@ -308,7 +285,7 @@ async def run_mail_delta_sync(
                 msgs: list[dict[str, Any]] = [mone]
                 cid = str(mone.get("conversationId") or mid)
             else:
-                msgs = await _list_thread_messages_paged(gclient, auth=atok, conv=conv)
+                msgs = await _list_thread_messages_paged(gclient, auth=atok, conv=conv, bucket=bucket)
                 if not msgs:
                     _LOG.warning("thread list empty: conversation %s", conv[:80])
                     continue
@@ -318,9 +295,7 @@ async def run_mail_delta_sync(
             if not clean_ids:
                 continue
             source_ref = _source_ref_for_thread(cid, clean_ids)
-            async with tenant_session(tid) as t0:
-                if await _source_ref_exists(t0, tenant_id=tid, source_ref=source_ref):
-                    continue
+            fp = _fingerprint_for_thread(clean_ids)
             out_msgs: list[dict[str, Any]] = []
             subj = str(msgs[0].get("subject") or "")
             last_sent: datetime = datetime.now(_UTC)
@@ -356,20 +331,20 @@ async def run_mail_delta_sync(
                 "participants": _collect_participants(msgs),
                 "messages": out_msgs,
             }
+            dedup = canonical_ingestion_dedup_key(provider="m365", source_id=f"email_thread:{cid}:{fp}", version="v1")
             async with tenant_session(tid) as t_sess:
-                if await _source_ref_exists(t_sess, tenant_id=tid, source_ref=source_ref):
-                    continue
-                t_sess.add(
-                    CanonicalMemoryEvent(
-                        tenant_id=tid,
-                        event_type="email.thread",
-                        occurred_at=last_sent,
-                        source_ref=source_ref,
-                        payload=payload,
-                    )
+                ok = await try_insert_with_ingestion_dedup(
+                    t_sess,
+                    tenant_id=tid,
+                    event_type="email.thread",
+                    occurred_at=last_sent,
+                    source_ref=source_ref,
+                    payload=payload,
+                    ingestion_dedup_key=dedup,
                 )
+                if ok:
+                    inserted += 1
                 await t_sess.commit()
-            inserted += 1
 
     conf = _cfg_dict(it.config or {})
     g2 = {**_cfg_dict(conf.get("graph") or {}), "mail_delta_link": new_delta or g0.get("mail_delta_link")}

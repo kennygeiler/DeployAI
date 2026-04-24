@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import logging
 import re
 import time
 import uuid
-from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import quote
 
 import httpx
+from ingest.idempotency import canonical_ingestion_dedup_key
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,7 +21,9 @@ from control_plane.db import tenant_session
 from control_plane.domain.canonical_memory.events import CanonicalMemoryEvent
 from control_plane.domain.canonical_memory.identity import IdentityNode
 from control_plane.domain.integrations.models import Integration
+from control_plane.infra.canonical_idempotent_write import try_insert_with_ingestion_dedup
 from control_plane.infra.transcript_artifact_store import store_transcript_vtt
+from control_plane.integrations.graph_client import GraphTokenBucket, m365_graph_get
 from control_plane.integrations.m365_oauth import GRAPH_TEAMS_SCOPES, fetch_metadata, refresh_delegation_access
 
 _LOG = logging.getLogger(__name__)
@@ -56,12 +57,8 @@ def _parse_graph_dt(s: str | None) -> datetime | None:
 def _event_start_end_minutes(ev: dict[str, Any]) -> tuple[datetime | None, datetime | None, float]:
     s = ev.get("start")
     e = ev.get("end")
-    sdt = _parse_graph_dt(
-        s.get("dateTime") if isinstance(s, dict) and isinstance(s.get("dateTime"), str) else None
-    )
-    edt = _parse_graph_dt(
-        e.get("dateTime") if isinstance(e, dict) and isinstance(e.get("dateTime"), str) else None
-    )
+    sdt = _parse_graph_dt(s.get("dateTime") if isinstance(s, dict) and isinstance(s.get("dateTime"), str) else None)
+    edt = _parse_graph_dt(e.get("dateTime") if isinstance(e, dict) and isinstance(e.get("dateTime"), str) else None)
     if sdt and edt:
         return sdt, edt, max(0.0, (edt - sdt).total_seconds() / 60.0)
     return sdt, edt, 0.0
@@ -110,13 +107,11 @@ def _attendees_struct(ev: dict[str, Any]) -> list[dict[str, str]]:
     return out
 
 
-async def _source_ref_exists(
-    t_session: AsyncSession, *, tenant_id: uuid.UUID, source_ref: str
-) -> bool:
+async def _ingestion_dedup_exists(t_session: AsyncSession, *, tenant_id: uuid.UUID, dedup: str) -> bool:
     r = await t_session.execute(
         select(CanonicalMemoryEvent.id).where(
             CanonicalMemoryEvent.tenant_id == tenant_id,
-            CanonicalMemoryEvent.source_ref == source_ref,
+            CanonicalMemoryEvent.ingestion_dedup_key == dedup,
         )
     )
     return r.scalar_one_or_none() is not None
@@ -142,29 +137,6 @@ async def _match_emails_to_identities(
         if em:
             by_email[em] = str(node.id)
     return by_email
-
-
-async def _graph_get(
-    client: httpx.AsyncClient,
-    url: str,
-    *,
-    auth: str,
-    params: Mapping[str, str] | None = None,
-) -> httpx.Response:
-    h = {"Authorization": f"Bearer {auth}", "Prefer": "odata.maxpagesize=25"}
-    r = await client.get(str(url), headers=h, params=params, timeout=90.0)
-    if r.status_code == 429:
-        ra = r.headers.get("Retry-After")
-        wait = 2
-        if ra is not None:
-            try:
-                wait = int(float(ra))
-            except ValueError:
-                wait = 2
-        wait = min(max(wait, 1), 60)
-        await asyncio.sleep(float(wait))
-        r = await client.get(str(url), headers=h, params=params, timeout=90.0)
-    return r
 
 
 async def _ensure_access_token(
@@ -241,11 +213,20 @@ async def _fetch_transcript_vtt(
     auth: str,
     meeting_id: str,
     transcript_id: str,
+    bucket: GraphTokenBucket,
 ) -> str:
     m_enc = quote(meeting_id, safe="")
     t_enc = quote(transcript_id, safe="")
     u = f"{_GRAPH}/me/onlineMeetings/{m_enc}/transcripts/{t_enc}/content"
-    r = await _graph_get(gclient, u, auth=auth, params={"$format": "text/vtt"})
+    r = await m365_graph_get(
+        gclient,
+        u,
+        auth=auth,
+        params={"$format": "text/vtt"},
+        bucket=bucket,
+        timeout=90.0,
+        odata_max_page=None,
+    )
     if r.is_error:
         _LOG.warning("transcript content failed: %s", r.status_code)
         return ""
@@ -258,6 +239,7 @@ async def _ingest_event_transcripts(
     auth: str,
     ev: dict[str, Any],
     tenant_id: uuid.UUID,
+    bucket: GraphTokenBucket,
 ) -> int:
     if not ev.get("isOnlineMeeting"):
         return 0
@@ -274,8 +256,14 @@ async def _ingest_event_transcripts(
         return 0
 
     flt = _filter_join_web_url(ju)
-    r0 = await _graph_get(
-        gclient, f"{_GRAPH}/me/onlineMeetings", auth=auth, params={"$filter": flt}
+    r0 = await m365_graph_get(
+        gclient,
+        f"{_GRAPH}/me/onlineMeetings",
+        auth=auth,
+        params={"$filter": flt},
+        bucket=bucket,
+        timeout=90.0,
+        odata_max_page="25",
     )
     if r0.is_error or r0.status_code not in (200, 204):
         return 0
@@ -287,8 +275,14 @@ async def _ingest_event_transcripts(
     if not meeting_id:
         return 0
     m_seg = quote(meeting_id, safe="")
-    r1 = await _graph_get(
-        gclient, f"{_GRAPH}/me/onlineMeetings/{m_seg}/transcripts", auth=auth, params={}
+    r1 = await m365_graph_get(
+        gclient,
+        f"{_GRAPH}/me/onlineMeetings/{m_seg}/transcripts",
+        auth=auth,
+        params={},
+        bucket=bucket,
+        timeout=90.0,
+        odata_max_page="25",
     )
     if r1.is_error or r1.status_code != 200:
         return 0
@@ -301,13 +295,12 @@ async def _ingest_event_transcripts(
     if not tid:
         return 0
     source_ref = f"graph:meeting_transcript:{tid}"
+    dedup = canonical_ingestion_dedup_key(provider="m365", source_id=f"meeting_transcript:{tid}", version="v1")
     async with tenant_session(tenant_id) as t0:
-        if await _source_ref_exists(t0, tenant_id=tenant_id, source_ref=source_ref):
+        if await _ingestion_dedup_exists(t0, tenant_id=tenant_id, dedup=dedup):
             return 0
 
-    vtt = await _fetch_transcript_vtt(
-        gclient, auth=auth, meeting_id=meeting_id, transcript_id=tid
-    )
+    vtt = await _fetch_transcript_vtt(gclient, auth=auth, meeting_id=meeting_id, transcript_id=tid, bucket=bucket)
     if not vtt.strip():
         return 0
     sdt, edt, dmin = _event_start_end_minutes(ev)
@@ -317,9 +310,7 @@ async def _ingest_event_transcripts(
     chunks: list[dict[str, Any]] = []
     for i, part in enumerate(vtt_pieces):
         aid = f"{tid}-part-{i}"
-        ref = await store_transcript_vtt(
-            tenant_id=tenant_id, artifact_id=aid, content=part
-        )
+        ref = await store_transcript_vtt(tenant_id=tenant_id, artifact_id=aid, content=part)
         chunks.append(
             {
                 "index": i,
@@ -334,9 +325,7 @@ async def _ingest_event_transcripts(
     id_map: dict[str, str] = {}
     part_struct: list[dict[str, Any]] = []
     async with tenant_session(tenant_id) as t_id:
-        id_map = await _match_emails_to_identities(
-            t_id, tenant_id=tenant_id, emails=em_list
-        )
+        id_map = await _match_emails_to_identities(t_id, tenant_id=tenant_id, emails=em_list)
     for a in at_list:
         part_struct.append(
             {
@@ -345,9 +334,7 @@ async def _ingest_event_transcripts(
                 "identity_id": id_map.get(a.get("email", "")),
             }
         )
-    cands: list[dict[str, str]] = [
-        {"label": lab} for lab in vtt_names if lab.strip().lower() not in name_set
-    ]
+    cands: list[dict[str, str]] = [{"label": lab} for lab in vtt_names if lab.strip().lower() not in name_set]
 
     payload: dict[str, Any] = {
         "session_unit": "meeting.transcript",
@@ -365,19 +352,17 @@ async def _ingest_event_transcripts(
         "identity_resolution_candidates": cands,
     }
     async with tenant_session(tenant_id) as t_sess:
-        if await _source_ref_exists(t_sess, tenant_id=tenant_id, source_ref=source_ref):
-            return 0
-        t_sess.add(
-            CanonicalMemoryEvent(
-                tenant_id=tenant_id,
-                event_type="meeting.transcript",
-                occurred_at=occ,
-                source_ref=source_ref,
-                payload=payload,
-            )
+        ok = await try_insert_with_ingestion_dedup(
+            t_sess,
+            tenant_id=tenant_id,
+            event_type="meeting.transcript",
+            occurred_at=occ,
+            source_ref=source_ref,
+            payload=payload,
+            ingestion_dedup_key=dedup,
         )
         await t_sess.commit()
-    return 1
+    return 1 if ok else 0
 
 
 async def run_teams_transcript_sync(
@@ -415,12 +400,17 @@ async def run_teams_transcript_sync(
         meta = await fetch_metadata(gclient, issuer)
         atok = await _ensure_access_token(gclient, meta, it, s)
         await app_session.flush()
+        bucket = GraphTokenBucket(rate_per_sec=s.graph_ingest_rps)
         while next_url:
-            r = await _graph_get(gclient, str(next_url), auth=atok, params=None)
+            r = await m365_graph_get(
+                gclient, str(next_url), auth=atok, params=None, bucket=bucket, timeout=90.0, odata_max_page="25"
+            )
             if r.status_code == 401:
                 atok = await _ensure_access_token(gclient, meta, it, s)
                 await app_session.flush()
-                r = await _graph_get(gclient, str(next_url), auth=atok, params=None)
+                r = await m365_graph_get(
+                    gclient, str(next_url), auth=atok, params=None, bucket=bucket, timeout=90.0, odata_max_page="25"
+                )
             if r.is_error:
                 _LOG.warning("graph teams calendar failed: %s %s", r.status_code, r.text[:300])
                 raise ValueError(f"Graph error: {r.status_code}")
@@ -431,9 +421,7 @@ async def run_teams_transcript_sync(
                 if not ev.get("isOnlineMeeting"):
                     continue
                 try:
-                    n = await _ingest_event_transcripts(
-                        gclient, auth=atok, ev=ev, tenant_id=tid
-                    )
+                    n = await _ingest_event_transcripts(gclient, auth=atok, ev=ev, tenant_id=tid, bucket=bucket)
                 except (ValueError, TypeError) as e:
                     _LOG.debug("skip event transcript: %s", e, exc_info=False)
                     continue

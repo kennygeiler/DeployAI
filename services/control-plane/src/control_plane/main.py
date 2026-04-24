@@ -18,6 +18,9 @@ from control_plane.api.routes.auth_saml import router as auth_saml_router
 from control_plane.api.routes.break_glass import router as break_glass_router
 from control_plane.api.routes.ingestion_runs import router as ingestion_runs_internal_router
 from control_plane.api.routes.integrations import router as integrations_router
+from control_plane.api.routes.integrations_google_gmail import (
+    router as integrations_google_gmail_router,
+)
 from control_plane.api.routes.integrations_m365_calendar import (
     router as integrations_m365_calendar_router,
 )
@@ -26,6 +29,9 @@ from control_plane.api.routes.integrations_m365_mail import (
 )
 from control_plane.api.routes.integrations_m365_teams import (
     router as integrations_m365_teams_router,
+)
+from control_plane.api.routes.integrations_slack import (
+    router as integrations_slack_router,
 )
 from control_plane.api.routes.internal_session import router as internal_session_router
 from control_plane.api.routes.platform import router as platform_router
@@ -48,6 +54,8 @@ app.include_router(integrations_router)
 app.include_router(integrations_m365_calendar_router)
 app.include_router(integrations_m365_mail_router)
 app.include_router(integrations_m365_teams_router)
+app.include_router(integrations_google_gmail_router)
+app.include_router(integrations_slack_router)
 app.include_router(upload_artifacts_router)
 app.include_router(platform_router)
 app.include_router(schema_proposals_internal_router, prefix="/internal/v1")
