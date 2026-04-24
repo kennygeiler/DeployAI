@@ -1,10 +1,8 @@
 {
-  "schemas": [
-    "urn:ietf:params:scim:schemas:core:2.0:User"
-  ],
+  "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
   "userName": "jane.entra",
   "active": true,
   "name": { "givenName": "Jane", "familyName": "Doe" },
-  "emails": [ { "value": "jane@example.com", "primary": true, "type": "work" } ],
+  "emails": [{ "value": "jane@example.com", "primary": true, "type": "work" }],
   "externalId": "entra-obj-001"
 }

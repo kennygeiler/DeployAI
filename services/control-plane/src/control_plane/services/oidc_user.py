@@ -35,10 +35,7 @@ async def resolve_or_create_oidc_user(
     into the system SSO-pending tenant with ``pending_assignment`` only.
     """
     r = await session.execute(
-        select(AppUser)
-        .where(AppUser.entra_sub == entra_sub)
-        .order_by(AppUser.created_at.asc())
-        .limit(1)
+        select(AppUser).where(AppUser.entra_sub == entra_sub).order_by(AppUser.created_at.asc()).limit(1)
     )
     row = r.scalar_one_or_none()
     uname = email if email else f"{entra_sub}@oidc.local"
