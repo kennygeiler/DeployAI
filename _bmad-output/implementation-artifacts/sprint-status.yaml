@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-21
-last_updated: 2026-04-23 # Story 1-15 spike landed (crypto round-trip, appcast, docs, macOS workflow); Epic 1 stories complete
+last_updated: 2026-04-23 # Story 2-1 story file authored (ready-for-dev); Epic 2 opened
 project: DeployAI
 project_key: NOKEY
 tracking_system: file-system
@@ -69,8 +69,8 @@ development_status:
   # ======================================================================
   # Epic 2: Identity, Tenancy & SSO (w4–6)
   # ======================================================================
-  epic-2: backlog
-  2-1-role-matrix-and-authz-resolver-interface: backlog
+  epic-2: in-progress
+  2-1-role-matrix-and-authz-resolver-interface: ready-for-dev
   2-2-microsoft-entra-id-saml-oidc-sso: backlog
   2-3-scim-2-0-provisioning-endpoint: backlog
   2-4-tenant-scoped-session-store: backlog
