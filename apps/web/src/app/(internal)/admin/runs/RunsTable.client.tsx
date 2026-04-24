@@ -25,7 +25,8 @@ export type RunRow = {
   startedAt: string;
   status: string;
   eventCount: number;
-  raw: Record<string, string>;
+  /** Run metadata, errors, and optional observability link (Epic 3-8). */
+  raw: Record<string, unknown>;
 };
 
 function matchesFilter(row: RunRow, q: string): boolean {
@@ -100,14 +101,24 @@ export function RunsTable({ rows }: { rows: RunRow[] }) {
         <SheetContent side="right" className="sm:max-w-lg">
           <SheetHeader>
             <SheetTitle>Run {detail?.id}</SheetTitle>
-            <SheetDescription>
-              Raw metadata (Story 1-16 shell; Epic 3 wires real runs).
-            </SheetDescription>
+            <SheetDescription>Run metadata, errors, and observability link when present.</SheetDescription>
           </SheetHeader>
           {detail ? (
-            <pre className="mt-4 overflow-x-auto rounded-md border p-4 text-xs">
-              {JSON.stringify(detail.raw, null, 2)}
-            </pre>
+            <div className="mt-4 flex flex-col gap-3">
+              {typeof detail.raw["observability_traces"] === "string" ? (
+                <a
+                  className="text-body text-ink-700 underline"
+                  href={String(detail.raw["observability_traces"])}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open trace / log link
+                </a>
+              ) : null}
+              <pre className="overflow-x-auto rounded-md border p-4 text-xs">
+                {JSON.stringify(detail.raw, null, 2)}
+              </pre>
+            </div>
           ) : null}
         </SheetContent>
       </Sheet>

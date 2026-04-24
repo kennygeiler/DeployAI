@@ -28,6 +28,11 @@ from control_plane.integrations.m365_oauth import (
     m365_calendar_oauth_creds,
     pkce_pair,
 )
+from control_plane.services.ingestion_runs import (
+    complete_ingestion_run_failure,
+    complete_ingestion_run_success,
+    start_ingestion_run,
+)
 from control_plane.services.m365_calendar_sync import run_calendar_delta_sync
 
 _LOG = logging.getLogger(__name__)
@@ -291,9 +296,24 @@ async def m365_sync(
     if actor.role != "platform_admin":
         if actor.tenant_id is None or str(it.tenant_id) != actor.tenant_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant mismatch")
+    run_id = await start_ingestion_run(
+        session,
+        tenant_id=it.tenant_id,
+        integration="m365_calendar",
+        meta={"integration_id": str(integration_id)},
+    )
     try:
         out = await run_calendar_delta_sync(session, it)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    except Exception as e:
+        await complete_ingestion_run_failure(session, run_id, message=str(e))
+        if isinstance(e, ValueError):
+            await session.commit()
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+        await session.commit()
+        raise
+    _meta = {"result": "delta" if out.get("delta_link") else "same"}
+    await complete_ingestion_run_success(
+        session, run_id, events_written=int(out.get("inserted", 0)), meta=_meta
+    )
     await session.commit()
-    return {"integration_id": str(integration_id), **out}
+    return {"integration_id": str(integration_id), **out, "ingestion_run_id": str(run_id)}

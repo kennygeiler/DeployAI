@@ -342,6 +342,8 @@ importers:
 
   services/control-plane: {}
 
+  services/ingest: {}
+
   tests/continuity-of-reference:
     devDependencies:
       '@types/node':

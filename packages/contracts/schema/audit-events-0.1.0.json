@@ -20,7 +20,8 @@
         "integration.killswitch_secrets_stub",
         "audit_events.break_glass.requested",
         "audit_events.break_glass.approved",
-        "audit_events.break_glass.revoked"
+        "audit_events.break_glass.revoked",
+        "ingestion.extraction_rejected_per_message_unit"
       ]
     }
   ]

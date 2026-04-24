@@ -30,6 +30,10 @@ def _root_dir() -> Path:
     return Path(tempfile.gettempdir()) / "deployai-email-bodies"
 
 
+def transcript_text_ref_for_stub(tenant_id: uuid.UUID, artifact_id: str) -> str:
+    return f"stub://{tenant_id}/transcripts/{_slug(artifact_id)}.txt"
+
+
 async def store_transcript_vtt(*, tenant_id: uuid.UUID, artifact_id: str, content: str) -> str:
     """Write UTF-8 VTT; returns :func:`transcript_ref_for_stub` (S3 TBD)."""
     s = get_settings()
@@ -44,3 +48,19 @@ async def store_transcript_vtt(*, tenant_id: uuid.UUID, artifact_id: str, conten
 
     await asyncio.to_thread(_write)
     return transcript_ref_for_stub(tenant_id, artifact_id)
+
+
+async def store_transcript_plain_text(*, tenant_id: uuid.UUID, artifact_id: str, text: str) -> str:
+    """Plain-text transcript (upload pipeline stub; same stub gate as VTT)."""
+    s = get_settings()
+    if s.ingest_email_body_mode != "stub":
+        raise NotImplementedError("transcript text stub requires ingest_email_body_mode=stub.")
+    sl = _slug(artifact_id)
+    path = _root_dir() / str(tenant_id) / "transcripts" / f"{sl}.txt"
+
+    def _write() -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    await asyncio.to_thread(_write)
+    return transcript_text_ref_for_stub(tenant_id, artifact_id)

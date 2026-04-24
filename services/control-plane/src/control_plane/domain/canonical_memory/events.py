@@ -43,6 +43,8 @@ class CanonicalMemoryEvent(Base):
     )
     occurred_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     source_ref: Mapped[str | None] = mapped_column(nullable=True)
+    ingestion_dedup_key: Mapped[str | None] = mapped_column(nullable=True)
+    """``provider:source:version`` (FR18) when the row is used for at-most-once ingestion; optional."""
     evidence_span: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
         nullable=False,

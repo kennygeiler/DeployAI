@@ -81,6 +81,12 @@ class ControlPlaneSettings(BaseSettings):
     upload_artifact_s3_key_prefix: str = "ingest/artifacts"
     """Key prefix (no leading/trailing slash). Objects: ``{prefix}/tenant/{tid}/...``"""
 
+    ingest_upload_sqs_url: str | None = None
+    """When set, future workers consume transcribe jobs (Epic 3-4+); v1 only logs a stub line."""
+
+    graph_ingest_rps: float = 1000.0
+    """Token-bucket rate for Microsoft Graph (Story 3-7); default 1000 req/s, configurable (NFR19)."""
+
     session_access_cookie: str = "dep_access"
     session_refresh_cookie: str = "dep_refresh"
     """HttpOnly cookies set on OIDC callback (browser clients); `POST /auth/refresh` still uses JSON body too."""

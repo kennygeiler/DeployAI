@@ -4,12 +4,26 @@ import { notFound } from "next/navigation";
 import { decideSync } from "@deployai/authz";
 
 import { getActorFromHeaders } from "@/lib/internal/actor";
+import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
 
 import { type RunRow, RunsTable } from "./RunsTable.client";
 
 export const metadata: Metadata = {
   title: "Admin — Ingestion runs",
   description: "Platform Admin cockpit for ingestion runs (Story 1-16).",
+};
+
+type CpIngestionRun = {
+  id: string;
+  tenant_id: string;
+  integration: string;
+  started_at: string;
+  completed_at: string | null;
+  status: string;
+  events_written: number;
+  error_count: number;
+  error_summary: Record<string, unknown>;
+  meta: Record<string, unknown>;
 };
 
 const seed: RunRow[] = [
@@ -43,6 +57,43 @@ export default async function AdminRunsPage() {
     notFound();
   }
 
+  const base = getControlPlaneBaseUrl();
+  const key = getControlPlaneInternalKey();
+  const cpReady = Boolean(base && key);
+
+  let initialRows: RunRow[] = seed;
+  if (cpReady && base && key) {
+    const r = await fetch(
+      `${base.replace(/\/$/, "")}/internal/v1/ingestion-runs?limit=100`,
+      { headers: { "X-DeployAI-Internal-Key": key }, cache: "no-store" },
+    );
+    if (r.ok) {
+      const j = (await r.json()) as CpIngestionRun[];
+      if (j.length > 0) {
+        const tracesBase =
+          "https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/WhatIsCloudWatchLogs.html";
+        initialRows = j.map((x) => {
+          const fromMeta = (x.meta as { observability_traces?: string }).observability_traces;
+          return {
+            id: x.id,
+            tenant: x.tenant_id,
+            source: x.integration,
+            startedAt: x.started_at,
+            status: x.status,
+            eventCount: x.events_written,
+            raw: {
+              error_count: x.error_count,
+              error_summary: x.error_summary,
+              completed_at: x.completed_at,
+              ...x.meta,
+              observability_traces: fromMeta ?? tracesBase,
+            },
+          };
+        });
+      }
+    }
+  }
+
   return (
     <main
       id="main"
@@ -52,10 +103,18 @@ export default async function AdminRunsPage() {
       <div>
         <h1 className="text-display font-semibold tracking-tight text-ink-950">Ingestion runs</h1>
         <p className="text-body text-ink-600">
-          Recent runs (seed data until Epic 3 lands the real control-plane API).
+          Live data from the control plane when the web server has{" "}
+          <code className="text-body bg-paper-200 rounded px-1">DEPLOYAI_CONTROL_PLANE_URL</code> and{" "}
+          <code className="text-body bg-paper-200 rounded px-1">DEPLOYAI_INTERNAL_API_KEY</code> set; otherwise the seed
+          preview.
         </p>
+        {!cpReady ? (
+          <p className="text-body text-ink-500 mt-2">
+            Configure the control plane URL and internal key to see real ingestion run rows.
+          </p>
+        ) : null}
       </div>
-      <RunsTable rows={seed} />
+      <RunsTable rows={initialRows} />
     </main>
   );
 }

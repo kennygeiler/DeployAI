@@ -256,6 +256,7 @@ dependencies = [
     { name = "cryptography" },
     { name = "deployai-authz" },
     { name = "deployai-citation" },
+    { name = "deployai-ingest" },
     { name = "deployai-tenancy" },
     { name = "email-validator" },
     { name = "fastapi" },
@@ -291,6 +292,7 @@ requires-dist = [
     { name = "cryptography", specifier = ">=44.0.0" },
     { name = "deployai-authz", editable = "../_shared/authz" },
     { name = "deployai-citation", editable = "../_shared/citation" },
+    { name = "deployai-ingest", editable = "../ingest" },
     { name = "deployai-tenancy", editable = "../_shared/tenancy" },
     { name = "email-validator", specifier = ">=2.0.0" },
     { name = "fastapi", specifier = ">=0.136.0" },
@@ -309,13 +311,27 @@ dev = [
     { name = "aiosqlite", specifier = ">=0.20.0" },
     { name = "fakeredis", specifier = ">=2.35.1" },
     { name = "httpx", specifier = ">=0.28.1" },
-    { name = "moto", extras = ["s3"], specifier = ">=5.0.0" },
+    { name = "moto", extras = ["s3", "sqs"], specifier = ">=5.0.0" },
     { name = "mypy", specifier = ">=1.13.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.0" },
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-asyncio", specifier = ">=0.24.0" },
     { name = "ruff", specifier = ">=0.7.4" },
     { name = "testcontainers", extras = ["postgres"], specifier = ">=4.9.0" },
+]
+
+[[package]]
+name = "deployai-ingest"
+version = "0.0.0"
+source = { editable = "../ingest" }
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=1.13.0" },
+    { name = "pytest", specifier = ">=8.3.3" },
+    { name = "ruff", specifier = ">=0.7.4" },
 ]
 
 [[package]]

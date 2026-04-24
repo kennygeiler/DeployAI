@@ -4,19 +4,19 @@ from __future__ import annotations
 
 import logging
 import time
-import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
-from sqlalchemy import select
+from ingest.idempotency import canonical_ingestion_dedup_key
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.auth.oidc_flow import fetch_openid_metadata
 from control_plane.config.settings import ControlPlaneSettings, get_settings
 from control_plane.db import tenant_session
-from control_plane.domain.canonical_memory.events import CanonicalMemoryEvent
 from control_plane.domain.integrations.models import Integration
+from control_plane.infra.canonical_idempotent_write import try_insert_with_ingestion_dedup
+from control_plane.integrations.graph_client import GraphTokenBucket, graph_request
 from control_plane.integrations.m365_oauth import GRAPH_CALENDAR_SCOPES, refresh_delegation_access
 
 _LOG = logging.getLogger(__name__)
@@ -41,16 +41,6 @@ def _event_occurred_at(ev: dict[str, Any]) -> datetime:
 def _event_payload_subset(ev: dict[str, Any]) -> dict[str, Any]:
     keys = ("id", "subject", "start", "end", "organizer", "isCancelled", "type", "webLink", "iCalUId")
     return {k: ev[k] for k in keys if k in ev}
-
-
-async def _source_ref_exists(t_session: AsyncSession, *, tenant_id: uuid.UUID, source_ref: str) -> bool:
-    r = await t_session.execute(
-        select(CanonicalMemoryEvent.id).where(
-            CanonicalMemoryEvent.tenant_id == tenant_id,
-            CanonicalMemoryEvent.source_ref == source_ref,
-        )
-    )
-    return r.scalar_one_or_none() is not None
 
 
 async def _ensure_access_token(
@@ -141,16 +131,25 @@ async def run_calendar_delta_sync(
         meta = await fetch_openid_metadata(gclient, issuer)
         atok = await _ensure_access_token(gclient, meta, it, s)
         await app_session.flush()
+        bucket = GraphTokenBucket(rate_per_sec=s.graph_ingest_rps)
         while next_url:
-            r = await gclient.get(
+            r = await graph_request(
+                gclient,
+                "GET",
                 str(next_url),
+                bucket=bucket,
+                reauthorize=None,
                 headers={"Authorization": f"Bearer {atok}", "Prefer": "odata.maxpagesize=100"},
             )
             if r.status_code == 401:
                 atok = await _ensure_access_token(gclient, meta, it, s)
                 await app_session.flush()
-                r = await gclient.get(
+                r = await graph_request(
+                    gclient,
+                    "GET",
                     str(next_url),
+                    bucket=bucket,
+                    reauthorize=None,
                     headers={"Authorization": f"Bearer {atok}", "Prefer": "odata.maxpagesize=100"},
                 )
             if r.is_error:
@@ -168,20 +167,22 @@ async def run_calendar_delta_sync(
                 source_ref = f"graph:calendar_event:{eid}"
                 pld = _event_payload_subset(ev)
                 occ = _event_occurred_at(ev)
+                dedup = canonical_ingestion_dedup_key(
+                    provider="m365", source_id=f"calendar_event:{eid}", version="v1"
+                )
                 async with tenant_session(tid) as t_sess:
-                    if await _source_ref_exists(t_sess, tenant_id=tid, source_ref=source_ref):
-                        continue
-                    t_sess.add(
-                        CanonicalMemoryEvent(
-                            tenant_id=tid,
-                            event_type="calendar.event",
-                            occurred_at=occ,
-                            source_ref=source_ref,
-                            payload=pld,
-                        )
+                    ok = await try_insert_with_ingestion_dedup(
+                        t_sess,
+                        tenant_id=tid,
+                        event_type="calendar.event",
+                        occurred_at=occ,
+                        source_ref=source_ref,
+                        payload=pld,
+                        ingestion_dedup_key=dedup,
                     )
+                    if ok:
+                        inserted += 1
                     await t_sess.commit()
-                inserted += 1
             dlink = page.get("@odata.deltaLink")
             if isinstance(dlink, str) and dlink:
                 new_delta = dlink
