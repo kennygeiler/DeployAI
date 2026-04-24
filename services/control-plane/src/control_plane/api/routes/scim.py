@@ -142,9 +142,16 @@ async def _read_scim_json(request: Request, *, max_bytes: int) -> dict[str, Any]
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_err(400, "Invalid JSON body")) from e
 
 
+def _normalize_scim_path(path: str | None) -> str:
+    """Map RFC 7644 JSON-path style segments (`/name/givenName`) to dotted lower keys."""
+    s = (path or "").strip()
+    if s.startswith("/"):
+        s = s[1:]
+    return s.replace("/", ".").lower()
+
+
 def _apply_op(u: AppUser, op: str, path: str | None, value: Any) -> None:
-    p = (path or "").strip()
-    p_low = p.lower()
+    p_low = _normalize_scim_path(path)
     o = op.lower()
     if o == "replace":
         if p_low == "username":
