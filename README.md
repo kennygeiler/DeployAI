@@ -65,6 +65,10 @@ This project uses the [BMAD Method](./.cursor/skills/) — specialized AI agents
 - `bmad-code-review` — adversarial review of a change
 - `bmad-party-mode` — convene multiple agents for a group discussion
 
+## Testing (control plane)
+
+`services/control-plane` is covered by a default **unit** `pytest` run and a Docker-backed **integration** suite; see [services/control-plane/README.md — Tests](./services/control-plane/README.md#tests). The **Control plane (integration)** job in [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) runs the full `tests/integration/` tree on every PR to `main`.
+
 ## License
 
 TBD.
