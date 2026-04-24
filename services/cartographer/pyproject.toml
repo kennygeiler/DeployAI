@@ -50,7 +50,11 @@ pythonpath = ["src", "../_shared/checkpointer/src", "../_shared/citation/src"]
 markers = [
   "integration: requires Docker (Postgres testcontainer)",
 ]
-addopts = "-m 'not integration'"
+
+# Do not set addopts that exclude `-m integration` — it would combine with
+# `uv run pytest … -m integration` as ``not integration and integration`` and
+# collect zero tests. Default `uv run pytest` runs the integration test too;
+# it skips if Docker is unavailable.
 
 [[tool.mypy.overrides]]
 module = "langgraph.*"
