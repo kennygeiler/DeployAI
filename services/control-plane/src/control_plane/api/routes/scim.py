@@ -203,7 +203,7 @@ async def list_users(
     filter: str | None = Query(
         default=None,
         alias="filter",
-        description="SCIM v2: userName eq \"...\" or emails.value eq \"...\" (subset).",
+        description='SCIM v2: userName eq "..." or emails.value eq "..." (subset).',
     ),
 ) -> JSONResponse:
     c = 100 if count < 1 or count > 200 else count
@@ -241,9 +241,7 @@ async def get_user(
     tenant: ScimTenant,
     session: AppDbSession,
 ) -> JSONResponse:
-    r = await session.execute(
-        select(AppUser).where(AppUser.tenant_id == tenant.id, AppUser.id == user_id)
-    )
+    r = await session.execute(select(AppUser).where(AppUser.tenant_id == tenant.id, AppUser.id == user_id))
     u = r.scalar_one_or_none()
     if u is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_err(404, "User not found"))
@@ -324,9 +322,7 @@ async def patch_user(
     session: AppDbSession,
 ) -> JSONResponse:
     body = await _read_scim_json(request, max_bytes=1_000_000)
-    r = await session.execute(
-        select(AppUser).where(AppUser.tenant_id == tenant.id, AppUser.id == user_id)
-    )
+    r = await session.execute(select(AppUser).where(AppUser.tenant_id == tenant.id, AppUser.id == user_id))
     u = r.scalar_one_or_none()
     if u is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_err(404, "User not found"))
@@ -375,15 +371,13 @@ async def delete_user(
     tenant: ScimTenant,
     session: AppDbSession,
 ) -> Response:
-    r = await session.execute(
-        select(AppUser).where(AppUser.tenant_id == tenant.id, AppUser.id == user_id)
-    )
+    r = await session.execute(select(AppUser).where(AppUser.tenant_id == tenant.id, AppUser.id == user_id))
     u = r.scalar_one_or_none()
     if u is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_err(404, "User not found"))
     u.active = False
     u.updated_at = datetime.now(UTC)
     await session.commit()
-    revoke_sessions_for_user(tenant.id, u.id)
+    await revoke_sessions_for_user(tenant.id, u.id)
     _audit("scim.user.deactivated", tenant_id=tenant.id, user_id=u.id, scim_id=u.scim_external_id or str(u.id))
     return Response(status_code=status.HTTP_204_NO_CONTENT)

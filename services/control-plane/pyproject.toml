@@ -7,10 +7,15 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
   "fastapi>=0.136.0",
   "pydantic>=2.9.0",
+  "pydantic-settings>=2.6.0",
   "sqlalchemy[asyncio]>=2.0.36",
   "alembic>=1.14.0",
   "uvicorn[standard]>=0.32.0",
   "python-dotenv>=1.0.1",
+  # Story 2-4 — Redis session store + RS256 JWT.
+  "redis>=5.0.0",
+  "pyjwt[crypto]>=2.9.0",
+  "cryptography>=44.0.0",
   # Story 1.9 — shared tenancy primitives (TenantScopedSession + RLS glue).
   "deployai-tenancy",
   # Story 1.11 — citation envelope Pydantic mirror of @deployai/contracts.
@@ -36,6 +41,7 @@ dev = [
   "psycopg[binary]>=3.2.0",
   # Story 1.9 — unit tests for deployai_tenancy.session use in-memory sqlite.
   "aiosqlite>=0.20.0",
+  "fakeredis>=2.35.1",
 ]
 
 [build-system]

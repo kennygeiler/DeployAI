@@ -1,0 +1,57 @@
+"""Environment-backed settings (Story 2-4: Redis + JWT)."""
+
+from __future__ import annotations
+
+from functools import lru_cache
+
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class ControlPlaneSettings(BaseSettings):
+    """Load from process env. Prefix ``DEPLOYAI_`` (case-insensitive)."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="DEPLOYAI_",
+        env_file=".env",
+        extra="ignore",
+    )
+
+    redis_url: str = Field(
+        default="redis://127.0.0.1:6379/0",
+        description="Async redis URL; use rediss:// in prod (TLS)",
+    )
+
+    redis_ssl_ca_certs: str | None = None
+    redis_ssl_certfile: str | None = None
+    redis_ssl_keyfile: str | None = None
+
+    jwt_issuer: str = "deployai-control-plane"
+    jwt_audience: str = "deployai"
+    jwt_kid: str = "default"
+    jwt_private_key_path: str | None = None
+    jwt_public_key_paths: str = ""
+    # Comma-separated PEM paths; first private signs; all publics verify (rotation, NFR76).
+    access_token_ttl_seconds: int = 15 * 60
+    refresh_token_ttl_seconds: int = 7 * 24 * 60 * 60
+
+    allow_test_session_mint: bool = False
+    """When True, ``POST /internal/v1/test/session-tokens`` may mint (still needs internal key)."""
+
+    @field_validator("allow_test_session_mint", mode="before")
+    @classmethod
+    def _coerce_bool(cls, v: object) -> bool:
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            return v.strip().lower() in ("1", "true", "yes", "on")
+        return bool(v)
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> ControlPlaneSettings:
+    return ControlPlaneSettings()
+
+
+def clear_settings_cache() -> None:
+    get_settings.cache_clear()

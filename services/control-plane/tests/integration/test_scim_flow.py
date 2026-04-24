@@ -8,13 +8,16 @@ import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+import fakeredis.aioredis
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from control_plane.auth import session_service as session_service_mod
 from control_plane.db import clear_engine_cache
+from control_plane.infra import redis_client as redis_client_mod
 from control_plane.main import app
 
 _SCIM = Path(__file__).resolve().parents[1] / "fixtures" / "scim"
@@ -39,13 +42,14 @@ async def scim_client(
     h = _token_hash(token)
     with postgres_engine.begin() as conn:
         conn.execute(
-            text(
-                "INSERT INTO app_tenants (id, name, scim_bearer_token_hash) VALUES (:id, :n, :h)"
-            ),
+            text("INSERT INTO app_tenants (id, name, scim_bearer_token_hash) VALUES (:id, :n, :h)"),
             {"id": tid, "n": "integration-scim-tenant", "h": h},
         )
     monkeypatch.setenv("DATABASE_URL", _async_database_url_from_engine(postgres_engine))
+    fake = fakeredis.aioredis.FakeRedis(decode_responses=True)
+    monkeypatch.setattr(session_service_mod, "get_async_redis", lambda: fake)
     clear_engine_cache()
+    redis_client_mod.clear_redis_client()
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             client.headers["Authorization"] = f"Bearer {token}"
@@ -55,6 +59,7 @@ async def scim_client(
         with postgres_engine.begin() as conn:
             conn.execute(text("DELETE FROM app_tenants WHERE id = :id"), {"id": tid})
         clear_engine_cache()
+        redis_client_mod.clear_redis_client()
 
 
 @pytest.mark.integration
@@ -76,9 +81,7 @@ async def test_scim_lifecycle_unauthorized(
 
 
 @pytest.mark.integration
-async def test_scim_lifecycle(
-    scim_client: tuple[AsyncClient, uuid.UUID], postgres_engine: Engine
-) -> None:
+async def test_scim_lifecycle(scim_client: tuple[AsyncClient, uuid.UUID], postgres_engine: Engine) -> None:
     client, tid = scim_client
     with (_SCIM / "create_user.json").open(encoding="utf-8") as f:
         create = json.load(f)
@@ -111,7 +114,7 @@ async def test_scim_lifecycle(
 
     fl = await client.get(
         "/scim/v2/Users",
-        params={'filter': 'userName eq "jane.entra"'},
+        params={"filter": 'userName eq "jane.entra"'},
     )
     assert fl.status_code == 200
     assert any(x["id"] == user_id for x in fl.json()["Resources"])
@@ -125,11 +128,8 @@ async def test_scim_lifecycle(
     d = await client.delete(f"/scim/v2/Users/{user_id}")
     assert d.status_code == 204, d.text
     with postgres_engine.begin() as conn:
-        a = (
-            conn.execute(
-                text("SELECT active FROM app_users WHERE id = :id"),
-                {"id": uu},
-            )
-            .scalar_one()
-        )
+        a = conn.execute(
+            text("SELECT active FROM app_users WHERE id = :id"),
+            {"id": uu},
+        ).scalar_one()
     assert a is False

@@ -1,6 +1,6 @@
 # Story 2.4: Tenant-scoped session store (AR9)
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -34,52 +34,55 @@ so that sessions scale across services, are revocable on kill-switch, and never 
 
 ## Tasks / subtasks (suggested order)
 
-- [ ] **Design key layout** (AC: 2, 6, 8) — Decide and document: primary key `tenant:{tid}:session:{jti}`; optional **index** set `tenant:{tid}:user:{user_id}:jtis` (SET of jtis) with **same TTL** as longest-lived refresh, or use **SCAN** in MVP with documented complexity limit.
-- [ ] **Settings** — Extend control-plane `Settings` / env: `REDIS_URL`, optional TLS file paths, `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` paths or `JWT_*` from Secrets, `ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL`, `JWT_ISSUER`, `JWT_AUDIENCE` as needed.
-- [ ] **Redis client** — Async Redis driver (`redis[asyncio]` 5.x or `redis.asyncio`) compatible with `REDIS_URL` in compose; connection lifecycle one **pool per process**; prefix enforcement helper in `control_plane/tenancy/redis_keys.py` or `control_plane/infra/redis.py`.
-- [ ] **JWT** — RS256 sign/verify module (`control_plane/auth/jwt_tokens.py`); clock skew tolerance; JTI for refresh; multi-key **verify** list for rotation (AC 7).
-- [ ] **Session service** — Issue access+refresh, validate refresh, persist refresh, rotate on refresh, delete on logout, **revoke all** for user (admin + SCIM hook).
-- [ ] **Routes** — `POST /auth/logout`, `POST /auth/refresh` (if not only in 2-2, coordinate), `POST /auth/sessions/revoke-all/{user_id}` with **Authz** guard using Story **2-1** `can_access` / `platform_admin` (same pattern as other internal routes).
-- [ ] **Wire 2-3** — `revoke_sessions_for_user(tenant_id, user_id)` calls Redis (same as revoke-all scope).
-- [ ] **Main** — Include new routers; ensure OpenAPI tags clear.
-- [ ] **Tests** — Unit (crypto, paths, key rotation); integration (Redis container), SCIM delete still passes with Redis assertion if feasible.
-- [ ] **Docs** — `docs/auth/sessions.md` (or agreed location).
+- [x] **Key layout** — `tenant:{tid}:session:{jti}`, per-user set `tenant:{tid}:user:{uid}:refresh_jtis`, and `jti:{jti}` for refresh tenant mismatch (403).
+- [x] **Settings** — `control_plane/config/settings.py` (`DEPLOYAI_*` for Redis, JWT paths, `allow_test_session_mint`).
+- [x] **Redis** — `control_plane/infra/redis_client.py` (async, optional TLS for `rediss://`).
+- [x] **JWT** — `control_plane/auth/jwt_tokens.py` (RS256, multi-PEM verify, leeway 60s).
+- [x] **Session service** — `control_plane/auth/session_service.py` (issue, refresh rotate, logout, revoke-all).
+- [x] **Routes** — `control_plane/api/routes/auth.py` + internal mint `api/routes/internal_session.py` (`require_platform_admin` on revoke-all; JWT `roles` claim).
+- [x] **2-3** — async `revoke_sessions_for_user` → `revoke_all_for_user` (SCIM `await`).
+- [x] **Main** — auth + internal session routers.
+- [x] **Tests** — unit JWT + session_revoke; integration Redis (testcontainers) + SCIM w/ fakeredis patch.
+- [x] **Docs** — `docs/auth/sessions.md`
 
 ## Dev notes
 
 ### Order relative to 2-2 and 2-3
 
-- **Story 2-2 (SSO)** is still the IdP + cookie surface; this story (2-4) is the **durable** session layer. If 2-2 is not ready, **stub** `POST /auth/login` for tests with a `DEPLOYAI_TEST_AUTH` flag **only in tests** (not prod defaults), or use internal-only fixture routes behind `X-DeployAI-Internal-Key`—pick one and document. Do **not** block 2-4 on Entra; block **E2E** on 2-2+2-4.
-- **Story 2-3 (SCIM)** already calls `revoke_sessions_for_user` on user DELETE. Implementing 2-4 **replaces the no-op**; keep the function signature and tests added in 2-3.
-- [architecture.md](../planning-artifacts/architecture.md) §Caching / Auth: Redis `tenant:<uuid>:` prefix, TLS, JWT 15m / 7d refresh.
-
-### Control-plane surface today
-
-- `services/control-plane/src/control_plane/auth/session_revoke.py` — **TODO(2-4)**.
-- `infra/compose/docker-compose.yml` — **Redis 7** and `REDIS_URL` for control-plane.
-- `services/control-plane/src/control_plane/main.py` — only health + internal schema + SCIM; auth routes to be added.
-
-### Security and compliance
-
-- Never log full refresh token or private key; audit events should not include PII in clear.
-- `revoke-all` and SCIM **must** validate **tenant** scoping: a caller cannot pass another tenant’s `user_id` and delete keys in another prefix.
-
-### Project structure (align with existing)
-
-- `control_plane/api/routes/auth.py` (or `sessions.py`) and small `control_plane/auth/` modules for JWT + Redis.
-- Reuse `control_plane.db` and `app_identity` for user existence checks where required.
+- **Internal mint:** `POST /internal/v1/test/session-tokens` with `X-DeployAI-Internal-Key` + `DEPLOYAI_ALLOW_TEST_SESSION_MINT=1` issues tokens for tests (2-2 SSO to replace in prod).
+- **SCIM** calls `await revoke_sessions_for_user`; SCIM integration uses **fakeredis** patched on `session_service.get_async_redis` so no real Redis is required in that test module.
 
 ## Dev Agent Record
 
 ### Agent Model Used
 
-_(on implementation)_
-
-### Debug Log References
+Composer (default), Apr 2026
 
 ### Completion Notes List
 
+- Refresh body contract: `tenant_id` + `refresh_token` (opaque JTI) for `/auth/refresh` and `/auth/logout`.
+- `jti:{jti}` duplicate blob ensures wrong `tenant_id` in refresh returns 403, not 401.
+- mTLS: use `rediss://` and `DEPLOYAI_REDIS_SSL_*` file paths; document in `docs/auth/sessions.md`.
+
 ### File List
+
+- `services/control-plane/pyproject.toml` (redis, PyJWT, pydantic-settings, dev: fakeredis)
+- `services/control-plane/src/control_plane/config/settings.py`
+- `services/control-plane/src/control_plane/infra/redis_client.py`
+- `services/control-plane/src/control_plane/infra/__init__.py`
+- `services/control-plane/src/control_plane/auth/session_keys.py`
+- `services/control-plane/src/control_plane/auth/jwt_tokens.py`
+- `services/control-plane/src/control_plane/auth/session_service.py`
+- `services/control-plane/src/control_plane/auth/session_revoke.py`
+- `services/control-plane/src/control_plane/api/routes/auth.py`
+- `services/control-plane/src/control_plane/api/routes/internal_session.py`
+- `services/control-plane/src/control_plane/api/routes/scim.py` (async revoke)
+- `services/control-plane/src/control_plane/main.py`
+- `services/control-plane/tests/unit/test_jwt_roundtrip.py`
+- `services/control-plane/tests/unit/test_session_revoke.py`
+- `services/control-plane/tests/integration/test_session_store_flow.py`
+- `services/control-plane/tests/integration/test_scim_flow.py`
+- `docs/auth/sessions.md`
 
 ---
 
