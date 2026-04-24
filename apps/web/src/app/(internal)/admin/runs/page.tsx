@@ -63,10 +63,10 @@ export default async function AdminRunsPage() {
 
   let initialRows: RunRow[] = seed;
   if (cpReady && base && key) {
-    const r = await fetch(
-      `${base.replace(/\/$/, "")}/internal/v1/ingestion-runs?limit=100`,
-      { headers: { "X-DeployAI-Internal-Key": key }, cache: "no-store" },
-    );
+    const r = await fetch(`${base.replace(/\/$/, "")}/internal/v1/ingestion-runs?limit=100`, {
+      headers: { "X-DeployAI-Internal-Key": key },
+      cache: "no-store",
+    });
     if (r.ok) {
       const j = (await r.json()) as CpIngestionRun[];
       if (j.length > 0) {
@@ -104,9 +104,9 @@ export default async function AdminRunsPage() {
         <h1 className="text-display font-semibold tracking-tight text-ink-950">Ingestion runs</h1>
         <p className="text-body text-ink-600">
           Live data from the control plane when the web server has{" "}
-          <code className="text-body bg-paper-200 rounded px-1">DEPLOYAI_CONTROL_PLANE_URL</code> and{" "}
-          <code className="text-body bg-paper-200 rounded px-1">DEPLOYAI_INTERNAL_API_KEY</code> set; otherwise the seed
-          preview.
+          <code className="text-body bg-paper-200 rounded px-1">DEPLOYAI_CONTROL_PLANE_URL</code>{" "}
+          and <code className="text-body bg-paper-200 rounded px-1">DEPLOYAI_INTERNAL_API_KEY</code>{" "}
+          set; otherwise the seed preview.
         </p>
         {!cpReady ? (
           <p className="text-body text-ink-500 mt-2">
