@@ -8,12 +8,20 @@ plumbing evolves (failover pool, read replicas) we can rewire it in one place.
 from __future__ import annotations
 
 import os
+from collections.abc import AsyncIterator
 from contextlib import AbstractAsyncContextManager
 from functools import lru_cache
+from typing import Annotated
 from uuid import UUID
 
 from deployai_tenancy import TenantScopedSession
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 
 @lru_cache(maxsize=1)
@@ -37,6 +45,21 @@ def tenant_session(tenant_id: UUID) -> AbstractAsyncContextManager[AsyncSession]
     return TenantScopedSession(tenant_id, get_engine())
 
 
+@lru_cache(maxsize=1)
+def _get_app_session_maker() -> async_sessionmaker[AsyncSession]:
+    return async_sessionmaker(get_engine(), expire_on_commit=False, class_=AsyncSession)
+
+
+async def get_app_db_session() -> AsyncIterator[AsyncSession]:
+    """FastAPI dependency: one request-scoped session (public `app_*` tables, SCIM bearer auth)."""
+    async with _get_app_session_maker()() as session:
+        yield session
+
+
+AppDbSession = Annotated[AsyncSession, Depends(get_app_db_session)]
+
+
 def clear_engine_cache() -> None:
     """Test hook: :func:`get_engine` is memoized; clear before switching ``DATABASE_URL``."""
     get_engine.cache_clear()
+    _get_app_session_maker.cache_clear()

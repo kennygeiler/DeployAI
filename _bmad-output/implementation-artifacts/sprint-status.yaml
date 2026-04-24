@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-21
-last_updated: 2026-04-23 # Story 2-3 story file (ready-for-dev)
+last_updated: 2026-04-23 # Story 2-3 SCIM 2-0 implementation (done)
 project: DeployAI
 project_key: NOKEY
 tracking_system: file-system
@@ -72,7 +72,7 @@ development_status:
   epic-2: in-progress
   2-1-role-matrix-and-authz-resolver-interface: done
   2-2-microsoft-entra-id-saml-oidc-sso: ready-for-dev
-  2-3-scim-2-0-provisioning-endpoint: ready-for-dev
+  2-3-scim-2-0-provisioning-endpoint: done
   2-4-tenant-scoped-session-store: backlog
   2-5-account-provisioning-flow: backlog
   2-6-integration-kill-switch-plumbing: backlog

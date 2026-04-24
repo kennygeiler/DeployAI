@@ -13,6 +13,7 @@ from importlib import metadata
 from fastapi import FastAPI
 
 from control_plane.api.routes.schema_proposals import router as schema_proposals_internal_router
+from control_plane.api.routes.scim import router as scim_users_router
 
 try:
     _version = metadata.version("control-plane")
@@ -21,6 +22,7 @@ except metadata.PackageNotFoundError:  # editable/unbuilt installs
 
 app = FastAPI(title="DeployAI Control Plane", version=_version)
 app.include_router(schema_proposals_internal_router, prefix="/internal/v1")
+app.include_router(scim_users_router, prefix="/scim/v2")
 
 
 def _health_body() -> dict[str, str]:

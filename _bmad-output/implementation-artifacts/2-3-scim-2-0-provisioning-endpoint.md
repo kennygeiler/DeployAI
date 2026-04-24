@@ -1,6 +1,6 @@
 # Story 2.3: SCIM 2.0 provisioning endpoint (FR71)
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -34,12 +34,12 @@ so that user lifecycle is managed centrally and departures trigger automatic acc
 
 ## Tasks / subtasks (suggested order)
 
-- [ ] **Prereq check:** Confirm Story **2-2** user/tenant model exists; if not, add minimal **users** + `tenants` + SCIM token columns in one Alembic (coordinate with 2-2 owner).
-- [ ] Add `services/control_plane/api/routes/scim.py` (or `scim/`) with **content-type** `application/scim+json` on responses.
-- [ ] Pydantic models mirroring SCIM 2.0 **User** resource + ListResponse + Error.
-- [ ] Middleware/dependency: resolve **tenant** from bearer token before handler runs.
-- [ ] Wire **Redis** client from settings for session revoke (or stub per AC4).
-- [ ] Ruff, mypy, `pytest` unit + httpx `TestClient` integration.
+- [x] **Prereq check:** `app_tenants` + `app_users` added in one migration (`20260425_0004`) for SCIM/2-2 alignment.
+- [x] `control_plane/api/routes/scim.py` with `application/scim+json` on JSON responses.
+- [x] SCIM error/list/user bodies as `dict` (lightweight) matching RFC 7643/7644 URN `schemas` fields.
+- [x] Dependency: `control_plane.auth.scim_bearer.require_scim_tenant` (bearer → tenant via SHA-256 hash).
+- [x] `control_plane.auth.session_revoke.revoke_sessions_for_user` no-op + logging with **TODO(2-4)**; unit test for callable contract.
+- [x] Ruff, mypy, pytest unit + httpx `AsyncClient` integration (`tests/integration/test_scim_flow.py`).
 
 ## Dev notes
 
@@ -61,11 +61,29 @@ so that user lifecycle is managed centrally and departures trigger automatic acc
 
 ### Agent Model Used
 
-_(on implementation)_
+Composer (default agent), Apr 2026
 
 ### Completion Notes List
 
+- Session revocation on DELETE is implemented as `revoke_sessions_for_user` in `control_plane/auth/session_revoke.py` (logs + no-op) until Story **2-4** defines Redis key patterns; unit test ensures the hook remains callable.
+- `roles` is stored in `app_users.roles` (JSONB) for Platform Admin / policy review; not mapped to internal V1 role names in this story.
+- PII in logs: primary email is never logged; a short hash fingerprint is logged on provision for correlation.
+
 ### File List
+
+- `services/control-plane/alembic/versions/20260425_0004_app_tenants_users_scim.py`
+- `services/control-plane/alembic/env.py` (import `app_identity` models)
+- `services/control-plane/src/control_plane/domain/app_identity/`
+- `services/control-plane/src/control_plane/db.py` (`AppDbSession`)
+- `services/control-plane/src/control_plane/api/routes/scim.py`
+- `services/control-plane/src/control_plane/auth/scim_bearer.py`
+- `services/control-plane/src/control_plane/auth/session_revoke.py`
+- `services/control-plane/src/control_plane/main.py`
+- `services/control-plane/tests/fixtures/scim/`
+- `services/control-plane/tests/integration/test_scim_flow.py`
+- `services/control-plane/tests/unit/test_session_revoke.py`
+- `services/control-plane/tests/integration/conftest.py` (truncate `app_users`, `app_tenants`)
+- `docs/auth/scim-setup.md`
 
 ---
 
