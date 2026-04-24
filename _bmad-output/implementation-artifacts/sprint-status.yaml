@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-21
-last_updated: 2026-04-24 # Epic 3: 3-1 done; 3-2 in progress (M365 email OAuth)
+last_updated: 2026-04-23 # Epic 3: 3-1 done; 3-2 done (M365 email OAuth + thread sync)
 project: DeployAI
 project_key: NOKEY
 tracking_system: file-system
@@ -84,7 +84,7 @@ development_status:
   # ======================================================================
   epic-3: in-progress
   3-1-m365-calendar-oauth-ingestion: done
-  3-2-exchange-m365-email-oauth-ingestion: in-progress
+  3-2-exchange-m365-email-oauth-ingestion: done
   3-3-microsoft-teams-transcript-import: backlog
   3-4-voice-meeting-file-upload: backlog
   3-5-thread-level-extraction-unit-enforcement: backlog

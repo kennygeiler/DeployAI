@@ -1,4 +1,4 @@
-"""M365 Calendar OAuth + Graph sync (Epic 3 Story 3-1, FR9)."""
+"""M365 / Exchange mail OAuth + Graph thread sync (Epic 3 Story 3-2, FR10, FR16)."""
 
 from __future__ import annotations
 
@@ -21,18 +21,18 @@ from control_plane.config.settings import get_settings
 from control_plane.db import AppDbSession
 from control_plane.domain.integrations.models import Integration
 from control_plane.integrations.m365_oauth import (
-    GRAPH_CALENDAR_SCOPES,
+    GRAPH_MAIL_SCOPES,
     build_graph_delegate_authorization_url,
     exchange_delegation_code,
     fetch_metadata,
-    m365_calendar_oauth_creds,
+    m365_mail_oauth_creds,
     pkce_pair,
 )
-from control_plane.services.m365_calendar_sync import run_calendar_delta_sync
+from control_plane.services.m365_mail_sync import run_mail_delta_sync
 
 _LOG = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/integrations/m365-calendar", tags=["integrations-m365-calendar"])
+router = APIRouter(prefix="/integrations/m365-mail", tags=["integrations-m365-mail"])
 
 _C_STATE: Final = "dep_m365_state"
 _C_VERIFIER: Final = "dep_m365_verifier"
@@ -40,6 +40,7 @@ _C_TENANT: Final = "dep_m365_tenant"
 _C_INTEGRATION: Final = "dep_m365_integration"
 _C_RETURN: Final = "dep_m365_return"
 _COOKIE_MAX_AGE: Final = 600
+_COOKIE_PATH: Final = "/integrations/m365-mail"
 
 
 def _redirect_scheme_https(redirect_uri: str) -> bool:
@@ -59,12 +60,12 @@ def _safe_return_to_url(raw: str | None) -> str | None:
     return s
 
 
-def _m365_creds() -> tuple[str, str, str, str] | None:
-    return m365_calendar_oauth_creds(get_settings())
+def _m365_mail_creds() -> tuple[str, str, str, str] | None:
+    return m365_mail_oauth_creds(get_settings())
 
 
-@router.get("/connect", summary="Start Microsoft 365 calendar OAuth (delegated Graph)")
-async def m365_connect(
+@router.get("/connect", summary="Start Microsoft 365 mail OAuth (delegated Graph Mail.Read)")
+async def m365_mail_connect(
     session: AppDbSession,
     actor: Annotated[AuthActor, Depends(bearer_auth_actor)],
     tenant_id: Annotated[uuid.UUID, Query(description="Account tenant to attach this integration to.")],
@@ -73,12 +74,12 @@ async def m365_connect(
         Query(description="Optional URL to redirect to after /callback (https recommended)."),
     ] = None,
 ) -> RedirectResponse:
-    c = _m365_creds()
+    c = _m365_mail_creds()
     if c is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
-                "M365 calendar OAuth is not configured. Set DEPLOYAI_M365_CALENDAR_REDIRECT_URI and OAuth clients; "
+                "M365 mail OAuth is not configured. Set DEPLOYAI_M365_MAIL_REDIRECT_URI and OAuth clients; "
                 "issuer/client may fall back to DEPLOYAI_OIDC_*."
             ),
         )
@@ -86,7 +87,7 @@ async def m365_connect(
     if not m365_redir or not m365_redir.strip():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="DEPLOYAI_M365_CALENDAR_REDIRECT_URI is required",
+            detail="DEPLOYAI_M365_MAIL_REDIRECT_URI is required",
         )
     secure = _redirect_scheme_https(m365_redir)
     d = can_access(
@@ -105,18 +106,17 @@ async def m365_connect(
             )
 
     r = await session.execute(
-        select(Integration).where(Integration.tenant_id == tenant_id, Integration.provider == "m365_calendar").limit(1)
+        select(Integration).where(Integration.tenant_id == tenant_id, Integration.provider == "m365_mail").limit(1)
     )
     it = r.scalar_one_or_none()
     if it is None:
         it = Integration(
             tenant_id=tenant_id,
-            provider="m365_calendar",
-            display_name="Microsoft 365 Calendar",
+            provider="m365_mail",
+            display_name="Microsoft 365 Mail",
         )
         session.add(it)
         await session.flush()
-    # Callback runs in a new HTTP request; commit so the integration row is visible.
     await session.commit()
 
     st = secrets.token_urlsafe(32)
@@ -133,7 +133,7 @@ async def m365_connect(
                 redirect_uri=m365_redir,
                 state=st,
                 code_challenge=code_challenge,
-                scope=GRAPH_CALENDAR_SCOPES,
+                scope=GRAPH_MAIL_SCOPES,
             )
         except Exception as e:  # pragma: no cover
             raise HTTPException(
@@ -156,7 +156,7 @@ async def m365_connect(
             httponly=True,
             samesite="lax",
             secure=secure,
-            path="/integrations/m365-calendar",
+            path=_COOKIE_PATH,
         )
     ret = _safe_return_to_url(return_to)
     if ret:
@@ -167,17 +167,17 @@ async def m365_connect(
             httponly=True,
             samesite="lax",
             secure=secure,
-            path="/integrations/m365-calendar",
+            path=_COOKIE_PATH,
         )
     return rdr
 
 
 @router.get(
     "/callback",
-    summary="Microsoft redirects here after user consent",
+    summary="Microsoft redirects here after user consent (mail)",
     response_model=None,
 )
-async def m365_callback(
+async def m365_mail_callback(
     request: Request,
     session: AppDbSession,
     code: str | None = None,
@@ -185,18 +185,18 @@ async def m365_callback(
     error: str | None = None,
     error_description: str | None = None,
 ) -> JSONResponse | RedirectResponse:
-    c = _m365_creds()
+    c = _m365_mail_creds()
     if c is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="M365 calendar OAuth is not configured",
+            detail="M365 mail OAuth is not configured",
         )
     issuer, client_id, client_secret, m365_redir = c
     ck_state = request.cookies.get(_C_STATE)
     ck_ver = request.cookies.get(_C_VERIFIER)
     ck_iid = request.cookies.get(_C_INTEGRATION)
     if error:
-        _LOG.info("m365_oauth_error", extra={"error": error, "desc": (error_description or "")[:200]})
+        _LOG.info("m365_mail_oauth_error", extra={"error": error, "desc": (error_description or "")[:200]})
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"error": error, "error_description": error_description},
@@ -209,7 +209,7 @@ async def m365_callback(
     integ_id = uuid.UUID(ck_iid)
     r = await session.execute(select(Integration).where(Integration.id == integ_id).limit(1))
     it = r.scalar_one_or_none()
-    if it is None or it.provider != "m365_calendar":
+    if it is None or it.provider != "m365_mail":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="integration not found")
 
     async with httpx.AsyncClient() as c_http:
@@ -255,7 +255,7 @@ async def m365_callback(
     if ret and str(ret).strip():
         rdr = RedirectResponse(url=str(ret), status_code=status.HTTP_302_FOUND)
         for n in (_C_STATE, _C_VERIFIER, _C_TENANT, _C_INTEGRATION, _C_RETURN):
-            rdr.delete_cookie(n, path="/integrations/m365-calendar")
+            rdr.delete_cookie(n, path=_COOKIE_PATH)
         return rdr
 
     resp = JSONResponse(
@@ -266,19 +266,19 @@ async def m365_callback(
         }
     )
     for n in (_C_STATE, _C_VERIFIER, _C_TENANT, _C_INTEGRATION, _C_RETURN):
-        resp.delete_cookie(n, path="/integrations/m365-calendar")
+        resp.delete_cookie(n, path=_COOKIE_PATH)
     return resp
 
 
-@router.post("/{integration_id}/sync", summary="Pull calendar via Graph delta → canonical events")
-async def m365_sync(
+@router.post("/{integration_id}/sync", summary="Inbox mail delta → email.thread canonical events")
+async def m365_mail_sync(
     integration_id: uuid.UUID,
     session: AppDbSession,
     actor: Annotated[AuthActor, Depends(bearer_auth_actor)],
 ) -> dict[str, object]:
     r = await session.execute(select(Integration).where(Integration.id == integration_id).limit(1))
     it = r.scalar_one_or_none()
-    if it is None or it.provider != "m365_calendar":
+    if it is None or it.provider != "m365_mail":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="integration not found")
     d = can_access(
         actor,
@@ -292,7 +292,7 @@ async def m365_sync(
         if actor.tenant_id is None or str(it.tenant_id) != actor.tenant_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant mismatch")
     try:
-        out = await run_calendar_delta_sync(session, it)
+        out = await run_mail_delta_sync(session, it)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     await session.commit()

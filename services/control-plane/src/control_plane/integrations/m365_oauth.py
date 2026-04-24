@@ -1,4 +1,4 @@
-"""Microsoft identity + Graph delegated OAuth (Epic 3 Story 3-1)."""
+"""Microsoft identity + Graph delegated OAuth (Epic 3: calendar + mail)."""
 
 from __future__ import annotations
 
@@ -10,18 +10,52 @@ import httpx
 from control_plane.auth.oidc_flow import OidcError, fetch_openid_metadata, pkce_pair
 from control_plane.config.settings import ControlPlaneSettings
 
-GRAPH_SCOPES: str = "offline_access https://graph.microsoft.com/Calendars.Read https://graph.microsoft.com/User.Read"
+# Story 3-1 (calendar) — keep stable names for importers
+GRAPH_CALENDAR_SCOPES: str = (
+    "offline_access https://graph.microsoft.com/Calendars.Read https://graph.microsoft.com/User.Read"
+)
+GRAPH_SCOPES = GRAPH_CALENDAR_SCOPES  # backward compat
+
+GRAPH_MAIL_SCOPES: str = (
+    "offline_access https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/User.Read"
+)
 
 
-def m365_oauth_creds(s: ControlPlaneSettings) -> tuple[str, str, str, str] | None:
-    """Return ``(issuer, client_id, client_secret, m365_redirect_uri)`` or ``None`` if incomplete."""
+def m365_graph_client_triple(s: ControlPlaneSettings) -> tuple[str, str, str] | None:
+    """``(issuer, client_id, client_secret)`` if set (via M365 or OIDC fallback)."""
     iss = (s.m365_oauth_issuer or s.oidc_issuer or "").strip()
     cid = (s.m365_oauth_client_id or s.oidc_client_id or "").strip()
     sec = (s.m365_oauth_client_secret or s.oidc_client_secret or "").strip()
-    redir = (s.m365_calendar_redirect_uri or "").strip()
-    if not (iss and cid and sec and redir):
+    if not (iss and cid and sec):
         return None
-    return (iss, cid, sec, redir)
+    return (iss, cid, sec)
+
+
+def m365_calendar_oauth_creds(s: ControlPlaneSettings) -> tuple[str, str, str, str] | None:
+    """Return ``(issuer, client_id, client_secret, m365_calendar_redirect)`` or ``None``."""
+    t = m365_graph_client_triple(s)
+    if t is None:
+        return None
+    redir = (s.m365_calendar_redirect_uri or "").strip()
+    if not redir:
+        return None
+    return (t[0], t[1], t[2], redir)
+
+
+def m365_mail_oauth_creds(s: ControlPlaneSettings) -> tuple[str, str, str, str] | None:
+    """Return ``(issuer, client_id, client_secret, m365_mail_redirect)`` or ``None``."""
+    t = m365_graph_client_triple(s)
+    if t is None:
+        return None
+    redir = (s.m365_mail_redirect_uri or "").strip()
+    if not redir:
+        return None
+    return (t[0], t[1], t[2], redir)
+
+
+def m365_oauth_creds(s: ControlPlaneSettings) -> tuple[str, str, str, str] | None:
+    """Deprecated alias: calendar OAuth. Prefer :func:`m365_calendar_oauth_creds`."""
+    return m365_calendar_oauth_creds(s)
 
 
 def build_graph_delegate_authorization_url(
@@ -31,13 +65,14 @@ def build_graph_delegate_authorization_url(
     redirect_uri: str,
     state: str,
     code_challenge: str,
+    scope: str = GRAPH_CALENDAR_SCOPES,
 ) -> str:
     q: dict[str, str] = {
         "client_id": client_id,
         "response_type": "code",
         "redirect_uri": redirect_uri,
         "response_mode": "query",
-        "scope": GRAPH_SCOPES,
+        "scope": scope,
         "state": state,
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
@@ -85,13 +120,14 @@ async def refresh_delegation_access(
     refresh_token: str,
     client_id: str,
     client_secret: str,
+    scope: str = GRAPH_CALENDAR_SCOPES,
 ) -> dict[str, Any]:
     data = {
         "client_id": client_id,
         "client_secret": client_secret,
         "refresh_token": refresh_token,
         "grant_type": "refresh_token",
-        "scope": GRAPH_SCOPES,
+        "scope": scope,
     }
     r = await httpx_client.post(
         token_endpoint,
@@ -112,10 +148,15 @@ async def fetch_metadata(httpx_client: httpx.AsyncClient, issuer: str) -> dict[s
 
 
 __all__ = [
+    "GRAPH_CALENDAR_SCOPES",
+    "GRAPH_MAIL_SCOPES",
     "GRAPH_SCOPES",
     "build_graph_delegate_authorization_url",
     "exchange_delegation_code",
     "fetch_metadata",
+    "m365_calendar_oauth_creds",
+    "m365_graph_client_triple",
+    "m365_mail_oauth_creds",
     "m365_oauth_creds",
     "pkce_pair",
     "refresh_delegation_access",

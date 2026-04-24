@@ -17,7 +17,7 @@ from control_plane.config.settings import ControlPlaneSettings, get_settings
 from control_plane.db import tenant_session
 from control_plane.domain.canonical_memory.events import CanonicalMemoryEvent
 from control_plane.domain.integrations.models import Integration
-from control_plane.integrations.m365_oauth import refresh_delegation_access
+from control_plane.integrations.m365_oauth import GRAPH_CALENDAR_SCOPES, refresh_delegation_access
 
 _LOG = logging.getLogger(__name__)
 _GRAPH = "https://graph.microsoft.com/v1.0"
@@ -83,6 +83,7 @@ async def _ensure_access_token(
         refresh_token=rt,
         client_id=rclient,
         client_secret=rsec,
+        scope=GRAPH_CALENDAR_SCOPES,
     )
     at2 = str(new_toks["access_token"])
     new_rt = new_toks.get("refresh_token", rt)
