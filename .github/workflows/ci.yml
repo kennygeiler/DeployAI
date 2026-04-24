@@ -163,14 +163,16 @@ jobs:
         run: pnpm run format:check
 
   # ------------------------------------------------------------------
-  # Control plane — Story 3-1 (M365 calendar): Docker + Postgres testcontainer
-  # (default pytest excludes -m integration; clear PYTEST_ADDOPTS for this file).
+  # Control plane — all `tests/integration/` targets (Epic 2+3, Story 1.8–1.9, etc.):
+  # Docker + Postgres testcontainer (and moto/HTTP mocks where used).
+  # Default `pytest` excludes `-m integration` — clear PYTEST_ADDOPTS so the
+  # per-file addopts in pyproject do not deselect.
   # ------------------------------------------------------------------
-  control-plane-m365-integration:
-    name: Control plane (M365 calendar integration)
+  control-plane-integration:
+    name: Control plane (integration)
     needs: [smoke]
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
@@ -188,13 +190,13 @@ jobs:
           version: "0.11.7"
           enable-cache: true
 
-      - name: M365 calendar integration (pytest, Docker)
+      - name: Integration tests (pytest, Docker)
         working-directory: services/control-plane
         env:
           PYTEST_ADDOPTS: ""
         run: |
           uv sync
-          uv run pytest tests/integration/test_m365_calendar_flow.py -m integration -q
+          uv run pytest tests/integration/ -m integration -q
 
   # ------------------------------------------------------------------
   # services/ingest — package unit tests (idempotency, NFR12 helpers)
