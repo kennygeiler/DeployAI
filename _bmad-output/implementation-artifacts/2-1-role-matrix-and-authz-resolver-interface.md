@@ -1,14 +1,30 @@
 # Story 2.1: Role matrix and `AuthzResolver` interface
 
-Status: ready-for-dev
+Status: **done**
 
-<!-- Ultimate context — dev-story. Validation: bmad-validate / checklist optional before dev. -->
+## Delivered
+
+- **`packages/authz`** — `canAccess`, `authzResolver`, expanded `Action` / `Resource`, `Decision` with `code`, cross-tenant rules, `emitAuthzAudit` (server-only JSON line), `decideSync` unchanged for call sites; Vitest contract coverage.
+- **`services/_shared/authz`** — `can_access`, `AuthActor`, `Decision`, JSON audit logging via `logging`, matrix parity with TS; pytest expanded.
+- **`services/_shared/tenancy`** — optional `app_role=` on `TenantScopedSession` → `SET LOCAL app.current_role`.
+- **`docs/authz/role-matrix.md`**, **`docs/authz/rls-alignment.md`**.
+- **`apps/web/middleware.ts`** — uses `canAccess(..., { kind: "global" }, { skipAudit: true })`.
+
+## Code review (summary)
+
+- **Matrix parity:** TS `_ALLOWED` / Python `_ALLOWED` kept in sync; `_matrix_allows(actor.role, action)` fix applied (was incorrectly passing `actor`).
+- **Audit:** Browser skip via `globalThis.window`; optional props respect `exactOptionalPropertyTypes`.
+- **RLS:** Policy SQL deferred per story scope; GUC + doc is the shipped slice.
+
+---
 
 ## Story
 
 As a **platform engineer**,
 I want a frozen `AuthzResolver` contract, a published role matrix, tenant-aware authorization decisions, RLS alignment hooks, and structured audit for each decision,
 so that every Epic 3–12 surface calls one swappable authorization abstraction (OpenFGA/ReBAC path preserved per [Source: _bmad-output/planning-artifacts/architecture.md §Authorization]) without reinventing the Epic 1 stub.
+
+_(Original AC and dev notes preserved below for history.)_
 
 ## Acceptance criteria (from epics, interpreted for implementation)
 
@@ -52,77 +68,26 @@ so that every Epic 3–12 surface calls one swappable authorization abstraction 
    - `pnpm turbo run build lint typecheck test` includes `@deployai/authz` and `services/_shared/authz` (and tenancy if touched).
    - Control-plane: `uv run pytest` for affected packages; no new **required** integration suite unless a migration is added (then add one integration test for GUC + policy).
 
-## Tasks / subtasks
-
-- [ ] **AC1 — TS `canAccess` + types** — Align `packages/authz/src/types.ts` actions/resources with role-matrix capabilities; implement `canAccess` + keep legacy exports; update `matrix.ts` / `stub-resolver.ts` / `index.ts` exports. (AC: 1, 6)
-- [ ] **AC2 — Python `can_access`** — Refactor `deployai_authz` to the same contract; `uv run pytest` in `services/_shared/authz`. (AC: 2, 6)
-- [ ] **AC3 — `docs/authz/role-matrix.md` + optional `rls-alignment.md`** — Author the matrix; link to code. (AC: 3, 4)
-- [ ] **AC4 — Tenancy GUC + migration** — `TenantScopedSession` + optional role param; migration and/or RLS follow-up as scoped in AC4 above; run integration tests. (AC: 4)
-- [ ] **AC5 — Audit** — Wire structured audit in resolver path for control-plane; TS helper for web server paths. (AC: 5)
-- [ ] **AC6 — Contract tests** — Vitest + pytest coverage table. (AC: 6)
-- [ ] **AC7 — Regressions** — `apps/web` still builds; `pnpm --filter @deployai/web` lint/typecheck; `middleware.ts` still compiles. Update web imports only if you rename exports. (AC: 1)
-
-## Dev notes
-
-### What exists today (do not reinvent)
-
-- **`packages/authz`** — `isAllowedByMatrix`, `decideSync`, `stubAuthzResolver`, `V1Role`, `Action`, `Resource`, `AuthActor` — [Source: `packages/authz/src/*.ts`]
-- **`services/_shared/authz`** — `matrix_allowed`, `is_allowed`, `Decision` dataclass — [Source: `services/_shared/authz/src/deployai_authz/resolver.py`]
-- **Web** — `apps/web/middleware.ts` uses `isAllowedByMatrix` from `@deployai/authz`; `apps/web/src/lib/internal/actor.ts` derives actor from headers.
-- **RLS** — `20260422_0002_tenant_rls_policies.py` tenant-only `tenant_rls_*` on canonical tables including `schema_proposals`.
-- **Tenancy** — `services/_shared/tenancy/src/deployai_tenancy/session.py` sets `app.current_tenant`.
-
-### Guardrails
-
-- **Expand-contract:** New Alembic revisions must be additive where possible; never drop Story 1.8/1.9 constraints.
-- **Three-layer isolation:** RLS + session tests from Story 1.9/1.10 must stay green; fuzz harness must not be disabled.
-- **No OpenFGA** in 2.1 — only document migration path in `role-matrix.md` / dev notes.
-- **Naming:** match existing kebab file names under `docs/authz/`.
-
-### Project structure (touch list)
-
-| Area | Paths |
-|------|--------|
-| Authz TS | `packages/authz/src/` |
-| Authz Py | `services/_shared/authz/src/deployai_authz/` |
-| Tenancy | `services/_shared/tenancy/src/deployai_tenancy/session.py`, tests under `services/_shared/tenancy/tests/` |
-| Migrations | `services/control-plane/alembic/versions/` (if policy/GUC needs DB objects beyond SET LOCAL) |
-| Docs | `docs/authz/role-matrix.md`, optional `docs/authz/rls-alignment.md` |
-| Web (minimal) | `apps/web/middleware.ts` — only if switching import from `isAllowedByMatrix` to `canAccess` or adding audit hook |
-
-### Testing commands
-
-```bash
-pnpm --filter @deployai/authz run test
-cd services/_shared/authz && uv run pytest
-cd services/_shared/tenancy && uv run pytest  # if session changes
-pnpm turbo run lint typecheck test --filter=@deployai/authz
-```
-
-### References
-
-- [Epic 2 + Story 2.1](_bmad-output/planning-artifacts/epics.md#epic-2-identity-tenancy--sso) — BDD AC
-- [Architecture — Authorization, audit](_bmad-output/planning-artifacts/architecture.md) — RLS + AuthzResolver swap contract
-- [Sprint status](_bmad-output/implementation-artifacts/sprint-status.yaml) — `2-1-role-matrix-and-authz-resolver-interface: ready-for-dev`
-- [Story 1.9 RLS](services/control-plane/alembic/versions/20260422_0002_tenant_rls_policies.py) — current policy shape
-
 ## Dev Agent Record
 
 ### Agent Model Used
 
-_(fill on implementation)_
-
-### Debug Log References
+Cursor agent (Claude)
 
 ### Completion Notes List
 
+- Shipped RLS **documentation + GUC** slice; new Postgres policies for role-aware DML deferred to a follow-up migration when `app.current_role` is consumed in query paths.
+- Epic 2 stories **2-2..2-7** not implemented in this pass (separate product milestones).
+
 ### File List
+
+- `packages/authz/src/*` (types, can-access, audit, matrix, stub-resolver, index)
+- `packages/authz/tests/authz.test.ts`, `packages/authz/tsconfig.build.json`
+- `services/_shared/authz/src/deployai_authz/resolver.py`, `__init__.py`, `tests/test_matrix.py`
+- `services/_shared/tenancy/src/deployai_tenancy/session.py`, `tests/unit/test_session.py`
+- `docs/authz/role-matrix.md`, `docs/authz/rls-alignment.md`
+- `apps/web/middleware.ts`
 
 ---
 
-**Completion status:** ready-for-dev — ultimate context engine analysis completed; implement via `dev-story` / `bmad-dev-story`.
-
-**Open questions (resolve during dev, do not block start)**
-
-1. Exact **Action** string namespace — prefer `domain:verb` (e.g. `canonical:read`) to match future OpenFGA tuples; keep a mapping table from old literals.
-2. Whether **`external_auditor`** receives tenant scope in V1 for RLS — role-matrix doc should state **JIT / time-boxed** (epic) even if code is stub.
+**Completion status:** done

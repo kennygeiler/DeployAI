@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { isAllowedByMatrix, type Action, type V1Role } from "@deployai/authz";
+import { canAccess, type Action, type V1Role } from "@deployai/authz";
 
 const isAdmin = (p: string) => p === "/admin/runs" || p.startsWith("/admin/schema-proposals");
 
@@ -38,7 +38,8 @@ export function middleware(request: NextRequest) {
     });
   }
   const a = actionForPath(pathname);
-  if (!isAllowedByMatrix(role, a)) {
+  const d = canAccess({ role }, a, { kind: "global" }, { skipAudit: true });
+  if (!d.allow) {
     return new NextResponse("Forbidden: role cannot access this admin surface in V1.", {
       status: 403,
     });

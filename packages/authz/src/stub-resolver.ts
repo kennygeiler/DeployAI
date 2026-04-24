@@ -1,18 +1,23 @@
-import { isAllowedByMatrix } from "./matrix.js";
+import { canAccess } from "./can-access.js";
 import type { AuthActor, AuthzResolver, Decision, Resource, Action } from "./types.js";
 
 /**
- * In-memory v1: checks role alone (tenant-scoped rules land Story 2.x).
- * Server components pass `actor` derived from the session.
+ * Async-shaped resolver delegating to {@link canAccess} (keeps type for future OpenFGA).
  */
-export const stubAuthzResolver: AuthzResolver = (actor, action, resource) => {
-  void resource;
-  if (!isAllowedByMatrix(actor.role, action)) {
-    return { allow: false, code: "forbidden", reason: "Role cannot perform this action in V1" };
-  }
-  return { allow: true };
+export const authzResolver: { canAccess: AuthzResolver } = {
+  canAccess: (actor, action, resource) => canAccess(actor, action, resource),
 };
 
-export function decideSync(actor: AuthActor, action: Action, resource: Resource): Decision {
-  return stubAuthzResolver(actor, action, resource) as Decision;
+export const stubAuthzResolver: AuthzResolver = (actor, action, resource) => {
+  return canAccess(actor, action, resource);
+};
+
+/** Sync helper used by RSC, middleware, and legacy call sites. */
+export function decideSync(
+  actor: AuthActor,
+  action: Action,
+  resource: Resource,
+  options?: { traceId?: string; skipAudit?: boolean },
+): Decision {
+  return canAccess(actor, action, resource, options);
 }

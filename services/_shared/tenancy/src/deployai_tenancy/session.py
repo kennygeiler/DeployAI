@@ -33,6 +33,17 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from deployai_tenancy.errors import IsolationViolation, MissingTenantScope
 
+_APP_ROLES: frozenset[str] = frozenset(
+    {
+        "platform_admin",
+        "customer_admin",
+        "deployment_strategist",
+        "successor_strategist",
+        "customer_records_officer",
+        "external_auditor",
+    },
+)
+
 TENANT_ID_KEY = "tenant_id"
 """Key used in ``session.info`` to stash the active tenant id."""
 
@@ -60,17 +71,30 @@ def _validate_tenant_id(tenant_id: UUID | None) -> UUID:
     return tenant_id
 
 
+def _validate_app_role(app_role: str | None) -> str | None:
+    """Return the role string for ``SET LOCAL app.current_role``, or ``None`` to skip."""
+    if app_role is None:
+        return None
+    if app_role not in _APP_ROLES:
+        raise MissingTenantScope(f"Invalid app_role for app.current_role GUC: {app_role!r}")
+    return app_role
+
+
 @asynccontextmanager
 async def TenantScopedSession(  # noqa: N802 — public API surface, PascalCase matches the
     # context-manager-as-constructor idiom used by :class:`contextlib.asynccontextmanager`.
     tenant_id: UUID,
     engine: AsyncEngine,
+    *,
+    app_role: str | None = None,
 ) -> AsyncIterator[AsyncSession]:
     """Open an :class:`AsyncSession` with the tenant scope injected.
 
     :param tenant_id: the tenant whose rows the caller may read/write. Must be a
         :class:`uuid.UUID`; a string raises :class:`MissingTenantScope`.
     :param engine: the :class:`AsyncEngine` to bind the session to.
+    :param app_role: optional V1 role string stored in ``SET LOCAL app.current_role``
+        for Postgres policies (Epic 2.1). Must be a known role or ``None``.
 
     :raises MissingTenantScope: if ``tenant_id`` is ``None`` or not a UUID.
     :raises IsolationViolation: if an enclosing ``TenantScopedSession`` is
@@ -81,6 +105,7 @@ async def TenantScopedSession(  # noqa: N802 — public API surface, PascalCase 
     scopes the GUC to the transaction, so no explicit RESET is needed.
     """
     validated = _validate_tenant_id(tenant_id)
+    role_for_guc = _validate_app_role(app_role)
 
     enclosing = _current_tenant.get()
     if enclosing is not None and enclosing != validated:
@@ -102,6 +127,11 @@ async def TenantScopedSession(  # noqa: N802 — public API surface, PascalCase 
                     text("SELECT set_config('app.current_tenant', :tid, true)"),
                     {"tid": str(validated)},
                 )
+                if role_for_guc is not None:
+                    await session.execute(
+                        text("SELECT set_config('app.current_role', :r, true)"),
+                        {"r": role_for_guc},
+                    )
                 session.info[TENANT_ID_KEY] = validated
                 session.info[TENANT_SCOPED_KEY] = True
                 # AC2 literal: also expose as attributes on the session object

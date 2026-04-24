@@ -1,18 +1,34 @@
 import type { Action } from "./types.js";
 import type { V1Role } from "./roles.js";
 
-/** Minimal role × action (Story 1-14, expanded in Epic 2.1 + docs/authz/role-matrix.md). */
+/** Role × action allow-list (Epic 2.1; human table in docs/authz/role-matrix.md). */
 const can: Array<[V1Role, Action]> = [
   ["platform_admin", "ingest:view_runs"],
   ["platform_admin", "ingest:configure"],
+  ["platform_admin", "ingest:sync"],
   ["platform_admin", "admin:view_schema_proposals"],
   ["platform_admin", "admin:promote_schema"],
   ["platform_admin", "foia:export"],
+  ["platform_admin", "canonical:read"],
+  ["platform_admin", "override:submit"],
+  ["platform_admin", "solidification:promote"],
+  ["platform_admin", "break_glass:invoke"],
+  ["platform_admin", "scim:manage"],
   ["customer_admin", "ingest:view_runs"],
+  ["customer_admin", "canonical:read"],
+  ["customer_admin", "override:submit"],
+  ["customer_admin", "scim:manage"],
   ["customer_records_officer", "ingest:view_runs"],
+  ["customer_records_officer", "canonical:read"],
   ["external_auditor", "foia:export"],
+  ["external_auditor", "canonical:read"],
   ["deployment_strategist", "ingest:view_runs"],
+  ["deployment_strategist", "ingest:sync"],
+  ["deployment_strategist", "canonical:read"],
+  ["deployment_strategist", "override:submit"],
   ["successor_strategist", "ingest:view_runs"],
+  ["successor_strategist", "canonical:read"],
+  ["successor_strategist", "override:submit"],
 ];
 
 const key = (role: V1Role, a: Action) => `${role}::${a}`;

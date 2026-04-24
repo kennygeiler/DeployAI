@@ -141,3 +141,15 @@ async def test_attributes_exposed_on_session(sqlite_engine: AsyncEngine) -> None
     async with TenantScopedSession(_SAMPLE_TENANT, sqlite_engine) as session:
         assert session.tenant_id == _SAMPLE_TENANT  # type: ignore[attr-defined]
         assert session.is_tenant_scoped is True  # type: ignore[attr-defined]
+
+
+async def test_app_role_guc_epic_2_1(sqlite_engine: AsyncEngine) -> None:
+    """Epic 2.1: optional ``app_role`` runs the ``app.current_role`` ``set_config`` path."""
+    async with TenantScopedSession(_SAMPLE_TENANT, sqlite_engine, app_role="platform_admin") as session:
+        assert session.info[TENANT_ID_KEY] == _SAMPLE_TENANT
+
+
+async def test_invalid_app_role_raises(sqlite_engine: AsyncEngine) -> None:
+    with pytest.raises(MissingTenantScope, match="Invalid app_role"):
+        async with TenantScopedSession(_SAMPLE_TENANT, sqlite_engine, app_role="not_a_real_role"):
+            pass
