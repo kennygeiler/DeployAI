@@ -52,7 +52,12 @@ def require_platform_admin(
     claims: Annotated[dict[str, object], Depends(bearer_access_claims)],
 ) -> dict[str, object]:
     roles = claims.get("roles")
-    if not isinstance(roles, list) or "platform_admin" not in roles:
+    if not isinstance(roles, list) or not all(isinstance(x, str) for x in roles):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="platform_admin role required",
+        )
+    if "platform_admin" not in roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="platform_admin role required",
@@ -80,7 +85,10 @@ async def refresh_session(body: RefreshBody) -> dict[str, object]:
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout_session(body: LogoutBody) -> Response:
-    ok = await session_service_mod.logout(body.tenant_id, body.refresh_token)
+    try:
+        ok = await session_service_mod.logout(body.tenant_id, body.refresh_token)
+    except TenantMismatchError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant mismatch") from e
     if not ok:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unknown refresh token")
     return Response(status_code=status.HTTP_204_NO_CONTENT)

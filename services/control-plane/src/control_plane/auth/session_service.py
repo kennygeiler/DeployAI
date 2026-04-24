@@ -40,6 +40,29 @@ def _jti_str(j: str | bytes) -> str:
     return j
 
 
+def _parse_session_blob(
+    raw: str,
+) -> tuple[uuid.UUID, uuid.UUID, list[str]]:
+    """Load refresh JSON; raise InvalidRefreshError on bad data (never KeyError/JSONError)."""
+    try:
+        obj: Any = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise InvalidRefreshError("corrupt session record") from e
+    if not isinstance(obj, dict):
+        raise InvalidRefreshError("invalid session record shape")
+    try:
+        tenant_id = uuid.UUID(str(obj["tenant_id"]))
+        user_id = uuid.UUID(str(obj["user_id"]))
+    except (KeyError, ValueError) as e:
+        raise InvalidRefreshError("invalid session record fields") from e
+    rraw = obj.get("roles", [])
+    if isinstance(rraw, list) and all(isinstance(x, str) for x in rraw):
+        roles: list[str] = list(rraw)
+    else:
+        roles = []
+    return tenant_id, user_id, roles
+
+
 async def _touch_user_index(
     r: redis.Redis,
     tenant_id: uuid.UUID,
@@ -107,33 +130,25 @@ async def refresh_tokens(tenant_id: uuid.UUID, refresh_jti: str) -> SessionPair:
     raw = await r.get(jti_global_lookup_key(refresh_jti))
     if not raw:
         raise InvalidRefreshError("expired or unknown refresh")
-    data: dict[str, Any] = json.loads(raw)
-    if uuid.UUID(data["tenant_id"]) != tenant_id:
+    stored_tid, user_id, roles = _parse_session_blob(raw)
+    if stored_tid != tenant_id:
         raise TenantMismatchError
-    user_id = uuid.UUID(data["user_id"])
-    raw_roles = data.get("roles")
-    roles: list[str]
-    if isinstance(raw_roles, list) and all(isinstance(x, str) for x in raw_roles):
-        roles = raw_roles
-    else:
-        roles = []
-    await _remove_refresh_record(r, tenant_id, user_id, refresh_jti)
+    await _remove_refresh_record(r, stored_tid, user_id, refresh_jti)
     if not roles:
         raise InvalidRefreshError("session missing roles; re-authenticate")
-    return await issue_tokens(tenant_id, user_id, roles)
+    return await issue_tokens(stored_tid, user_id, roles)
 
 
 async def logout(tenant_id: uuid.UUID, refresh_jti: str) -> bool:
+    """Remove refresh keys. Return False if unknown. Raise TenantMismatchError if JTI is for another tenant."""
     r = get_async_redis()
-    key = session_refresh_key(tenant_id, refresh_jti)
-    raw = await r.get(key)
+    raw = await r.get(jti_global_lookup_key(refresh_jti))
     if not raw:
         return False
-    data = json.loads(raw)
-    if uuid.UUID(data["tenant_id"]) != tenant_id:
-        return False
-    user_id = uuid.UUID(data["user_id"])
-    await _remove_refresh_record(r, tenant_id, user_id, refresh_jti)
+    stored_tid, user_id, _roles = _parse_session_blob(raw)
+    if stored_tid != tenant_id:
+        raise TenantMismatchError
+    await _remove_refresh_record(r, stored_tid, user_id, refresh_jti)
     return True
 
 
@@ -144,13 +159,14 @@ async def revoke_all_for_user(tenant_id: uuid.UUID, user_id: uuid.UUID) -> int:
     jtis = await r.smembers(idx)  # type: ignore[misc]
     if not jtis:
         return 0
-    n = 0
-    for jti in jtis:
-        j = _jti_str(jti)
-        await r.delete(session_refresh_key(tenant_id, j))
-        await r.delete(jti_global_lookup_key(j))
-        n += 1
-    await r.delete(idx)
+    async with r.pipeline(transaction=True) as pipe:
+        for jti in jtis:
+            j = _jti_str(jti)
+            pipe.delete(session_refresh_key(tenant_id, j))
+            pipe.delete(jti_global_lookup_key(j))
+        pipe.delete(idx)
+        await pipe.execute()
+    n = len(jtis)
     logger.info(
         "sessions.revoke_all",
         extra={"tenant_id": str(tenant_id), "user_id": str(user_id), "deleted_refresh_keys": n},

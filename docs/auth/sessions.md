@@ -35,7 +35,7 @@ Tuning (defaults match architecture):
 
 - `POST /internal/v1/test/session-tokens` — (internal key + `DEPLOYAI_ALLOW_TEST_SESSION_MINT`) mints access + refresh for integration tests.
 - `POST /auth/refresh` — body `{ "tenant_id": "<uuid>", "refresh_token": "<opaque>" }` (rotates refresh).
-- `POST /auth/logout` — same body; deletes the refresh from Redis.
+- `POST /auth/logout` — same body; looks up the refresh via `jti:{jti}` (like refresh). Wrong `tenant_id` → **403**; unknown refresh → **401**.
 - `POST /auth/sessions/revoke-all/{user_id}` — **Bearer** access token with `platform_admin` in `roles`; revokes all refresh keys for that user in the **token’s** tenant.
 
 Access tokens are **not** stored in Redis; only refresh metadata is.
