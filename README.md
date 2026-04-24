@@ -69,7 +69,7 @@ This project uses the [BMAD Method](./.cursor/skills/) — specialized AI agents
 
 `services/control-plane` is covered by a default **unit** `pytest` run and a Docker-backed **integration** suite; see [services/control-plane/README.md — Tests](./services/control-plane/README.md#tests). The **Control plane (integration)** job in [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) runs the full `tests/integration/` tree on every PR to `main`.
 
-**Branch protection** should list the checks in [`.github/workflows/README.md` — Required checks on `main`](./.github/workflows/README.md#required-checks-on-main) (14 jobs across `CI`, `a11y`, `compose-smoke`, `schema`, `fuzz`). Add any missing names in **GitHub → Settings → Rules**; path-filtered jobs may be **skipped** on narrow PRs — see that section.
+**`main` ruleset (GitHub):** A repository **ruleset** is defined in [`scripts/github/main-ruleset.json`](./scripts/github/main-ruleset.json) (applied 2026-04-24) and enforces the 14 required checks in [`.github/workflows/README.md`](./.github/workflows/README.md#required-checks-on-main). Re-apply or edit via [`scripts/github/README.md`](./scripts/github/README.md). Remove duplicate legacy **Branch protection** on `main` if both are active.
 
 **Retrospectives** for closed epics: [`epic-2-retrospective-2026-04-23.md`](./_bmad-output/implementation-artifacts/epic-2-retrospective-2026-04-23.md) · [`epic-3-retrospective-2026-04-23.md`](./_bmad-output/implementation-artifacts/epic-3-retrospective-2026-04-23.md). **Backlog follow-ups (Epic 3):** [deferred-work.md — Epic 3 section](./_bmad-output/implementation-artifacts/deferred-work.md#epic-3-backlog-follow-ups-2026-04-23).
 

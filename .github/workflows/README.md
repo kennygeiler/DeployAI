@@ -144,10 +144,16 @@ From `fuzz.yml` (workflow `name: fuzz`):
 
 **Path-filtered workflows** (`schema`, `fuzz`, `compose-smoke`): they only
 run when changed paths match `on: paths:`. On PRs that **do not** touch
-those paths, GitHub may show these checks as **skipped** — use **Rulesets**
-“Do not require status checks that are skipped” (or equivalent) so
-docs-only PRs are not blocked, *or* accept that admins may need to merge
-with skipped checks when appropriate.
+those paths, GitHub may show these checks as **skipped** — in **Rulesets**,
+use **“Do not require status checks that are skipped”** (or merge with admin
+overrides) so docs-only PRs are not stuck.
+
+**Repository ruleset (automated):** the `main` branch has an active
+**ruleset** (status checks + PR-only merge) defined as JSON in
+[`scripts/github/main-ruleset.json`](../../scripts/github/main-ruleset.json)
+and documented in [`scripts/github/README.md`](../../scripts/github/README.md).
+Re-apply with `gh api` per that README. Remove legacy **Branch protection**
+rules on `main` if they duplicate this ruleset (Settings → Branches).
 
 > The `ci.yml` names carry parenthetical descriptors for historical
 > reasons (Story 1.2) — branch protection matches the literal string,
