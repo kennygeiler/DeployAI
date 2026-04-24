@@ -5,7 +5,6 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from deployai_authz import can_access
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from control_plane.api.break_glass_http import require_break_glass_webauthn
@@ -34,20 +33,16 @@ async def break_glass_request(
     if not isinstance(sub, str) or not sub:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid subject in token")
     actor = auth_actor_from_claims(claims)
-    d = can_access(
-        actor,
-        "break_glass:invoke",
-        {"kind": "tenant", "id": str(body.tenant_id)},
-        skip_audit=False,
-    )
-    if not d.allow:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=d.reason)
-    row = await create_request(
-        session,
-        tenant_id=body.tenant_id,
-        initiator_sub=sub,
-        requested_scope=body.requested_scope,
-    )
+    try:
+        row = await create_request(
+            session,
+            tenant_id=body.tenant_id,
+            initiator_sub=sub,
+            requested_scope=body.requested_scope,
+            auth_actor=actor,
+        )
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
     return BreakGlassSessionRead.model_validate(row, from_attributes=True)
 
 
@@ -64,12 +59,15 @@ async def break_glass_approve(
     sub = claims.get("sub")
     if not isinstance(sub, str) or not sub:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid subject in token")
+    actor = auth_actor_from_claims(claims)
     try:
-        row = await approve(session, session_id=session_id, approver_sub=sub)
+        row = await approve(session, session_id=session_id, approver_sub=sub, auth_actor=actor)
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
     return BreakGlassSessionRead.model_validate(row, from_attributes=True)
 
 
@@ -86,13 +84,11 @@ async def break_glass_delete(
     sub = claims.get("sub")
     if not isinstance(sub, str) or not sub:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid subject in token")
+    actor = auth_actor_from_claims(claims)
     try:
-        await revoke(
-            session,
-            session_id=session_id,
-            actor_sub=sub,
-            allow_if_platform=True,
-        )
+        await revoke(session, session_id=session_id, actor_sub=sub, auth_actor=actor)
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
     return Response(status_code=status.HTTP_204_NO_CONTENT)
