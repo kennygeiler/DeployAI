@@ -64,6 +64,9 @@ class ControlPlaneSettings(BaseSettings):
     m365_mail_redirect_uri: str | None = None
     """Reply URL for ``/integrations/m365-mail/callback``; register separately in Entra."""
 
+    m365_teams_redirect_uri: str | None = None
+    """Reply URL for ``/integrations/m365-teams/callback``; add Teams + transcript scopes in Entra."""
+
     ingest_email_body_mode: Literal["stub", "s3"] = "stub"
     """``stub`` stores bodies on disk (see below); ``s3`` is not implemented yet."""
 
