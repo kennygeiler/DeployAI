@@ -4,4 +4,5 @@ export type V1Role =
   | "deployment_strategist"
   | "successor_strategist"
   | "customer_records_officer"
-  | "external_auditor";
+  | "external_auditor"
+  | "pending_assignment";

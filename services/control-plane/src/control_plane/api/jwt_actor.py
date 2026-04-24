@@ -18,6 +18,7 @@ _V1_ORDER: tuple[V1Role, ...] = (
     "successor_strategist",
     "customer_records_officer",
     "external_auditor",
+    "pending_assignment",  # lowest precedence: SSO / not yet assigned (Story 2-2)
 )
 
 

@@ -1,9 +1,10 @@
-"""OIDC sign-in (Story 2-2) — Entra v2.0 with PKCE; session + JIT in follow-up."""
+"""OIDC sign-in (Story 2-2) — Entra v2.0 with PKCE, JIT user, Redis session, cookies."""
 
 from __future__ import annotations
 
 import secrets
 import urllib.parse
+import uuid
 from typing import Annotated, Final
 
 import httpx
@@ -20,7 +21,10 @@ from control_plane.auth.oidc_flow import (
     pkce_pair,
     verify_id_token,
 )
+from control_plane.auth.session_service import issue_tokens
 from control_plane.config.settings import get_settings
+from control_plane.db import AppDbSession
+from control_plane.services.oidc_user import resolve_or_create_oidc_user
 
 _C_STATE: Final = "dep_oidc_state"
 _C_VERIFIER: Final = "dep_oidc_verifier"
@@ -49,12 +53,18 @@ def _redirect_scheme_https(redirect_uri: str) -> bool:
     return urllib.parse.urlparse(redirect_uri).scheme == "https"
 
 
-class OidcIdpUser(BaseModel):
+class OidcSessionIssued(BaseModel):
     sub: str
+    user_id: uuid.UUID
+    tenant_id: uuid.UUID
+    access_token: str
+    refresh_token: str
+    token_type: str = "Bearer"
+    expires_in: int
     email: str | None = None
     name: str | None = None
     message: str = Field(
-        default="IdP verified; next: JIT user row + Set-Cookie session (Story 2-2/2-4).",
+        default="Session stored in Redis; HttpOnly dep_access / dep_refresh cookies set (same-site).",
     )
 
 
@@ -111,17 +121,18 @@ async def oidc_login() -> Response:
 
 @oidc_router.get(
     "/callback",
-    response_model=OidcIdpUser,
-    summary="OIDC redirect URI; validates code, verifies id_token (JWKS)",
+    response_model=OidcSessionIssued,
+    summary="OIDC callback: code + id_token verify, JIT user, issue Redis session, Set-Cookie",
 )
 async def oidc_callback(
     request: Request,
     response: Response,
+    session: AppDbSession,
     code: Annotated[str | None, Query()] = None,
     state: Annotated[str | None, Query()] = None,
     error: Annotated[str | None, Query()] = None,
     error_description: Annotated[str | None, Query()] = None,
-) -> OidcIdpUser:
+) -> OidcSessionIssued:
     if error or error_description:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -145,13 +156,13 @@ async def oidc_callback(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or missing OIDC state (retry login)",
         )
-    s = get_settings()
-    assert s.oidc_issuer and s.oidc_client_id and s.oidc_client_secret and s.oidc_redirect_uri
-    secure = _redirect_scheme_https(s.oidc_redirect_uri)
+    sett = get_settings()
+    assert sett.oidc_issuer and sett.oidc_client_id and sett.oidc_client_secret and sett.oidc_redirect_uri
+    secure = _redirect_scheme_https(sett.oidc_redirect_uri)
 
     async with httpx.AsyncClient() as c:
         try:
-            metadata = await fetch_openid_metadata(c, s.oidc_issuer)
+            metadata = await fetch_openid_metadata(c, sett.oidc_issuer)
         except OidcError as e:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e)) from e
         try:
@@ -159,10 +170,10 @@ async def oidc_callback(
                 c,
                 metadata,
                 code=code,
-                redirect_uri=s.oidc_redirect_uri,
+                redirect_uri=sett.oidc_redirect_uri,
                 code_verifier=c_ver,
-                client_id=s.oidc_client_id,
-                client_secret=s.oidc_client_secret,
+                client_id=sett.oidc_client_id,
+                client_secret=sett.oidc_client_secret,
             )
         except OidcError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
@@ -173,7 +184,7 @@ async def oidc_callback(
         claims = verify_id_token(
             id_tok,
             metadata,
-            client_id=s.oidc_client_id,
+            client_id=sett.oidc_client_id,
             jwk_client=jwk,
         )
     except OidcError as e:
@@ -189,14 +200,60 @@ async def oidc_callback(
     e_raw = claims.get("email")
     if isinstance(e_raw, str) and e_raw:
         email = e_raw
-    name: str | None = None
+    idp_name: str | None = None
     n_raw = claims.get("name")
     if isinstance(n_raw, str) and n_raw:
-        name = n_raw
+        idp_name = n_raw
 
-    for name in (_C_STATE, _C_VERIFIER, _C_NONCE):
-        response.delete_cookie(name, path="/", secure=secure, httponly=True, samesite="lax")
-    return OidcIdpUser(sub=sub, email=email, name=name)
+    for cname in (_C_STATE, _C_VERIFIER, _C_NONCE):
+        response.delete_cookie(cname, path="/", secure=secure, httponly=True, samesite="lax")
+
+    try:
+        user, roles = await resolve_or_create_oidc_user(
+            session,
+            entra_sub=sub,
+            email=email,
+            idp_name=idp_name,
+        )
+        pair = await issue_tokens(user.tenant_id, user.id, roles)
+    except RuntimeError as e:
+        if "DEPLOYAI_JWT_PRIVATE_KEY" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Session issuance unavailable (signing key not configured).",
+            ) from e
+        raise
+
+    response.set_cookie(
+        sett.session_access_cookie,
+        pair.access_token,
+        max_age=sett.access_token_ttl_seconds,
+        httponly=True,
+        samesite="lax",
+        path="/",
+        secure=secure,
+    )
+    response.set_cookie(
+        sett.session_refresh_cookie,
+        pair.refresh_jti,
+        max_age=sett.refresh_token_ttl_seconds,
+        httponly=True,
+        samesite="lax",
+        path="/",
+        secure=secure,
+    )
+
+    return OidcSessionIssued(
+        sub=sub,
+        user_id=user.id,
+        tenant_id=user.tenant_id,
+        access_token=pair.access_token,
+        refresh_token=pair.refresh_jti,
+        token_type=pair.token_type,
+        expires_in=pair.expires_in,
+        email=email,
+        name=idp_name,
+    )
 
 
 @auth_entry_router.get("/login", summary="Start SSO (OIDC when configured)")

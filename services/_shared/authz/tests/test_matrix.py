@@ -32,6 +32,7 @@ def test_matrix_parity_sample() -> None:
     assert matrix_allowed("deployment_strategist", "integration:kill_switch") is True
     assert matrix_allowed("deployment_strategist", "break_glass:invoke") is False
     assert matrix_allowed("customer_admin", "integration:kill_switch") is False
+    assert matrix_allowed("pending_assignment", "canonical:read") is False
 
 
 @pytest.mark.parametrize(

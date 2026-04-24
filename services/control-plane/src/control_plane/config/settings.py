@@ -53,6 +53,10 @@ class ControlPlaneSettings(BaseSettings):
     oidc_redirect_uri: str | None = None
     """Registered reply URL, e.g. ``https://cp.example.com/auth/oidc/callback`` (must match Entra app registration)."""
 
+    session_access_cookie: str = "dep_access"
+    session_refresh_cookie: str = "dep_refresh"
+    """HttpOnly cookies set on OIDC callback (browser clients); `POST /auth/refresh` still uses JSON body too."""
+
     @field_validator("allow_test_session_mint", "break_glass_bypass_webauthn", mode="before")
     @classmethod
     def _coerce_bool(cls, v: object) -> bool:

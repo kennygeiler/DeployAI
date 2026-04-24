@@ -14,6 +14,23 @@ from typing import Any
 import pytest
 from sqlalchemy import Engine, text
 
+from control_plane.auth.sso_tenant import SSO_PENDING_TENANT_ID
+
+
+@pytest.fixture(autouse=True)
+def _ensure_sso_pending_tenant(postgres_engine: Engine) -> Generator[None]:
+    """TRUNCATE removes the migration-seeded system tenant; restore before each test."""
+    with postgres_engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO app_tenants (id, name, scim_bearer_token_hash) "
+                "VALUES (:id, 'SSO pending (system)', NULL) "
+                "ON CONFLICT (id) DO NOTHING"
+            ),
+            {"id": str(SSO_PENDING_TENANT_ID)},
+        )
+    yield
+
 
 @pytest.fixture(autouse=True)
 def _clean_tenant_rows(postgres_engine: Engine) -> Generator[None]:

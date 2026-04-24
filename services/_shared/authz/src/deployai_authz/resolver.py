@@ -12,6 +12,7 @@ V1Role = Literal[
     "successor_strategist",
     "customer_records_officer",
     "external_auditor",
+    "pending_assignment",  # SSO: no matrix capabilities until tenant/role bound (Story 2-2)
 ]
 
 Action = Literal[
