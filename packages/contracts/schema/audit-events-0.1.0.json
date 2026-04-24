@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deployai.dev/schemas/audit-events-0.1.0.json",
+  "title": "DeployAI audit event names (control-plane, structured logs; Epic 2+)",
+  "type": "object",
+  "properties": {
+    "events": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Stable event name strings; RFC 3161 body signing (Story 1-13) is separate."
+    }
+  },
+  "examples": [
+    {
+      "events": [
+        "account.provisioned",
+        "integration.killswitch_triggered",
+        "integration.killswitch_oauth_revoke_stub",
+        "integration.killswitch_queue_purge_stub",
+        "integration.killswitch_secrets_stub",
+        "audit_events.break_glass.requested",
+        "audit_events.break_glass.approved",
+        "audit_events.break_glass.revoked"
+      ]
+    }
+  ]
+}

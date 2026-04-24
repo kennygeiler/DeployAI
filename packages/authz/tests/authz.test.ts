@@ -52,6 +52,7 @@ describe("canAccess + matrix (Epic 2.1)", () => {
 
   it.each<[V1Role, Action, boolean]>([
     ["deployment_strategist", "ingest:view_runs", true],
+    ["deployment_strategist", "integration:kill_switch", true],
     ["deployment_strategist", "break_glass:invoke", false],
     ["customer_admin", "scim:manage", true],
     ["customer_admin", "break_glass:invoke", false],

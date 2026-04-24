@@ -29,7 +29,9 @@ def test_can_access_cross_tenant() -> None:
 
 def test_matrix_parity_sample() -> None:
     assert matrix_allowed("deployment_strategist", "ingest:sync") is True
+    assert matrix_allowed("deployment_strategist", "integration:kill_switch") is True
     assert matrix_allowed("deployment_strategist", "break_glass:invoke") is False
+    assert matrix_allowed("customer_admin", "integration:kill_switch") is False
 
 
 @pytest.mark.parametrize(

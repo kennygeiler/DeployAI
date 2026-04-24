@@ -13,6 +13,8 @@ from importlib import metadata
 from fastapi import FastAPI
 
 from control_plane.api.routes.auth import router as auth_router
+from control_plane.api.routes.break_glass import router as break_glass_router
+from control_plane.api.routes.integrations import router as integrations_router
 from control_plane.api.routes.internal_session import router as internal_session_router
 from control_plane.api.routes.platform import router as platform_router
 from control_plane.api.routes.schema_proposals import router as schema_proposals_internal_router
@@ -25,6 +27,8 @@ except metadata.PackageNotFoundError:  # editable/unbuilt installs
 
 app = FastAPI(title="DeployAI Control Plane", version=_version)
 app.include_router(auth_router)
+app.include_router(break_glass_router)
+app.include_router(integrations_router)
 app.include_router(platform_router)
 app.include_router(schema_proposals_internal_router, prefix="/internal/v1")
 app.include_router(internal_session_router, prefix="/internal/v1")

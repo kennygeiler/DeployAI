@@ -15,3 +15,7 @@ class UserRecordIncompleteError(AccountProvisionError):
 
 class TenantDekModeNotAvailableError(AccountProvisionError):
     """The configured ``tenant_dek_mode`` (e.g. ``aws_kms``) is not implemented."""
+
+
+class NotFoundError(Exception):
+    """Generic missing row (map to 404 in HTTP layer)."""

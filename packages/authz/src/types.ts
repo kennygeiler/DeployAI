@@ -8,6 +8,7 @@ export type Action =
   | "ingest:view_runs"
   | "ingest:configure"
   | "ingest:sync"
+  | "integration:kill_switch"
   | "admin:view_schema_proposals"
   | "admin:promote_schema"
   | "foia:export"

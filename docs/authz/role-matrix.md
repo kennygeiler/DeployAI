@@ -7,6 +7,7 @@ This document is the human-facing source for `packages/authz/src/matrix.ts` and 
 | **ingest:view_runs** | V1 | V1 | V1 | V1 | V1 | — |
 | **ingest:configure** | V1 | — | — | — | — | — |
 | **ingest:sync** | V1 | — | — | V1 | — | — |
+| **integration:kill_switch** | V1 | — | — | V1 | — | — |
 | **canonical:read** | V1 | V1 | V1 | V1 | V1 | V1⁺ |
 | **override:submit** | V1 | V1 | — | V1 | V1 | — |
 | **admin:view_schema_proposals** | V1 | — | — | — | — | — |

@@ -19,12 +19,14 @@ dependencies = [
   "cryptography>=44.0.0",
   # Story 1.9 — shared tenancy primitives (TenantScopedSession + RLS glue).
   "deployai-tenancy",
+  "deployai-authz",
   # Story 1.11 — citation envelope Pydantic mirror of @deployai/contracts.
   "deployai-citation",
 ]
 
 [tool.uv.sources]
 deployai-tenancy = { path = "../_shared/tenancy", editable = true }
+deployai-authz = { path = "../_shared/authz", editable = true }
 deployai-citation = { path = "../_shared/citation", editable = true }
 
 [dependency-groups]
@@ -68,6 +70,10 @@ strict = true
 plugins = ["pydantic.mypy"]
 mypy_path = "src"
 packages = ["control_plane"]
+
+[[tool.mypy.overrides]]
+module = ["deployai_authz", "deployai_authz.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

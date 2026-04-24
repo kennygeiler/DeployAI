@@ -42,7 +42,10 @@ class ControlPlaneSettings(BaseSettings):
     tenant_dek_mode: Literal["stub", "aws_kms"] = "stub"
     """``stub`` stores random key material (dev/tests). ``aws_kms`` — TODO(Story 2-5+): real KMS wrap."""
 
-    @field_validator("allow_test_session_mint", mode="before")
+    break_glass_bypass_webauthn: bool = False
+    """When True (dev/tests only), skip ``X-DeployAI-WebAuthn-Assertion`` on break-glass routes. Production: False."""
+
+    @field_validator("allow_test_session_mint", "break_glass_bypass_webauthn", mode="before")
     @classmethod
     def _coerce_bool(cls, v: object) -> bool:
         if isinstance(v, bool):
