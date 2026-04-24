@@ -54,6 +54,8 @@ class CompleteUploadResponse(BaseModel):
     inserted: int
     idempotent: bool = False
     source_ref: str
+    queue_dispatched: bool = False
+    """``True`` when a transcribe job was sent to ``DEPLOYAI_INGEST_UPLOAD_SQS_URL`` (best-effort)."""
 
 
 def _resolve_tenant(actor: AuthActor, body: PresignUploadRequest) -> uuid.UUID:
@@ -176,4 +178,5 @@ async def complete_artifact_upload(
         inserted=int(r.get("inserted", 0)),
         idempotent=bool(r.get("idempotent")),
         source_ref=str(r.get("source_ref", "")),
+        queue_dispatched=bool(r.get("queue_dispatched")),
     )

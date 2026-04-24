@@ -82,7 +82,10 @@ class ControlPlaneSettings(BaseSettings):
     """Key prefix (no leading/trailing slash). Objects: ``{prefix}/tenant/{tid}/...``"""
 
     ingest_upload_sqs_url: str | None = None
-    """When set, future workers consume transcribe jobs (Epic 3-4+); v1 only logs a stub line."""
+    """SQS queue URL; ``/upload/artifacts/complete`` sends a job; run ``python -m control_plane.workers.transcribe_upload``."""
+
+    upload_asr_mode: Literal["stub", "transcribe"] = "stub"
+    """``stub`` = worker writes deterministic placeholder text. ``transcribe`` = reserved for real AWS Transcribe (logs + stub until wired)."""
 
     graph_ingest_rps: float = 1000.0
     """Token-bucket rate for Microsoft Graph (Story 3-7); default 1000 req/s, configurable (NFR19)."""

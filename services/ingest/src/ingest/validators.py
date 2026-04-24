@@ -19,6 +19,7 @@ SESSION_LEVEL_EVENT_TYPES: Final[frozenset[str]] = frozenset(
     {
         "meeting.transcript",
         "upload.transcript",
+        "asr.transcript",
         "calendar.event",
     }
 )

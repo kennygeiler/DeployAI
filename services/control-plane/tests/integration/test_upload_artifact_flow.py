@@ -20,6 +20,7 @@ from control_plane.auth.jwt_tokens import clear_jwt_key_cache, create_access_tok
 from control_plane.config.settings import clear_settings_cache
 from control_plane.db import clear_engine_cache
 from control_plane.main import app
+from control_plane.workers.transcribe_upload import process_transcribe_job
 
 from .test_account_provision_flow import _async_database_url_from_engine
 
@@ -144,3 +145,67 @@ async def test_upload_presign_put_complete_canonical(
             {"t": str(tid), "s": src},
         ).scalar_one()
     assert int(n) == 1
+
+
+@pytest.mark.asyncio
+async def test_upload_sqs_message_worker_inserts_asr_transcript(
+    upload_http_client: tuple[AsyncClient, Any], postgres_engine: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _priv = upload_http_client
+    tid = uuid.uuid4()
+    _ins_tenant(postgres_engine, tid)
+    tok = create_access_token(
+        sub="st2", tid=str(tid), roles=["deployment_strategist"], access_jti="up-i2"
+    )
+    with mock_aws():
+        s3 = boto3.client("s3", region_name=_REGION)
+        sqs = boto3.client("sqs", region_name=_REGION)
+        s3.create_bucket(Bucket=_BUCKET)
+        qurl = sqs.create_queue(QueueName="up-transcribe-jobs")["QueueUrl"]
+        monkeypatch.setenv("DEPLOYAI_INGEST_UPLOAD_SQS_URL", qurl)
+        clear_settings_cache()
+        r0 = await client.post(
+            "/upload/artifacts/presign",
+            json={
+                "tenant_id": str(tid),
+                "filename": "long.m4a",
+                "content_type": "audio/mp4",
+                "file_size": 4000,
+            },
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r0.status_code == 200, r0.text
+        b0 = r0.json()
+        key = b0["object_key"]
+        upload_id = b0["upload_id"]
+        s3.put_object(Bucket=_BUCKET, Key=key, Body=b"x" * 2000, ContentType="audio/mp4")
+        r1 = await client.post(
+            "/upload/artifacts/complete",
+            json={
+                "tenant_id": str(tid),
+                "object_key": key,
+                "upload_id": upload_id,
+                "consent_two_party": True,
+                "recording_jurisdiction": "US-CA",
+            },
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r1.status_code == 200, r1.text
+        assert r1.json().get("queue_dispatched") is True
+        recv = sqs.receive_message(QueueUrl=qurl, MaxNumberOfMessages=1, WaitTimeSeconds=1)
+        raw = (recv.get("Messages") or [{}])[0].get("Body")
+        assert raw and "upload_id" in raw
+        out1 = await process_transcribe_job(job_body=raw)
+        out2 = await process_transcribe_job(job_body=raw)
+    assert out1 == "inserted"
+    assert out2 == "deduped"
+    with postgres_engine.begin() as cx:
+        n_ingest = cx.execute(
+            text(
+                "SELECT count(*)::int FROM canonical_memory_events "
+                "WHERE tenant_id = CAST(:t AS uuid) AND event_type = 'asr.transcript' "
+                "AND source_ref = :s"
+            ),
+            {"t": str(tid), "s": f"upload:asr:{upload_id}"},
+        ).scalar_one()
+    assert int(n_ingest) == 1

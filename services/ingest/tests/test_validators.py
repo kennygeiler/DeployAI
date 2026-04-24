@@ -31,6 +31,7 @@ def test_accept_session_unit_events() -> None:
     for et in (
         "meeting.transcript",
         "upload.transcript",
+        "asr.transcript",
         "calendar.event",
     ):
         assert validate_extraction_queue_event(event_type=et) == "session"

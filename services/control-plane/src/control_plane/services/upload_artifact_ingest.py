@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from control_plane.config.settings import get_settings
 from control_plane.db import tenant_session
 from control_plane.domain.canonical_memory.events import CanonicalMemoryEvent
+from control_plane.infra.sqs_transcribe_job import try_send_transcribe_job_sqs
 from control_plane.infra.transcript_artifact_store import store_transcript_plain_text
 from control_plane.services.upload_artifact_s3 import (
     assert_artifact_key_for_upload,
@@ -37,18 +38,6 @@ async def _source_ref_exists(t_session: AsyncSession, *, tenant_id: uuid.UUID, s
         )
     )
     return r.scalar_one_or_none() is not None
-
-
-def _emit_ingest_job_stub(*, tenant_id: uuid.UUID, object_key: str, content_length: int, transcript_ref: str) -> None:
-    _LOG.info(
-        "ingest.upload.registered",
-        extra={
-            "tenant": str(tenant_id),
-            "key": object_key,
-            "bytes": content_length,
-            "transcript_ref": transcript_ref,
-        },
-    )
 
 
 async def complete_meeting_artifact(
@@ -74,18 +63,26 @@ async def complete_meeting_artifact(
     source_ref = f"upload:artifact:{upload_id}"
     async with tenant_session(tenant_id) as t0:
         if await _source_ref_exists(t0, tenant_id=tenant_id, source_ref=source_ref):
-            return {"inserted": 0, "idempotent": True, "source_ref": source_ref}
+            return {
+                "inserted": 0,
+                "idempotent": True,
+                "source_ref": source_ref,
+                "queue_dispatched": False,
+            }
 
     tref = await store_transcript_plain_text(
         tenant_id=tenant_id,
         artifact_id=f"upload-{upload_id}",
         text=_STUB_TRANSCRIPTION,
     )
-    _emit_ingest_job_stub(
-        tenant_id=tenant_id,
-        object_key=object_key,
-        content_length=size,
-        transcript_ref=tref,
+    _LOG.info(
+        "ingest.upload.registered",
+        extra={
+            "tenant": str(tenant_id),
+            "key": object_key,
+            "bytes": size,
+            "transcript_ref": tref,
+        },
     )
     payload: dict[str, Any] = {
         "session_unit": "upload.transcript",
@@ -114,6 +111,25 @@ async def complete_meeting_artifact(
         except IntegrityError:
             await t_sess.rollback()
             if await _source_ref_exists(t_sess, tenant_id=tenant_id, source_ref=source_ref):
-                return {"inserted": 0, "idempotent": True, "source_ref": source_ref}
+                return {
+                    "inserted": 0,
+                    "idempotent": True,
+                    "source_ref": source_ref,
+                    "queue_dispatched": False,
+                }
             raise
-    return {"inserted": 1, "idempotent": False, "source_ref": source_ref}
+    q_ok = await asyncio.to_thread(
+        try_send_transcribe_job_sqs,
+        tenant_id=tenant_id,
+        object_key=object_key,
+        upload_id=upload_id,
+        s3_uri=s3_uri,
+        s3_object_size=size,
+        recording_jurisdiction=j,
+    )
+    return {
+        "inserted": 1,
+        "idempotent": False,
+        "source_ref": source_ref,
+        "queue_dispatched": bool(q_ok),
+    }
