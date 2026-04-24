@@ -1,4 +1,4 @@
-"""Microsoft identity + Graph delegated OAuth (Epic 3: calendar + mail)."""
+"""Microsoft identity + Graph delegated OAuth (Epic 3: calendar, mail, Teams)."""
 
 from __future__ import annotations
 
@@ -18,6 +18,14 @@ GRAPH_SCOPES = GRAPH_CALENDAR_SCOPES  # backward compat
 
 GRAPH_MAIL_SCOPES: str = (
     "offline_access https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/User.Read"
+)
+
+# Story 3-3: calendar (discover online meetings) + online meeting + transcript read
+GRAPH_TEAMS_SCOPES: str = (
+    "offline_access https://graph.microsoft.com/User.Read "
+    "https://graph.microsoft.com/Calendars.Read "
+    "https://graph.microsoft.com/OnlineMeetings.Read "
+    "https://graph.microsoft.com/OnlineMeetingTranscript.Read.All"
 )
 
 
@@ -48,6 +56,17 @@ def m365_mail_oauth_creds(s: ControlPlaneSettings) -> tuple[str, str, str, str] 
     if t is None:
         return None
     redir = (s.m365_mail_redirect_uri or "").strip()
+    if not redir:
+        return None
+    return (t[0], t[1], t[2], redir)
+
+
+def m365_teams_oauth_creds(s: ControlPlaneSettings) -> tuple[str, str, str, str] | None:
+    """Return ``(issuer, client_id, client_secret, m365_teams_redirect)`` or ``None``."""
+    t = m365_graph_client_triple(s)
+    if t is None:
+        return None
+    redir = (s.m365_teams_redirect_uri or "").strip()
     if not redir:
         return None
     return (t[0], t[1], t[2], redir)
@@ -151,6 +170,7 @@ __all__ = [
     "GRAPH_CALENDAR_SCOPES",
     "GRAPH_MAIL_SCOPES",
     "GRAPH_SCOPES",
+    "GRAPH_TEAMS_SCOPES",
     "build_graph_delegate_authorization_url",
     "exchange_delegation_code",
     "fetch_metadata",
@@ -158,6 +178,7 @@ __all__ = [
     "m365_graph_client_triple",
     "m365_mail_oauth_creds",
     "m365_oauth_creds",
+    "m365_teams_oauth_creds",
     "pkce_pair",
     "refresh_delegation_access",
 ]
