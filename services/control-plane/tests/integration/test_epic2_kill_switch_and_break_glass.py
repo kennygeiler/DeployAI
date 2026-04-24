@@ -8,15 +8,18 @@ from pathlib import Path
 
 import pytest
 import pytest_asyncio
+from deployai_authz import AuthActor
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from control_plane.auth.jwt_tokens import clear_jwt_key_cache
 from control_plane.config.settings import clear_settings_cache
 from control_plane.db import clear_engine_cache
 from control_plane.infra.redis_client import clear_redis_client, close_async_redis
 from control_plane.main import app
+from control_plane.services.break_glass import approve, create_request, revoke
 
 from .test_account_provision_flow import (
     _async_database_url_from_engine,
@@ -91,6 +94,15 @@ def _ins_tenant_and_integration(conn: Engine, *, tid: uuid.UUID, iid: uuid.UUID)
             ),
             {"i": iid, "t": tid},
         )
+
+
+def _make_async_session_factory(
+    postgres_engine: Engine,
+) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
+    """Async ORM session against the same DB as the integration Postgres fixture."""
+    url = _async_database_url_from_engine(postgres_engine)
+    eng = create_async_engine(url, future=True)
+    return eng, async_sessionmaker(eng, class_=AsyncSession, expire_on_commit=False)
 
 
 async def _mint(client: AsyncClient, *, tid: uuid.UUID, uid: uuid.UUID, roles: list[str]) -> str:
@@ -194,3 +206,92 @@ async def test_webauthn_header_required_without_bypass(
     finally:
         monkeypatch.setenv("DEPLOYAI_BREAK_GLASS_BYPASS_WEBAUTHN", "1")
         clear_settings_cache()
+
+
+_CROSSTENANT_REASON = "Cross-tenant access is not allowed for this role"
+
+
+@pytest.mark.asyncio
+async def test_break_glass_service_create_rejects_cross_tenant_non_platform_actor(
+    postgres_engine: Engine,
+) -> None:
+    """``platform_admin`` bypasses cross-tenant in authz; this exercises tenant binding via
+    a tenant-scoped role (defense in depth on the break-glass service). HTTP routes are
+    still platform-only.
+    """
+    ta, tb = uuid.uuid4(), uuid.uuid4()
+    with postgres_engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO app_tenants (id, name) VALUES (:a, 'A'), (:b, 'B')"),
+            {"a": ta, "b": tb},
+        )
+    eng, mk = _make_async_session_factory(postgres_engine)
+    try:
+        async with mk() as session:
+            bad = AuthActor(role="customer_admin", tenant_id=str(tb))
+            with pytest.raises(PermissionError, match=_CROSSTENANT_REASON):
+                await create_request(
+                    session,
+                    tenant_id=ta,
+                    initiator_sub="init",
+                    requested_scope="s",
+                    auth_actor=bad,
+                )
+    finally:
+        await eng.dispose()
+
+
+@pytest.mark.asyncio
+async def test_break_glass_service_approve_rejects_cross_tenant_non_platform_actor(
+    postgres_engine: Engine,
+) -> None:
+    ta, tb = uuid.uuid4(), uuid.uuid4()
+    with postgres_engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO app_tenants (id, name) VALUES (:a, 'A'), (:b, 'B')"),
+            {"a": ta, "b": tb},
+        )
+    eng, mk = _make_async_session_factory(postgres_engine)
+    try:
+        async with mk() as session:
+            pa = AuthActor(role="platform_admin", tenant_id=str(ta))
+            row = await create_request(
+                session,
+                tenant_id=ta,
+                initiator_sub="init-1",
+                requested_scope="s",
+                auth_actor=pa,
+            )
+            other = AuthActor(role="customer_admin", tenant_id=str(tb))
+            with pytest.raises(PermissionError, match=_CROSSTENANT_REASON):
+                await approve(session, session_id=row.id, approver_sub="approver-2", auth_actor=other)
+    finally:
+        await eng.dispose()
+
+
+@pytest.mark.asyncio
+async def test_break_glass_service_revoke_rejects_cross_tenant_non_platform_actor(
+    postgres_engine: Engine,
+) -> None:
+    ta, tb = uuid.uuid4(), uuid.uuid4()
+    with postgres_engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO app_tenants (id, name) VALUES (:a, 'A'), (:b, 'B')"),
+            {"a": ta, "b": tb},
+        )
+    eng, mk = _make_async_session_factory(postgres_engine)
+    try:
+        async with mk() as session:
+            pa = AuthActor(role="platform_admin", tenant_id=str(ta))
+            row = await create_request(
+                session,
+                tenant_id=ta,
+                initiator_sub="init-1",
+                requested_scope="s",
+                auth_actor=pa,
+            )
+            other = AuthActor(role="customer_admin", tenant_id=str(tb))
+            with pytest.raises(PermissionError, match=_CROSSTENANT_REASON):
+                await revoke(session, session_id=row.id, actor_sub="x", auth_actor=other)
+    finally:
+        await eng.dispose()
