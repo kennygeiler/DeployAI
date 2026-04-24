@@ -23,9 +23,12 @@ def get_integration_catalog() -> dict[str, object]:
     """Static catalog plus which optional OAuth env vars are set (not secret values)."""
     s = get_settings()
     g_mail = bool(s.google_gmail_client_id and s.google_gmail_client_secret and s.google_gmail_redirect_uri)
-    slack_events = bool(s.slack_signing_secret)
+    slack_oauth = bool(s.slack_client_id and s.slack_client_secret and s.slack_redirect_uri)
+    slack_signing = bool(s.slack_signing_secret)
     return {
         "version": 1,
+        "metrics_path": "/internal/v1/metrics",
+        "metrics_auth": "header X-DeployAI-Internal-Key",
         "providers": [
             {
                 "id": "m365_calendar",
@@ -51,15 +54,17 @@ def get_integration_catalog() -> dict[str, object]:
             {
                 "id": "google_gmail",
                 "label": "Google Gmail",
-                "status": "preview" if g_mail else "stub",
+                "status": "available" if g_mail else "stub",
                 "auth": "oauth2",
                 "connect_path": "/integrations/google-gmail/connect",
+                "sync_path_template": "/integrations/google-gmail/{integration_id}/sync",
             },
             {
                 "id": "slack",
                 "label": "Slack",
-                "status": "preview" if slack_events else "stub",
-                "auth": "app_events",
+                "status": "available" if (slack_oauth and slack_signing) else ("preview" if slack_oauth else "stub"),
+                "auth": "oauth2_plus_events",
+                "oauth_path": "/integrations/slack/oauth/connect",
                 "events_path": "/integrations/slack/events",
             },
             {

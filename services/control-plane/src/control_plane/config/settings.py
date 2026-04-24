@@ -93,6 +93,11 @@ class ControlPlaneSettings(BaseSettings):
     google_gmail_redirect_uri: str | None = None
     """Registered redirect for ``/integrations/google-gmail/callback`` when Gmail OAuth is implemented."""
 
+    slack_client_id: str | None = None
+    slack_client_secret: str | None = None
+    slack_redirect_uri: str | None = None
+    """OAuth install redirect, e.g. ``https://cp.example.com/integrations/slack/oauth/callback``."""
+
     slack_signing_secret: str | None = None
     """If set, ``/integrations/slack/events`` verifies Slack signatures; challenge works without it."""
 

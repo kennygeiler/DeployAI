@@ -25,6 +25,10 @@ function App() {
       : "Checking first-launch permissions...",
   );
   const [keychainStatus, setKeychainStatus] = useState<string | null>(null);
+  const [cpBase, setCpBase] = useState(
+    import.meta.env.VITE_CONTROL_PLANE_URL?.trim() || "http://127.0.0.1:8000",
+  );
+  const [cpHealth, setCpHealth] = useState<string | null>(null);
 
   useEffect(() => {
     if (import.meta.env.MODE === "test") {
@@ -41,6 +45,27 @@ function App() {
     });
   }, []);
 
+  async function runControlPlaneHealth() {
+    const u = cpBase.trim();
+    if (!u) {
+      setCpHealth("Set a control plane base URL.");
+      return;
+    }
+    try {
+      const h = await invoke<{ ok: boolean; body: string; url: string }>(
+        "control_plane_health",
+        { baseUrl: u },
+      );
+      setCpHealth(
+        h.ok
+          ? `OK ${h.url} — ${h.body.slice(0, 240)}`
+          : `Non-success from ${h.url} — ${h.body.slice(0, 240)}`,
+      );
+    } catch (error) {
+      setCpHealth(`Request failed: ${String(error)}`);
+    }
+  }
+
   async function runKeychainRoundtrip() {
     const sample = `deployai-spike-${Date.now()}`;
     try {
@@ -56,10 +81,28 @@ function App() {
   return (
     <main className="container">
       <h1>DeployAI Edge Agent</h1>
-      <p>Story 1.15 spike shell: first-launch mic prompt + keychain round-trip command.</p>
+      <p>Edge capture shell: first-launch mic check, keychain test, and control-plane reachability.</p>
       <section className="panel">
         <h2>Audio Permission (first launch)</h2>
         <p>{micStatus}</p>
+      </section>
+      <section className="panel">
+        <h2>Control plane</h2>
+        <label>
+          Base URL
+          <input
+            className="cp-input"
+            value={cpBase}
+            onChange={(e) => setCpBase(e.target.value)}
+            type="url"
+            placeholder="http://127.0.0.1:8000"
+            spellCheck={false}
+          />
+        </label>
+        <button type="button" onClick={() => void runControlPlaneHealth()}>
+          Check /health
+        </button>
+        {cpHealth ? <p className="cp-out">{cpHealth}</p> : null}
       </section>
       <section className="panel">
         <h2>Keychain Round-trip</h2>

@@ -31,6 +31,28 @@
   background: #fff;
 }
 
+.panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.cp-input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.cp-out {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
 h1 {
   margin: 0;
 }

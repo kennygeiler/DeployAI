@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.domain.ingest_runs import IngestionRun
+from control_plane.infra import observability
 
 
 async def start_ingestion_run(
@@ -45,6 +46,8 @@ async def complete_ingestion_run_success(
     if meta:
         r.meta = {**(r.meta or {}), **meta}
     await session.flush()
+    observability.observe_ingestion_run(r.integration, "succeeded")
+    observability.observe_events_written(r.integration, events_written)
 
 
 async def complete_ingestion_run_failure(
@@ -64,3 +67,4 @@ async def complete_ingestion_run_failure(
     if meta:
         r.meta = {**(r.meta or {}), **meta}
     await session.flush()
+    observability.observe_ingestion_run(r.integration, "failed")
