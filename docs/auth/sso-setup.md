@@ -1,16 +1,43 @@
-# Microsoft Entra ID SSO (FR71) — current state and roadmap (Story 2-2)
+# Microsoft Entra ID SSO (FR71) — control plane (Story 2-2 / Epic 2)
 
-## Current state (control plane)
+## Supported: OpenID Connect (Entra v2, PKCE)
 
-- **OIDC (Entra v2, PKCE).** When `DEPLOYAI_OIDC_ISSUER`, `DEPLOYAI_OIDC_CLIENT_ID`, `DEPLOYAI_OIDC_CLIENT_SECRET`, and `DEPLOYAI_OIDC_REDIRECT_URI` are all set, `GET /auth/login` (→ `/auth/oidc/login`) starts the code flow; `GET /auth/oidc/callback` exchanges the code, verifies the `id_token` against the issuer JWKS, **upserts** `app_users` (by `entra_sub`), **mints Redis + RS256 access/refresh** (`issue_tokens`), returns JSON (`access_token`, `refresh_token` JTI, `user_id`, `tenant_id`, …), and sets **HttpOnly** cookies `dep_access` / `dep_refresh` (names overridable via `DEPLOYAI_SESSION_ACCESS_COOKIE` / `DEPLOYAI_SESSION_REFRESH_COOKIE`). New users land in the system **SSO pending** tenant with role `pending_assignment` until a Platform Admin assigns a real tenant + role.
-- **Sessions:** RS256 access JWT + Redis refresh (`POST /auth/refresh`, `POST /auth/logout`, `POST /auth/sessions/revoke-all/{user_id}`) per Story 2-4. Internal tests may mint short-lived tokens via `POST /internal/v1/test/session-tokens` with `X-DeployAI-Internal-Key` and `DEPLOYAI_ALLOW_TEST_SESSION_MINT=1`.
-- **Web UI (Next.js):** dev builds still honor `x-deployai-tenant` / `x-deployai-role` (see [role-matrix](../../authz/role-matrix.md)). Production **IdP-issued** cookies and `/auth/callback` flows are **not** shipped in this pass.
-- **SCIM:** per-tenant `POST/GET/… /scim/v2/Users` with bearer + `app_tenants.scim_bearer_token_hash` (Story 2-3) — operational once Entra points at the DeployAI base URL and a SCIM token is set on the tenant.
+Use an **Entra ID app registration** (or enterprise application) with the **OpenID Connect** sign-in experience. The control plane uses the authorization code flow with **PKCE**, validates `id_token` signatures with the issuer **JWKS**, and issues the same **Redis-backed refresh + RS256 access** session as the internal test mint (Story 2-4).
 
-## Planned: SAML 2.0 and OIDC (Entra enterprise app)
+### Environment variables (control plane)
 
-1. **Entra** enterprise application: SAML 2.0 and/or OIDC (PKCE) registration with `python3-saml` / `authlib` in the control plane (or a thin BFF in `apps/web`), consuming IdP metadata and configuring ACS/callback URLs.
-2. **JIT user:** first login creates/updates an `app_users` row; default `pending_assignment` (or `roles: []`) until a **Platform Admin** assigns tenant + `deployment_strategist` in product flows (SCIM and/or platform APIs).
-3. **Cookies:** `HttpOnly; Secure; SameSite=Lax` for refresh; access token in memory or short cookie per security review.
+| Variable | Required | Purpose |
+| -------- | -------- | ------- |
+| `DEPLOYAI_OIDC_ISSUER` | Yes | Issuer **v2.0** base, e.g. `https://login.microsoftonline.com/<directory-tenant-id>/v2.0` (must serve `/.well-known/openid-configuration`). |
+| `DEPLOYAI_OIDC_CLIENT_ID` | Yes | Application (client) ID from Entra. |
+| `DEPLOYAI_OIDC_CLIENT_SECRET` | Yes | Confidential client secret from Entra. |
+| `DEPLOYAI_OIDC_REDIRECT_URI` | Yes | Must match Entra’s **Web** redirect URI, e.g. `https://<control-plane-host>/auth/oidc/callback`. |
+| `DEPLOYAI_JWT_PRIVATE_KEY_PATH` / `DEPLOYAI_JWT_PUBLIC_KEY_PATHS` | Yes (prod) | RS256 key material for access JWTs. |
+| `DEPLOYAI_REDIS_URL` | Yes | Refresh token storage. |
+| `DEPLOYAI_SESSION_ACCESS_COOKIE` | No (default `dep_access`) | HttpOnly access cookie on callback. |
+| `DEPLOYAI_SESSION_REFRESH_COOKIE` | No (default `dep_refresh`) | HttpOnly refresh (opaque JTI) cookie on callback. |
 
-This document will gain exact Entra portal screenshots, reply URLs, and claim rules when Story 2-2 is implemented in code. Until then, use **test mint** + **SCIM** for end-to-end tenant/user plumbing.
+### Entra app registration (summary)
+
+1. **App registrations** → New registration → name, account type, **Web** redirect URI = `https://<host>/auth/oidc/callback`.
+2. **Certificates & secrets** → New client secret; store in `DEPLOYAI_OIDC_CLIENT_SECRET`.
+3. **Overview** → copy **Application (client) ID** → `DEPLOYAI_OIDC_CLIENT_ID`.
+4. **Directory (tenant) ID** → build issuer: `https://login.microsoftonline.com/<tenant-id>/v2.0` → `DEPLOYAI_OIDC_ISSUER`.
+5. **API permissions** (if calling Graph): add and grant admin consent as needed. Sign-in + OpenID is enough for basic profile/`sub`.
+
+### User flow
+
+- Browser: `GET /auth/login` (redirects to `/auth/oidc/login` when OIDC is configured) → Microsoft sign-in → `GET /auth/oidc/callback?code&state=...` → JIT `app_users` by `entra_sub`, `issue_tokens`, JSON + HttpOnly cookies.
+- First-time users are placed in the system **SSO pending** tenant with role `pending_assignment` until a Platform Admin assigns a real tenant and role (or SCIM provisions them elsewhere).
+- **Refresh:** `POST /auth/refresh` with `tenant_id` + `refresh_token` (body or copy from `dep_refresh` cookie in same-site clients).
+
+## SAML 2.0
+
+`GET /auth/saml/login` and `POST /auth/saml/acs` are reserved for a future **SAML 2.0 SP** implementation. They currently return **501** with a pointer to this document and the OIDC path. For Entra, **OIDC is the supported path** in this release.
+
+## Other surfaces
+
+- **SCIM 2-0** — user provisioning; see [scim-setup.md](scim-setup.md) and Story 2-3.
+- **Web (Next.js)** — local dev may still use `x-deployai-tenant` / `x-deployai-role`; production browser sessions should use the control-plane cookies or bearer access tokens as wired by the web app in a later story.
+
+**Related:** [role-matrix](../authz/role-matrix.md) · [sprint status](../../_bmad-output/implementation-artifacts/sprint-status.yaml)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -124,6 +125,62 @@ async def test_mint_refresh_logout_happy(
         json={"tenant_id": str(tid), "refresh_token": new_rt},
     )
     assert bad.status_code == 401
+
+
+@pytest.mark.integration
+async def test_reject_replay_of_old_refresh_after_rotation(
+    session_client: AsyncClient,
+) -> None:
+    """Story 2-2: reuse of pre-rotation JTI is rejected (replay attack on refresh)."""
+    tid = uuid.uuid4()
+    uid = uuid.uuid4()
+    m = await session_client.post(
+        "/internal/v1/test/session-tokens",
+        json={
+            "tenant_id": str(tid),
+            "user_id": str(uid),
+            "roles": ["platform_admin"],
+        },
+    )
+    assert m.status_code == 201, m.text
+    old_rft = m.json()["refresh_token"]
+    r1 = await session_client.post(
+        "/auth/refresh",
+        json={"tenant_id": str(tid), "refresh_token": old_rft},
+    )
+    assert r1.status_code == 200, r1.text
+    replay = await session_client.post(
+        "/auth/refresh",
+        json={"tenant_id": str(tid), "refresh_token": old_rft},
+    )
+    assert replay.status_code == 401, replay.text
+
+
+@pytest.mark.integration
+async def test_reject_expired_refresh_after_ttl(
+    session_client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Refresh record expires when Redis key TTL elapses (2-2 / 2-4)."""
+    monkeypatch.setenv("DEPLOYAI_REFRESH_TOKEN_TTL_SECONDS", "1")
+    clear_settings_cache()
+    try:
+        tid = uuid.uuid4()
+        uid = uuid.uuid4()
+        m = await session_client.post(
+            "/internal/v1/test/session-tokens",
+            json={"tenant_id": str(tid), "user_id": str(uid), "roles": ["platform_admin"]},
+        )
+        rft = m.json()["refresh_token"]
+        await asyncio.sleep(2.1)
+        r = await session_client.post(
+            "/auth/refresh",
+            json={"tenant_id": str(tid), "refresh_token": rft},
+        )
+        assert r.status_code == 401, r.text
+    finally:
+        monkeypatch.delenv("DEPLOYAI_REFRESH_TOKEN_TTL_SECONDS", raising=False)
+        clear_settings_cache()
 
 
 @pytest.mark.integration
