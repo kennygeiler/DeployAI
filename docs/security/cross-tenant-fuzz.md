@@ -94,6 +94,6 @@ pnpm turbo run fuzz:cross-tenant
 - **Timing side channels** — architecturally addressed by Epic 3 partitioning, not this gate.
 - **HTTP-layer fuzzing** — Story 2.x owns the request boundary; this gate fuzzes the DB boundary only.
 
-## Promotion to required check
+## Required check (promoted 2026-04-23)
 
-`fuzz.yml` bakes on `main` for ≥ 1 green week before promotion to the required-checks set (`.github/workflows/README.md` §3). Until then, a red fuzz run is visible on the PR but does not block merge — intentionally, so the first weeks of shakedown don't spuriously wedge development.
+`fuzz / cross-tenant-fuzz` is part of the **required** set on `main` documented in [`.github/workflows/README.md`](../../.github/workflows/README.md) §3. The job is **path-filtered**; it does not run on every PR — configure branch **rules** so skipped checks do not block unrelated work (e.g. docs-only changes). A **red** fuzz run on a PR that *does* execute the job must block merge until triaged.

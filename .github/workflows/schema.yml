@@ -11,9 +11,10 @@
 #   - AC12 lifecycle transition end-to-end + tombstone bytea roundtrip
 #
 # Path-filtered to only run when the schema, models, migration harness,
-# or postgres image can plausibly be affected. Not on the required-checks
-# list yet — per README.md §3 convention ("default to NOT adding to the
-# required set … promote only after a stabilization window").
+# or postgres image can plausibly be affected. Listed as a **required**
+# check on `main` in `.github/workflows/README.md` §3 (add in GitHub branch
+# protection: `schema / canonical-memory-schema`). Unrelated PRs may skip
+# this workflow when paths do not match — configure rules accordingly.
 
 name: schema
 

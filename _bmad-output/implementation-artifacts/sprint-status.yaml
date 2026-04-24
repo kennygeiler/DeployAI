@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-21
-last_updated: 2026-04-23 # Epic 3: 3-1–3-8 done (ingestion slice; 3-4 includes SQS + asr.transcript worker)
+last_updated: 2026-04-23 # Epic 2–3 retrospectives done; schema + fuzz required-checks promotion documented
 project: DeployAI
 project_key: NOKEY
 tracking_system: file-system
@@ -77,7 +77,7 @@ development_status:
   2-5-account-provisioning-flow: done
   2-6-integration-kill-switch-plumbing: done
   2-7-break-glass-plumbing: done
-  epic-2-retrospective: optional
+  epic-2-retrospective: done
 
   # ======================================================================
   # Epic 3: Ingestion Pipelines (w7–9)
@@ -91,7 +91,7 @@ development_status:
   3-6-transient-failure-tolerance-idempotent-writes: done
   3-7-throttling-aware-backpressure: done
   3-8-ingestion-run-telemetry-admin-runs-wire-up: done
-  epic-3-retrospective: optional
+  epic-3-retrospective: done
 
   # ======================================================================
   # Epic 4: Agent Runtime Contracts & Replay-Parity Harness (w8–11)

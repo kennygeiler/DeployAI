@@ -8,9 +8,8 @@
 #
 # Path-filtered to run only when the tenancy primitives, control-plane
 # service code, or Alembic migrations can plausibly affect the isolation
-# boundary. Not on the required-checks list yet — per
-# .github/workflows/README.md §3 convention ("default to NOT adding to the
-# required set … promote only after a stabilization window").
+# boundary. **Required** on `main` per `.github/workflows/README.md` §3
+# (`fuzz / cross-tenant-fuzz`). Unrelated PRs may skip this workflow.
 #
 # Report artifact: `artifacts/fuzz/cross-tenant-report.json`, retained 14
 # days on both pass and fail — the JSON is the audit evidence NFR52 demands.

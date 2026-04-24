@@ -12,8 +12,8 @@ This directory holds the GitHub Actions workflows that enforce DeployAI's compli
 | `release.yml` | Tag push matching `v*.*.*`; `workflow_dispatch` | Signs + attests release artifacts (cosign keyless, SLSA v1.0 provenance) | NFR63 (signing), NFR64 (SLSA L2) | scaffolded; dormant until Story 1.3 lands buildable workspaces | Story 1.2 |
 | `a11y.yml` | PR against `main`; push to `main` | 4-job a11y gate: `jsx-a11y` lint, `storybook-a11y` test-runner, `playwright-a11y` E2E axe, `pa11y` axe + htmlcs | FR44, NFR28, NFR41, NFR42, NFR43, AR25 | active | Story 1.6 |
 | `compose-smoke.yml` | PR against `main` (path-filtered on `infra/**`, `services/**`, `apps/web/Dockerfile`, `packages/authz/**`, `packages/design-tokens/**`, `Makefile`, `pnpm-lock.yaml`); push to `main` | Brings up the full local stack (postgres + pgvector/pgcrypto, redis, minio, freetsa-stub, control-plane, web) via `make dev`, runs `make dev-verify`, fails if wall-clock exceeds 30 min | NFR67, NFR68, NFR77 | active | Story 1.7 |
-| `schema.yml` | PR against `main` (path-filtered on `services/control-plane/**`, `infra/compose/postgres/**`, the workflow itself); push to `main` | Runs the canonical-memory schema integration tests against a fresh `pgvector/pgvector:pg16` testcontainer — append-only trigger, UUID v7 defaults, partial-unique identity-attribute history, supersession CHECK, enum rejection, lifecycle transitions, tombstone bytea roundtrip | FR1–3, FR5, NFR74 | active; **not on required-checks yet** — promotes after one clean stabilization week | Story 1.8 |
-| `fuzz.yml` | PR against `main` (path-filtered on `services/**`, `services/_shared/tenancy/**`, `services/control-plane/alembic/versions/**`, the workflow itself); push to `main` | Cross-tenant isolation fuzz harness — seeds 3 synthetic tenants × 50 rows × 8 canonical tables, then runs **6 attack classes** (baseline RLS reads, no-scope reads, SET ROLE escalation, ORM escape hatches, cross-tenant writes, SQLi payloads) ≥ 500 attempts/table. GUC-override (class 3) is intentionally omitted — application-layer defense only, cannot be meaningfully exercised by a raw-SQL fuzzer. JSON report at `artifacts/fuzz/cross-tenant-report.json`; see [docs/security/cross-tenant-fuzz.md](../../docs/security/cross-tenant-fuzz.md) | NFR52, FR72 | active; **not on required-checks yet** — promotes after one clean stabilization week | Story 1.10 |
+| `schema.yml` | PR against `main` (path-filtered on `services/control-plane/**`, `infra/compose/postgres/**`, the workflow itself); push to `main` | Runs the canonical-memory schema integration tests against a fresh `pgvector/pgvector:pg16` testcontainer — append-only trigger, UUID v7 defaults, partial-unique identity-attribute history, supersession CHECK, enum rejection, lifecycle transitions, tombstone bytea roundtrip | FR1–3, FR5, NFR74 | active; **required on `main`** (see §3) | Story 1.8 |
+| `fuzz.yml` | PR against `main` (path-filtered on `services/**`, `services/_shared/tenancy/**`, `services/control-plane/alembic/versions/**`, the workflow itself); push to `main` | Cross-tenant isolation fuzz harness — seeds 3 synthetic tenants × 50 rows × 8 canonical tables, then runs **6 attack classes** (baseline RLS reads, no-scope reads, SET ROLE escalation, ORM escape hatches, cross-tenant writes, SQLi payloads) ≥ 500 attempts/table. GUC-override (class 3) is intentionally omitted — application-layer defense only, cannot be meaningfully exercised by a raw-SQL fuzzer. JSON report at `artifacts/fuzz/cross-tenant-report.json`; see [docs/security/cross-tenant-fuzz.md](../../docs/security/cross-tenant-fuzz.md) | NFR52, FR72 | active; **required on `main`** (see §3) | Story 1.10 |
 
 Dependabot (`.github/dependabot.yml`) runs weekly across npm, pip, gomod, cargo, and github-actions ecosystems — keeping every dependency and every workflow action SHA fresh. That configuration is the 5th-ecosystem enforcement of NFR65.
 
@@ -27,9 +27,6 @@ Not yet present — each is scoped to its owning story to avoid landing half-emp
 |---|---|---|
 | `replay-parity-gate.yml` | Epic 4 (replay-parity harness) | NFR51 — citation-set-identical semantics on LLM model-version upgrades |
 | `11th-call-gate.yml` | Epic 5 (citation envelope) | NFR50 — zero hallucinated citations per release candidate |
-| `schema.yml` required-checks promotion | Follow-up to Story 1.8 | Add `schema / canonical-memory-schema` to the Required-checks table after one clean week |
-| `fuzz.yml` required-checks promotion | Follow-up to Story 1.10 | Add `fuzz / cross-tenant-fuzz` to the Required-checks table after one clean week |
-
 When you add one of the above, mirror the conventions documented below and update the tables in this file in the same PR.
 
 ---
@@ -108,14 +105,20 @@ Branch protection on `main` must require the exact set of check-runs
 below before a PR can merge. The strings are the literal `<workflow>
 / <job-name>` GitHub displays on the PR status UI — copy them verbatim
 into Settings → Branches → Branch protection rule → "Require status
-checks to pass before merging".
+checks to pass before merging" (or **Rulesets** → **Require status checks**).
 
-Required checks (10 total):
+After this doc’s 2026-04-23 update, add any **new** strings below that are
+not yet in your repo’s rule (especially `Control plane (integration)`,
+`Ingest (pytest)`, `schema / …`, `fuzz / …`).
+
+Required checks (14 total — 7 from `CI`, 4 from `a11y`, 1 `compose-smoke`, 1 `schema`, 1 `fuzz`):
 
 From `ci.yml` (workflow `name: CI`):
 
 - `CI / Toolchain (Node 24 + pnpm 10.33.0)`
 - `CI / Smoke (install / build / lint / typecheck / test / format)`
+- `CI / Control plane (integration)`
+- `CI / Ingest (pytest)`
 - `CI / SBOM (source — SPDX + CycloneDX)`
 - `CI / CVE scan (grype)`
 - `CI / Dependency review (PR diff)`
@@ -130,6 +133,21 @@ From `a11y.yml` (workflow `name: a11y`):
 From `compose-smoke.yml` (workflow `name: compose-smoke`):
 
 - `compose-smoke / compose-smoke`
+
+From `schema.yml` (workflow `name: schema`):
+
+- `schema / canonical-memory-schema`
+
+From `fuzz.yml` (workflow `name: fuzz`):
+
+- `fuzz / cross-tenant-fuzz`
+
+**Path-filtered workflows** (`schema`, `fuzz`, `compose-smoke`): they only
+run when changed paths match `on: paths:`. On PRs that **do not** touch
+those paths, GitHub may show these checks as **skipped** — use **Rulesets**
+“Do not require status checks that are skipped” (or equivalent) so
+docs-only PRs are not blocked, *or* accept that admins may need to merge
+with skipped checks when appropriate.
 
 > The `ci.yml` names carry parenthetical descriptors for historical
 > reasons (Story 1.2) — branch protection matches the literal string,

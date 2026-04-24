@@ -196,7 +196,7 @@ Seed fixtures (Story 1.7) still live in the separate `fixtures.*` schema — Sto
 |---|---|---|
 | `services/control-plane/src/control_plane/fuzz/` | Cross-tenant RLS/SQLi/`SET ROLE` harness + JSON report; CLI `python -m control_plane.fuzz.cross_tenant` | `cross_tenant.py`, `attacks.py`, `report.py` |
 | `services/control-plane/tests/fuzz/` | Meta-tests, production-gated pytest run, anti-test for disabled-RLS detection | `test_cross_tenant_harness.py`, `test_cli_production_run.py` |
-| `.github/workflows/` | Path-filtered `fuzz.yml` (not a required check yet) | `.github/workflows/fuzz.yml` |
+| `.github/workflows/` | Path-filtered `fuzz.yml` (**required** on `main` when the workflow runs; see `.github/workflows/README.md` §3) | `.github/workflows/fuzz.yml` |
 | `docs/security/` | Operator-facing triage for the harness | `docs/security/cross-tenant-fuzz.md` |
 | `turbo.json` / `package.json` | `fuzz:cross-tenant` task + pnpm script with `--seed` | `services/control-plane/package.json`, `turbo.json` |
 

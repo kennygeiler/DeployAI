@@ -32,6 +32,22 @@ Items surfaced during adversarial review that were intentionally deferred (not i
 
 ---
 
+## Epic 3 backlog follow-ups (2026-04-23)
+
+Tracked after Epic 3 close; not reopening story rows in `sprint-status.yaml` until scheduled.
+
+| Follow-up | Description |
+|----------|---------------|
+| **Web upload UX** | First-party `/upload` (or edge-agent) flow beyond presign/complete API. |
+| **Real ASR** | Wire `DEPLOYAI_UPLOAD_ASR_MODE=transcribe` to AWS Transcribe (or provider) in `control_plane.workers.transcribe_upload` — current behavior is stub text + log. |
+| **S3 lifecycle** | 90-day (or policy-driven) raw object retention on the upload bucket (NFR33). |
+| **Citation E2E** | End-to-end extraction/citation from `upload.transcript` + `asr.transcript` into downstream surfaces. |
+| **Gmail/Slack staging** | Broader live-OAuth and soak tests when those integrations are customer-critical. |
+
+**Retrospective notes:** `epic-3-retrospective-2026-04-23.md` · **PRD alignment:** `epics.md` / voice-upload story.
+
+---
+
 ## Deferred from: code review of story-1-5-shadcn-ui-initialization-and-theme-bridging (2026-04-22)
 
 - **Narrow `exactOptionalPropertyTypes: false` to vendored primitives only** — Story 1.5 scopes the opt-out to the whole `apps/web` tsconfig to unblock the 3 shadcn/Radix prop-surface errors (`context-menu.tsx`, `dropdown-menu.tsx`, `sonner.tsx`). The opt-out is broader than the "vendored code only" discipline the story otherwise maintains: `ExampleForm.tsx`, stories, and future app code under `apps/web/src/**` now skip the strict flag too. Follow-up: split `apps/web/tsconfig.json` into a strict parent (covers app code) + a reference-project tsconfig that includes `src/components/ui/**` with the flag disabled, so the strict guard comes back for user-authored code. Low priority — Story 1.5's authored code already passes `tsc --noEmit` against the strict flag (verified pre-relaxation), and the narrowing is cosmetic. Revisit when a future Epic adds more app-authored forms/components and drift becomes measurable. _Source: Acceptance Auditor on code review of Story 1.5; also flagged in Story 1.5 Open Questions line 899._
