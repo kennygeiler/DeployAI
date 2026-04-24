@@ -97,7 +97,7 @@ development_status:
   # Epic 4: Agent Runtime Contracts & Replay-Parity Harness (w8–11)
   # ======================================================================
   epic-4: in-progress
-  4-1-langgraph-postgres-checkpointing-stub-agent: in-progress
+  4-1-langgraph-postgres-checkpointing-stub-agent: done
   4-2-citation-aware-llamaindex-adapter: backlog
   4-3-golden-fixture-authoring-tool-and-schema: backlog
   4-4-golden-query-corpus-authoring: backlog

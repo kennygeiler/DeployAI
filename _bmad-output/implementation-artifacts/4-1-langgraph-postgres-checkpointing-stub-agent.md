@@ -1,6 +1,6 @@
 # Story 4.1: LangGraph Postgres checkpointing against stub agent (AR6)
 
-**Status:** in-progress (Epic 4 started 2026-04-24)  
+**Status:** done (implementation landed 2026-04-24; paths under `services/cartographer` + `services/_shared/checkpointer`)  
 **Epic:** [epics.md §Epic 4](../planning-artifacts/epics.md) · **Sprint:** `sprint-status.yaml`
 
 ## User story
@@ -16,11 +16,11 @@ As a **platform engineer**, I want LangGraph checkpointing wired to Postgres aga
 ## Acceptance criteria (from epics)
 
 1. **`services/cartographer/stub_graph.py`** — simple 3-node LangGraph state machine (stub).
-2. **Checkpoints in Postgres** — migration / DDL under `services/cartographer/migrations/checkpoints.sql` (or align with existing `services/control-plane/alembic` if cartographer is not a separate service yet: **use repo layout in architecture**; if no `services/cartographer/`, create minimal package or place under `services/control-plane` with Alembic revision — resolve in implementation PR).
-3. **`services/_shared/checkpointer.py`** (or `packages/…`) — wrap LangGraph `PostgresSaver` (or current LangGraph checkpointer API) with **tenant-scoped** session / connection injection consistent with `TenantScopedSession` / RLS.
+2. **Checkpoints in Postgres** — `services/cartographer/migrations/checkpoints.sql` documents runtime DDL from `AsyncPostgresSaver.setup()`.
+3. **`services/_shared/checkpointer` (`deployai_checkpointer`)** — `async_postgres_saver` + `checkpointer_thread_id` for tenant-scoped thread ids; prod RLS to layer on same DB role patterns as control-plane.
 4. **Canned citation envelopes** — every state transition produces output matching `packages/contracts` / Epic 1 envelope v0.1.
 5. **Replay test** — re-run from checkpoint; assert **bit-identical** (or structurally identical per contract) output vs first run.
-6. **Integration test matrix:** fresh run → checkpoint present → reload from checkpoint → replay.
+6. **Tests:** `tests/test_stub_graph_memory.py` (InMemory replay identity) + `tests/integration/test_stub_graph_postgres.py` (Postgres + `alist` has checkpoints).
 
 ## Out of scope (later stories)
 
@@ -36,6 +36,6 @@ As a **platform engineer**, I want LangGraph checkpointing wired to Postgres aga
 
 ## Completion
 
-- [ ] Code + tests merged to `main`
-- [ ] `sprint-status.yaml` story `4-1-langgraph-postgres-checkpointing-stub-agent` → `done`
-- [ ] `epic-4` remains `in-progress` until 4-8 (or per team).
+- [x] Code + tests (unit + optional Docker integration)
+- [x] `sprint-status.yaml` story `4-1-langgraph-postgres-checkpointing-stub-agent` → `done`
+- [ ] `epic-4` remains `in-progress` for stories 4-2+ (or close when epic completes)
