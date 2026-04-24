@@ -61,6 +61,15 @@ class ControlPlaneSettings(BaseSettings):
     m365_calendar_redirect_uri: str | None = None
     """Reply URL for ``/integrations/m365-calendar/callback``; must be registered in Entra for this app."""
 
+    m365_mail_redirect_uri: str | None = None
+    """Reply URL for ``/integrations/m365-mail/callback``; register separately in Entra."""
+
+    ingest_email_body_mode: Literal["stub", "s3"] = "stub"
+    """``stub`` stores bodies on disk (see below); ``s3`` is not implemented yet."""
+
+    ingest_email_body_stub_dir: str | None = None
+    """Base directory for stub email bodies; default uses a subdir of the system temp dir."""
+
     session_access_cookie: str = "dep_access"
     session_refresh_cookie: str = "dep_refresh"
     """HttpOnly cookies set on OIDC callback (browser clients); `POST /auth/refresh` still uses JSON body too."""
