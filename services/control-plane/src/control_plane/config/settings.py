@@ -53,6 +53,14 @@ class ControlPlaneSettings(BaseSettings):
     oidc_redirect_uri: str | None = None
     """Registered reply URL, e.g. ``https://cp.example.com/auth/oidc/callback`` (must match Entra app registration)."""
 
+    # --- Epic 3 / Story 3-1: M365 Calendar (Graph delegated) ---
+    m365_oauth_issuer: str | None = None
+    """If unset, calendar OAuth uses ``oidc_issuer`` (same Entra app registration)."""
+    m365_oauth_client_id: str | None = None
+    m365_oauth_client_secret: str | None = None
+    m365_calendar_redirect_uri: str | None = None
+    """Reply URL for ``/integrations/m365-calendar/callback``; must be registered in Entra for this app."""
+
     session_access_cookie: str = "dep_access"
     session_refresh_cookie: str = "dep_refresh"
     """HttpOnly cookies set on OIDC callback (browser clients); `POST /auth/refresh` still uses JSON body too."""

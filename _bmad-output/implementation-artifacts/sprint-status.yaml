@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-21
-last_updated: 2026-04-23 # Epic 2: all stories done (2-2: Entra via OIDC+PKCE; SAML SP deferred — stable 501 + docs)
+last_updated: 2026-04-23 # Epic 3: Story 3-1 in progress (M365 calendar OAuth + Graph delta → canonical)
 project: DeployAI
 project_key: NOKEY
 tracking_system: file-system
@@ -82,8 +82,8 @@ development_status:
   # ======================================================================
   # Epic 3: Ingestion Pipelines (w7–9)
   # ======================================================================
-  epic-3: backlog
-  3-1-m365-calendar-oauth-ingestion: backlog
+  epic-3: in-progress
+  3-1-m365-calendar-oauth-ingestion: in-progress
   3-2-exchange-m365-email-oauth-ingestion: backlog
   3-3-microsoft-teams-transcript-import: backlog
   3-4-voice-meeting-file-upload: backlog
