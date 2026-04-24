@@ -26,7 +26,12 @@ gh api --method POST repos/OWNER/REPO/rulesets --input scripts/github/main-rules
 
 To **replace** an existing ruleset, delete it in **GitHub → Settings → Rules → Rulesets** (or `gh api -X DELETE repos/OWNER/REPO/rulesets/RULESET_ID`) and POST again, or use **Update repository ruleset** (`PUT /repos/{owner}/{repo}/rulesets/{id}`) with the JSON body and the same `id`.
 
-**Avoid duplicate enforcement:** if legacy **Branch protection** rules on `main` are still enabled, consider removing them so only the ruleset applies (Settings → Branches → Branch protection, or the classic UI).
+### Classic branch protection vs. repository ruleset (no double enforcement)
+
+**Do not stack both** on the same default branch. If a **Ruleset** on `main` (Settings → `Rules` → `Rulesets`) and **classic Branch protection** (Settings → `Branches` → *Branch name pattern* for `main`) are both active, you get **duplicate** required checks, confusing merge UIs, and can hit merge blockers. Pick **one** mechanism:
+
+- **Keep the ruleset** (recommended; source: `main-ruleset.json` here) and **remove** the old branch rule: Settings → `Branches` → find `main` (or a matching pattern) → **Delete** the classic protection, **or** edit it to stop requiring the same status checks and PR policy you already have in the ruleset.
+- In doubt: the ruleset is listed under `https://github.com/OWNER/REPO/settings/rules` — if `main` is fully covered there, the classic `Branch protection` entry for `main` should be **dropped** so only the ruleset enforces.
 
 ## Ruleset on `kennygeiler/DeployAI`
 

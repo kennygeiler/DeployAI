@@ -8,6 +8,9 @@ Pin versions match the repo files (`.tool-versions`, `rust-toolchain.toml`, `.py
 
 ```bash
 # Node 24 + pnpm 10 (if not already done in Story 1.1)
+# Root `package.json` enforces `engines.node`: `>=24.0.0 <25.0.0` (see `.nvmrc`).
+# Use Node 24.x for `pnpm install`, `pnpm turbo`, and workspace scripts — pnpm
+# will refuse a mismatch (e.g. Node 25) with `ERR_PNPM_UNSUPPORTED_ENGINE`.
 brew install node@24
 corepack enable && corepack prepare pnpm@10.33.0 --activate
 
