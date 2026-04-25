@@ -8,6 +8,7 @@ dependencies = [
   "deployai-checkpointer",
   "deployai-citation",
   "prometheus-client>=0.21.0",
+  "deployai-llm-provider-py",
 ]
 
 [dependency-groups]
@@ -30,6 +31,7 @@ packages = ["src/cartographer"]
 [tool.uv.sources]
 deployai-checkpointer = { path = "../_shared/checkpointer", editable = true }
 deployai-citation = { path = "../_shared/citation", editable = true }
+deployai-llm-provider-py = { path = "../../packages/llm-provider-py", editable = true }
 
 [tool.ruff]
 line-length = 120
@@ -71,4 +73,8 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["prometheus_client", "prometheus_client.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["llm_provider_py", "llm_provider_py.*"]
 ignore_missing_imports = true

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import re
 import uuid
 from dataclasses import dataclass, field
@@ -157,16 +159,34 @@ def triage_event(
         would_consume_extraction=not triaged_out,
         log_fields=log_fields,
     )
-    _log.info(
-        "cartographer_triage outcome=%s reason=%s score=%.4f threshold=%.4f tenant=%s phase=%s event_id=%s",
-        outcome,
-        reason,
-        score,
-        ctx.relevance_threshold,
-        tenant_id,
-        ctx.phase,
-        event.event_id,
-    )
+    if os.environ.get("DEPLOYAI_CARTOGRAPHER_TRIAGE_LOG_JSON", "").lower() in ("1", "true", "yes", "on"):
+        # One-line JSON for log aggregators; no message body (PII). See privacy review for event_id usage.
+        _log.info(
+            json.dumps(
+                {
+                    "msg": "cartographer_triage",
+                    "event_id": str(event.event_id),
+                    "tenant_id": tenant_id,
+                    "phase": ctx.phase,
+                    "outcome": outcome,
+                    "reason": reason,
+                    "relevance_score": round(score, 6),
+                    "threshold": ctx.relevance_threshold,
+                },
+                separators=(",", ":"),
+            ),
+        )
+    else:
+        _log.info(
+            "cartographer_triage outcome=%s reason=%s score=%.4f threshold=%.4f tenant=%s phase=%s event_id=%s",
+            outcome,
+            reason,
+            score,
+            ctx.relevance_threshold,
+            tenant_id,
+            ctx.phase,
+            event.event_id,
+        )
     observe_triage(
         tenant_id=tenant_id,
         phase=ctx.phase,

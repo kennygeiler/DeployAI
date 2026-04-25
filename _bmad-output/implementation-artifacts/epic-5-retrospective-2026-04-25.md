@@ -22,13 +22,15 @@
 
 ## Action items (hardening / follow-up)
 
-| Item | Note |
-|------|------|
-| **Grafana / OTLP** | Point `opentelemetry` SDK at your collector in k8s; API-only metrics are no-op until SDK + exporter. |
-| **KMS/rotation** | `DEPLOYAI_*_SECRET_ARN` pattern documented; align with 90-day rotation runbooks. |
-| **Streaming & provider integration tests** | Extended tests for SSE parse + 5xx paths in `llm-provider-py` tests. |
-| **Cartographer (Epic 6)** | First story should call `llm-provider-py` + `deployai-runtime` for real extractions. |
+
+| Item                                       | Note                                                                                                 |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| **Grafana / OTLP**                         | Point `opentelemetry` SDK at your collector in k8s; API-only metrics are no-op until SDK + exporter. |
+| **KMS/rotation**                           | `DEPLOYAI_*_SECRET_ARN` pattern documented; align with 90-day rotation runbooks.                     |
+| **Streaming & provider integration tests** | Extended tests for SSE parse + 5xx paths in `llm-provider-py` tests.                                 |
+| **Cartographer (Epic 6)**                  | First story should call `llm-provider-py` + `deployai-runtime` for real extractions.                 |
+
 
 ## Next handoff (Epic 6)
 
-Build Cartographer/Oracle/Strategist on **`deployai-runtime` + `llm-provider-py` + phase APIs**; no duplicate prompt or state-machine logic in agent folders.
+Build Cartographer/Oracle/Strategist on `**deployai-runtime` + `llm-provider-py` + phase APIs**; no duplicate prompt or state-machine logic in agent folders.

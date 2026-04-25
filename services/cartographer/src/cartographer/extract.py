@@ -214,3 +214,29 @@ def bundle_fingerprint(bundle: ExtractionBundle) -> str:
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def extraction_bundle_to_persist_dict(bundle: ExtractionBundle) -> dict[str, Any]:
+    """JSONB-safe document for ``persist_cartographer_extraction`` in the control plane."""
+
+    def env_to(c: CitationEnvelopeV01) -> dict[str, Any]:
+        d = c.model_dump(mode="json")
+        return cast(dict[str, Any], json.loads(json.dumps(d, sort_keys=True)))
+
+    return {
+        "source_event_id": str(bundle.source_event_id),
+        "graph_epoch": bundle.graph_epoch,
+        "entity_count": len(bundle.entities),
+        "entities": [
+            {
+                "label": e.label,
+                "kind": e.kind,
+                "evidence_span": e.evidence_span.model_dump(),
+                "citation_envelope": env_to(e.envelope),
+            }
+            for e in bundle.entities
+        ],
+        "relationships": [],
+        "blockers": [],
+        "candidate_learnings": [],
+    }

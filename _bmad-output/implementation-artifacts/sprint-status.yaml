@@ -124,7 +124,7 @@ development_status:
   # ======================================================================
   epic-6: in-progress
   6-1-cartographer-mission-relevance-triage: done
-  6-2-cartographer-entity-relationship-extraction: in-progress
+  6-2-cartographer-entity-relationship-extraction: done
   6-3-oracle-phase-gated-retrieval-ccm-null-result: backlog
   6-4-oracle-three-item-budget-ranked-out-footer: backlog
   6-5-oracle-suggestions-only-posture: backlog
