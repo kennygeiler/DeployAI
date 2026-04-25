@@ -1,0 +1,96 @@
+from __future__ import annotations
+
+import uuid
+
+import pytest
+
+from cartographer.triage import EventSignals, TriageContext, score_relevance, triage_event
+
+
+def test_score_zero_without_objectives() -> None:
+    ctx = TriageContext(phase="P1_pre_engagement", declared_objectives=())
+    ev = EventSignals(
+        event_id=uuid.uuid4(),
+        event_keywords=("deployment", "nyc"),
+        text_blob="deployment schedule NYC",
+    )
+    assert score_relevance(ctx, ev) == 0.0
+
+
+def test_passes_when_keywords_align() -> None:
+    ctx = TriageContext(
+        phase="P5_scale_execution",
+        declared_objectives=(
+            "Coordinate deployment schedules with NYC DOT stakeholders.",
+            "Review meeting transcripts for action items.",
+        ),
+    )
+    ev = EventSignals(
+        event_id=uuid.uuid4(),
+        event_participants=("jane@dot.nyc.gov",),
+        event_keywords=("deployment", "schedule", "nyc", "transcript"),
+        text_blob="Deployment schedule review for NYC DOT with stakeholders",
+    )
+    assert score_relevance(ctx, ev) >= 0.4
+
+
+def test_triage_out_below_threshold(monkeypatch: pytest.MonkeyPatch) -> None:
+    called: list[tuple[str, str, str]] = []
+
+    def cap(tenant_id: str, phase: str, outcome: str) -> None:
+        called.append((tenant_id, phase, outcome))
+
+    monkeypatch.setattr("cartographer.triage.observe_triage", cap)
+    ctx = TriageContext(
+        phase="P1_pre_engagement",
+        declared_objectives=("only specific dot keywords here",),
+        relevance_threshold=0.9,
+    )
+    ev = EventSignals(
+        event_id=uuid.uuid4(),
+        event_keywords=("unrelated", "foobar", "xyzzy"),
+        text_blob="coffee shop lunch",
+    )
+    r = triage_event(ctx, ev, tenant_id="t-1")
+    assert r.triaged_out
+    assert r.outcome == "triaged_out"
+    assert not r.would_consume_extraction
+    assert called == [("t-1", "P1_pre_engagement", "triaged_out")]
+
+
+def test_triage_pass_increments_passed(monkeypatch: pytest.MonkeyPatch) -> None:
+    called: list[str] = []
+
+    def cap(*, tenant_id: str, phase: str, outcome: str) -> None:
+        called.append(outcome)
+
+    monkeypatch.setattr("cartographer.triage.observe_triage", cap)
+    ctx = TriageContext(
+        phase="P4_validation",
+        declared_objectives=("NYC DOT deployment schedule coordination", "stakeholder transcripts"),
+    )
+    ev = EventSignals(
+        event_id=uuid.uuid4(),
+        event_keywords=("nyc", "dot", "deployment", "schedule", "stakeholder", "transcript"),
+        text_blob="NYC DOT deployment schedule with stakeholders and transcript review",
+    )
+    r = triage_event(ctx, ev, tenant_id="acme")
+    assert not r.triaged_out
+    assert r.outcome == "passed"
+    assert r.would_consume_extraction
+    assert called == ["passed"]
+
+
+def test_event_from_dict_mapping() -> None:
+    eid = uuid.uuid4()
+    raw = {
+        "id": str(eid),
+        "participants": ["maya@example.com"],
+        "keywords": ["kickoff"],
+        "subject": "Kickoff meeting",
+        "body": "Discussion of deployment",
+    }
+    ev = EventSignals.from_event_dict(raw)
+    assert ev.event_id == eid
+    assert "kickoff" in ev.event_keywords
+    assert "deployment" in ev.text_blob.lower()

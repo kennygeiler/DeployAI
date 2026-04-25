@@ -7,6 +7,7 @@ dependencies = [
   "langgraph>=0.2.0",
   "deployai-checkpointer",
   "deployai-citation",
+  "prometheus-client>=0.21.0",
 ]
 
 [dependency-groups]
@@ -66,4 +67,8 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "deployai_citation.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["prometheus_client", "prometheus_client.*"]
 ignore_missing_imports = true

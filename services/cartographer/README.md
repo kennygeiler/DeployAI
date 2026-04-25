@@ -1,6 +1,10 @@
 # `deployai-cartographer`
 
-Epic 4 **Story 4-1** stub LangGraph and Postgres checkpointing tests.
+Epic 4 **Story 4-1** stub LangGraph and Postgres checkpointing tests, plus **Epic 6 / Story 6-1 (FR15)** mission-relevance triage.
+
+- `src/cartographer/triage.py` — deterministic relevance score in `[0, 1]` from tenant phase, declared objectives, and event fields (no LLM; triage is cheap and precedes extraction).
+- `src/cartographer/metrics.py` — Prometheus `cartographer_triage_outcomes_total` (per `tenant_id`, `phase`, `outcome=passed|triaged_out`); use `rate()` in dashboards for a triage *rate* view.
+- Default relevance threshold: **0.3** (overridable on `TriageContext`).
 
 **Do not paste pytest’s screen report** (the `====` lines, progress bar, or `[100%]`) back into your shell. zsh treats `[…]` as a glob, so you will see `no matches found: [100%]`. **Only run the commands below** (type them or copy a single line with no extra text after it).
 
