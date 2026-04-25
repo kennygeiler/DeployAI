@@ -13,13 +13,7 @@ import { PHASES, TOPOLOGIES, cellKey } from "./constants.mjs";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const QUERIES_DIR = join(__dirname, "..", "golden", "queries");
 
-const REQUIRED = [
-  "query_id",
-  "phase",
-  "stakeholder_topology",
-  "query_text",
-  "expected_citations",
-];
+const REQUIRED = ["query_id", "phase", "stakeholder_topology", "query_text", "expected_citations"];
 
 function isObject(x) {
   return x != null && typeof x === "object" && !Array.isArray(x);
@@ -54,7 +48,8 @@ for (const name of await readdir(QUERIES_DIR)) {
   for (const k of REQUIRED) {
     if (doc[k] == null) err(`${name}: missing field ${k}`);
   }
-  if (typeof doc.query_id !== "string" || !doc.query_id.length) err(`${name}: query_id must be a non-empty string`);
+  if (typeof doc.query_id !== "string" || !doc.query_id.length)
+    err(`${name}: query_id must be a non-empty string`);
   if (typeof doc.query_text !== "string") err(`${name}: query_text must be a string`);
   assertPhase(doc.phase);
   assertTopo(doc.stakeholder_topology);
@@ -68,12 +63,18 @@ for (const name of await readdir(QUERIES_DIR)) {
   for (const [i, ec] of doc.expected_citations.entries()) {
     if (!isObject(ec)) err(`${name}: expected_citations[${i}] not an object`);
     if (typeof ec.node_id !== "string") err(`${name}: expected_citations[${i}].node_id required`);
-    if (typeof ec.must_appear !== "boolean") err(`${name}: expected_citations[${i}].must_appear must be boolean`);
-    if (typeof ec.rank_floor !== "number" || !Number.isInteger(ec.rank_floor) || ec.rank_floor < 0) {
+    if (typeof ec.must_appear !== "boolean")
+      err(`${name}: expected_citations[${i}].must_appear must be boolean`);
+    if (
+      typeof ec.rank_floor !== "number" ||
+      !Number.isInteger(ec.rank_floor) ||
+      ec.rank_floor < 0
+    ) {
       err(`${name}: expected_citations[${i}].rank_floor must be a non-negative integer`);
     }
   }
-  if (doc.judge_only != null && typeof doc.judge_only !== "boolean") err(`${name}: judge_only must be boolean`);
+  if (doc.judge_only != null && typeof doc.judge_only !== "boolean")
+    err(`${name}: judge_only must be boolean`);
   cells.add(cellKey(doc.phase, doc.stakeholder_topology));
 }
 

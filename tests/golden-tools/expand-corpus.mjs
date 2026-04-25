@@ -42,13 +42,15 @@ for (const r of rows) {
     judge_only: !r.highConf,
   };
   if (r.highConf) {
-    doc.expected_citations = [
-      { node_id: randomUUID(), must_appear: true, rank_floor: 0 },
-    ];
+    doc.expected_citations = [{ node_id: randomUUID(), must_appear: true, rank_floor: 0 }];
   } else {
     doc.expected_citations = [];
   }
-  await writeFile(join(OUT, `${r.query_id}.yaml`), yaml.dump(doc, { lineWidth: 120, noRefs: true }), "utf8");
+  await writeFile(
+    join(OUT, `${r.query_id}.yaml`),
+    yaml.dump(doc, { lineWidth: 120, noRefs: true }),
+    "utf8",
+  );
 }
 
 console.log(`expand-corpus: wrote ${rows.length} files → ${OUT}`);

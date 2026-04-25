@@ -58,7 +58,12 @@ const rows = Object.entries(epic4)
   .map(([k, v]) => `| \`${k}\` | ${v} |`)
   .join("\n");
 
-const body = [`# DeployAI — quarterly snapshot (${y} Q${q})`, "", "## Epic 4 — agent runtime & replay harness", ""];
+const body = [
+  `# DeployAI — quarterly snapshot (${y} Q${q})`,
+  "",
+  "## Epic 4 — agent runtime & replay harness",
+  "",
+];
 body.push("Generated from `sprint-status.yaml` (stories 4-1+).", "");
 if (rows) {
   body.push("| Story | Status |", "| --- | --- |", rows, "");

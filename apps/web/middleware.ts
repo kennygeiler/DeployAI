@@ -3,9 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { canAccess, type Action, type V1Role } from "@deployai/authz";
 
 const isAdmin = (p: string) =>
-  p === "/admin/runs" ||
-  p === "/admin/adjudication" ||
-  p.startsWith("/admin/schema-proposals");
+  p === "/admin/runs" || p === "/admin/adjudication" || p.startsWith("/admin/schema-proposals");
 
 function parseRole(r: string | null): V1Role | null {
   const allowed: V1Role[] = [
