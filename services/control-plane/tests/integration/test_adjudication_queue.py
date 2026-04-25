@@ -64,6 +64,45 @@ async def test_adjudication_create_list_patch(adjud_internal_client: AsyncClient
     assert r3.json()["status"] == "resolved"
 
 
+_CITATION_META_SAMPLE = {
+    "rule_pass": True,
+    "judge_pass": False,
+    "citation_envelope": {
+        "schema_version": "0.1.0",
+        "node_id": "550e8400-e29b-41d4-a716-446655440000",
+        "graph_epoch": 0,
+        "evidence_span": {"start": 0, "end": 5, "source_ref": "urn:transcript#session-1"},
+        "retrieval_phase": "oracle",
+        "confidence_score": 0.88,
+        "signed_timestamp": "2026-04-23T12:00:00.000Z",
+    },
+    "evidence_body": "Hello",
+    "citation_label": "Transcript",
+}
+
+
+@pytest.mark.integration
+async def test_adjudication_create_persists_citation_meta(
+    adjud_internal_client: AsyncClient, postgres_engine: Engine
+) -> None:
+    """``meta`` may hold ``citation_envelope`` + web keys (docs/platform/adjudication-queue-meta.md)."""
+    tid = uuid.uuid4()
+    _ins_tenant(postgres_engine, tid)
+    r = await adjud_internal_client.post(
+        "/internal/v1/adjudication-queue-items",
+        json={"tenant_id": str(tid), "query_id": "q-cite-1", "meta": _CITATION_META_SAMPLE},
+    )
+    assert r.status_code == 201, r.text
+    iid = r.json()["id"]
+    assert r.json()["meta"]["citation_envelope"]["node_id"] == "550e8400-e29b-41d4-a716-446655440000"
+
+    r2 = await adjud_internal_client.get("/internal/v1/adjudication-queue-items?limit=10")
+    assert r2.status_code == 200
+    row = next(x for x in r2.json() if x["id"] == iid)
+    assert row["meta"]["evidence_body"] == "Hello"
+    assert row["meta"]["citation_label"] == "Transcript"
+
+
 @pytest.mark.integration
 async def test_adjudication_create_rejects_unknown_tenant(adjud_internal_client: AsyncClient) -> None:
     r = await adjud_internal_client.post(

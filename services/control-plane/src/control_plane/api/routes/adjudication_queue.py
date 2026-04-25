@@ -1,4 +1,9 @@
-"""Internal adjudication queue listing + create (Epic 4 Story 4-7) for ``/admin/adjudication``."""
+"""Internal adjudication queue listing + create (Epic 4 Story 4-7) for ``/admin/adjudication``.
+
+``meta`` (JSONB) is opaque: producers may store eval flags, notes, and optional
+``citation_envelope`` (+ ``evidence_body``, etc.) for the web Memory column. See
+``docs/platform/adjudication-queue-meta.md``.
+"""
 
 from __future__ import annotations
 
@@ -15,6 +20,13 @@ from control_plane.config.internal_api import verify_internal_key
 from control_plane.db import get_app_db_session
 from control_plane.domain.adjudication import AdjudicationQueueItem
 from control_plane.domain.app_identity.models import AppTenant
+
+# OpenAPI: consumers read `citation_envelope` + web keys in ``docs/platform/adjudication-queue-meta.md``.
+_ADJD_QUEUE_META_DOCS = (
+    "Arbitrary JSON (JSONB). "
+    "Optional `citation_envelope` (v0.1.0) and `evidence_body` for web — see "
+    "docs/platform/adjudication-queue-meta.md."
+)
 
 router = APIRouter(
     prefix="/adjudication-queue-items",
@@ -39,7 +51,7 @@ class AdjudicationItemRead(BaseModel):
     tenant_id: uuid.UUID
     query_id: str
     status: str
-    meta: dict[str, Any] = Field(default_factory=dict)
+    meta: dict[str, Any] = Field(default_factory=dict, description=_ADJD_QUEUE_META_DOCS)
     created_at: datetime
     updated_at: datetime
 
@@ -48,12 +60,12 @@ class AdjudicationItemCreate(BaseModel):
     tenant_id: uuid.UUID
     query_id: str
     status: str = "open"
-    meta: dict[str, Any] = Field(default_factory=dict)
+    meta: dict[str, Any] = Field(default_factory=dict, description=_ADJD_QUEUE_META_DOCS)
 
 
 class AdjudicationItemPatch(BaseModel):
     status: str | None = None
-    meta: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = Field(default=None, description=_ADJD_QUEUE_META_DOCS)
 
 
 @router.get(
@@ -82,6 +94,7 @@ async def create_adjudication_item(
     body: AdjudicationItemCreate,
     session: Annotated[AsyncSession, Depends(get_app_db_session)],
 ) -> AdjudicationQueueItem:
+    """Create a queue item; ``body.meta`` may include ``citation_envelope`` (see module doc + docs)."""
     t = await session.get(AppTenant, body.tenant_id)
     if t is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="tenant not found")
