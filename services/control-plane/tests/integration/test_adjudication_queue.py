@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
-from pathlib import Path
 
 import pytest
 import pytest_asyncio
@@ -43,9 +42,7 @@ def _ins_tenant(conn: Engine, tid: uuid.UUID) -> None:
 
 
 @pytest.mark.integration
-async def test_adjudication_create_list_patch(
-    adjud_internal_client: AsyncClient, postgres_engine: Engine
-) -> None:
+async def test_adjudication_create_list_patch(adjud_internal_client: AsyncClient, postgres_engine: Engine) -> None:
     tid = uuid.uuid4()
     _ins_tenant(postgres_engine, tid)
     r = await adjud_internal_client.post(
@@ -62,9 +59,7 @@ async def test_adjudication_create_list_patch(
     rows = r2.json()
     assert any(x["id"] == iid for x in rows)
 
-    r3 = await adjud_internal_client.patch(
-        f"/internal/v1/adjudication-queue-items/{iid}", json={"status": "resolved"}
-    )
+    r3 = await adjud_internal_client.patch(f"/internal/v1/adjudication-queue-items/{iid}", json={"status": "resolved"})
     assert r3.status_code == 200, r3.text
     assert r3.json()["status"] == "resolved"
 

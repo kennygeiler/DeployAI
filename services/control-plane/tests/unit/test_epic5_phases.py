@@ -1,4 +1,4 @@
-from control_plane.phases.machine import can_transition, default_phase, DEPLOYMENT_PHASES
+from control_plane.phases.machine import DEPLOYMENT_PHASES, can_transition, default_phase
 
 
 def test_can_only_step_forward_one_phase() -> None:

@@ -28,6 +28,9 @@ dependencies = [
   "deployai-ingest",
   "prometheus-client>=0.21.0",
   "deployai-runtime",
+  "deployai-llm-provider-py",
+  "opentelemetry-sdk>=1.28.0",
+  "opentelemetry-exporter-otlp-proto-http>=1.28.0",
 ]
 
 [tool.uv.sources]
@@ -36,6 +39,7 @@ deployai-authz = { path = "../_shared/authz", editable = true }
 deployai-citation = { path = "../_shared/citation", editable = true }
 deployai-ingest = { path = "../ingest", editable = true }
 deployai-runtime = { path = "../_shared/runtime", editable = true }
+deployai-llm-provider-py = { path = "../../packages/llm-provider-py", editable = true }
 
 [dependency-groups]
 dev = [
@@ -94,6 +98,13 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["prometheus_client", "prometheus_client.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+  "opentelemetry",
+  "opentelemetry.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

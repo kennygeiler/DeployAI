@@ -15,6 +15,8 @@ COPY services/_shared/citation /_shared/citation
 COPY services/_shared/authz /_shared/authz
 # Path dep `deployai-ingest` in pyproject (`../ingest` from /app).
 COPY services/ingest /ingest
+# `deployai-llm-provider-py` (`../../packages/llm-provider-py` from the service root).
+COPY packages/llm-provider-py /packages/llm-provider-py
 
 COPY services/control-plane/pyproject.toml services/control-plane/uv.lock services/control-plane/README.md ./
 RUN uv sync --frozen --no-install-project --no-dev
