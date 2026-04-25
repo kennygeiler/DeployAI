@@ -101,7 +101,9 @@ export function RunsTable({ rows }: { rows: RunRow[] }) {
         <SheetContent side="right" className="sm:max-w-lg">
           <SheetHeader>
             <SheetTitle>Run {detail?.id}</SheetTitle>
-            <SheetDescription>Run metadata, errors, and observability link when present.</SheetDescription>
+            <SheetDescription>
+              Run metadata, errors, and observability link when present.
+            </SheetDescription>
           </SheetHeader>
           {detail ? (
             <div className="mt-4 flex flex-col gap-3">

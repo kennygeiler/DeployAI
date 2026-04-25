@@ -42,9 +42,7 @@ def test_safe_return() -> None:
 
 def _bearer(priv: Path, *, tid: uuid.UUID) -> str:
     clear_jwt_key_cache()
-    return create_access_token(
-        sub="u1", tid=str(tid), roles=["deployment_strategist"], access_jti="jti-t"
-    )
+    return create_access_token(sub="u1", tid=str(tid), roles=["deployment_strategist"], access_jti="jti-t")
 
 
 @pytest.mark.asyncio

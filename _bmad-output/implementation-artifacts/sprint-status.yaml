@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-21
-last_updated: 2026-04-23 # Epic 2–3 retrospectives done; schema + fuzz required-checks promotion documented
+last_updated: 2026-04-24 # GitHub main ruleset applied; Epic 4 started (4-1 in progress)
 project: DeployAI
 project_key: NOKEY
 tracking_system: file-system
@@ -96,8 +96,8 @@ development_status:
   # ======================================================================
   # Epic 4: Agent Runtime Contracts & Replay-Parity Harness (w8–11)
   # ======================================================================
-  epic-4: backlog
-  4-1-langgraph-postgres-checkpointing-stub-agent: backlog
+  epic-4: in-progress
+  4-1-langgraph-postgres-checkpointing-stub-agent: done
   4-2-citation-aware-llamaindex-adapter: backlog
   4-3-golden-fixture-authoring-tool-and-schema: backlog
   4-4-golden-query-corpus-authoring: backlog

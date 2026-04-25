@@ -8,7 +8,7 @@ This directory holds the GitHub Actions workflows that enforce DeployAI's compli
 
 | Workflow | Trigger | Purpose | Compliance control(s) | Status | Landed in |
 |---|---|---|---|---|---|
-| `ci.yml` | PR against `main`; push to `main` | Toolchain guard, **smoke** (`pnpm turbo` …), then job **Control plane (integration)** — `uv run pytest tests/integration/ -m integration` in `services/control-plane` (Docker + Postgres testcontainers, Epic 2/3 and related). SBOM, Grype CVE, Dependency Review in other jobs. | NFR62 (SBOM), NFR65 (CVE), FR27 contract gate, Story 1.1 deferred AC4 + AC5; integration coverage for control-plane | active | Story 1.2 |
+| `ci.yml` | PR against `main`; push to `main` | Toolchain guard, **smoke** (`pnpm turbo` …, including `test` for `@deployai/cartographer` / Epic 4-1), then job **Control plane (integration)** — `uv run pytest tests/integration/ -m integration` in `services/control-plane` (Docker + Postgres testcontainers, Epic 2/3 and related). SBOM, Grype CVE, Dependency Review in other jobs. | NFR62 (SBOM), NFR65 (CVE), FR27 contract gate, Story 1.1 deferred AC4 + AC5; integration coverage for control-plane; cartographer via turbo test for AR6 / Story 4-1 | active | Story 1.2 |
 | `release.yml` | Tag push matching `v*.*.*`; `workflow_dispatch` | Signs + attests release artifacts (cosign keyless, SLSA v1.0 provenance) | NFR63 (signing), NFR64 (SLSA L2) | scaffolded; dormant until Story 1.3 lands buildable workspaces | Story 1.2 |
 | `a11y.yml` | PR against `main`; push to `main` | 4-job a11y gate: `jsx-a11y` lint, `storybook-a11y` test-runner, `playwright-a11y` E2E axe, `pa11y` axe + htmlcs | FR44, NFR28, NFR41, NFR42, NFR43, AR25 | active | Story 1.6 |
 | `compose-smoke.yml` | PR against `main` (path-filtered on `infra/**`, `services/**`, `apps/web/Dockerfile`, `packages/authz/**`, `packages/design-tokens/**`, `Makefile`, `pnpm-lock.yaml`); push to `main` | Brings up the full local stack (postgres + pgvector/pgcrypto, redis, minio, freetsa-stub, control-plane, web) via `make dev`, runs `make dev-verify`, fails if wall-clock exceeds 30 min | NFR67, NFR68, NFR77 | active | Story 1.7 |
@@ -109,45 +109,53 @@ checks to pass before merging" (or **Rulesets** → **Require status checks**).
 
 After this doc’s 2026-04-23 update, add any **new** strings below that are
 not yet in your repo’s rule (especially `Control plane (integration)`,
-`Ingest (pytest)`, `schema / …`, `fuzz / …`).
+`Ingest (pytest)`, `canonical-memory-schema`, `cross-tenant-fuzz`).
 
-Required checks (14 total — 7 from `CI`, 4 from `a11y`, 1 `compose-smoke`, 1 `schema`, 1 `fuzz`):
+**Repository ruleset contexts:** the API and mergeability use the **check-run job `name`**
+as reported on the PR and by `gh pr view N --json statusCheckRollup` — not the
+`{workflow} / {job}` form shown in some older examples. The 14 required checks are:
 
-From `ci.yml` (workflow `name: CI`):
+From `ci.yml` (workflow `name: CI` — job `name` values only):
 
-- `CI / Toolchain (Node 24 + pnpm 10.33.0)`
-- `CI / Smoke (install / build / lint / typecheck / test / format)`
-- `CI / Control plane (integration)`
-- `CI / Ingest (pytest)`
-- `CI / SBOM (source — SPDX + CycloneDX)`
-- `CI / CVE scan (grype)`
-- `CI / Dependency review (PR diff)`
+- `Toolchain (Node 24 + pnpm 10.33.0)`
+- `Smoke (install / build / lint / typecheck / test / format)`
+- `Control plane (integration)`
+- `Ingest (pytest)`
+- `SBOM (source — SPDX + CycloneDX)`
+- `CVE scan (grype)`
+- `Dependency review (PR diff)`
 
-From `a11y.yml` (workflow `name: a11y`):
+From `a11y.yml` (job `name` values):
 
-- `a11y / jsx-a11y`
-- `a11y / storybook-a11y`
-- `a11y / playwright-a11y`
-- `a11y / pa11y`
+- `jsx-a11y`
+- `storybook-a11y`
+- `playwright-a11y`
+- `pa11y`
 
-From `compose-smoke.yml` (workflow `name: compose-smoke`):
+From `compose-smoke.yml`:
 
-- `compose-smoke / compose-smoke`
+- `compose-smoke`
 
-From `schema.yml` (workflow `name: schema`):
+From `schema.yml`:
 
-- `schema / canonical-memory-schema`
+- `canonical-memory-schema`
 
-From `fuzz.yml` (workflow `name: fuzz`):
+From `fuzz.yml`:
 
-- `fuzz / cross-tenant-fuzz`
+- `cross-tenant-fuzz`
 
 **Path-filtered workflows** (`schema`, `fuzz`, `compose-smoke`): they only
 run when changed paths match `on: paths:`. On PRs that **do not** touch
-those paths, GitHub may show these checks as **skipped** — use **Rulesets**
-“Do not require status checks that are skipped” (or equivalent) so
-docs-only PRs are not blocked, *or* accept that admins may need to merge
-with skipped checks when appropriate.
+those paths, GitHub may show these checks as **skipped** — in **Rulesets**,
+use **“Do not require status checks that are skipped”** (or merge with admin
+overrides) so docs-only PRs are not stuck.
+
+**Repository ruleset (automated):** the `main` branch has an active
+**ruleset** (status checks + PR-only merge) defined as JSON in
+[`scripts/github/main-ruleset.json`](../../scripts/github/main-ruleset.json)
+and documented in [`scripts/github/README.md`](../../scripts/github/README.md).
+Re-apply with `gh api` per that README. Remove legacy **Branch protection**
+rules on `main` if they duplicate this ruleset (Settings → Branches).
 
 > The `ci.yml` names carry parenthetical descriptors for historical
 > reasons (Story 1.2) — branch protection matches the literal string,

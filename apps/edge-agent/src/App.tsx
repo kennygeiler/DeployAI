@@ -52,10 +52,9 @@ function App() {
       return;
     }
     try {
-      const h = await invoke<{ ok: boolean; body: string; url: string }>(
-        "control_plane_health",
-        { baseUrl: u },
-      );
+      const h = await invoke<{ ok: boolean; body: string; url: string }>("control_plane_health", {
+        baseUrl: u,
+      });
       setCpHealth(
         h.ok
           ? `OK ${h.url} — ${h.body.slice(0, 240)}`
@@ -81,7 +80,9 @@ function App() {
   return (
     <main className="container">
       <h1>DeployAI Edge Agent</h1>
-      <p>Edge capture shell: first-launch mic check, keychain test, and control-plane reachability.</p>
+      <p>
+        Edge capture shell: first-launch mic check, keychain test, and control-plane reachability.
+      </p>
       <section className="panel">
         <h2>Audio Permission (first launch)</h2>
         <p>{micStatus}</p>

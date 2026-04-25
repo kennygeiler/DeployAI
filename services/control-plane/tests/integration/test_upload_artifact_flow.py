@@ -87,9 +87,7 @@ async def test_upload_presign_put_complete_canonical(
     client, _priv = upload_http_client
     tid = uuid.uuid4()
     _ins_tenant(postgres_engine, tid)
-    tok = create_access_token(
-        sub="st", tid=str(tid), roles=["deployment_strategist"], access_jti="up-i1"
-    )
+    tok = create_access_token(sub="st", tid=str(tid), roles=["deployment_strategist"], access_jti="up-i1")
     with mock_aws():
         s3 = boto3.client("s3", region_name=_REGION)
         s3.create_bucket(Bucket=_BUCKET)
@@ -154,9 +152,7 @@ async def test_upload_sqs_message_worker_inserts_asr_transcript(
     client, _priv = upload_http_client
     tid = uuid.uuid4()
     _ins_tenant(postgres_engine, tid)
-    tok = create_access_token(
-        sub="st2", tid=str(tid), roles=["deployment_strategist"], access_jti="up-i2"
-    )
+    tok = create_access_token(sub="st2", tid=str(tid), roles=["deployment_strategist"], access_jti="up-i2")
     with mock_aws():
         s3 = boto3.client("s3", region_name=_REGION)
         sqs = boto3.client("sqs", region_name=_REGION)

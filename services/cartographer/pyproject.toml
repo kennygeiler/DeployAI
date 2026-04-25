@@ -1,0 +1,69 @@
+[project]
+name = "deployai-cartographer"
+version = "0.0.0"
+description = "Stub LangGraph + replay checks (Epic 4 Story 4-1, AR6)."
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "langgraph>=0.2.0",
+  "deployai-checkpointer",
+  "deployai-citation",
+]
+
+[dependency-groups]
+dev = [
+  "mypy>=1.13.0",
+  "pytest>=8.3.0",
+  "pytest-asyncio>=0.24.0",
+  "ruff>=0.7.4",
+  "testcontainers[postgres]>=4.0.0",
+  "psycopg[binary]>=3.1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cartographer"]
+
+[tool.uv.sources]
+deployai-checkpointer = { path = "../_shared/checkpointer", editable = true }
+deployai-citation = { path = "../_shared/citation", editable = true }
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "RUF"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+mypy_path = "src"
+packages = ["cartographer"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src", "../_shared/checkpointer/src", "../_shared/citation/src"]
+markers = [
+  "integration: requires Docker (Postgres testcontainer)",
+]
+
+# Do not set addopts that exclude `-m integration` — it would combine with
+# `uv run pytest … -m integration` as ``not integration and integration`` and
+# collect zero tests. Default `uv run pytest` runs the integration test too;
+# it skips if Docker is unavailable.
+
+[[tool.mypy.overrides]]
+module = "langgraph.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "langgraph_checkpoint_postgres.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "deployai_citation.*"
+ignore_missing_imports = true

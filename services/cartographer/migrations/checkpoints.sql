@@ -1,0 +1,10 @@
+-- LangGraph Postgres checkpointer schema (Epic 4 Story 4-1)
+--
+-- Tables are created at runtime by ``AsyncPostgresSaver.setup()`` from the
+-- ``langgraph-checkpoint-postgres`` package (see ``deployai_checkpointer``).
+-- This file documents the dependency; do not hand-edit production DDL here —
+-- use the package migration path that matches your installed
+-- ``langgraph-checkpoint-postgres`` version.
+--
+-- Reference: `langgraph.checkpoint.postgres.aio.AsyncPostgresSaver`
+--

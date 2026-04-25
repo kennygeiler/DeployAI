@@ -20,9 +20,7 @@ from .test_account_provision_flow import _async_database_url_from_engine
 pytestmark = pytest.mark.integration
 
 
-def test_idempotent_dedup_second_insert_skipped(
-    postgres_engine: Engine, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_idempotent_dedup_second_insert_skipped(postgres_engine: Engine, monkeypatch: pytest.MonkeyPatch) -> None:
     u = str(_async_database_url_from_engine(postgres_engine))
     monkeypatch.setenv("DATABASE_URL", u)
     clear_settings_cache()

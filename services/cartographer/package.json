@@ -1,0 +1,14 @@
+{
+  "name": "@deployai/cartographer",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "uv sync --frozen",
+    "lint": "uv run ruff check src tests && uv run ruff format --check src tests",
+    "typecheck": "uv run mypy",
+    "test": "uv run pytest",
+    "test:unit": "uv run pytest -m \"not integration\"",
+    "test:integration": "uv run pytest tests/integration -m integration",
+    "clean": "rm -rf .venv .pytest_cache .mypy_cache .ruff_cache"
+  }
+}

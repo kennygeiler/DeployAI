@@ -78,9 +78,7 @@ async def test_presign_api_with_jwt_and_moto(tmp_path: Path, monkeypatch: pytest
     with mock_aws():
         c = boto3.client("s3", region_name=_REGION)
         c.create_bucket(Bucket=_BUCKET)
-        tok = create_access_token(
-            sub="s1", tid=str(tid), roles=["deployment_strategist"], access_jti="up-1"
-        )
+        tok = create_access_token(sub="s1", tid=str(tid), roles=["deployment_strategist"], access_jti="up-1")
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as cl:
             res = await cl.post(
                 "/upload/artifacts/presign",
@@ -111,9 +109,7 @@ async def test_presign_503_without_bucket(tmp_path: Path, monkeypatch: pytest.Mo
     clear_jwt_key_cache()
     tid = uuid.uuid4()
     try:
-        tok = create_access_token(
-            sub="s1", tid=str(tid), roles=["deployment_strategist"], access_jti="up-2"
-        )
+        tok = create_access_token(sub="s1", tid=str(tid), roles=["deployment_strategist"], access_jti="up-2")
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as cl:
             res = await cl.post(
                 "/upload/artifacts/presign",
@@ -148,9 +144,7 @@ async def test_complete_400_missing_consent(tmp_path: Path, monkeypatch: pytest.
     clear_jwt_key_cache()
     tid = uuid.uuid4()
     try:
-        tok = create_access_token(
-            sub="s1", tid=str(tid), roles=["deployment_strategist"], access_jti="up-c"
-        )
+        tok = create_access_token(sub="s1", tid=str(tid), roles=["deployment_strategist"], access_jti="up-c")
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as cl:
             res = await cl.post(
                 "/upload/artifacts/complete",

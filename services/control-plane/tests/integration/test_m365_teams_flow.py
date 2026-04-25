@@ -193,9 +193,7 @@ def _cookie_header(parts: dict[str, str]) -> str:
 
 def _bearer(priv: Any, *, tid: uuid.UUID) -> str:
     clear_jwt_key_cache()
-    return create_access_token(
-        sub="strat-t", tid=str(tid), roles=["deployment_strategist"], access_jti="t-jti"
-    )
+    return create_access_token(sub="strat-t", tid=str(tid), roles=["deployment_strategist"], access_jti="t-jti")
 
 
 @pytest.mark.asyncio
@@ -286,9 +284,7 @@ async def test_teams_e2e_connect_and_sync(
 
 
 @pytest.mark.asyncio
-async def test_teams_sync_idempotent(
-    m365_teams_http_client: tuple[AsyncClient, Any], postgres_engine: Engine
-) -> None:
+async def test_teams_sync_idempotent(m365_teams_http_client: tuple[AsyncClient, Any], postgres_engine: Engine) -> None:
     client, priv = m365_teams_http_client
     tid = uuid.uuid4()
     _ins_tenant(postgres_engine, tid)

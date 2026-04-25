@@ -1,5 +1,5 @@
 import { decideSync } from "@deployai/authz";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import { getActorFromHeaders } from "@/lib/internal/actor";
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
@@ -7,7 +7,7 @@ import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/intern
 /**
  * List recent ingestion runs (control-plane). Epic 3 Story 3-8.
  */
-export async function GET(_request: NextRequest) {
+export async function GET() {
   const actor = await getActorFromHeaders();
   if (!actor) {
     return new NextResponse("Unauthorized", { status: 401 });

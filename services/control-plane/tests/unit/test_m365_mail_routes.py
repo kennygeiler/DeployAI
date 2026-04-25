@@ -86,9 +86,7 @@ async def test_m365_mail_connect_403_tenant_mismatch(tmp_path: Path, monkeypatch
     monkeypatch.setenv("DEPLOYAI_OIDC_ISSUER", "https://login.microsoftonline.com/tenant/v2.0")
     monkeypatch.setenv("DEPLOYAI_OIDC_CLIENT_ID", "cid")
     monkeypatch.setenv("DEPLOYAI_OIDC_CLIENT_SECRET", "sec")
-    monkeypatch.setenv(
-        "DEPLOYAI_M365_MAIL_REDIRECT_URI", "https://cp.example.com/integrations/m365-mail/callback"
-    )
+    monkeypatch.setenv("DEPLOYAI_M365_MAIL_REDIRECT_URI", "https://cp.example.com/integrations/m365-mail/callback")
     clear_settings_cache()
     clear_jwt_key_cache()
     tok_tid = uuid.uuid4()
@@ -113,9 +111,7 @@ async def test_m365_mail_callback_400_without_cookies(monkeypatch: pytest.Monkey
     monkeypatch.setenv("DEPLOYAI_OIDC_ISSUER", "https://login.microsoftonline.com/tenant/v2.0")
     monkeypatch.setenv("DEPLOYAI_OIDC_CLIENT_ID", "cid")
     monkeypatch.setenv("DEPLOYAI_OIDC_CLIENT_SECRET", "sec")
-    monkeypatch.setenv(
-        "DEPLOYAI_M365_MAIL_REDIRECT_URI", "https://cp.example.com/integrations/m365-mail/callback"
-    )
+    monkeypatch.setenv("DEPLOYAI_M365_MAIL_REDIRECT_URI", "https://cp.example.com/integrations/m365-mail/callback")
     clear_settings_cache()
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
