@@ -41,3 +41,8 @@ export {
   type OverrideEvidenceOption,
   type OverrideSubmitPayload,
 } from "./OverrideComposer";
+export {
+  InMeetingAlertCard,
+  type InMeetingAlertCardProps,
+  type InMeetingAlertState,
+} from "./InMeetingAlertCard";
