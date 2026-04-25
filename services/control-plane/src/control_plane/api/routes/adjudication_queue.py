@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from control_plane.config.internal_api import verify_internal_key
 from control_plane.db import get_app_db_session
 from control_plane.domain.adjudication import AdjudicationQueueItem
+from control_plane.domain.app_identity.models import AppTenant
 
 router = APIRouter(
     prefix="/adjudication-queue-items",
@@ -81,6 +82,9 @@ async def create_adjudication_item(
     body: AdjudicationItemCreate,
     session: Annotated[AsyncSession, Depends(get_app_db_session)],
 ) -> AdjudicationQueueItem:
+    t = await session.get(AppTenant, body.tenant_id)
+    if t is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="tenant not found")
     row = AdjudicationQueueItem(
         tenant_id=body.tenant_id,
         query_id=body.query_id,

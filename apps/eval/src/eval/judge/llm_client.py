@@ -20,6 +20,18 @@ class AnthropicError(Exception):
         super().__init__(message)
 
 
+def _first_text_from_message_payload(data: dict[str, Any]) -> str:
+    blocks = data.get("content")
+    if not isinstance(blocks, list):
+        msg = f"Unexpected Anthropic response (content): {data!r}"
+        raise AnthropicError(msg)
+    for block in blocks:
+        if isinstance(block, dict) and block.get("type") == "text" and "text" in block:
+            return str(block["text"])
+    msg = f"No text content block in Anthropic response: {data!r}"
+    raise AnthropicError(msg)
+
+
 def _anthropic_api_key() -> str:
     return (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
 
@@ -38,17 +50,16 @@ def extract_first_json_object(text: str) -> dict[str, Any]:
     if start < 0:
         msg = "No JSON object found in model output"
         raise ValueError(msg)
-    depth = 0
-    for i in range(start, len(s)):
-        c = s[i]
-        if c == "{":
-            depth += 1
-        elif c == "}":
-            depth -= 1
-            if depth == 0:
-                return cast(dict[str, Any], json.loads(s[start : i + 1]))
-    msg = "Unbalanced braces in model JSON"
-    raise ValueError(msg)
+    decoder = json.JSONDecoder()
+    try:
+        obj, _end = decoder.raw_decode(s, start)
+    except json.JSONDecodeError as e:
+        msg = f"Invalid JSON: {e}"
+        raise ValueError(msg) from e
+    if not isinstance(obj, dict):
+        msg = "Judge output root must be a JSON object"
+        raise ValueError(msg)
+    return obj
 
 
 def _judge_user_message(*, query_id: str, golden: object, actual: object) -> str:
@@ -77,8 +88,10 @@ def load_judge_input_dict() -> dict[str, Any]:
     raw = (os.environ.get("DEPLOYAI_EVAL_JUDGE_INPUT") or "").strip()
     if raw:
         p = _resolve_path(raw)
-        if p.is_file():
-            return cast(dict[str, Any], json.loads(p.read_text(encoding="utf-8")))
+        if not p.is_file():
+            msg = f"DEPLOYAI_EVAL_JUDGE_INPUT is not a file: {p}"
+            raise FileNotFoundError(msg)
+        return cast(dict[str, Any], json.loads(p.read_text(encoding="utf-8")))
     root = _repo_root_from_env()
     candidate = root / "artifacts" / "replay-parity" / "judge-input.json"
     if candidate.is_file():
@@ -139,11 +152,10 @@ def invoke_anthropic_judge() -> tuple[JudgeItem, str | None]:
         msg = f"Anthropic API error {r.status_code}: {r.text[:500]}"
         raise AnthropicError(msg)
     data = r.json()
-    try:
-        text = str(data["content"][0]["text"])
-    except (KeyError, IndexError) as e:
-        msg = f"Unexpected Anthropic response shape: {data!r}"
-        raise AnthropicError(msg) from e
+    if not isinstance(data, dict):
+        msg = f"Unexpected Anthropic response (not an object): {data!r}"
+        raise AnthropicError(msg)
+    text = _first_text_from_message_payload(data)
 
     try:
         obj = extract_first_json_object(text)

@@ -67,3 +67,13 @@ async def test_adjudication_create_list_patch(
     )
     assert r3.status_code == 200, r3.text
     assert r3.json()["status"] == "resolved"
+
+
+@pytest.mark.integration
+async def test_adjudication_create_rejects_unknown_tenant(adjud_internal_client: AsyncClient) -> None:
+    r = await adjud_internal_client.post(
+        "/internal/v1/adjudication-queue-items",
+        json={"tenant_id": "00000000-0000-0000-0000-00000000dead", "query_id": "orphan"},
+    )
+    assert r.status_code == 404, r.text
+    assert "tenant" in r.text.lower()

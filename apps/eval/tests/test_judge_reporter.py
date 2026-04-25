@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from eval.judge.llm_client import extract_first_json_object
+from eval.judge.llm_client import _first_text_from_message_payload, extract_first_json_object
 from eval.judge.reporter import JudgeItem, build_report_for_ci, resolve_mode, run_stub_judge, write_judge_report
 
 
@@ -74,6 +74,40 @@ def test_build_report_for_ci_llm_success_patched(
 def test_extract_first_json_object_fenced() -> None:
     text = 'Here:\n```json\n{"a": 1, "b": true}\n```\n'
     assert extract_first_json_object(text) == {"a": 1, "b": True}
+
+
+def test_extract_first_json_object_braces_in_string() -> None:
+    """Brace-counting would fail; raw_decode must respect JSON string rules."""
+    text = '{"query_id": "a{b}c", "pass": true, "rationale": "ok", "scores": {}}'
+    o = extract_first_json_object("prefix " + text)
+    assert o["query_id"] == "a{b}c"
+    assert o["pass"] is True
+
+
+def test_anthropic_first_text_skips_thinking() -> None:
+    data = {
+        "content": [
+            {"type": "thinking", "thinking": "x"},
+            {"type": "text", "text": '{"pass": true}'},
+        ]
+    }
+    t = _first_text_from_message_payload(data)
+    assert t == '{"pass": true}'
+
+
+def test_load_judge_input_missing_file_errors(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from eval.judge import llm_client
+
+    p = tmp_path / "nope.json"
+    monkeypatch.setenv("DEPLOYAI_EVAL_JUDGE_INPUT", str(p))
+    try:
+        llm_client.load_judge_input_dict()
+    except FileNotFoundError as e:
+        assert "DEPLOYAI_EVAL_JUDGE_INPUT" in str(e)
+    else:
+        raise AssertionError("expected FileNotFoundError")
+    finally:
+        monkeypatch.delenv("DEPLOYAI_EVAL_JUDGE_INPUT", raising=False)
 
 
 def test_write_judge_report_roundtrip(tmp_path: Path) -> None:
