@@ -27,6 +27,7 @@ dependencies = [
   "boto3>=1.35.0",
   "deployai-ingest",
   "prometheus-client>=0.21.0",
+  "deployai-runtime",
 ]
 
 [tool.uv.sources]
@@ -34,6 +35,7 @@ deployai-tenancy = { path = "../_shared/tenancy", editable = true }
 deployai-authz = { path = "../_shared/authz", editable = true }
 deployai-citation = { path = "../_shared/citation", editable = true }
 deployai-ingest = { path = "../ingest", editable = true }
+deployai-runtime = { path = "../_shared/runtime", editable = true }
 
 [dependency-groups]
 dev = [

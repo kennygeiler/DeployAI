@@ -257,6 +257,7 @@ dependencies = [
     { name = "deployai-authz" },
     { name = "deployai-citation" },
     { name = "deployai-ingest" },
+    { name = "deployai-runtime" },
     { name = "deployai-tenancy" },
     { name = "email-validator" },
     { name = "fastapi" },
@@ -294,6 +295,7 @@ requires-dist = [
     { name = "deployai-authz", editable = "../_shared/authz" },
     { name = "deployai-citation", editable = "../_shared/citation" },
     { name = "deployai-ingest", editable = "../ingest" },
+    { name = "deployai-runtime", editable = "../_shared/runtime" },
     { name = "deployai-tenancy", editable = "../_shared/tenancy" },
     { name = "email-validator", specifier = ">=2.0.0" },
     { name = "fastapi", specifier = ">=0.136.0" },
@@ -334,6 +336,24 @@ dev = [
     { name = "mypy", specifier = ">=1.13.0" },
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "ruff", specifier = ">=0.7.4" },
+]
+
+[[package]]
+name = "deployai-runtime"
+version = "0.0.0"
+source = { editable = "../_shared/runtime" }
+dependencies = [
+    { name = "jinja2" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "jinja2", specifier = ">=3.1.0" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=1.13.0" },
+    { name = "pytest", specifier = ">=8.3.0" },
+    { name = "ruff", specifier = ">=0.7.0" },
 ]
 
 [[package]]

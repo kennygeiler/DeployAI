@@ -110,13 +110,13 @@ development_status:
   # ======================================================================
   # Epic 5: Agent Runtime Foundation (w10–12)
   # ======================================================================
-  epic-5: backlog
-  5-1-anthropic-claude-sonnet-4-provider: backlog
-  5-2-openai-gpt-4o-provider-with-failover: backlog
-  5-3-prompt-infrastructure-tool-calling-scaffolding: backlog
-  5-4-seven-phase-deployment-framework-state-machine: backlog
-  5-5-tiered-solidification-classifier: backlog
-  5-6-phase-context-modulation-retrieval-thresholds: backlog
+  epic-5: done
+  5-1-anthropic-claude-sonnet-4-provider: done
+  5-2-openai-gpt-4o-provider-with-failover: done
+  5-3-prompt-infrastructure-tool-calling-scaffolding: done
+  5-4-seven-phase-deployment-framework-state-machine: done
+  5-5-tiered-solidification-classifier: done
+  5-6-phase-context-modulation-retrieval-thresholds: done
   epic-5-retrospective: optional
 
   # ======================================================================
