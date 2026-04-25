@@ -23,6 +23,9 @@ from llama_index.core.schema import NodeWithScore, QueryBundle, TextNode
 
 CorpusConfidenceMarker = Literal["high", "medium", "low", "null"]
 
+# FR25 / DP10: Oracle never auto-executes; only this posture is defined for agent-boundary items.
+ActionPosture = Literal["suggestion"]
+
 
 @dataclass(frozen=True, slots=True)
 class OracleRetrievalRequest:
@@ -47,7 +50,7 @@ class ExplicitNullResult:
 
 @dataclass(frozen=True, slots=True)
 class OracleItem:
-    """One ranked, phase-labeled result."""
+    """One ranked, phase-labeled result (suggestions only — FR25)."""
 
     text: str
     deployment_phase: str
@@ -56,6 +59,7 @@ class OracleItem:
     confidence_score: float
     citation_envelope: CitationEnvelopeV01
     node_id: str | None = None
+    action_posture: ActionPosture = "suggestion"
 
 
 @dataclass(frozen=True, slots=True)
@@ -188,6 +192,7 @@ def oracle_retrieve(
                 confidence_score=float(env.confidence_score),
                 citation_envelope=env,
                 node_id=nid,
+                action_posture="suggestion",
             )
         )
     return OracleResponse(

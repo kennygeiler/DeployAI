@@ -8,7 +8,13 @@ from oracle.budget import (
     apply_three_item_budget,
     assert_primary_at_most_three,
 )
+from oracle.posture import (
+    assert_oracle_items_suggestions_only,
+    validate_budgeted_oracle_posture,
+    validate_oracle_response_posture,
+)
 from oracle.retrieve import (
+    ActionPosture,
     CorpusConfidenceMarker,
     ExplicitNullResult,
     OracleItem,
@@ -19,6 +25,7 @@ from oracle.retrieve import (
 
 __all__ = [
     "PRIMARY_BUDGET",
+    "ActionPosture",
     "BudgetedOracleResponse",
     "CorpusConfidenceMarker",
     "ExplicitNullResult",
@@ -28,6 +35,9 @@ __all__ = [
     "OracleSurface",
     "RankedOutItem",
     "apply_three_item_budget",
+    "assert_oracle_items_suggestions_only",
     "assert_primary_at_most_three",
     "oracle_retrieve",
+    "validate_budgeted_oracle_posture",
+    "validate_oracle_response_posture",
 ]

@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-21
-last_updated: 2026-04-23 # Epic 6-4 Oracle 3-item budget + ranked_out footer
+last_updated: 2026-04-23 # Epic 6-5 Oracle suggestions-only posture
 project: DeployAI
 project_key: NOKEY
 tracking_system: file-system
@@ -127,7 +127,7 @@ development_status:
   6-2-cartographer-entity-relationship-extraction: done
   6-3-oracle-phase-gated-retrieval-ccm-null-result: done
   6-4-oracle-three-item-budget-ranked-out-footer: done
-  6-5-oracle-suggestions-only-posture: backlog
+  6-5-oracle-suggestions-only-posture: done
   6-6-master-strategist-arbitration-action-queue-ranking: backlog
   6-7-master-strategist-phase-transition-proposals: backlog
   6-8-agent-graceful-degradation-contract: backlog
