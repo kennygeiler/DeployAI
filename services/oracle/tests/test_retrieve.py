@@ -141,7 +141,7 @@ def test_phase_ambiguity_union_includes_both_with_labels() -> None:
 
 
 def test_medium_confidence_band() -> None:
-    """Scores around the 0.45–0.72 band should surface ``medium`` CCM."""
+    """Scores around the 0.45-0.72 band should surface ``medium`` CCM."""
     inner = _MockRetriever(
         [
             _nws(
