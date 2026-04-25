@@ -13,6 +13,9 @@ from opentelemetry.sdk.resources import Resource
 
 _log = logging.getLogger(__name__)
 
+# Avoid duplicate PeriodicExportingMetricReader / exporter on reload or double-import.
+_configured: bool = False
+
 
 def _wants_export() -> bool:
     if os.environ.get("OTEL_SDK_DISABLED", "").lower() in ("1", "true", "yes", "on"):
@@ -29,6 +32,9 @@ def configure_opentelemetry() -> None:
     Call as early as possible (before any :mod:`llm_provider_py` usage) so
     :func:`opentelemetry.metrics.get_meter` binds to the SDK, not a no-op.
     """
+    global _configured
+    if _configured:
+        return
     if not _wants_export():
         return
 
@@ -51,6 +57,7 @@ def configure_opentelemetry() -> None:
         metric_readers=(reader,),
     )
     metrics.set_meter_provider(provider)
+    _configured = True
     _log.info(
         "OpenTelemetry SDK metrics active (OTLP/HTTP; service=%s; export every %sms)",
         service_name,
@@ -59,6 +66,7 @@ def configure_opentelemetry() -> None:
 
 
 def shutdown_opentelemetry() -> None:
+    global _configured
     prov = metrics.get_meter_provider()
     fn = getattr(prov, "shutdown", None)
     if fn is not None and callable(fn):
@@ -66,3 +74,4 @@ def shutdown_opentelemetry() -> None:
             fn()
         except Exception:
             _log.exception("OpenTelemetry meter provider shutdown failed")
+    _configured = False

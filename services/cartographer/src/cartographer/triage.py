@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from cartographer.metrics import observe_triage
+
+_log = logging.getLogger(__name__)
 
 Outcome = Literal["passed", "triaged_out"]
 
@@ -39,7 +42,16 @@ class EventSignals:
     def from_event_dict(cls, raw: dict[str, Any]) -> EventSignals:
         """Best-effort mapping from a canonical event document."""
         eid = raw.get("id")
-        euuid = eid if isinstance(eid, uuid.UUID) else uuid.UUID(str(eid)) if eid else uuid.uuid4()
+        euuid: uuid.UUID
+        if isinstance(eid, uuid.UUID):
+            euuid = eid
+        elif eid:
+            try:
+                euuid = uuid.UUID(str(eid))
+            except ValueError:
+                euuid = uuid.uuid4()
+        else:
+            euuid = uuid.uuid4()
         parts = raw.get("participants") or raw.get("event_participants") or []
         if not isinstance(parts, (list, tuple)):
             parts = []
@@ -127,6 +139,15 @@ def triage_event(
             reason = "below_relevance_threshold"
     else:
         reason = "relevance_threshold_met"
+    log_fields = {
+        "event_id": str(event.event_id),
+        "phase": ctx.phase,
+        "tenant_id": tenant_id,
+        "relevance_score": score,
+        "threshold": ctx.relevance_threshold,
+        "outcome": outcome,
+        "reason": reason,
+    }
     tr = TriageResult(
         event_id=event.event_id,
         relevance_score=score,
@@ -134,14 +155,17 @@ def triage_event(
         triaged_out=triaged_out,
         reason=reason,
         would_consume_extraction=not triaged_out,
-        log_fields={
-            "event_id": str(event.event_id),
-            "phase": ctx.phase,
-            "tenant_id": tenant_id,
-            "relevance_score": score,
-            "threshold": ctx.relevance_threshold,
-            "outcome": outcome,
-        },
+        log_fields=log_fields,
+    )
+    _log.info(
+        "cartographer_triage outcome=%s reason=%s score=%.4f threshold=%.4f tenant=%s phase=%s event_id=%s",
+        outcome,
+        reason,
+        score,
+        ctx.relevance_threshold,
+        tenant_id,
+        ctx.phase,
+        event.event_id,
     )
     observe_triage(
         tenant_id=tenant_id,
