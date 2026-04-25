@@ -1,0 +1,59 @@
+[project]
+name = "deployai-oracle"
+version = "0.0.0"
+description = "Oracle phase-gated retrieval, Corpus-Confidence Marker, and explicit null results (Epic 6 Story 6-3)."
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "llama-index-core>=0.11.0,<0.15",
+  "deployai-citation",
+  "deployai-llama-citation-adapter",
+]
+
+[dependency-groups]
+dev = [
+  "mypy>=1.13.0",
+  "pytest>=8.3.0",
+  "pytest-asyncio>=0.24.0",
+  "ruff>=0.7.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/oracle"]
+
+[tool.uv.sources]
+deployai-citation = { path = "../_shared/citation", editable = true }
+deployai-llama-citation-adapter = { path = "../../packages/llama-citation-adapter", editable = true }
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "RUF"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+mypy_path = "src"
+packages = ["oracle"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src", "../_shared/citation/src", "../../packages/llama-citation-adapter/src"]
+
+[[tool.mypy.overrides]]
+module = "llama_index.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "deployai_citation.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "llama_citation_adapter.*"
+ignore_missing_imports = true
