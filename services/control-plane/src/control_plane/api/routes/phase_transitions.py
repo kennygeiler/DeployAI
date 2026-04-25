@@ -147,7 +147,5 @@ async def list_proposals(
     tenant_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(get_app_db_session)],
 ) -> list[PhaseTransitionProposal]:
-    r = await session.execute(
-        select(PhaseTransitionProposal).where(PhaseTransitionProposal.tenant_id == tenant_id)
-    )
+    r = await session.execute(select(PhaseTransitionProposal).where(PhaseTransitionProposal.tenant_id == tenant_id))
     return list(r.scalars().all())

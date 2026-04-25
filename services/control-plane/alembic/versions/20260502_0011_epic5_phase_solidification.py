@@ -33,7 +33,12 @@ def upgrade() -> None:
     op.create_table(
         "phase_transition_proposals",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=text("deployai_uuid_v7()")),
-        sa.Column("tenant_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("app_tenants.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "tenant_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("app_tenants.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("from_phase", sa.Text(), nullable=False),
         sa.Column("to_phase", sa.Text(), nullable=False),
         sa.Column("status", sa.Text(), nullable=False, server_default=sa.text("'pending'")),
@@ -48,8 +53,18 @@ def upgrade() -> None:
     op.create_table(
         "solidification_review_queue",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=text("deployai_uuid_v7()")),
-        sa.Column("tenant_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("app_tenants.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("learning_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("solidified_learnings.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "tenant_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("app_tenants.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "learning_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("solidified_learnings.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("status", sa.Text(), nullable=False, server_default=sa.text("'open'")),
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     )
