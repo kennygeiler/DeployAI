@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 
 import pytest
@@ -79,6 +80,53 @@ def test_triage_pass_increments_passed(monkeypatch: pytest.MonkeyPatch) -> None:
     assert r.outcome == "passed"
     assert r.would_consume_extraction
     assert called == ["passed"]
+
+
+def test_triage_context_relevance_threshold_out_of_range() -> None:
+    with pytest.raises(ValueError, match="relevance_threshold"):
+        TriageContext(phase="P1", declared_objectives=("a",), relevance_threshold=1.1)
+
+
+def test_triage_log_json_uses_hashed_event_and_tenant(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    caplog.set_level(logging.INFO, logger="cartographer.triage")
+    monkeypatch.setenv("DEPLOYAI_CARTOGRAPHER_TRIAGE_LOG_JSON", "1")
+    monkeypatch.delenv("DEPLOYAI_CARTOGRAPHER_TRIAGE_LOG_IDENTIFIERS", raising=False)
+    eid = uuid.uuid4()
+    ev = EventSignals(
+        event_id=eid,
+        event_keywords=("nyc", "dot", "deployment"),
+        text_blob="NYC DOT deployment work",
+    )
+    ctx = TriageContext(phase="P5", declared_objectives=("deployment",))
+    r = triage_event(ctx, ev, tenant_id="acme-tenant")
+    assert not r.triaged_out
+    assert str(eid) not in caplog.text
+    assert "acme-tenant" not in caplog.text
+    assert "cartographer_triage" in caplog.text
+
+
+def test_triage_log_json_raw_identifiers(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    caplog.set_level(logging.INFO, logger="cartographer.triage")
+    monkeypatch.setenv("DEPLOYAI_CARTOGRAPHER_TRIAGE_LOG_JSON", "1")
+    monkeypatch.setenv("DEPLOYAI_CARTOGRAPHER_TRIAGE_LOG_IDENTIFIERS", "raw")
+    eid = uuid.uuid4()
+    ev = EventSignals(event_id=eid, text_blob="NYC", event_keywords=("nyc",))
+    ctx = TriageContext(phase="P1", declared_objectives=("nyc",))
+    triage_event(ctx, ev, tenant_id="raw-tenant")
+    assert str(eid) in caplog.text
+    assert "raw-tenant" in caplog.text
+
+
+def test_from_event_dict_accepts_uuid_instance() -> None:
+    eid = uuid.uuid4()
+    ev = EventSignals.from_event_dict({"id": eid, "body": "x"})
+    assert ev.event_id == eid
 
 
 def test_event_from_dict_mapping() -> None:

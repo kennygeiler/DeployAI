@@ -13,6 +13,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+  "coverage[toml]>=7.6.0",
   "mypy>=1.13.0",
   "pytest>=8.3.0",
   "pytest-asyncio>=0.24.0",
@@ -53,6 +54,17 @@ pythonpath = ["src", "../_shared/checkpointer/src", "../_shared/citation/src"]
 markers = [
   "integration: requires Docker (Postgres testcontainer)",
 ]
+
+[tool.coverage.run]
+branch = true
+source = ["src/cartographer"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+fail_under = 0
+show_missing = true
+skip_empty = true
+precision = 1
 
 # Do not set addopts that exclude `-m integration` — it would combine with
 # `uv run pytest … -m integration` as ``not integration and integration`` and

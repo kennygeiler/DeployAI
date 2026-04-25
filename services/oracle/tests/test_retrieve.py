@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from copy import deepcopy
 
+from deployai_citation.citation import CitationEnvelopeV01
 from llama_citation_adapter import CitationValidatingRetriever
 from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.schema import NodeWithScore, QueryBundle, TextNode
@@ -165,6 +166,57 @@ def test_medium_confidence_band() -> None:
     )
     assert out.corpus_confidence_marker == "medium"
     assert out.null_result is None
+
+
+def test_citation_envelope_pydantic_instance_in_metadata() -> None:
+    env = CitationEnvelopeV01.model_validate(_envelope())
+    nws = NodeWithScore(
+        node=TextNode(
+            text="hi",
+            metadata={
+                "citation_envelope": env,
+                "tenant_id": "t1",
+                "deployment_phase": "P5_pilot",
+            },
+        ),
+        score=0.8,
+    )
+    inner = _MockRetriever([nws])
+    r = _wrapped(inner)
+    out = oracle_retrieve(
+        r,
+        OracleRetrievalRequest(
+            tenant_id="t1",
+            target_deployment_phase="P5_pilot",
+            query_text="q",
+        ),
+    )
+    assert len(out.items) == 1
+
+
+def test_corpus_confidence_marker_low() -> None:
+    inner = _MockRetriever(
+        [
+            _nws(
+                "w",
+                tenant="t1",
+                dep_phase="P5_pilot",
+                score=0.1,
+                confidence=0.1,
+                recency=0.0,
+            ),
+        ],
+    )
+    r = _wrapped(inner)
+    out = oracle_retrieve(
+        r,
+        OracleRetrievalRequest(
+            tenant_id="t1",
+            target_deployment_phase="P5_pilot",
+            query_text="q",
+        ),
+    )
+    assert out.corpus_confidence_marker == "low"
 
 
 def test_drops_node_without_deployment_phase() -> None:

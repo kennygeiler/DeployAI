@@ -14,4 +14,4 @@ uv sync
 uv run pytest
 ```
 
-Turborepo: `@deployai/oracle` (see `package.json`).
+Turborepo: `@deployai/oracle` (see `package.json`). **Coverage:** `pnpm run test:cov` from this directory.

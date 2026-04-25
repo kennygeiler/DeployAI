@@ -39,4 +39,10 @@ pnpm run test:unit
 pnpm run test:integration
 ```
 
+**Line/branch coverage** (prints a table for `src/cartographer/`):
+
+```bash
+pnpm run test:cov
+```
+
 **Do not** put `#` comments on the same line as `uv run pytest` when you paste: if `#` is passed to pytest, you get `file or directory not found: #`. Put comments on a **separate** line, or use `pnpm` scripts above (no comment needed).

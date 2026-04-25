@@ -35,6 +35,7 @@ def _make_item(
     *,
     fit: float,
     eid: str | None = None,
+    node_id: str | None = None,
 ) -> OracleItem:
     d = deepcopy(_ENV_BASE)
     d["node_id"] = eid or str(uuid.uuid4())
@@ -46,7 +47,7 @@ def _make_item(
         retriever_score=0.5,
         confidence_score=float(env.confidence_score),
         citation_envelope=env,
-        node_id=None,
+        node_id=node_id,
     )
 
 
@@ -105,6 +106,18 @@ def test_morning_digest_same_cap() -> None:
     assert len(out.primary) == 3
     assert len(out.ranked_out) == 1
     assert_primary_at_most_three(out)
+
+
+def test_ranked_out_label_uses_node_id_when_text_empty() -> None:
+    items = (
+        _make_item("a", fit=0.9),
+        _make_item("b", fit=0.8),
+        _make_item("c", fit=0.7),
+        _make_item("", fit=0.1, node_id="orphan-node"),
+    )
+    raw = OracleResponse(items=items, corpus_confidence_marker="high", null_result=None)
+    out = apply_three_item_budget(raw)
+    assert out.ranked_out[0].label == "orphan-node"
 
 
 def test_rejects_over_budget() -> None:
