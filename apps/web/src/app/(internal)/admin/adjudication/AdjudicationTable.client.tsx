@@ -44,6 +44,24 @@ function CitationBlock({ rowId, data }: { rowId: string; data: ParsedAdjudicatio
     chipLabel,
   } = data;
   const rootId = `citation-${rowId}`;
+  const rootRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const go = () => {
+      if (window.location.hash === `#${rootId}`) {
+        setExpanded(true);
+        requestAnimationFrame(() => {
+          rootRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+      }
+    };
+    go();
+    window.addEventListener("hashchange", go);
+    return () => window.removeEventListener("hashchange", go);
+  }, [rootId]);
 
   const onCopyLink = React.useCallback(() => {
     const url = `${window.location.origin}${window.location.pathname}#${rootId}`;
@@ -58,7 +76,7 @@ function CitationBlock({ rowId, data }: { rowId: string; data: ParsedAdjudicatio
   }, [rootId]);
 
   return (
-    <div id={rootId} className="flex min-w-0 flex-col gap-3 py-1">
+    <div id={rootId} ref={rootRef} className="flex min-w-0 flex-col gap-3 py-1">
       <div className="min-w-0">
         <CitationChip
           id={`${rootId}-chip`}
@@ -92,6 +110,30 @@ function CitationBlock({ rowId, data }: { rowId: string; data: ParsedAdjudicatio
   );
 }
 
+const AdjudicationDataRow = React.memo(function AdjudicationDataRow({
+  row,
+}: {
+  row: AdjudicationRow;
+}) {
+  const parsed = React.useMemo(() => parseAdjudicationCitation(row.raw), [row]);
+  return (
+    <TableRow>
+      <TableCell className="font-mono text-sm max-w-[14rem] break-all align-top">
+        {row.queryId}
+      </TableCell>
+      <TableCell
+        className="align-top min-w-0 max-w-sm"
+        title={parsed ? "Citation: expand chip for full evidence" : undefined}
+      >
+        {parsed ? <CitationBlock rowId={row.id} data={parsed} /> : "—"}
+      </TableCell>
+      <TableCell className="font-mono text-sm align-top">{row.tenant}</TableCell>
+      <TableCell className="align-top">{row.status}</TableCell>
+      <TableCell className="text-ink-600 align-top">{row.createdAt}</TableCell>
+    </TableRow>
+  );
+});
+
 export function AdjudicationTable({ rows }: { rows: AdjudicationRow[] }) {
   if (rows.length === 0) {
     return (
@@ -113,24 +155,9 @@ export function AdjudicationTable({ rows }: { rows: AdjudicationRow[] }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((row) => {
-            const parsed = parseAdjudicationCitation(row.raw);
-            return (
-              <React.Fragment key={row.id}>
-                <TableRow>
-                  <TableCell className="font-mono text-sm max-w-[14rem] break-all align-top">
-                    {row.queryId}
-                  </TableCell>
-                  <TableCell className="align-top min-w-0 max-w-sm">
-                    {parsed ? <CitationBlock rowId={row.id} data={parsed} /> : "—"}
-                  </TableCell>
-                  <TableCell className="font-mono text-sm align-top">{row.tenant}</TableCell>
-                  <TableCell className="align-top">{row.status}</TableCell>
-                  <TableCell className="text-ink-600 align-top">{row.createdAt}</TableCell>
-                </TableRow>
-              </React.Fragment>
-            );
-          })}
+          {rows.map((row) => (
+            <AdjudicationDataRow key={row.id} row={row} />
+          ))}
         </TableBody>
       </Table>
     </div>

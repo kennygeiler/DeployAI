@@ -3,6 +3,9 @@ import {
   type CitationEnvelope,
   type RetrievalPhase,
 } from "@deployai/contracts";
+
+/** Cap quoted body size from queue `meta` so pathological DB payloads cannot lock the main thread. */
+export const ADJ_EVIDENCE_BODY_MAX_CHARS = 100_000;
 import type {
   CitationPreview,
   CitationVisualState,
@@ -90,7 +93,10 @@ export function parseAdjudicationCitation(
     typeof raw.citation_label === "string" && raw.citation_label.trim().length > 0
       ? raw.citation_label.trim()
       : "Cited source";
-  const bodyText = typeof raw.evidence_body === "string" ? raw.evidence_body : "";
+  const bodyText =
+    typeof raw.evidence_body === "string"
+      ? raw.evidence_body.slice(0, ADJ_EVIDENCE_BODY_MAX_CHARS)
+      : "";
   const degradedHint =
     typeof raw.citation_degraded_hint === "string" && raw.citation_degraded_hint.length > 0
       ? raw.citation_degraded_hint

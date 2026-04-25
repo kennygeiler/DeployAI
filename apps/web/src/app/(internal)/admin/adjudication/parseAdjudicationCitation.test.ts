@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { parseAdjudicationCitation } from "./parseAdjudicationCitation";
+import {
+  ADJ_EVIDENCE_BODY_MAX_CHARS,
+  parseAdjudicationCitation,
+} from "./parseAdjudicationCitation";
 
 const validEnvelope = {
   schema_version: "0.1.0" as const,
@@ -42,5 +45,27 @@ describe("parseAdjudicationCitation", () => {
         citation_envelope: { ...validEnvelope, node_id: "not-a-uuid" },
       }),
     ).toBeNull();
+  });
+
+  it("applies metadata overrides", () => {
+    const r = parseAdjudicationCitation({
+      citation_envelope: validEnvelope,
+      citation_label: "  Transcript  ",
+      citation_supersession: "superseded",
+      citation_supersession_detail: "Newer run",
+    });
+    expect(r).not.toBeNull();
+    expect(r!.chipLabel).toBe("Transcript");
+    expect(r!.panelMetadata.supersession).toBe("superseded");
+    expect(r!.panelMetadata.supersessionDetail).toBe("Newer run");
+  });
+
+  it("truncates evidence_body at ADJ_EVIDENCE_BODY_MAX_CHARS", () => {
+    const long = "x".repeat(ADJ_EVIDENCE_BODY_MAX_CHARS + 50);
+    const r = parseAdjudicationCitation({
+      citation_envelope: validEnvelope,
+      evidence_body: long,
+    });
+    expect(r!.bodyText).toHaveLength(ADJ_EVIDENCE_BODY_MAX_CHARS);
   });
 });
