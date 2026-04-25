@@ -83,9 +83,7 @@ def test_dedupe_skips_second_identical() -> None:
     from cartographer.extract import ExtractedEntity, _envelope
 
     eid = uuid.uuid4()
-    ev = _envelope(
-        eid, chunk_index=0, label="dup", start=0, end=3, graph_epoch=0
-    )
+    ev = _envelope(eid, chunk_index=0, label="dup", start=0, end=3, graph_epoch=0)
     ent = ExtractedEntity(
         label="Same",
         kind="other",
