@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-21
-last_updated: 2026-04-24 # GitHub main ruleset applied; Epic 4 started (4-1 in progress)
+last_updated: 2026-04-25 # Epic 4-2 llama-citation-adapter landed
 project: DeployAI
 project_key: NOKEY
 tracking_system: file-system
@@ -98,7 +98,7 @@ development_status:
   # ======================================================================
   epic-4: in-progress
   4-1-langgraph-postgres-checkpointing-stub-agent: done
-  4-2-citation-aware-llamaindex-adapter: backlog
+  4-2-citation-aware-llamaindex-adapter: done
   4-3-golden-fixture-authoring-tool-and-schema: backlog
   4-4-golden-query-corpus-authoring: backlog
   4-5-rule-based-evaluator: backlog

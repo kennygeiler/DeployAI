@@ -1,0 +1,11 @@
+{
+  "name": "@deployai/llama-citation-adapter",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "uv sync --frozen",
+    "lint": "uv run ruff check src tests && uv run ruff format --check src tests",
+    "typecheck": "uv run mypy",
+    "test": "uv run pytest"
+  }
+}
