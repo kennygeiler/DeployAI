@@ -5,6 +5,7 @@
 - Implementation: `src/llama_citation_adapter/adapter.py`
 - Tests: `tests/test_adapter.py`
 - Rejections: `metrics.rejections` on `CitationMetrics` + structured log field `citation_envelope_rejections`
+- Coverage: `pnpm run test:cov` (from this directory) prints `src/llama_citation_adapter/` line/branch report.
 
 ```python
 from llama_citation_adapter import CitationValidatingRetriever

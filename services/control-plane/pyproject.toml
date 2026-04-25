@@ -44,6 +44,7 @@ deployai-cartographer = { path = "../cartographer", editable = true }
 
 [dependency-groups]
 dev = [
+  "coverage[toml]>=7.6.0",
   "ruff>=0.7.4",
   "mypy>=1.13.0",
   "pytest>=8.3.3",
@@ -125,3 +126,14 @@ markers = [
   "integration: requires a reachable Docker daemon (testcontainers)",
   "fuzz: cross-tenant isolation fuzz harness; opt-in via -m fuzz (Story 1.10)",
 ]
+
+[tool.coverage.run]
+branch = true
+source = ["src/control_plane"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+fail_under = 0
+show_missing = true
+skip_empty = true
+precision = 1

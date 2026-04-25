@@ -18,6 +18,12 @@ uv run uvicorn control_plane.main:app --reload
 uv run pytest
 ```
 
+**Line/branch coverage** for `src/control_plane/` (default unit selection only; large service → expect **partial** totals until more integration tests run):
+
+```bash
+pnpm run test:cov
+```
+
 Default `addopts` skips `integration` and `fuzz` markers (fast unit suite only; matches **smoke** in `ci.yml`).
 
 **Integration tests** (Postgres via testcontainers, **Docker must be running**; same as **Control plane (integration)** in `ci.yml`):

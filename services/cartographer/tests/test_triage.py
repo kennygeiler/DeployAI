@@ -142,3 +142,51 @@ def test_event_from_dict_mapping() -> None:
     assert ev.event_id == eid
     assert "kickoff" in ev.event_keywords
     assert "deployment" in ev.text_blob.lower()
+
+
+def test_from_event_dict_invalid_id_string_uses_fresh_uuid() -> None:
+    ev = EventSignals.from_event_dict({"id": "this-is-not-a-uuid", "body": "hello world there"})
+    assert isinstance(ev.event_id, uuid.UUID)
+
+
+def test_from_event_dict_missing_id_uses_fresh_uuid() -> None:
+    a = EventSignals.from_event_dict({"body": "hello world there"})
+    b = EventSignals.from_event_dict({"body": "hello world there"})
+    assert a.event_id != b.event_id
+
+
+def test_from_event_dict_participants_not_list_coerced() -> None:
+    eid = uuid.uuid4()
+    ev = EventSignals.from_event_dict(
+        {
+            "id": str(eid),
+            "participants": 12345,
+            "body": "text",
+        },
+    )
+    assert ev.event_id == eid
+    assert ev.event_participants == ()
+
+
+def test_from_event_dict_keywords_not_list_coerced() -> None:
+    eid = uuid.uuid4()
+    ev = EventSignals.from_event_dict(
+        {
+            "id": str(eid),
+            "event_keywords": "ignored-not-iterable-right-type",
+            "body": "hello",
+        },
+    )
+    assert ev.event_keywords == ()
+
+
+def test_from_event_dict_event_participants_key() -> None:
+    eid = uuid.uuid4()
+    ev = EventSignals.from_event_dict(
+        {
+            "id": str(eid),
+            "event_participants": ["a@b.com"],
+            "body": "x",
+        },
+    )
+    assert "a@b.com" in ev.event_participants
