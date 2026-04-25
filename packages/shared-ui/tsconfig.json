@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "exactOptionalPropertyTypes": false
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vitest.config.ts", "eslint.config.mjs"],
+  "exclude": ["node_modules", "dist"]
+}

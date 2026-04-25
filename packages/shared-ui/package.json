@@ -1,0 +1,53 @@
+{
+  "name": "@deployai/shared-ui",
+  "version": "0.0.0",
+  "private": true,
+  "description": "DeployAI composite UI — CitationChip, EvidencePanel, ... (Epic 7, UX-DR4+).",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.8.0",
+    "radix-ui": "^1.4.3",
+    "tailwind-merge": "^3.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.4",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.6.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "eslint": "9.39.4",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "globals": "17.5.0",
+    "typescript-eslint": "^8.59.0",
+    "jsdom": "^26.0.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "typescript": "^6.0.3",
+    "vitest": "^2.1.9"
+  }
+}
