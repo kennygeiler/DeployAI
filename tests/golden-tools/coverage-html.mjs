@@ -27,9 +27,7 @@ for (const name of await readdir(QUERIES)) {
 await mkdir(dirname(OUT), { recursive: true });
 const rows = [...counts.entries()]
   .sort((a, b) => a[0].localeCompare(b[0]))
-  .map(
-    ([c, n]) => `<tr><td>${c}</td><td>${n}</td></tr>`,
-  )
+  .map(([c, n]) => `<tr><td>${c}</td><td>${n}</td></tr>`)
   .join("\n");
 const html = `<!doctype html><html><head><meta charset="utf-8"><title>Golden matrix coverage</title>
 <style>body{font-family:system-ui} table{border-collapse:collapse} td,th{border:1px solid #ccc;padding:6px}</style>

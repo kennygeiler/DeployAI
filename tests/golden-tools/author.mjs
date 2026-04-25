@@ -22,7 +22,9 @@ const id = arg("--id");
 const phase = arg("--phase");
 const topo = arg("--topo");
 if (!id || !phase || !topo) {
-  console.error("Usage: node author.mjs -- --id <query_id> --phase <phase> --topo <stakeholder_topology>");
+  console.error(
+    "Usage: node author.mjs -- --id <query_id> --phase <phase> --topo <stakeholder_topology>",
+  );
   console.error(`phase ∈ ${PHASES.join(", ")}`);
   console.error(`topo ∈ ${TOPOLOGIES.join(", ")}`);
   process.exit(1);
