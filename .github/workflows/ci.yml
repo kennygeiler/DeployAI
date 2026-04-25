@@ -378,12 +378,12 @@ jobs:
   # ------------------------------------------------------------------
   dependency-review:
     name: Dependency review (PR diff)
-    # Gated by repo variable GHAS_ENABLED because dependency-review-action
-    # requires GitHub Advanced Security on private repos. To activate:
-    # enable GHAS + set `GHAS_ENABLED=true` at Settings → Variables.
-    # Until then, grype's whole-tree JSON triage in `cve-scan` covers the
-    # same NFR65 surface with only the PR-diff view missing.
-    if: github.event_name == 'pull_request' && vars.GHAS_ENABLED == 'true'
+    # This job must **complete successfully** on every PR so the ruleset’s
+    # required check `CI / Dependency review (PR diff)` is satisfied. The
+    # dependency-review-action itself needs GitHub Advanced Security on private
+    # repos — gate with `GHAS_ENABLED`; when unset/false, emit a notice and
+    # exit 0 (grype in `cve-scan` still covers NFR65 for the whole tree).
+    if: github.event_name == 'pull_request'
     needs: [toolchain-check]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -391,12 +391,19 @@ jobs:
       contents: read
       pull-requests: write
     steps:
+      - name: No-op (GHAS / dependency review disabled)
+        if: vars.GHAS_ENABLED != 'true'
+        run: |
+          echo "::notice title=Dependency review skipped (expected)::Set repo variable GHAS_ENABLED=true (and enable GHAS) to run actions/dependency-review-action. Grype in this workflow still scans the full tree until then."
+
       - name: Checkout
+        if: vars.GHAS_ENABLED == 'true'
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
         with:
           persist-credentials: false
 
       - name: Dependency Review
+        if: vars.GHAS_ENABLED == 'true'
         uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
         with:
           fail-on-severity: critical
