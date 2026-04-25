@@ -1,0 +1,7 @@
+query_id: gen-0143
+phase: steady_state
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0143 for steady_state::cross_agency (bulk corpus).
+tenant_scenario: contractor
+judge_only: true
+expected_citations: []

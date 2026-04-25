@@ -1,0 +1,10 @@
+query_id: gen-0007
+phase: integration
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0007 for integration::single_stakeholder (bulk corpus).
+tenant_scenario: municipal
+judge_only: false
+expected_citations:
+  - node_id: b542cf58-beb8-40ce-a1f4-90d7e6012a83
+    must_appear: true
+    rank_floor: 0

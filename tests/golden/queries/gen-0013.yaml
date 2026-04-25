@@ -1,0 +1,10 @@
+query_id: gen-0013
+phase: scale
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0013 for scale::single_stakeholder (bulk corpus).
+tenant_scenario: contractor
+judge_only: false
+expected_citations:
+  - node_id: 974bf570-3bfa-488d-8486-c2343ad99e28
+    must_appear: true
+    rank_floor: 0

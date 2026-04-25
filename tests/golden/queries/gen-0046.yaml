@@ -1,0 +1,10 @@
+query_id: gen-0046
+phase: planning
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0046 for planning::single_stakeholder (bulk corpus).
+tenant_scenario: federal
+judge_only: false
+expected_citations:
+  - node_id: e2cdf49d-edbe-42e5-bfe1-6146e09c0788
+    must_appear: true
+    rank_floor: 0

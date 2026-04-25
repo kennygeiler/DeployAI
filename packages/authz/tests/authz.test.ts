@@ -61,6 +61,8 @@ describe("canAccess + matrix (Epic 2.1)", () => {
     ["successor_strategist", "override:submit", true],
     ["external_auditor", "foia:export", true],
     ["external_auditor", "ingest:view_runs", false],
+    ["deployment_strategist", "eval:view_adjudication", true],
+    ["external_auditor", "eval:view_adjudication", false],
   ])("role %s action %s -> %s", (role, action, expectAllow) => {
     const d = canAccess({ role }, action, global, opts);
     expect(d.allow).toBe(expectAllow);

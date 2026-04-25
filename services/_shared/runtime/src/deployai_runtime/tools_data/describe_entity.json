@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "describe_entity",
+  "description": "Return a structured label for a canonical node id (Epic 5 tool scaffold).",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "node_id": { "type": "string", "format": "uuid" }
+    },
+    "required": ["node_id"]
+  }
+}

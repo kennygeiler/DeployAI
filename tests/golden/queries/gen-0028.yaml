@@ -1,0 +1,10 @@
+query_id: gen-0028
+phase: integration
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0028 for integration::single_stakeholder (bulk corpus).
+tenant_scenario: contractor
+judge_only: false
+expected_citations:
+  - node_id: 7394d92f-ff16-49d8-9924-a169d4d3d01b
+    must_appear: true
+    rank_floor: 0

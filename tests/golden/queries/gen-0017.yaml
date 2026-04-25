@@ -1,0 +1,10 @@
+query_id: gen-0017
+phase: steady_state
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0017 for steady_state::cross_agency (bulk corpus).
+tenant_scenario: municipal
+judge_only: false
+expected_citations:
+  - node_id: 9da6dccc-d601-420e-b754-9433b014c16f
+    must_appear: true
+    rank_floor: 0

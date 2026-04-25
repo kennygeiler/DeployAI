@@ -1,0 +1,10 @@
+query_id: gen-0018
+phase: steady_state
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0018 for steady_state::multi_jurisdictional (bulk corpus).
+tenant_scenario: contractor
+judge_only: false
+expected_citations:
+  - node_id: 42a3d73f-bee3-4dec-a115-ce2fd6c09fe4
+    must_appear: true
+    rank_floor: 0

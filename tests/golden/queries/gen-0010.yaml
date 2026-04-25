@@ -1,0 +1,10 @@
+query_id: gen-0010
+phase: pilot
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0010 for pilot::single_stakeholder (bulk corpus).
+tenant_scenario: default
+judge_only: false
+expected_citations:
+  - node_id: cbfd012f-3c02-479a-bf42-9a36d3ae599d
+    must_appear: true
+    rank_floor: 0

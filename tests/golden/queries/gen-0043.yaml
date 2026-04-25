@@ -1,0 +1,10 @@
+query_id: gen-0043
+phase: discovery
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0043 for discovery::single_stakeholder (bulk corpus).
+tenant_scenario: contractor
+judge_only: false
+expected_citations:
+  - node_id: bc16c804-502e-4d8f-bd11-720255426eb3
+    must_appear: true
+    rank_floor: 0

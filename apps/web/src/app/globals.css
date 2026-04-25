@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "@deployai/design-tokens/tailwind";
 @import "@deployai/design-tokens/tokens.css";
+@source "../../../packages/shared-ui/src";
 
 /*
  * DeployAI global stylesheet. All concrete values live in

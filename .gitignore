@@ -93,6 +93,8 @@ share/python-wheels/
 # workspace adds a `src/lib/` tree, add an allow-entry here.
 !apps/web/src/lib/
 !apps/web/src/lib/**
+!packages/shared-ui/src/lib/
+!packages/shared-ui/src/lib/**
 # Story 1.11 — contract JSON-schema build helper (not Python site-packages)
 !packages/contracts/scripts/lib/
 !packages/contracts/scripts/lib/**
@@ -217,6 +219,8 @@ pa11y-screenshots/
 # Generated locally and by `pnpm turbo run fuzz:cross-tenant`; CI uploads as a
 # workflow artifact — never commit the bytes.
 artifacts/fuzz/
+artifacts/replay-parity/
+artifacts/quarterly/
 services/control-plane/artifacts/fuzz/
 
 # ─────────────────────── Misc ───────────────────────

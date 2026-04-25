@@ -2,7 +2,7 @@
 
 > A Canonical-Memory-backed digital twin for long-cycle government deployments. Built to walk the operator into every meeting prepared — with every claim citation-backed, every override logged, and every retrieval deterministically replayable.
 
-**Status:** **Epics 1–3** are **done** (foundations, identity/SSO, ingestion). **Epic 4** is **in progress** (Story **4-1** LangGraph + Postgres checkpointer stub in [`services/cartographer`](./services/cartographer/) is **done**; remaining 4-2+ stories in backlog). Epics 5+ are not started. The single source of truth for story states is [`_bmad-output/implementation-artifacts/sprint-status.yaml`](./_bmad-output/implementation-artifacts/sprint-status.yaml).
+**Status:** **Epics 1–3** are **done** (foundations, identity/SSO, ingestion). **Epic 4** is **done** (replay-parity harness, golden corpus, `apps/eval`, adjudication API + web shell). **Epic 5** is **done**: concrete **Python** LLMs in [`packages/llm-provider-py`](./packages/llm-provider-py/) (Anthropic + OpenAI + failover; matrix script), shared **prompts** + **phase modulator** in [`services/_shared/runtime`](./services/_shared/runtime/), 7-phase **deployment state machine** + internal APIs and **tiered solidification classifier** in `services/control-plane` (migrations, unit + integration tests). **Epic 6** (Cartographer / Oracle / Strategist) is in progress: triage + extraction ship in `services/cartographer`; **Oracle** phase-gated retrieval (Story 6-3) lives in `services/oracle`. Story states: [`_bmad-output/implementation-artifacts/sprint-status.yaml`](./_bmad-output/implementation-artifacts/sprint-status.yaml).
 
 ---
 
@@ -20,7 +20,8 @@ This is the **DeployAI monorepo**: a **polyglot** codebase (TypeScript/Next.js, 
 | `services/control-plane` | FastAPI: tenancy, M365/Slack/Gmail-style integrations, upload flows, **pytest** + Docker integration |
 | `services/ingest` | Ingestion worker stack (Epic 3) |
 | `services/cartographer` | **Epic 4-1** LangGraph stub, citation envelope path, `uv` + pytest in **turbo** |
-| `packages/` | design-tokens, contracts, `llm-provider`, authz, etc. |
+| `packages/` | design-tokens, contracts, `llm-provider` (TypeScript contract), **`llm-provider-py`** (Anthropic / OpenAI / failover — Epic 5), authz, etc. |
+| `services/_shared/runtime` | **Epic 5** — Jinja2 prompt registry, tool JSON, phase modulator (see `docs/prompts/CHANGELOG.md`) |
 | `tests/` | Continuity, tenant-isolation fuzz, and other cross-workspace harnesses |
 | `infra/compose` | Local docker-compose dev stack |
 | `.github/workflows/` | CI, a11y, compose-smoke, schema, fuzz (see [workflows README](./.github/workflows/README.md)) |

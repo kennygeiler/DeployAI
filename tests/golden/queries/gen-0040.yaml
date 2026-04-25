@@ -1,0 +1,10 @@
+query_id: gen-0040
+phase: sunset
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0040 for sunset::single_stakeholder (bulk corpus).
+tenant_scenario: default
+judge_only: false
+expected_citations:
+  - node_id: b848632d-f840-4c2a-9a36-2a87164fec30
+    must_appear: true
+    rank_floor: 0

@@ -1,0 +1,10 @@
+query_id: gen-0025
+phase: planning
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0025 for planning::single_stakeholder (bulk corpus).
+tenant_scenario: default
+judge_only: false
+expected_citations:
+  - node_id: 972b41d3-9b2b-47fb-bae7-340cba59a080
+    must_appear: true
+    rank_floor: 0

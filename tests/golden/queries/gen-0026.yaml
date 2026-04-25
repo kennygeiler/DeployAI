@@ -1,0 +1,10 @@
+query_id: gen-0026
+phase: planning
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0026 for planning::cross_agency (bulk corpus).
+tenant_scenario: federal
+judge_only: false
+expected_citations:
+  - node_id: 0f09b27d-bf17-4faa-9408-baf331f17165
+    must_appear: true
+    rank_floor: 0

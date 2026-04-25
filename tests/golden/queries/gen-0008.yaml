@@ -1,0 +1,10 @@
+query_id: gen-0008
+phase: integration
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0008 for integration::cross_agency (bulk corpus).
+tenant_scenario: contractor
+judge_only: false
+expected_citations:
+  - node_id: 050539b1-cc57-4130-aaed-93eeeba94054
+    must_appear: true
+    rank_floor: 0

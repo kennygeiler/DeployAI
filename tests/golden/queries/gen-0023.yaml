@@ -1,0 +1,10 @@
+query_id: gen-0023
+phase: discovery
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0023 for discovery::cross_agency (bulk corpus).
+tenant_scenario: contractor
+judge_only: false
+expected_citations:
+  - node_id: 3c1445d9-16b7-4491-940d-84cd6d9895cc
+    must_appear: true
+    rank_floor: 0

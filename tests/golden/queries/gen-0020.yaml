@@ -1,0 +1,10 @@
+query_id: gen-0020
+phase: sunset
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0020 for sunset::cross_agency (bulk corpus).
+tenant_scenario: default
+judge_only: false
+expected_citations:
+  - node_id: 60b6b835-682e-4271-907d-257b2560beef
+    must_appear: true
+    rank_floor: 0

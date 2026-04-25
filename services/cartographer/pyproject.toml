@@ -7,10 +7,13 @@ dependencies = [
   "langgraph>=0.2.0",
   "deployai-checkpointer",
   "deployai-citation",
+  "prometheus-client>=0.21.0",
+  "deployai-llm-provider-py",
 ]
 
 [dependency-groups]
 dev = [
+  "coverage[toml]>=7.6.0",
   "mypy>=1.13.0",
   "pytest>=8.3.0",
   "pytest-asyncio>=0.24.0",
@@ -29,6 +32,7 @@ packages = ["src/cartographer"]
 [tool.uv.sources]
 deployai-checkpointer = { path = "../_shared/checkpointer", editable = true }
 deployai-citation = { path = "../_shared/citation", editable = true }
+deployai-llm-provider-py = { path = "../../packages/llm-provider-py", editable = true }
 
 [tool.ruff]
 line-length = 120
@@ -51,6 +55,17 @@ markers = [
   "integration: requires Docker (Postgres testcontainer)",
 ]
 
+[tool.coverage.run]
+branch = true
+source = ["src/cartographer"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+fail_under = 0
+show_missing = true
+skip_empty = true
+precision = 1
+
 # Do not set addopts that exclude `-m integration` — it would combine with
 # `uv run pytest … -m integration` as ``not integration and integration`` and
 # collect zero tests. Default `uv run pytest` runs the integration test too;
@@ -66,4 +81,12 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "deployai_citation.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["prometheus_client", "prometheus_client.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["llm_provider_py", "llm_provider_py.*"]
 ignore_missing_imports = true

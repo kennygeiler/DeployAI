@@ -1,0 +1,10 @@
+query_id: gen-0012
+phase: pilot
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0012 for pilot::multi_jurisdictional (bulk corpus).
+tenant_scenario: municipal
+judge_only: false
+expected_citations:
+  - node_id: 508445dd-ebef-4273-90c2-bb3987b51de0
+    must_appear: true
+    rank_floor: 0

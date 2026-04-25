@@ -27,6 +27,10 @@ dependencies = [
   "boto3>=1.35.0",
   "deployai-ingest",
   "prometheus-client>=0.21.0",
+  "deployai-runtime",
+  "deployai-llm-provider-py",
+  "opentelemetry-sdk>=1.28.0",
+  "opentelemetry-exporter-otlp-proto-http>=1.28.0",
 ]
 
 [tool.uv.sources]
@@ -34,9 +38,13 @@ deployai-tenancy = { path = "../_shared/tenancy", editable = true }
 deployai-authz = { path = "../_shared/authz", editable = true }
 deployai-citation = { path = "../_shared/citation", editable = true }
 deployai-ingest = { path = "../ingest", editable = true }
+deployai-runtime = { path = "../_shared/runtime", editable = true }
+deployai-llm-provider-py = { path = "../../packages/llm-provider-py", editable = true }
+deployai-cartographer = { path = "../cartographer", editable = true }
 
 [dependency-groups]
 dev = [
+  "coverage[toml]>=7.6.0",
   "ruff>=0.7.4",
   "mypy>=1.13.0",
   "pytest>=8.3.3",
@@ -52,6 +60,7 @@ dev = [
   "aiosqlite>=0.20.0",
   "fakeredis>=2.35.1",
   "moto[s3,sqs]>=5.0.0",
+  "deployai-cartographer",
 ]
 
 [build-system]
@@ -94,6 +103,13 @@ ignore_missing_imports = true
 module = ["prometheus_client", "prometheus_client.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = [
+  "opentelemetry",
+  "opentelemetry.*",
+]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 # Test both the control-plane tree AND the shared tenancy package's unit
@@ -110,3 +126,14 @@ markers = [
   "integration: requires a reachable Docker daemon (testcontainers)",
   "fuzz: cross-tenant isolation fuzz harness; opt-in via -m fuzz (Story 1.10)",
 ]
+
+[tool.coverage.run]
+branch = true
+source = ["src/control_plane"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+fail_under = 0
+show_missing = true
+skip_empty = true
+precision = 1

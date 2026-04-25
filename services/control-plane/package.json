@@ -7,6 +7,7 @@
     "lint": "uv run ruff check src tests alembic && uv run ruff format --check src tests alembic",
     "typecheck": "uv run mypy",
     "test": "uv run pytest",
+    "test:cov": "uv run coverage erase 2>/dev/null || true; uv run coverage run -m pytest; uv run coverage report --include='src/control_plane/*'",
     "dev": "uv run uvicorn control_plane.main:app --reload",
     "docker:build": "docker build -f services/control-plane/Dockerfile -t deployai/control-plane:dev ../..",
     "fuzz:cross-tenant": "sh -c 'uv run python -m control_plane.fuzz.cross_tenant --seed \"${FUZZ_SEED:-${GITHUB_RUN_ID:-0}}\" --report ../../artifacts/fuzz/cross-tenant-report.json'",

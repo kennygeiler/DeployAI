@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-21
-last_updated: 2026-04-24 # GitHub main ruleset applied; Epic 4 started (4-1 in progress)
+last_updated: 2026-04-24 # Story 7-2: EvidencePanel + Storybook; tests green
 project: DeployAI
 project_key: NOKEY
 tracking_system: file-system
@@ -96,49 +96,49 @@ development_status:
   # ======================================================================
   # Epic 4: Agent Runtime Contracts & Replay-Parity Harness (w8–11)
   # ======================================================================
-  epic-4: in-progress
+  epic-4: done
   4-1-langgraph-postgres-checkpointing-stub-agent: done
-  4-2-citation-aware-llamaindex-adapter: backlog
-  4-3-golden-fixture-authoring-tool-and-schema: backlog
-  4-4-golden-query-corpus-authoring: backlog
-  4-5-rule-based-evaluator: backlog
-  4-6-llm-judge-evaluator: backlog
-  4-7-human-adjudication-surface: backlog
-  4-8-eleventh-call-ci-gate-quarterly-report-generator: backlog
-  epic-4-retrospective: optional
+  4-2-citation-aware-llamaindex-adapter: done
+  4-3-golden-fixture-authoring-tool-and-schema: done
+  4-4-golden-query-corpus-authoring: done
+  4-5-rule-based-evaluator: done
+  4-6-llm-judge-evaluator: done
+  4-7-human-adjudication-surface: done
+  4-8-eleventh-call-ci-gate-quarterly-report-generator: done
+  epic-4-retrospective: done
 
   # ======================================================================
   # Epic 5: Agent Runtime Foundation (w10–12)
   # ======================================================================
-  epic-5: backlog
-  5-1-anthropic-claude-sonnet-4-provider: backlog
-  5-2-openai-gpt-4o-provider-with-failover: backlog
-  5-3-prompt-infrastructure-tool-calling-scaffolding: backlog
-  5-4-seven-phase-deployment-framework-state-machine: backlog
-  5-5-tiered-solidification-classifier: backlog
-  5-6-phase-context-modulation-retrieval-thresholds: backlog
-  epic-5-retrospective: optional
+  epic-5: done
+  5-1-anthropic-claude-sonnet-4-provider: done
+  5-2-openai-gpt-4o-provider-with-failover: done
+  5-3-prompt-infrastructure-tool-calling-scaffolding: done
+  5-4-seven-phase-deployment-framework-state-machine: done
+  5-5-tiered-solidification-classifier: done
+  5-6-phase-context-modulation-retrieval-thresholds: done
+  epic-5-retrospective: done
 
   # ======================================================================
   # Epic 6: Cartographer, Oracle & Master Strategist (w12–16)
   # ======================================================================
-  epic-6: backlog
-  6-1-cartographer-mission-relevance-triage: backlog
-  6-2-cartographer-entity-relationship-extraction: backlog
-  6-3-oracle-phase-gated-retrieval-ccm-null-result: backlog
-  6-4-oracle-three-item-budget-ranked-out-footer: backlog
-  6-5-oracle-suggestions-only-posture: backlog
-  6-6-master-strategist-arbitration-action-queue-ranking: backlog
-  6-7-master-strategist-phase-transition-proposals: backlog
-  6-8-agent-graceful-degradation-contract: backlog
+  epic-6: done
+  6-1-cartographer-mission-relevance-triage: done
+  6-2-cartographer-entity-relationship-extraction: done
+  6-3-oracle-phase-gated-retrieval-ccm-null-result: done
+  6-4-oracle-three-item-budget-ranked-out-footer: done
+  6-5-oracle-suggestions-only-posture: done
+  6-6-master-strategist-arbitration-action-queue-ranking: done
+  6-7-master-strategist-phase-transition-proposals: done
+  6-8-agent-graceful-degradation-contract: done
   epic-6-retrospective: optional
 
   # ======================================================================
   # Epic 7: Design System Component Library (w14–16)
   # ======================================================================
-  epic-7: backlog
-  7-1-citation-chip-component: backlog
-  7-2-evidence-panel-component: backlog
+  epic-7: in-progress
+  7-1-citation-chip-component: done
+  7-2-evidence-panel-component: done
   7-3-phase-indicator-component: backlog
   7-4-freshness-chip-component: backlog
   7-5-override-composer-component: backlog

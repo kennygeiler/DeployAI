@@ -1,0 +1,10 @@
+query_id: gen-0015
+phase: scale
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0015 for scale::multi_jurisdictional (bulk corpus).
+tenant_scenario: default
+judge_only: false
+expected_citations:
+  - node_id: 8750587e-0d1d-4035-8c3d-8e1114e3fbd0
+    must_appear: true
+    rank_floor: 0

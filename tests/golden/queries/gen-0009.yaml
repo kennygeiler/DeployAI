@@ -1,0 +1,10 @@
+query_id: gen-0009
+phase: integration
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0009 for integration::multi_jurisdictional (bulk corpus).
+tenant_scenario: tribal
+judge_only: false
+expected_citations:
+  - node_id: 23606f8f-7afd-427b-91ab-5b7c0b1f24f6
+    must_appear: true
+    rank_floor: 0

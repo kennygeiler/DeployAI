@@ -1,0 +1,10 @@
+query_id: gen-0021
+phase: sunset
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0021 for sunset::multi_jurisdictional (bulk corpus).
+tenant_scenario: federal
+judge_only: false
+expected_citations:
+  - node_id: 4c3b6320-948a-4f17-a253-fd07948bc018
+    must_appear: true
+    rank_floor: 0

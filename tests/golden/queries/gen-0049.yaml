@@ -1,0 +1,10 @@
+query_id: gen-0049
+phase: integration
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0049 for integration::single_stakeholder (bulk corpus).
+tenant_scenario: tribal
+judge_only: false
+expected_citations:
+  - node_id: f7db1f37-335e-40d5-8f8f-2e9950368f32
+    must_appear: true
+    rank_floor: 0

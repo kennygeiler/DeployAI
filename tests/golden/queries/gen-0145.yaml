@@ -1,0 +1,7 @@
+query_id: gen-0145
+phase: sunset
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0145 for sunset::single_stakeholder (bulk corpus).
+tenant_scenario: default
+judge_only: true
+expected_citations: []

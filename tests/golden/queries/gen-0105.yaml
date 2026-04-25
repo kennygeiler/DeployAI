@@ -1,0 +1,7 @@
+query_id: gen-0105
+phase: sunset
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0105 for sunset::multi_jurisdictional (bulk corpus).
+tenant_scenario: default
+judge_only: true
+expected_citations: []

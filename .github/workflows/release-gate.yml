@@ -1,0 +1,72 @@
+# Epic 4 (Story 4-8) — golden matrix + replay-parity report smoke (no secrets).
+# Optional gate beyond default CI: run on PRs touching eval/golden paths or by hand.
+name: Release gate (golden + replay-parity)
+
+on:
+  pull_request:
+    paths:
+      - "tests/golden/**"
+      - "tests/golden-tools/**"
+      - "apps/eval/**"
+      - "packages/llama-citation-adapter/**"
+      - ".github/workflows/release-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  golden-and-replay-parity:
+    name: Golden validate + replay-parity (rules + judge)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5.0.0
+
+      - name: Install Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: Install Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.7"
+          enable-cache: true
+
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: Golden fixture matrix
+        run: pnpm run golden:validate
+
+      - name: Rule-based replay-parity (smoke report)
+        run: pnpm run replay-parity:rules
+
+      - name: LLM-judge (stub or placeholder)
+        run: pnpm run replay-parity:judge
+        env:
+          DEPLOYAI_EVAL_JUDGE_MODE: stub
+
+      - name: Quarterly report (sprint status snapshot)
+        run: pnpm run quarterly:report

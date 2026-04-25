@@ -1,0 +1,7 @@
+query_id: gen-0066
+phase: discovery
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0066 for discovery::multi_jurisdictional (bulk corpus).
+tenant_scenario: federal
+judge_only: true
+expected_citations: []

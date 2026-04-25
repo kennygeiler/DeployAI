@@ -1,0 +1,7 @@
+query_id: gen-0100
+phase: steady_state
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0100 for steady_state::single_stakeholder (bulk corpus).
+tenant_scenario: default
+judge_only: true
+expected_citations: []

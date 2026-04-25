@@ -1,0 +1,10 @@
+query_id: gen-0031
+phase: pilot
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0031 for pilot::single_stakeholder (bulk corpus).
+tenant_scenario: federal
+judge_only: false
+expected_citations:
+  - node_id: a1a04692-d44b-4a8f-9b65-30f32dbb2ac6
+    must_appear: true
+    rank_floor: 0

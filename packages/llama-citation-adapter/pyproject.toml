@@ -1,0 +1,68 @@
+[project]
+name = "deployai-llama-citation-adapter"
+version = "0.0.0"
+description = "Citation-envelope validating LlamaIndex retriever wrapper (Epic 4 Story 4-2, AR7)."
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "llama-index-core>=0.11.0,<0.15",
+  "deployai-citation",
+]
+
+[dependency-groups]
+dev = [
+  "coverage[toml]>=7.6.0",
+  "mypy>=1.13.0",
+  "pytest>=8.3.0",
+  "pytest-asyncio>=0.24.0",
+  "ruff>=0.7.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/llama_citation_adapter"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/llama_citation_adapter", "pyproject.toml", "tests"]
+
+[tool.uv.sources]
+deployai-citation = { path = "../../services/_shared/citation", editable = true }
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "RUF"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+mypy_path = "src"
+packages = ["llama_citation_adapter"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src", "../../services/_shared/citation/src"]
+
+[tool.coverage.run]
+branch = true
+source = ["src/llama_citation_adapter"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+fail_under = 0
+show_missing = true
+skip_empty = true
+precision = 1
+
+[[tool.mypy.overrides]]
+module = "llama_index.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "deployai_citation.*"
+ignore_missing_imports = true

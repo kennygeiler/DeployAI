@@ -1,0 +1,10 @@
+query_id: gen-0032
+phase: pilot
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0032 for pilot::cross_agency (bulk corpus).
+tenant_scenario: municipal
+judge_only: false
+expected_citations:
+  - node_id: 6c577cfc-06f1-46f2-984e-f708006d3243
+    must_appear: true
+    rank_floor: 0

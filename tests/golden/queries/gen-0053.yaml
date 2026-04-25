@@ -1,0 +1,7 @@
+query_id: gen-0053
+phase: pilot
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0053 for pilot::cross_agency (bulk corpus).
+tenant_scenario: contractor
+judge_only: true
+expected_citations: []

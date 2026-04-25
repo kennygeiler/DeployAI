@@ -1,0 +1,10 @@
+query_id: gen-0002
+phase: discovery
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0002 for discovery::cross_agency (bulk corpus).
+tenant_scenario: municipal
+judge_only: false
+expected_citations:
+  - node_id: 11bdced6-e900-4987-a5e0-1acccdfdfb5c
+    must_appear: true
+    rank_floor: 0

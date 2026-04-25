@@ -1,0 +1,10 @@
+query_id: gen-0041
+phase: sunset
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0041 for sunset::cross_agency (bulk corpus).
+tenant_scenario: federal
+judge_only: false
+expected_citations:
+  - node_id: 96031832-8afb-4423-aa38-fb78c4f0114c
+    must_appear: true
+    rank_floor: 0

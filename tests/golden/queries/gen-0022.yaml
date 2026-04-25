@@ -1,0 +1,10 @@
+query_id: gen-0022
+phase: discovery
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0022 for discovery::single_stakeholder (bulk corpus).
+tenant_scenario: municipal
+judge_only: false
+expected_citations:
+  - node_id: 90acfd38-3656-4c74-8b27-c6498bc407e6
+    must_appear: true
+    rank_floor: 0

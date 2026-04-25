@@ -1,0 +1,10 @@
+query_id: gen-0035
+phase: scale
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0035 for scale::cross_agency (bulk corpus).
+tenant_scenario: default
+judge_only: false
+expected_citations:
+  - node_id: 4c26eb4a-005e-4014-ab2a-9ebeb41b313f
+    must_appear: true
+    rank_floor: 0

@@ -1,0 +1,10 @@
+query_id: gen-0045
+phase: discovery
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0045 for discovery::multi_jurisdictional (bulk corpus).
+tenant_scenario: default
+judge_only: false
+expected_citations:
+  - node_id: 202170d8-6f7a-4f83-95c8-b696718dec7b
+    must_appear: true
+    rank_floor: 0

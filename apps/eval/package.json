@@ -1,0 +1,13 @@
+{
+  "name": "@deployai/eval",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "uv sync --frozen",
+    "lint": "uv run ruff check src tests && uv run ruff format --check src tests",
+    "typecheck": "uv run mypy",
+    "test": "uv run pytest",
+    "replay-parity:rules": "uv run python -m eval.rules_cli",
+    "replay-parity:judge": "uv run python -m eval.judge_cli"
+  }
+}

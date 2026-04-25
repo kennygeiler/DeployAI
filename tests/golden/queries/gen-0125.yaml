@@ -1,0 +1,7 @@
+query_id: gen-0125
+phase: sunset
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0125 for sunset::cross_agency (bulk corpus).
+tenant_scenario: default
+judge_only: true
+expected_citations: []

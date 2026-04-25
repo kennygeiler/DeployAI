@@ -1,0 +1,10 @@
+query_id: gen-0006
+phase: planning
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0006 for planning::multi_jurisdictional (bulk corpus).
+tenant_scenario: federal
+judge_only: false
+expected_citations:
+  - node_id: e60e80bf-c437-4a3f-a5c9-4b5b09b47cd8
+    must_appear: true
+    rank_floor: 0

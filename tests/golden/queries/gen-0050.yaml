@@ -1,0 +1,10 @@
+query_id: gen-0050
+phase: integration
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0050 for integration::cross_agency (bulk corpus).
+tenant_scenario: default
+judge_only: false
+expected_citations:
+  - node_id: 9c5e2139-c662-41b2-b64e-4a1adeca8392
+    must_appear: true
+    rank_floor: 0

@@ -1,0 +1,10 @@
+query_id: gen-0044
+phase: discovery
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0044 for discovery::cross_agency (bulk corpus).
+tenant_scenario: tribal
+judge_only: false
+expected_citations:
+  - node_id: fe73da72-a342-4522-b8d3-2784c15587f2
+    must_appear: true
+    rank_floor: 0

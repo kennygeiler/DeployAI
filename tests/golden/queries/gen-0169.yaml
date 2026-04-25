@@ -1,0 +1,7 @@
+query_id: gen-0169
+phase: discovery
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0169 for discovery::single_stakeholder (bulk corpus).
+tenant_scenario: tribal
+judge_only: true
+expected_citations: []

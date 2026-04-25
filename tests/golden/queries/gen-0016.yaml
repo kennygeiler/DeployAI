@@ -1,0 +1,10 @@
+query_id: gen-0016
+phase: steady_state
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0016 for steady_state::single_stakeholder (bulk corpus).
+tenant_scenario: federal
+judge_only: false
+expected_citations:
+  - node_id: b7f0b01d-e797-4d63-a2bb-5338d1f25a15
+    must_appear: true
+    rank_floor: 0
