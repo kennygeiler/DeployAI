@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { cva, type VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 import { ChevronDown } from "lucide-react";
 
 import { cn } from "./lib/utils";
@@ -28,14 +28,14 @@ const triggerRoot = cva(
         default: "border-border bg-paper-100 text-ink-900 hover:bg-paper-200",
         "pending-transition":
           "border-amber-600/50 bg-amber-50/80 text-amber-950 ring-1 ring-amber-500/30 animate-pulse",
-        locked: "border-border bg-muted/50 text-ink-600",
       },
     },
     defaultVariants: { tone: "default" },
   },
 );
 
-export type PhaseIndicatorVariant = NonNullable<VariantProps<typeof triggerRoot>["tone"]>;
+/** `locked` uses a read-only surface (not the CVA trigger — no popover). */
+export type PhaseIndicatorVariant = "default" | "pending-transition" | "locked";
 
 export type PhaseIndicatorProps = {
   /** Current phase; must exist in `phases` (default: canonical seven). */
@@ -127,7 +127,6 @@ export function PhaseIndicator({
     </nav>
   );
 
-  const triggerClasses = triggerRoot({ tone: variantProp });
   const label = (
     <span className="flex min-w-0 items-baseline gap-1.5">
       <span className="shrink-0 font-mono text-xs text-ink-500">{current.shortLabel}</span>
@@ -157,6 +156,8 @@ export function PhaseIndicator({
       </div>
     );
   }
+
+  const triggerClasses = triggerRoot({ tone: variantProp });
 
   return (
     <div className={cn("relative min-w-0", classNameProp)}>

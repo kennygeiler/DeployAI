@@ -26,3 +26,12 @@ export {
   isDeploymentPhaseId,
   phaseIndex,
 } from "./phases";
+export { FreshnessChip, type FreshnessChipProps } from "./FreshnessChip";
+export {
+  FRESHNESS_NFR5_MS,
+  formatSyncAge,
+  freshnessStateForAge,
+  type FreshnessState,
+  type FreshnessSurface,
+  type FreshnessThresholdsMs,
+} from "./freshness";
