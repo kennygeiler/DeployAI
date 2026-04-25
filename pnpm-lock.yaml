@@ -97,6 +97,9 @@ importers:
       '@deployai/authz':
         specifier: workspace:*
         version: link:../../packages/authz
+      '@deployai/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@deployai/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens

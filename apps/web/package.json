@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@deployai/authz": "workspace:*",
+    "@deployai/contracts": "workspace:*",
     "@deployai/design-tokens": "workspace:*",
     "@deployai/shared-ui": "workspace:*",
     "@hookform/resolvers": "^5.2.2",
