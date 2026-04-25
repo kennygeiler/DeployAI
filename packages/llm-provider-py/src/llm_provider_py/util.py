@@ -22,9 +22,11 @@ def record_usage(
     callback: UsageCallback | None,
     payload: dict[str, Any],
 ) -> None:
-    if callback is None:
-        return
-    callback(payload)
+    if callback is not None:
+        callback(payload)
+    from llm_provider_py.telemetry import emit_llm_usage_metrics
+
+    emit_llm_usage_metrics(payload)
 
 
 def pseudo_embed(text: str, dim: int = 256) -> list[float]:

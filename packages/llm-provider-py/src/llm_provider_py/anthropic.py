@@ -9,6 +9,7 @@ from typing import Any
 
 import httpx
 
+from llm_provider_py.secrets import resolve_anthropic_api_key, resolve_openai_api_key
 from llm_provider_py.types import CapabilityMatrix, ChatMessage
 from llm_provider_py.util import DEFAULT_CAPS, UsageCallback, httpx_post_with_retries, pseudo_embed, record_usage
 
@@ -27,7 +28,7 @@ class AnthropicProvider:
         agent_name: str = "agent",
         on_usage: UsageCallback | None = None,
     ) -> None:
-        self._key = (api_key or os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+        self._key = (api_key or resolve_anthropic_api_key()).strip()
         self._model = (model or os.environ.get("ANTHROPIC_MODEL") or DEFAULT_MODEL).strip()
         self._timeout = timeout_s
         self._tenant_id = tenant_id
@@ -166,13 +167,11 @@ class AnthropicProvider:
 
     def embed(self, text: str) -> list[float]:
         """Pseudo-embed, or OpenAI if ``OPENAI_API_KEY`` is set (optional hybrid)."""
-        if os.environ.get("OPENAI_API_KEY", "").strip():
+        oa_key = resolve_openai_api_key()
+        if oa_key:
             from llm_provider_py.openai import OpenAIProvider
 
-            oa = OpenAIProvider(
-                api_key=os.environ.get("OPENAI_API_KEY", "").strip(),
-                tenant_id=self._tenant_id,
-            )
+            oa = OpenAIProvider(api_key=oa_key, tenant_id=self._tenant_id)
             return oa.embed(text)
         return pseudo_embed(text, dim=256)
 

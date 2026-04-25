@@ -19,3 +19,23 @@ def test_retries_on_429_then_ok() -> None:
         r = httpx_post_with_retries(client, "https://example.com/x", headers={}, json={})
     assert r.status_code == 200
     assert calls["n"] == 2
+
+
+def test_retries_5xx_exhausts_attempts() -> None:
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(502, text="bad")
+
+    transport = httpx.MockTransport(handler)
+    with httpx.Client(transport=transport) as client:
+        r = httpx_post_with_retries(
+            client,
+            "https://example.com/x",
+            headers={},
+            json={},
+            max_retries=4,
+        )
+    assert r.status_code == 502
+    assert calls["n"] == 4

@@ -9,6 +9,7 @@ from typing import Any
 
 import httpx
 
+from llm_provider_py.secrets import resolve_openai_api_key
 from llm_provider_py.types import CapabilityMatrix, ChatMessage
 from llm_provider_py.util import DEFAULT_CAPS, UsageCallback, httpx_post_with_retries, record_usage
 
@@ -30,7 +31,7 @@ class OpenAIProvider:
         agent_name: str = "agent",
         on_usage: UsageCallback | None = None,
     ) -> None:
-        self._key = (api_key or os.environ.get("OPENAI_API_KEY") or "").strip()
+        self._key = (api_key or resolve_openai_api_key()).strip()
         self._chat_model = (chat_model or os.environ.get("OPENAI_CHAT_MODEL") or DEFAULT_CHAT_MODEL).strip()
         self._embed_model = (embed_model or os.environ.get("OPENAI_EMBEDDING_MODEL") or DEFAULT_EMBED_MODEL).strip()
         self._timeout = timeout_s
