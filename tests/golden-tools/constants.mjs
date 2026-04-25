@@ -10,11 +10,7 @@ export const PHASES = [
   "sunset",
 ];
 
-export const TOPOLOGIES = [
-  "single_stakeholder",
-  "cross_agency",
-  "multi_jurisdictional",
-];
+export const TOPOLOGIES = ["single_stakeholder", "cross_agency", "multi_jurisdictional"];
 
 export function cellKey(phase, topology) {
   return `${phase}::${topology}`;
