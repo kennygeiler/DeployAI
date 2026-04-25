@@ -109,38 +109,40 @@ checks to pass before merging" (or **Rulesets** → **Require status checks**).
 
 After this doc’s 2026-04-23 update, add any **new** strings below that are
 not yet in your repo’s rule (especially `Control plane (integration)`,
-`Ingest (pytest)`, `schema / …`, `fuzz / …`).
+`Ingest (pytest)`, `canonical-memory-schema`, `cross-tenant-fuzz`).
 
-Required checks (14 total — 7 from `CI`, 4 from `a11y`, 1 `compose-smoke`, 1 `schema`, 1 `fuzz`):
+**Repository ruleset contexts:** the API and mergeability use the **check-run job `name`**
+as reported on the PR and by `gh pr view N --json statusCheckRollup` — not the
+`{workflow} / {job}` form shown in some older examples. The 14 required checks are:
 
-From `ci.yml` (workflow `name: CI`):
+From `ci.yml` (workflow `name: CI` — job `name` values only):
 
-- `CI / Toolchain (Node 24 + pnpm 10.33.0)`
-- `CI / Smoke (install / build / lint / typecheck / test / format)`
-- `CI / Control plane (integration)`
-- `CI / Ingest (pytest)`
-- `CI / SBOM (source — SPDX + CycloneDX)`
-- `CI / CVE scan (grype)`
-- `CI / Dependency review (PR diff)`
+- `Toolchain (Node 24 + pnpm 10.33.0)`
+- `Smoke (install / build / lint / typecheck / test / format)`
+- `Control plane (integration)`
+- `Ingest (pytest)`
+- `SBOM (source — SPDX + CycloneDX)`
+- `CVE scan (grype)`
+- `Dependency review (PR diff)`
 
-From `a11y.yml` (workflow `name: a11y`):
+From `a11y.yml` (job `name` values):
 
-- `a11y / jsx-a11y`
-- `a11y / storybook-a11y`
-- `a11y / playwright-a11y`
-- `a11y / pa11y`
+- `jsx-a11y`
+- `storybook-a11y`
+- `playwright-a11y`
+- `pa11y`
 
-From `compose-smoke.yml` (workflow `name: compose-smoke`):
+From `compose-smoke.yml`:
 
-- `compose-smoke / compose-smoke`
+- `compose-smoke`
 
-From `schema.yml` (workflow `name: schema`):
+From `schema.yml`:
 
-- `schema / canonical-memory-schema`
+- `canonical-memory-schema`
 
-From `fuzz.yml` (workflow `name: fuzz`):
+From `fuzz.yml`:
 
-- `fuzz / cross-tenant-fuzz`
+- `cross-tenant-fuzz`
 
 **Path-filtered workflows** (`schema`, `fuzz`, `compose-smoke`): they only
 run when changed paths match `on: paths:`. On PRs that **do not** touch
