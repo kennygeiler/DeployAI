@@ -16,7 +16,8 @@ export type Action =
   | "override:submit"
   | "solidification:promote"
   | "break_glass:invoke"
-  | "scim:manage";
+  | "scim:manage"
+  | "eval:view_adjudication";
 
 export type Resource =
   | { kind: "ingestion_runs" }

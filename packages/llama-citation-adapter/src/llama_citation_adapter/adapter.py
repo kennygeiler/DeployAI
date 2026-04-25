@@ -27,17 +27,20 @@ class CitationMetrics:
     rejections: int = 0
 
 
-def _envelope_from_metadata(meta: dict[str, Any]) -> CitationEnvelopeV01 | None:
+def _envelope_from_metadata(meta: dict[str, Any]) -> CitationEnvelopeV01:
+    """Parse ``citation_envelope`` from retriever node metadata. Raises on missing/invalid kind."""
     raw = meta.get(_METADATA_KEY)
     if raw is None:
-        return None
+        msg = "missing citation_envelope in node.metadata"
+        raise ValueError(msg)
     if isinstance(raw, CitationEnvelopeV01):
         return raw
     if isinstance(raw, dict):
         return CitationEnvelopeV01.model_validate(raw)
     if isinstance(raw, str):
         return CitationEnvelopeV01.model_validate(json.loads(raw))
-    return None
+    msg = f"citation_envelope has unsupported type: {type(raw).__name__}"
+    raise TypeError(msg)
 
 
 def validate_envelope_on_retrieval() -> str:
@@ -70,18 +73,23 @@ class CitationValidatingRetriever(BaseRetriever):
             meta = node.metadata or {}
             try:
                 env = _envelope_from_metadata(meta)
-                if env is None:
-                    raise ValueError("missing citation_envelope in node.metadata")
                 if env.schema_version != CITATION_ENVELOPE_SCHEMA_VERSION:
                     raise ValueError("schema_version mismatch")
-            except (ValueError, ValidationError, TypeError, json.JSONDecodeError, OSError) as e:
+            except (
+                ValueError,
+                ValidationError,
+                TypeError,
+                json.JSONDecodeError,
+            ) as e:
                 self._metrics.rejections += 1
+                # Short reason only — avoid echoing user-controlled envelope strings in full.
+                err = str(e) if len(str(e)) <= 200 else f"{str(e)[:200]}…"
                 log.info(
                     "citation_envelope_rejection",
                     extra={
                         "metric": CITATION_ENVELOPE_REJECTIONS_METRIC,
                         "node_id": getattr(node, "node_id", None),
-                        "error": str(e),
+                        "error": err,
                     },
                 )
                 continue

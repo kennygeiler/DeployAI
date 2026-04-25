@@ -1,0 +1,10 @@
+query_id: gen-0039
+phase: steady_state
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0039 for steady_state::multi_jurisdictional (bulk corpus).
+tenant_scenario: tribal
+judge_only: false
+expected_citations:
+  - node_id: 9e636d7f-2f3c-4d34-9169-513e38e2b441
+    must_appear: true
+    rank_floor: 0

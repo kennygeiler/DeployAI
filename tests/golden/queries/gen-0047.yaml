@@ -1,0 +1,10 @@
+query_id: gen-0047
+phase: planning
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0047 for planning::cross_agency (bulk corpus).
+tenant_scenario: municipal
+judge_only: false
+expected_citations:
+  - node_id: 9bf16157-ba2d-4199-8c4a-557ba9690a7c
+    must_appear: true
+    rank_floor: 0

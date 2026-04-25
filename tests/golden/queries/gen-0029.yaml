@@ -1,0 +1,10 @@
+query_id: gen-0029
+phase: integration
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0029 for integration::cross_agency (bulk corpus).
+tenant_scenario: tribal
+judge_only: false
+expected_citations:
+  - node_id: cef75945-cff0-40c1-a892-2b72a6b96bd9
+    must_appear: true
+    rank_floor: 0

@@ -1,0 +1,10 @@
+query_id: gen-0001
+phase: discovery
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0001 for discovery::single_stakeholder (bulk corpus).
+tenant_scenario: federal
+judge_only: false
+expected_citations:
+  - node_id: 3b1b2b8b-d7e8-4209-89e6-8d4d12e22c25
+    must_appear: true
+    rank_floor: 0

@@ -1,0 +1,10 @@
+query_id: gen-0011
+phase: pilot
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0011 for pilot::cross_agency (bulk corpus).
+tenant_scenario: federal
+judge_only: false
+expected_citations:
+  - node_id: 7fbe91ca-badc-4722-bffe-bd7a3e67750e
+    must_appear: true
+    rank_floor: 0

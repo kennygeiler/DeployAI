@@ -2,7 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { canAccess, type Action, type V1Role } from "@deployai/authz";
 
-const isAdmin = (p: string) => p === "/admin/runs" || p.startsWith("/admin/schema-proposals");
+const isAdmin = (p: string) =>
+  p === "/admin/runs" ||
+  p === "/admin/adjudication" ||
+  p.startsWith("/admin/schema-proposals");
 
 function parseRole(r: string | null): V1Role | null {
   const allowed: V1Role[] = [
@@ -22,6 +25,9 @@ function parseRole(r: string | null): V1Role | null {
 function actionForPath(pathname: string): Action {
   if (pathname.startsWith("/admin/schema-proposals")) {
     return "admin:view_schema_proposals";
+  }
+  if (pathname === "/admin/adjudication") {
+    return "eval:view_adjudication";
   }
   return "ingest:view_runs";
 }
@@ -48,5 +54,10 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/runs", "/admin/schema-proposals", "/admin/schema-proposals/:path*"],
+  matcher: [
+    "/admin/runs",
+    "/admin/adjudication",
+    "/admin/schema-proposals",
+    "/admin/schema-proposals/:path*",
+  ],
 };

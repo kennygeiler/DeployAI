@@ -1,0 +1,10 @@
+query_id: gen-0033
+phase: pilot
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0033 for pilot::multi_jurisdictional (bulk corpus).
+tenant_scenario: contractor
+judge_only: false
+expected_citations:
+  - node_id: de849cd1-b77e-4f66-9870-79d8ffc5999b
+    must_appear: true
+    rank_floor: 0

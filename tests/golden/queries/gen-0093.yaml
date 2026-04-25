@@ -1,0 +1,7 @@
+query_id: gen-0093
+phase: integration
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0093 for integration::multi_jurisdictional (bulk corpus).
+tenant_scenario: contractor
+judge_only: true
+expected_citations: []

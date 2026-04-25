@@ -1,0 +1,10 @@
+query_id: gen-0034
+phase: scale
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0034 for scale::single_stakeholder (bulk corpus).
+tenant_scenario: tribal
+judge_only: false
+expected_citations:
+  - node_id: b2267adc-94c2-47b6-b3d3-3c3a67156350
+    must_appear: true
+    rank_floor: 0

@@ -1,0 +1,7 @@
+query_id: gen-0196
+phase: integration
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0196 for integration::single_stakeholder (bulk corpus).
+tenant_scenario: federal
+judge_only: true
+expected_citations: []

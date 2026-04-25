@@ -1,0 +1,10 @@
+query_id: gen-0030
+phase: integration
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0030 for integration::multi_jurisdictional (bulk corpus).
+tenant_scenario: default
+judge_only: false
+expected_citations:
+  - node_id: c7dfe3f9-395d-4fa1-a385-c54b07fa75c0
+    must_appear: true
+    rank_floor: 0

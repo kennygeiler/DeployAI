@@ -1,0 +1,10 @@
+query_id: gen-0037
+phase: steady_state
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0037 for steady_state::single_stakeholder (bulk corpus).
+tenant_scenario: municipal
+judge_only: false
+expected_citations:
+  - node_id: f792f4c3-86c8-49ee-badd-996625f07cdb
+    must_appear: true
+    rank_floor: 0

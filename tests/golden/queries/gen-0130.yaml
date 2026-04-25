@@ -1,0 +1,7 @@
+query_id: gen-0130
+phase: planning
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0130 for planning::single_stakeholder (bulk corpus).
+tenant_scenario: default
+judge_only: true
+expected_citations: []

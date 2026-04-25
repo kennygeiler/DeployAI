@@ -1,0 +1,10 @@
+query_id: gen-0004
+phase: planning
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0004 for planning::single_stakeholder (bulk corpus).
+tenant_scenario: tribal
+judge_only: false
+expected_citations:
+  - node_id: d2de5161-0b4e-43c9-9aa7-546dc6b42b19
+    must_appear: true
+    rank_floor: 0

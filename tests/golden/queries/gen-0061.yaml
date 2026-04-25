@@ -1,0 +1,7 @@
+query_id: gen-0061
+phase: sunset
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0061 for sunset::single_stakeholder (bulk corpus).
+tenant_scenario: federal
+judge_only: true
+expected_citations: []

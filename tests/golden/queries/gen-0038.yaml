@@ -1,0 +1,10 @@
+query_id: gen-0038
+phase: steady_state
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0038 for steady_state::cross_agency (bulk corpus).
+tenant_scenario: contractor
+judge_only: false
+expected_citations:
+  - node_id: 136e9738-d0e6-428f-b8b4-903cb79e1c4a
+    must_appear: true
+    rank_floor: 0

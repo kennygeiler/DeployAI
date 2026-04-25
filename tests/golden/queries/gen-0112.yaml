@@ -1,0 +1,7 @@
+query_id: gen-0112
+phase: integration
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0112 for integration::single_stakeholder (bulk corpus).
+tenant_scenario: municipal
+judge_only: true
+expected_citations: []

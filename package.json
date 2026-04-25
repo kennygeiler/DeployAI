@@ -26,6 +26,12 @@
     "contract:check": "pnpm --filter @deployai/contracts run contract:check",
     "contract:continuity": "pnpm turbo run contract:continuity",
     "validate:llm-matrix": "pnpm turbo run validate:llm-matrix",
+    "golden:validate": "pnpm --filter @deployai/golden-tools run validate",
+    "golden:author": "pnpm --filter @deployai/golden-tools run author",
+    "golden:expand-corpus": "pnpm --filter @deployai/golden-tools run expand-corpus",
+    "golden:coverage-html": "pnpm --filter @deployai/golden-tools run coverage-html",
+    "replay-parity:rules": "pnpm --filter @deployai/eval run replay-parity:rules",
+    "replay-parity:judge": "pnpm --filter @deployai/eval run replay-parity:judge",
     "clean": "turbo run clean && rm -rf node_modules .turbo"
   },
   "devDependencies": {

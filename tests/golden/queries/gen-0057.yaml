@@ -1,0 +1,7 @@
+query_id: gen-0057
+phase: scale
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0057 for scale::multi_jurisdictional (bulk corpus).
+tenant_scenario: municipal
+judge_only: true
+expected_citations: []

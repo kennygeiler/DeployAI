@@ -1,0 +1,7 @@
+query_id: gen-0087
+phase: discovery
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0087 for discovery::multi_jurisdictional (bulk corpus).
+tenant_scenario: municipal
+judge_only: true
+expected_citations: []

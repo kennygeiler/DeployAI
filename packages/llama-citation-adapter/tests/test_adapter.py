@@ -63,6 +63,24 @@ def test_missing_envelope_dropped_and_metric() -> None:
     assert m.rejections == 1
 
 
+def test_wrong_envelope_type_dropped() -> None:
+    bad = _node("x", {"citation_envelope": 42})
+    inner = _MockRetriever([bad])
+    m = CitationMetrics()
+    r = CitationValidatingRetriever(inner, metrics=m)
+    assert r.retrieve("q") == []
+    assert m.rejections == 1
+
+
+def test_invalid_json_string_dropped() -> None:
+    bad = _node("x", {"citation_envelope": "not-json{{"})
+    inner = _MockRetriever([bad])
+    m = CitationMetrics()
+    r = CitationValidatingRetriever(inner, metrics=m)
+    assert r.retrieve("q") == []
+    assert m.rejections == 1
+
+
 def test_malformed_missing_graph_epoch_dropped() -> None:
     bad_env = deepcopy(_VALID_ENVELOPE)
     del bad_env["graph_epoch"]

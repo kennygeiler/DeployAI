@@ -1,0 +1,10 @@
+query_id: gen-0042
+phase: sunset
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0042 for sunset::multi_jurisdictional (bulk corpus).
+tenant_scenario: municipal
+judge_only: false
+expected_citations:
+  - node_id: 2d4437ee-9336-441e-ab57-121b81ee57a4
+    must_appear: true
+    rank_floor: 0

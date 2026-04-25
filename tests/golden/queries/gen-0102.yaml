@@ -1,0 +1,7 @@
+query_id: gen-0102
+phase: steady_state
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0102 for steady_state::multi_jurisdictional (bulk corpus).
+tenant_scenario: municipal
+judge_only: true
+expected_citations: []

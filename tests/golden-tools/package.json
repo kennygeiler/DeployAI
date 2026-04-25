@@ -1,0 +1,15 @@
+{
+  "name": "@deployai/golden-tools",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "node validate.mjs",
+    "author": "node author.mjs",
+    "expand-corpus": "node expand-corpus.mjs",
+    "coverage-html": "node coverage-html.mjs"
+  },
+  "dependencies": {
+    "js-yaml": "4.1.0"
+  }
+}

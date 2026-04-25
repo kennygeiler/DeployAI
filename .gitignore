@@ -217,6 +217,7 @@ pa11y-screenshots/
 # Generated locally and by `pnpm turbo run fuzz:cross-tenant`; CI uploads as a
 # workflow artifact — never commit the bytes.
 artifacts/fuzz/
+artifacts/replay-parity/
 services/control-plane/artifacts/fuzz/
 
 # ─────────────────────── Misc ───────────────────────

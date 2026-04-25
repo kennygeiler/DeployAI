@@ -1,0 +1,7 @@
+query_id: gen-0159
+phase: pilot
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0159 for pilot::multi_jurisdictional (bulk corpus).
+tenant_scenario: tribal
+judge_only: true
+expected_citations: []

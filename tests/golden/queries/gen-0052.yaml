@@ -1,0 +1,7 @@
+query_id: gen-0052
+phase: pilot
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0052 for pilot::single_stakeholder (bulk corpus).
+tenant_scenario: municipal
+judge_only: true
+expected_citations: []

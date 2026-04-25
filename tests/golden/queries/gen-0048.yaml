@@ -1,0 +1,10 @@
+query_id: gen-0048
+phase: planning
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0048 for planning::multi_jurisdictional (bulk corpus).
+tenant_scenario: contractor
+judge_only: false
+expected_citations:
+  - node_id: 840972cb-912f-428f-a931-48ff0b5f30ef
+    must_appear: true
+    rank_floor: 0

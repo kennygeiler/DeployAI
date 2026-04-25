@@ -1,0 +1,7 @@
+query_id: gen-0195
+phase: planning
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0195 for planning::multi_jurisdictional (bulk corpus).
+tenant_scenario: default
+judge_only: true
+expected_citations: []

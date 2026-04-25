@@ -1,0 +1,7 @@
+query_id: gen-0193
+phase: planning
+stakeholder_topology: single_stakeholder
+query_text: Synthetic gen-0193 for planning::single_stakeholder (bulk corpus).
+tenant_scenario: contractor
+judge_only: true
+expected_citations: []

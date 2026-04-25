@@ -1,0 +1,10 @@
+query_id: gen-0003
+phase: discovery
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0003 for discovery::multi_jurisdictional (bulk corpus).
+tenant_scenario: contractor
+judge_only: false
+expected_citations:
+  - node_id: d4de03fd-18d0-4109-bcb9-c115599d256c
+    must_appear: true
+    rank_floor: 0

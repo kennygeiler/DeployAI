@@ -1,0 +1,7 @@
+query_id: gen-0071
+phase: integration
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0071 for integration::cross_agency (bulk corpus).
+tenant_scenario: federal
+judge_only: true
+expected_citations: []

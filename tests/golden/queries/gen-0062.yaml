@@ -1,0 +1,7 @@
+query_id: gen-0062
+phase: sunset
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0062 for sunset::cross_agency (bulk corpus).
+tenant_scenario: municipal
+judge_only: true
+expected_citations: []

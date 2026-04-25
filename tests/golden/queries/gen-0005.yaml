@@ -1,0 +1,10 @@
+query_id: gen-0005
+phase: planning
+stakeholder_topology: cross_agency
+query_text: Synthetic gen-0005 for planning::cross_agency (bulk corpus).
+tenant_scenario: default
+judge_only: false
+expected_citations:
+  - node_id: 1a540fa5-501e-43cf-91fe-c343358decb7
+    must_appear: true
+    rank_floor: 0

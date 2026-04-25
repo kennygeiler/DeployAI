@@ -99,12 +99,12 @@ development_status:
   epic-4: in-progress
   4-1-langgraph-postgres-checkpointing-stub-agent: done
   4-2-citation-aware-llamaindex-adapter: done
-  4-3-golden-fixture-authoring-tool-and-schema: backlog
-  4-4-golden-query-corpus-authoring: backlog
-  4-5-rule-based-evaluator: backlog
-  4-6-llm-judge-evaluator: backlog
-  4-7-human-adjudication-surface: backlog
-  4-8-eleventh-call-ci-gate-quarterly-report-generator: backlog
+  4-3-golden-fixture-authoring-tool-and-schema: done
+  4-4-golden-query-corpus-authoring: done
+  4-5-rule-based-evaluator: done
+  4-6-llm-judge-evaluator: in-progress
+  4-7-human-adjudication-surface: in-progress
+  4-8-eleventh-call-ci-gate-quarterly-report-generator: in-progress
   epic-4-retrospective: optional
 
   # ======================================================================

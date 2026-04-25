@@ -1,0 +1,10 @@
+query_id: gen-0027
+phase: planning
+stakeholder_topology: multi_jurisdictional
+query_text: Synthetic gen-0027 for planning::multi_jurisdictional (bulk corpus).
+tenant_scenario: municipal
+judge_only: false
+expected_citations:
+  - node_id: 51abbabb-0f3b-46c6-adc5-0432b7354a4f
+    must_appear: true
+    rank_floor: 0
