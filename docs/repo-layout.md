@@ -97,7 +97,7 @@ Source: architecture.md §Code Naming.
 
 Additional root-level artifacts landed:
 - `rust-toolchain.toml` (Rust 1.95.0 + rustfmt + clippy), `.python-version` (3.13), `go.work` (single-module workspace).
-- `.pre-commit-config.yaml` — prettier, ruff, gofmt, go vet, cargo fmt on staged files.
+- `.pre-commit-config.yaml` — prettier, ruff (and ruff-format) on staged Python in control-plane, ingest, cartographer, oracle, and master_strategist; gofmt, go vet, cargo fmt on staged files.
 - `docs/dev-environment.md` — 5-minute bootstrap for the full polyglot stack.
 - `turbo.json` gains a `docker:build` task type.
 

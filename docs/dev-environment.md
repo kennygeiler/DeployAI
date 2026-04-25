@@ -48,6 +48,10 @@ pnpm install
 
 # Python virtualenv for services/control-plane
 cd services/control-plane && uv sync && cd -
+# Optional — Epic 6 agent services (ruff in pre-commit; run `make lint-python-epic6-agents` to verify)
+# cd services/cartographer && uv sync && cd -
+# cd services/oracle && uv sync && cd -
+# cd services/master_strategist && uv sync && cd -
 
 # Rust build deps fetched on first cargo invocation
 cd apps/edge-agent/src-tauri && cargo fetch && cd -
@@ -63,6 +67,10 @@ pre-commit install
 ```
 
 This wires `.pre-commit-config.yaml` into `.git/hooks/pre-commit` so that formatters (prettier, ruff-format, gofmt, cargo fmt) and lightweight linters (ruff, go vet) run automatically on staged files.
+
+`ruff` and `ruff-format` run on **staged** Python under `services/control-plane`, `services/ingest`, and the Epic 6 agents **`cartographer`**, **`oracle`**, and **`master_strategist`**. If you only touch an agent, you still get the same check before commit. To run the check on all of those service trees without relying on the hook, use `make lint-python-epic6-agents` (or `make format-python-epic6-agents` to apply `ruff format`).
+
+**Docker + `uv` path dependencies (monorepo):** images that need sibling packages (e.g. `packages/llm-provider-py`) mirror the full repo at **`/repo/...`**, with `WORKDIR` set to the service (see `services/control-plane/Dockerfile`). When you add a new **path** dependency in a `pyproject.toml`, build context must copy every needed tree under `/repo` so `uv sync` can resolve; do not point path deps at paths outside the build context. CI and local `docker run -v $PWD:/repo` follow the same layout.
 
 ## 4. Verify the smoke suite
 

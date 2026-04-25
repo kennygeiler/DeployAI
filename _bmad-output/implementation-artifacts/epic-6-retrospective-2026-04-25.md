@@ -40,3 +40,10 @@
 
 - **Velocity:** High concentration of Python + contract logic; review fatigue on small lint fixes — **automate formatting** where possible.  
 - **Pride points:** Triage gating, suggestions-only posture, and arbitration routing are the “safety rail” story customers will feel in prod.
+
+## Follow-up shipped (from action items)
+
+- **Ruff in agent workflow** — `.pre-commit-config.yaml` runs `ruff` and `ruff-format` on staged Python under `services/cartographer`, `services/oracle`, and `services/master_strategist` (with control-plane + ingest). `make lint-python-epic6-agents` / `make format-python-epic6-agents` applies the same checks (or `ruff format`) across those three.
+- **Docker / `uv` path deps** — `docs/dev-environment.md` documents the `/repo/...` mirror pattern for `uv` path dependencies in Docker.
+- **NFR48 benchmark scheduling** — `.github/workflows/cartographer-benchmark.yml` runs `cartographer.benchmark` (stub + mock-LLM path) weekly and on `services/cartographer` PRs; see `.github/workflows/README.md`.
+- **E2E Oracle → web** and **MS internal dashboard** — still roadmap; not automated in this follow-up.

@@ -1,0 +1,59 @@
+# Epic 6 retro — NFR48 extraction benchmark regression signal (Story 6.2 hook).
+# Runs a moderate synthetic stub + mock-LLM path weekly; not a production p95
+# (no live model), but catches accidental slowdowns in triage + extract paths.
+# PR/push: path-filtered on cartographer; schedule: Monday 06:00 UTC.
+
+name: Cartographer benchmark (NFR48)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "services/cartographer/**"
+      - ".github/workflows/cartographer-benchmark.yml"
+  push:
+    branches: [main]
+    paths:
+      - "services/cartographer/**"
+      - ".github/workflows/cartographer-benchmark.yml"
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  benchmark:
+    name: Stub + map-reduce (synthetic)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.7"
+          enable-cache: true
+
+      - name: NFR48 benchmark (stub + LLM completer path)
+        working-directory: services/cartographer
+        run: |
+          uv sync
+          echo "=== stub (synthetic 120k chars) ==="
+          uv run python -m cartographer.benchmark --chars 120000 --mode stub
+          echo "=== map-reduce + empty completer (synthetic 80k chars) ==="
+          uv run python -m cartographer.benchmark --chars 80000 --mode llm
