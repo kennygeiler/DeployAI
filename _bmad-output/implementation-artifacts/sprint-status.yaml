@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-21
-last_updated: 2026-04-23 # Story 7-1: CitationChip in packages/shared-ui + Storybook
+last_updated: 2026-04-24 # Story 7-2: EvidencePanel + Storybook; tests green
 project: DeployAI
 project_key: NOKEY
 tracking_system: file-system
@@ -138,7 +138,7 @@ development_status:
   # ======================================================================
   epic-7: in-progress
   7-1-citation-chip-component: done
-  7-2-evidence-panel-component: backlog
+  7-2-evidence-panel-component: done
   7-3-phase-indicator-component: backlog
   7-4-freshness-chip-component: backlog
   7-5-override-composer-component: backlog
