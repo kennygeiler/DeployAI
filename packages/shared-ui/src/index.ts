@@ -35,3 +35,9 @@ export {
   type FreshnessSurface,
   type FreshnessThresholdsMs,
 } from "./freshness";
+export {
+  OverrideComposer,
+  type OverrideComposerProps,
+  type OverrideEvidenceOption,
+  type OverrideSubmitPayload,
+} from "./OverrideComposer";
