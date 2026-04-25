@@ -58,6 +58,7 @@ _TEARDOWN_ORDER: tuple[str, ...] = (
     "identity_nodes",
     "canonical_memory_events",
     "ingestion_runs",
+    "adjudication_queue_items",
     "tombstones",
     "schema_proposals",
     "break_glass_sessions",

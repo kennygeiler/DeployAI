@@ -4,7 +4,10 @@ import json
 import os
 from pathlib import Path
 
-from eval.judge.reporter import build_report_for_ci, resolve_mode, run_stub_judge, write_judge_report
+import pytest
+
+from eval.judge.llm_client import extract_first_json_object
+from eval.judge.reporter import JudgeItem, build_report_for_ci, resolve_mode, run_stub_judge, write_judge_report
 
 
 def test_run_stub_judge() -> None:
@@ -26,15 +29,51 @@ def test_resolve_mode_llm() -> None:
         os.environ.pop("DEPLOYAI_EVAL_JUDGE_MODE", None)
 
 
-def test_build_report_for_ci_llm_is_placeholder() -> None:
+def test_build_report_for_ci_llm_errors_without_key() -> None:
     os.environ["DEPLOYAI_EVAL_JUDGE_MODE"] = "llm"
+    os.environ.pop("ANTHROPIC_API_KEY", None)
     try:
         r = build_report_for_ci()
         assert r.mode == "llm"
         assert r.error
+        assert "ANTHROPIC_API_KEY" in r.error
         assert r.items == []
     finally:
         os.environ.pop("DEPLOYAI_EVAL_JUDGE_MODE", None)
+
+
+def test_build_report_for_ci_llm_success_patched(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    os.environ["DEPLOYAI_EVAL_JUDGE_MODE"] = "llm"
+    os.environ["ANTHROPIC_API_KEY"] = "fake"
+
+    def _fake() -> tuple[JudgeItem, str | None]:
+        return (
+            JudgeItem(
+                query_id="q1",
+                pass_=True,
+                rationale="ok",
+                scores={"relevance": 0.9},
+                model="claude-3-5-haiku-20241022",
+            ),
+            "claude-3-5-haiku-20241022",
+        )
+
+    monkeypatch.setattr("eval.judge.llm_client.invoke_anthropic_judge", _fake)
+    try:
+        r = build_report_for_ci()
+        assert r.mode == "llm"
+        assert not r.error
+        assert r.items[0].query_id == "q1"
+    finally:
+        os.environ.pop("DEPLOYAI_EVAL_JUDGE_MODE", None)
+        os.environ.pop("ANTHROPIC_API_KEY", None)
+
+
+def test_extract_first_json_object_fenced() -> None:
+    text = 'Here:\n```json\n{"a": 1, "b": true}\n```\n'
+    assert extract_first_json_object(text) == {"a": 1, "b": True}
 
 
 def test_write_judge_report_roundtrip(tmp_path: Path) -> None:

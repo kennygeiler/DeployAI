@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from eval.judge.reporter import build_report_for_ci, write_judge_report
@@ -16,6 +17,10 @@ def main() -> None:
     rep = build_report_for_ci()
     write_judge_report(rep, out)
     print(f"Wrote {out} (mode={rep.mode})")
+    if rep.mode == "llm" and (rep.error or not rep.items):
+        if rep.error:
+            print(rep.error, file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

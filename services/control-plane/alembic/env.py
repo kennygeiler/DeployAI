@@ -26,6 +26,7 @@ from alembic import context
 
 # Ensure the ``control_plane.domain.canonical_memory`` package is imported
 # so every table registers onto ``Base.metadata`` before Alembic reads it.
+from control_plane.domain import adjudication as _adjudication  # noqa: F401
 from control_plane.domain import app_identity as _app_identity  # noqa: F401
 from control_plane.domain import break_glass as _break_glass  # noqa: F401
 from control_plane.domain import canonical_memory as _canonical_memory  # noqa: F401

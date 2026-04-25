@@ -67,3 +67,6 @@ jobs:
         run: pnpm run replay-parity:judge
         env:
           DEPLOYAI_EVAL_JUDGE_MODE: stub
+
+      - name: Quarterly report (sprint status snapshot)
+        run: pnpm run quarterly:report

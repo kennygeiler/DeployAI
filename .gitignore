@@ -218,6 +218,7 @@ pa11y-screenshots/
 # workflow artifact — never commit the bytes.
 artifacts/fuzz/
 artifacts/replay-parity/
+artifacts/quarterly/
 services/control-plane/artifacts/fuzz/
 
 # ─────────────────────── Misc ───────────────────────

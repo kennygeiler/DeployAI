@@ -1,4 +1,4 @@
-"""LLM-judge report shape and writers (Story 4-6; stub path until model wiring)."""
+"""LLM-judge report shape and writers (Story 4-6)."""
 
 from __future__ import annotations
 
@@ -41,19 +41,27 @@ def run_stub_judge() -> JudgeReport:
             JudgeItem(
                 query_id="ci-smoke-placeholder",
                 pass_=True,
-                rationale="Stub judge (set DEPLOYAI_EVAL_JUDGE_MODE=llm and wire the provider in a later pass).",
+                rationale="Stub judge (set DEPLOYAI_EVAL_JUDGE_MODE=llm and ANTHROPIC_API_KEY for live Anthropic).",
                 scores={"relevance": 1.0, "faithfulness": 1.0},
             )
         ],
     )
 
 
-def run_llm_judge_placeholder() -> JudgeReport:
-    return JudgeReport(
-        mode="llm",
-        error="LLM judge not wired: provide adapter + prompts (Story 4-6 follow-up).",
-        items=[],
-    )
+def run_llm_judge() -> JudgeReport:
+    from eval.judge.llm_client import AnthropicError, invoke_anthropic_judge
+
+    try:
+        item, _model = invoke_anthropic_judge()
+        return JudgeReport(mode="llm", items=[item])
+    except AnthropicError as e:
+        return JudgeReport(mode="llm", error=e.message, items=[])
+    except OSError as e:
+        return JudgeReport(mode="llm", error=str(e), items=[])
+    except json.JSONDecodeError as e:
+        return JudgeReport(mode="llm", error=f"Judge input JSON: {e}", items=[])
+    except Exception as e:
+        return JudgeReport(mode="llm", error=str(e), items=[])
 
 
 def write_judge_report(report: JudgeReport, out_path: Path) -> None:
@@ -77,5 +85,5 @@ def write_judge_report(report: JudgeReport, out_path: Path) -> None:
 
 def build_report_for_ci() -> JudgeReport:
     if resolve_mode() == "llm":
-        return run_llm_judge_placeholder()
+        return run_llm_judge()
     return run_stub_judge()
