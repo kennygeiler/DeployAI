@@ -15,6 +15,9 @@
 # check on `main` in `.github/workflows/README.md` §3 (add in GitHub branch
 # protection: `schema / canonical-memory-schema`). Unrelated PRs may skip
 # this workflow when paths do not match — configure rules accordingly.
+#
+# Note: this file is in `on.pull_request.paths`; touch it to run the gate when
+# a doc-only change must satisfy required checks on `main`.
 
 name: schema
 
