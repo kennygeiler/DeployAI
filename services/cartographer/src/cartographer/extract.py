@@ -295,16 +295,12 @@ def bundle_fingerprint(bundle: ExtractionBundle) -> str:
     payload = {
         "event": str(bundle.source_event_id),
         "epoch": bundle.graph_epoch,
-        "entities": [
-            (e.label, e.kind, e.evidence_span.model_dump(), env_to_dict(e.envelope)) for e in bundle.entities
-        ],
+        "entities": [(e.label, e.kind, e.evidence_span.model_dump(), env_to_dict(e.envelope)) for e in bundle.entities],
         "relationships": [
             (r.subj, r.obj, r.predicate, r.evidence_span.model_dump(), env_to_dict(r.envelope))
             for r in bundle.relationships
         ],
-        "blockers": [
-            (b.text, b.evidence_span.model_dump(), env_to_dict(b.envelope)) for b in bundle.blockers
-        ],
+        "blockers": [(b.text, b.evidence_span.model_dump(), env_to_dict(b.envelope)) for b in bundle.blockers],
         "candidate_learnings": [
             (c.text, c.evidence_span.model_dump(), env_to_dict(c.envelope)) for c in bundle.candidate_learnings
         ],

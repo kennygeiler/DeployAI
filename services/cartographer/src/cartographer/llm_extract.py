@@ -27,7 +27,7 @@ def _system_prompt() -> str:
         "Do not use the web or outside knowledge. "
         'Reply with a single JSON object: {"entities":[{"label":string,"kind":string,'
         '"span_text":string}]} where span_text is copied verbatim from the text '
-        "for that entity. If none, use {\"entities\":[]}."
+        'for that entity. If none, use {"entities":[]}.'
     )
 
 
