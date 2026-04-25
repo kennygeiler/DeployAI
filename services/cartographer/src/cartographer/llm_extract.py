@@ -106,7 +106,7 @@ def _default_anthropic_completer() -> Callable[[str], str]:
             {"role": "system", "content": sys_text},
             {"role": "user", "content": chunk},
         ]
-        return p.chat_complete(msgs, max_output_tokens=1024, temperature=0.0)
+        return str(p.chat_complete(msgs, max_output_tokens=1024, temperature=0.0))
 
     return _c
 

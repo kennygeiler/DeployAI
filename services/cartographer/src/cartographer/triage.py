@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -15,6 +16,19 @@ from cartographer.metrics import observe_triage
 _log = logging.getLogger(__name__)
 
 Outcome = Literal["passed", "triaged_out"]
+
+
+def _hash_id(s: str) -> str:
+    """Short stable hash for log correlators (not reversible to UUID)."""
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()[:16]
+
+
+def _triage_log_use_raw_identifiers() -> bool:
+    return os.environ.get("DEPLOYAI_CARTOGRAPHER_TRIAGE_LOG_IDENTIFIERS", "").strip().lower() in (
+        "raw",
+        "full",
+        "plain",
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,13 +174,18 @@ def triage_event(
         log_fields=log_fields,
     )
     if os.environ.get("DEPLOYAI_CARTOGRAPHER_TRIAGE_LOG_JSON", "").lower() in ("1", "true", "yes", "on"):
-        # One-line JSON for log aggregators; no message body (PII). See privacy review for event_id usage.
+        # No message body. By default do not emit raw UUIDs (hash only). Opt-in: TRIAGE_LOG_IDENTIFIERS=raw
+        eid = str(event.event_id)
+        tid = tenant_id
+        if not _triage_log_use_raw_identifiers():
+            eid = _hash_id(f"event:{eid}")
+            tid = _hash_id(f"tenant:{tid}")
         _log.info(
             json.dumps(
                 {
                     "msg": "cartographer_triage",
-                    "event_id": str(event.event_id),
-                    "tenant_id": tenant_id,
+                    "event_id": eid,
+                    "tenant_id": tid,
                     "phase": ctx.phase,
                     "outcome": outcome,
                     "reason": reason,
