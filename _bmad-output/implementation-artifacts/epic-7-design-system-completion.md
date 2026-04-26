@@ -16,3 +16,5 @@
 **7.15** — `@deployai/vpat-aggregator` in `apps/tools/vpat-aggregator` + `.github/workflows/vpat-evidence.yml` (release + `workflow_dispatch`) produce versioned JSON under `artifacts/vpat/`. S3 long-term store remains Epic 13 + AWS OIDC (commented in workflow).
 
 **Test note:** `pnpm turbo run test` requires Python `uv` on PATH for `services/control-plane` (e.g. same environment as CI or `cd services/control-plane && uv run pytest`).
+
+**Retrospective:** [`epic-7-retrospective-2026-04-26.md`](./epic-7-retrospective-2026-04-26.md).
