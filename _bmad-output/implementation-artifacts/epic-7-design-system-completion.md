@@ -1,6 +1,6 @@
 # Epic 7 — Design system library (completion note)
 
-**Stories 7.1–7.11 (components + primitives):** implemented under `packages/shared-ui` with Vitest + `apps/web` Storybook.
+**Stories 7.1–7.13 (components + patterns + hook):** implemented under `packages/shared-ui` and `apps/web` (Vitest + Storybook; button lint in 7.12).
 
 | Story | Deliverable |
 | ----- | ----------- |
@@ -8,9 +8,8 @@
 | 7.9 | `AgentOutageBanner` |
 | 7.10 | `SessionBanner` (5-min `aria-live` cadence + 1s visual countdown) |
 | 7.11 | `EmptyState`, `LoadingFromMemory`, `MemorySyncingGlyph` |
-| 7.13 (hook) | `useMobileReadOnlyGate` |
-
-**7.12** — `DesignSystemPatterns.stories.tsx` documents button hierarchy. ESLint (`no-restricted-syntax` in `apps/web/eslint.config.mjs`) fails raw `<button>` in `src/**` (vendored `src/components/ui/**` excluded from lint); call sites in schema proposals + `PhaseIndicator` story use shadcn `<Button>`.
+| 7.12 | No raw `<button>` in `apps/web` (ESLint + shadcn `Button`); see governance |
+| 7.13 (hook) | `useMobileReadOnlyGate` + `BREAKPOINT_PX` / `MOBILE_READ_ONLY_PX` in `breakpoints.ts` |
 
 **7.14** — `docs/design-system/governance.md` records governance. **Storybook** workflow (`.github/workflows/storybook.yml`) builds and uploads a static bundle every PR/push; add repository secret `CHROMATIC_PROJECT_TOKEN` to run Chromatic. Full polyglot `turbo` in one image: `infra/docker/Dockerfile.turbo-all` and `scripts/run-turbo-all.sh`.
 

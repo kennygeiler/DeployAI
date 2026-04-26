@@ -13,7 +13,7 @@ Epic 7 design-system composites (shadcn + `@deployai/design-tokens` via app glob
 - **7-9** — `AgentOutageBanner` (UX-DR12, FR46): full-width amber banner; `status` / `alert` roles; status link + optional retry.
 - **7-10** — `SessionBanner` (UX-DR42): break-glass vs external-auditor styling; session id + countdown; 5-min `aria-live` cadence.
 - **7-11** — `EmptyState`, `LoadingFromMemory`, `MemorySyncingGlyph` (UX-DR22/23/25).
-- **7-13** — `useMobileReadOnlyGate` (UX-DR38): `true` below 768px by default (mobile read-only for write flows); `BREAKPOINT_PX` / `MOBILE_READ_ONLY_PX` exported for alignment (UX-DR37–38).
+- **7-13** — `useMobileReadOnlyGate` (UX-DR38): `true` below 768px by default (mobile read-only for write flows); `BREAKPOINT_PX` / `MOBILE_READ_ONLY_PX` exported for alignment (UX-DR37–38) with `breakpoints.test.ts` regression coverage.
 - **Consumers:** add `@source` in `apps/web` `globals.css` for Tailwind v4 to scan this package; Storybook lives in `apps/web`.
 
 ```bash
