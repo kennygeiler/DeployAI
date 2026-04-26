@@ -19,8 +19,8 @@ export function EvidenceNodePageClient({ item }: { item: DigestTopItem }) {
       <div>
         <h1 className="text-display text-ink-950 font-semibold tracking-tight">Evidence node</h1>
         <p className="text-body text-ink-600 mt-1 max-w-2xl">
-          Canonical view for node <code className="font-mono text-xs">{item.id}</code> (Story
-          8.4). Expand-inline defaults open here; production resolves from canonical memory.
+          Canonical view for node <code className="font-mono text-xs">{item.id}</code> (Story 8.4).
+          Expand-inline defaults open here; production resolves from canonical memory.
         </p>
       </div>
       <DigestEvidenceCard item={item} headingLevel="h2" defaultExpanded />

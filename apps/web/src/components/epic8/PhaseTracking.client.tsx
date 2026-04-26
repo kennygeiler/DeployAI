@@ -57,7 +57,8 @@ export function PhaseTrackingClient() {
   const { agentDegraded } = useStrategistSurface();
   const [phaseFilter, setPhaseFilter] = React.useState<(typeof phaseOptions)[number]>("All");
   const [statusFilter, setStatusFilter] = React.useState<(typeof statusOptions)[number]>("All");
-  const [assigneeFilter, setAssigneeFilter] = React.useState<(typeof assigneeOptions)[number]>("All");
+  const [assigneeFilter, setAssigneeFilter] =
+    React.useState<(typeof assigneeOptions)[number]>("All");
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: "priority", desc: false },
     { id: "due", desc: false },

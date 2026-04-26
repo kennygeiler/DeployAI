@@ -148,7 +148,12 @@ test.describe("strategist", () => {
     });
 
     test("placeholder strategist routes return 200", async ({ page }) => {
-      for (const path of ["/validation-queue", "/solidification-review", "/overrides", "/audit/personal"]) {
+      for (const path of [
+        "/validation-queue",
+        "/solidification-review",
+        "/overrides",
+        "/audit/personal",
+      ]) {
         const r = await page.goto(path, { waitUntil: "domcontentloaded" });
         expect(r?.status(), path).toBe(200);
       }

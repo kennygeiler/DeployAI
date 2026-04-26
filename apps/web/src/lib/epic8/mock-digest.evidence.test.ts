@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { getStrategistEvidenceByNodeId, MORNING_DIGEST_TOP, PHASE_TRACKING_ROWS } from "./mock-digest";
+import {
+  getStrategistEvidenceByNodeId,
+  MORNING_DIGEST_TOP,
+  PHASE_TRACKING_ROWS,
+} from "./mock-digest";
 
 describe("getStrategistEvidenceByNodeId", () => {
   it("resolves digest citation ids", () => {
