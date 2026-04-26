@@ -52,7 +52,11 @@ export function ChromeTopBar({
             <span className="truncate">Ingesting…</span>
           </div>
         ) : null}
-        <FreshnessChip lastSyncedAt={lastSyncedAt} surface={freshnessSurface} id="strategist-freshness" />
+        <FreshnessChip
+          lastSyncedAt={lastSyncedAt}
+          surface={freshnessSurface}
+          id="strategist-freshness"
+        />
         <Button
           type="button"
           variant="outline"

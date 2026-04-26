@@ -16,7 +16,14 @@ import { PHASE_TRACKING_ROWS } from "@/lib/epic8/mock-digest";
 import { useStrategistSurface } from "@/lib/epic8/strategist-surface-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 const columnHelper = createColumnHelper<ActionQueueRow>();
@@ -85,7 +92,9 @@ export function PhaseTrackingClient() {
           const v = c.getValue();
           return (
             <Badge
-              variant={v === "blocked" ? "destructive" : v === "in_progress" ? "default" : "secondary"}
+              variant={
+                v === "blocked" ? "destructive" : v === "in_progress" ? "default" : "secondary"
+              }
               className="font-normal"
             >
               {statusLabel(v)}
@@ -122,7 +131,9 @@ export function PhaseTrackingClient() {
     }
     return modelRows.find((r) => r.original.id === selectedId)?.original ?? null;
   }, [modelRows, selectedId]);
-  const selectedIdx = selectedRow ? modelRows.findIndex((r) => r.original.id === selectedRow.id) : -1;
+  const selectedIdx = selectedRow
+    ? modelRows.findIndex((r) => r.original.id === selectedRow.id)
+    : -1;
   const liveDetail =
     selectedRow && selectedIdx >= 0
       ? `Row ${selectedIdx + 1} of ${modelRows.length} — ${selectedRow.title}`
@@ -131,12 +142,17 @@ export function PhaseTrackingClient() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-display text-ink-950 font-semibold tracking-tight">Phase &amp; task tracking</h1>
+        <h1 className="text-display text-ink-950 font-semibold tracking-tight">
+          Phase &amp; task tracking
+        </h1>
         <p className="text-body text-ink-600 mt-1 max-w-2xl">
           Action queue, blockers, and phase context (FR39). Default sort: priority, then due date.
         </p>
         {agentDegraded ? (
-          <p className="text-ink-800 mt-2 max-w-2xl rounded-md border border-amber-600/30 bg-amber-50/80 px-3 py-2 text-sm" role="status">
+          <p
+            className="text-ink-800 mt-2 max-w-2xl rounded-md border border-amber-600/30 bg-amber-50/80 px-3 py-2 text-sm"
+            role="status"
+          >
             Action-queue suggestions may be stale while agents recover. Canonical evidence still
             reads normally (FR46).
           </p>
@@ -199,28 +215,26 @@ export function PhaseTrackingClient() {
                                 : "none"
                         }
                       >
-                        {header.isPlaceholder
-                          ? null
-                          : (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                className={cn(
-                                  "inline-flex h-auto w-full min-w-0 items-center justify-start gap-1 px-1 py-0.5 text-left font-medium",
-                                  "text-ink-800 hover:text-ink-950",
-                                  header.column.getCanSort() ? "cursor-pointer" : "cursor-default",
-                                )}
-                                onClick={header.column.getToggleSortingHandler()}
-                                disabled={!header.column.getCanSort()}
-                              >
-                                {flexRender(header.column.columnDef.header, header.getContext())}
-                                {header.column.getCanSort() ? (
-                                  <span className="text-muted-foreground text-xs" aria-hidden>
-                                    {sort === "asc" ? "▲" : sort === "desc" ? "▼" : "◇"}
-                                  </span>
-                                ) : null}
-                              </Button>
+                        {header.isPlaceholder ? null : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className={cn(
+                              "inline-flex h-auto w-full min-w-0 items-center justify-start gap-1 px-1 py-0.5 text-left font-medium",
+                              "text-ink-800 hover:text-ink-950",
+                              header.column.getCanSort() ? "cursor-pointer" : "cursor-default",
                             )}
+                            onClick={header.column.getToggleSortingHandler()}
+                            disabled={!header.column.getCanSort()}
+                          >
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            {header.column.getCanSort() ? (
+                              <span className="text-muted-foreground text-xs" aria-hidden>
+                                {sort === "asc" ? "▲" : sort === "desc" ? "▼" : "◇"}
+                              </span>
+                            ) : null}
+                          </Button>
+                        )}
                       </TableHead>
                     );
                   })}
@@ -230,7 +244,10 @@ export function PhaseTrackingClient() {
             <TableBody>
               {table.getRowModel().rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className="text-center text-muted-foreground h-24">
+                  <TableCell
+                    colSpan={columns.length}
+                    className="text-center text-muted-foreground h-24"
+                  >
                     No items match the current filters.
                   </TableCell>
                 </TableRow>
@@ -238,28 +255,28 @@ export function PhaseTrackingClient() {
                 table.getRowModel().rows.map((row) => {
                   const isSelected = row.original.id === selectedId;
                   return (
-                  <TableRow
-                    key={row.id}
-                    className={cn("cursor-pointer", isSelected && "bg-paper-200")}
-                    data-state={isSelected ? "selected" : undefined}
-                    onClick={() => {
-                      setSelectedId(row.original.id);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
+                    <TableRow
+                      key={row.id}
+                      className={cn("cursor-pointer", isSelected && "bg-paper-200")}
+                      data-state={isSelected ? "selected" : undefined}
+                      onClick={() => {
                         setSelectedId(row.original.id);
-                      }
-                    }}
-                    tabIndex={0}
-                    aria-selected={isSelected}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelectedId(row.original.id);
+                        }
+                      }}
+                      tabIndex={0}
+                      aria-selected={isSelected}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
                   );
                 })
               )}
@@ -302,7 +319,9 @@ export function PhaseTrackingClient() {
               </p>
             </div>
           ) : (
-            <p className="text-muted-foreground text-sm">Select a row to view evidence and context.</p>
+            <p className="text-muted-foreground text-sm">
+              Select a row to view evidence and context.
+            </p>
           )}
         </aside>
       </div>

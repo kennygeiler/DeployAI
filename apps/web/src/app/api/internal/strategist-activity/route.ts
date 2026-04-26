@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { getActorFromHeaders } from "@/lib/internal/actor";
-import { loadStrategistActivityForActor, type StrategistActivitySnapshot } from "@/lib/internal/load-strategist-activity";
+import {
+  loadStrategistActivityForActor,
+  type StrategistActivitySnapshot,
+} from "@/lib/internal/load-strategist-activity";
 
 /**
  * BFF: strategist top-rail (ingest activity + control-plane liveness) for client polling

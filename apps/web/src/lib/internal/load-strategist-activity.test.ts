@@ -49,9 +49,11 @@ describe("loadStrategistActivityForActor", () => {
   });
 
   it("ingestion off when no running for tenant", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify([{ tenant_id: "t1", status: "succeeded" }]), { status: 200 }),
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify([{ tenant_id: "t1", status: "succeeded" }]), { status: 200 }),
+      ) as unknown as typeof fetch;
     const r = await loadStrategistActivityForActor({
       role: "deployment_strategist",
       tenantId: "t1",
@@ -61,7 +63,9 @@ describe("loadStrategistActivityForActor", () => {
   });
 
   it("agentDegraded on fetch error", async () => {
-    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("network")) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValue(new TypeError("network")) as unknown as typeof fetch;
     const r = await loadStrategistActivityForActor({
       role: "deployment_strategist",
       tenantId: "t1",

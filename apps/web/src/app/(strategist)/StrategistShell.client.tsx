@@ -4,7 +4,10 @@ import * as React from "react";
 
 import { AppShell } from "@/components/chrome/AppShell";
 import type { StrategistActivitySnapshot } from "@/lib/internal/load-strategist-activity";
-import { StrategistSurfaceProvider, type StrategistSurfaceValue } from "@/lib/epic8/strategist-surface-context";
+import {
+  StrategistSurfaceProvider,
+  type StrategistSurfaceValue,
+} from "@/lib/epic8/strategist-surface-context";
 
 type Props = {
   children: React.ReactNode;

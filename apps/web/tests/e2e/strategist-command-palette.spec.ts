@@ -39,7 +39,9 @@ test.describe("strategist", () => {
       await expect(page.getByRole("dialog")).not.toBeVisible();
     });
 
-    test("arrow keys cross Navigate group and CommandSeparator (first Action item)", async ({ page }) => {
+    test("arrow keys cross Navigate group and CommandSeparator (first Action item)", async ({
+      page,
+    }) => {
       await page.goto("/digest", { waitUntil: "domcontentloaded" });
       await expect(page.getByRole("heading", { name: /Morning digest/i })).toBeVisible();
       await page.keyboard.press("Control+K");
@@ -51,7 +53,9 @@ test.describe("strategist", () => {
       for (let i = 0; i < 4; i += 1) {
         await page.keyboard.press("ArrowDown");
       }
-      await expect(page.locator("[cmdk-item][aria-selected=\"true\"]")).toContainText(/Resolve|claim|Action Queue/i);
+      await expect(page.locator('[cmdk-item][aria-selected="true"]')).toContainText(
+        /Resolve|claim|Action Queue/i,
+      );
       await page.evaluate(() => {
         document.querySelector<HTMLButtonElement>("[data-slot=dialog-close]")?.click();
       });
@@ -107,7 +111,9 @@ test.describe("strategist", () => {
   test.describe("Story 8.4 — expand-inline EvidencePanel (NFR4 budget in CI)", () => {
     test.use({ extraHTTPHeaders: strategistRoleHeader });
 
-    test("citation chip shows [data-evidence-panel] under 2s (NFR4 slack in CI)", async ({ page }) => {
+    test("citation chip shows [data-evidence-panel] under 2s (NFR4 slack in CI)", async ({
+      page,
+    }) => {
       await page.goto("/digest", { waitUntil: "domcontentloaded" });
       const chip = page.locator("[data-citation-chip]").first();
       await expect(chip).toBeVisible();

@@ -23,7 +23,9 @@ export function StrategistSurfaceProvider({
   value: StrategistSurfaceValue;
   children: React.ReactNode;
 }) {
-  return <StrategistSurfaceContext.Provider value={value}>{children}</StrategistSurfaceContext.Provider>;
+  return (
+    <StrategistSurfaceContext.Provider value={value}>{children}</StrategistSurfaceContext.Provider>
+  );
 }
 
 /** Defaults to off when used outside the strategist layout (e.g. Storybook). */

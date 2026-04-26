@@ -1,4 +1,8 @@
-import type { CitationPreview, EvidencePanelMetadata, EvidencePanelState } from "@deployai/shared-ui";
+import type {
+  CitationPreview,
+  EvidencePanelMetadata,
+  EvidencePanelState,
+} from "@deployai/shared-ui";
 import type { EvidenceSpan, RetrievalPhase } from "@deployai/contracts";
 
 const span = (source_ref: string, t: [number, number]): EvidenceSpan => ({
@@ -59,7 +63,8 @@ export const MORNING_DIGEST_TOP: readonly DigestTopItem[] = [
       supersession: "current",
     },
     state: "loaded",
-    bodyText: "CRO asked for a single-page RFP summary. Legal wants clause references attached — expect follow-up by EOD.",
+    bodyText:
+      "CRO asked for a single-page RFP summary. Legal wants clause references attached — expect follow-up by EOD.",
     evidenceSpan: span("urn:deployai:evidence:email-thread-rfp#slice1", [20, 44]),
   },
   {
@@ -80,20 +85,33 @@ export const MORNING_DIGEST_TOP: readonly DigestTopItem[] = [
       supersession: "current",
     },
     state: "loaded",
-    bodyText: "On-site: training room network drops twice per session. IT ticket opened; not a blocker for dry run Tuesday.",
+    bodyText:
+      "On-site: training room network drops twice per session. IT ticket opened; not a blocker for dry run Tuesday.",
     evidenceSpan: span("urn:deployai:evidence:field-note-visit#n1", [32, 45]),
   },
 ];
 
 /** Suppressed candidates (Oracle 6.4 “ranked out”) — not in the hard 3. */
 export const MORNING_DIGEST_RANKED_OUT: readonly { id: string; label: string; reason: string }[] = [
-  { id: "out-1", label: "Low-signal: generic status email", reason: "Below confidence floor for digest" },
+  {
+    id: "out-1",
+    label: "Low-signal: generic status email",
+    reason: "Below confidence floor for digest",
+  },
   { id: "out-2", label: "Duplicate: same DOT thread (older)", reason: "Superseded by item 1" },
 ];
 
 export const EVENING_CANDIDATES: readonly { id: string; title: string; note: string }[] = [
-  { id: "e1", title: "Recurring: vendor latency on artifact uploads", note: "Cross-account: 2 tenants this week" },
-  { id: "e2", title: "Class B review: pilot KPI wording", note: "Tie to solidification review when Epic 9 lands" },
+  {
+    id: "e1",
+    title: "Recurring: vendor latency on artifact uploads",
+    note: "Cross-account: 2 tenants this week",
+  },
+  {
+    id: "e2",
+    title: "Class B review: pilot KPI wording",
+    note: "Tie to solidification review when Epic 9 lands",
+  },
 ];
 
 export type ActionQueueRow = {
@@ -129,7 +147,8 @@ export const PHASE_TRACKING_ROWS: readonly ActionQueueRow[] = [
       confidence: "—",
       supersession: "current",
     },
-    bodyText: "Exit criteria: 95% task completion, zero sev-1 in two consecutive weeks, training sign-off.",
+    bodyText:
+      "Exit criteria: 95% task completion, zero sev-1 in two consecutive weeks, training sign-off.",
     evidenceSpan: span("urn:deployai:evidence:action-aq-1#ex1", [15, 35]),
   },
   {

@@ -5,7 +5,8 @@ import { canAccess, type Action, type Resource, type V1Role } from "@deployai/au
 const isAdmin = (p: string) =>
   p === "/admin/runs" || p === "/admin/adjudication" || p.startsWith("/admin/schema-proposals");
 
-const isStrategistSurface = (p: string) => p === "/digest" || p === "/phase-tracking" || p === "/evening";
+const isStrategistSurface = (p: string) =>
+  p === "/digest" || p === "/phase-tracking" || p === "/evening";
 
 function parseRole(r: string | null): V1Role | null {
   const allowed: V1Role[] = [

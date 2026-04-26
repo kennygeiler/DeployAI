@@ -19,9 +19,19 @@ import { MORNING_DIGEST_TOP } from "@/lib/epic8/mock-digest";
 
 const navigateItems = [
   { href: "/digest", label: "Morning digest", value: "nav digest morning", Icon: Waypoints },
-  { href: "/phase-tracking", label: "Phase & task tracking", value: "nav phase tasks tracking", Icon: ListChecks },
+  {
+    href: "/phase-tracking",
+    label: "Phase & task tracking",
+    value: "nav phase tasks tracking",
+    Icon: ListChecks,
+  },
   { href: "/evening", label: "Evening synthesis", value: "nav evening synthesis", Icon: BookOpen },
-  { href: "/validation-queue", label: "Validation queue (Epic 9)", value: "nav validation", Icon: UserRound },
+  {
+    href: "/validation-queue",
+    label: "Validation queue (Epic 9)",
+    value: "nav validation",
+    Icon: UserRound,
+  },
 ] as const;
 
 const actionItems = [
@@ -31,7 +41,12 @@ const actionItems = [
     value: "action resolve claim queue",
     Icon: ListChecks,
   },
-  { href: "/overrides", label: "Start override (attach evidence)", value: "action override", Icon: PlusCircle },
+  {
+    href: "/overrides",
+    label: "Start override (attach evidence)",
+    value: "action override",
+    Icon: PlusCircle,
+  },
 ] as const;
 
 /** Read-only preview (same fields as CitationChip hover card) — avoids nested buttons in cmdk. */
@@ -77,9 +92,14 @@ export function StrategistCommandPalette({ open, onOpenChange }: StrategistComma
       title="Strategist command palette"
       description="Search surfaces, actions, or canonical memory. Esc to close."
     >
-      <CommandInput placeholder="Type a command, surface, or citation…" data-testid="command-palette-input" />
+      <CommandInput
+        placeholder="Type a command, surface, or citation…"
+        data-testid="command-palette-input"
+      />
       <CommandList>
-        <CommandEmpty>No results — try &quot;digest&quot;, &quot;phase&quot;, or a citation id.</CommandEmpty>
+        <CommandEmpty>
+          No results — try &quot;digest&quot;, &quot;phase&quot;, or a citation id.
+        </CommandEmpty>
         <CommandGroup heading="Navigate">
           {navigateItems.map((n) => (
             <CommandItem

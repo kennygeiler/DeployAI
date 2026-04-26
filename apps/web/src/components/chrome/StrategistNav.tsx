@@ -57,7 +57,9 @@ export function StrategistNav() {
                   title={item.label}
                 >
                   <item.icon className="text-ink-600 size-5 shrink-0" aria-hidden />
-                  <span className="hidden min-w-0 flex-1 truncate text-sm xl:inline">{item.label}</span>
+                  <span className="hidden min-w-0 flex-1 truncate text-sm xl:inline">
+                    {item.label}
+                  </span>
                 </Link>
               </li>
             ))}
@@ -81,7 +83,9 @@ export function StrategistNav() {
                   title={item.label}
                 >
                   <item.icon className="size-5 shrink-0" aria-hidden />
-                  <span className="hidden min-w-0 flex-1 truncate text-sm xl:inline">{item.label}</span>
+                  <span className="hidden min-w-0 flex-1 truncate text-sm xl:inline">
+                    {item.label}
+                  </span>
                 </Link>
               </li>
             ))}

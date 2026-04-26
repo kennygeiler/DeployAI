@@ -11,8 +11,8 @@ export function MorningDigestClient() {
       <div>
         <h1 className="text-display text-ink-950 font-semibold tracking-tight">Morning digest</h1>
         <p className="text-body text-ink-600 mt-1 max-w-2xl">
-          Phase-contextual priorities for today — three items (FR34). No loading shimmer on agent body
-          text (UX-DR23).
+          Phase-contextual priorities for today — three items (FR34). No loading shimmer on agent
+          body text (UX-DR23).
         </p>
         {agentDegraded ? (
           <p className="text-ink-800 mt-2 max-w-2xl rounded-md border border-amber-600/30 bg-amber-50/80 px-3 py-2 text-sm">

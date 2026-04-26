@@ -16,13 +16,18 @@ export function EveningSynthesisClient() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-display text-ink-950 font-semibold tracking-tight">Evening synthesis</h1>
+        <h1 className="text-display text-ink-950 font-semibold tracking-tight">
+          Evening synthesis
+        </h1>
         <p className="text-body text-ink-600 mt-1 max-w-2xl">
           End-of-day review: candidate learnings, cross-account patterns, and Class B follow-up
           (NFR3 by 19:00 local when the job is wired).
         </p>
         {agentDegraded ? (
-          <p className="text-ink-800 mt-2 max-w-2xl rounded-md border border-amber-600/30 bg-amber-50/80 px-3 py-2 text-sm" role="status">
+          <p
+            className="text-ink-800 mt-2 max-w-2xl rounded-md border border-amber-600/30 bg-amber-50/80 px-3 py-2 text-sm"
+            role="status"
+          >
             Synthesis suggestions are held; cards show last synced canonical snippets (FR46).
           </p>
         ) : null}
@@ -48,7 +53,10 @@ export function EveningSynthesisClient() {
           ))}
         </ul>
       </section>
-      <section className="bg-paper-100 border-border rounded-lg border p-4" aria-labelledby="class-b">
+      <section
+        className="bg-paper-100 border-border rounded-lg border p-4"
+        aria-labelledby="class-b"
+      >
         <h2 id="class-b" className="text-foreground text-sm font-semibold">
           Class B solidification
         </h2>
