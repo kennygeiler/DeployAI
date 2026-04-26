@@ -15,6 +15,7 @@ Epic 7 design-system composites (shadcn + `@deployai/design-tokens` via app glob
 - **7-11** — `EmptyState`, `LoadingFromMemory`, `MemorySyncingGlyph` (UX-DR22/23/25).
 - **7-13** — `useMobileReadOnlyGate` (UX-DR38): `true` below 768px by default (mobile read-only for write flows); `BREAKPOINT_PX` / `MOBILE_READ_ONLY_PX` exported for alignment (UX-DR37–38) with `breakpoints.test.ts` regression coverage.
 - **Consumers:** add `@source` in `apps/web` `globals.css` for Tailwind v4 to scan this package; Storybook lives in `apps/web`.
+- **Buttons (policy):** `apps/web` enforces shadcn `<Button>` (Story 7.12). This package stays **app-agnostic** and may use native `<button>` where a host `Button` is not available; keep minimum touch targets and pass Storybook + `a11y.yml` (axe).
 
 ```bash
 cd packages/shared-ui
