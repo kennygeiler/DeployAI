@@ -7,9 +7,11 @@
 - **Accessibility:** `a11y.yml` and `eslint-plugin-jsx-a11y` on `apps/web`; Storybook addon-a11y during `build-storybook` / review.
 - **Breakpoints (UX-DR37–38):** Tailwind defaults; `useMobileReadOnlyGate()` in `@deployai/shared-ui` gates write flows on viewports under 768px.
 
-## Out of scope in-repo (follow production program)
+## Optional / org-owned (enable when ready)
 
-- **Chromatic** / per-PR visual baselines and **VPAT evidence S3 publishing (7.15)** require org accounts and release process — track in Epic 13.
+- **Chromatic (7.14):** [`.github/workflows/storybook.yml`](../../.github/workflows/storybook.yml) always builds and uploads a `storybook-static` artifact. Add repository secret `CHROMATIC_PROJECT_TOKEN` to run the optional Chromatic step; leave unset to skip. PR comments / GitHub app integration use Chromatic’s own docs.
+- **VPAT evidence (7.15):** [`apps/tools/vpat-aggregator/`](../../apps/tools/vpat-aggregator) writes a versioned JSON stub under `artifacts/vpat/`. [`.github/workflows/vpat-evidence.yml`](../../.github/workflows/vpat-evidence.yml) runs on `workflow_dispatch` and on `release: published` and uploads that folder as a workflow artifact; an **S3 sync** block is commented until `AWS` OIDC, bucket, and program sign-off (Epic 13 / infra) exist.
+
 - **ESLint “no raw `<button>`”** (Story 7.12) is deferred to avoid churn across `apps/web` until a codemod lands; prefer shadcn `<Button>` for new work.
 
 ## Review bar

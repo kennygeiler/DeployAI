@@ -1,0 +1,63 @@
+# Aggregates a stub VPAT evidence JSON (Epic 7.15 / Epic 13). S3 + long-term retention: add a job
+# with `aws s3 sync` and OIDC when org bucket + role exist.
+
+name: VPAT evidence
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  # For future: id-token + permissions for AWS OIDC
+  # id-token: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  aggregate:
+    name: vpat-aggregate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5.0.0
+
+      - name: Install Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: ".nvmrc"
+          package-manager-cache: false
+
+      - name: pnpm install (root — registers workspace)
+        run: pnpm install --frozen-lockfile
+
+      - name: Run aggregator
+        env:
+          VPAT_VERSION: ${{ github.ref_name }}
+        run: pnpm -F @deployai/vpat-aggregator vpat-aggregate
+
+      - name: Upload evidence JSON
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: vpat-evidence
+          path: artifacts/vpat
+          if-no-files-found: warn
+          retention-days: 90
+
+      # S3: uncomment when `AWS_DEPLOYAI_ROLE_ARN` + `VPAT_S3_BUCKET` exist.
+      # - name: Upload to S3
+      #   if: vars.VPAT_S3_ENABLED == 'true'
+      #   uses: aws-actions/configure-aws-credentials@... 
+      #   with:
+      #     role-to-assume: ${{ secrets.AWS_DEPLOYAI_ROLE_ARN }}
+      #     aws-region: us-gov-west-1
+      # - run: aws s3 sync artifacts/vpat/ "s3://${{ vars.VPAT_S3_BUCKET }}/vpat/"

@@ -139,6 +139,9 @@ jobs:
       - name: pnpm install
         run: pnpm install --frozen-lockfile
 
+      - name: Sync Python workspaces (uv)
+        run: bash scripts/ci-uv-sync-all.sh
+
       - name: turbo build
         run: pnpm turbo run build
 

@@ -48,8 +48,7 @@ export interface ExampleFormProps {
 
 export function ExampleForm({ onSubmit }: ExampleFormProps) {
   const form = useForm<ExampleFormValues>({
-    // Zod v4 object vs @hookform/resolvers Zod3Type overload (runtime is correct).
-    // @ts-expect-error Zod v4 object vs resolver Zod3Type overload
+    // Zod v4 object vs @hookform/resolvers Zod3Type overload (runtime is correct; cast silences tsc).
     resolver: zodResolver(exampleFormSchema) as Resolver<ExampleFormValues>,
     mode: "onBlur",
     defaultValues: { email: "", message: "" },

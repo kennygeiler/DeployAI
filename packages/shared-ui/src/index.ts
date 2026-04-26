@@ -70,3 +70,4 @@ export {
   type MemorySyncingGlyphState,
 } from "./MemorySyncingGlyph";
 export { useMobileReadOnlyGate } from "./useMobileReadOnlyGate";
+export { BREAKPOINT_PX, MOBILE_READ_ONLY_PX } from "./breakpoints";

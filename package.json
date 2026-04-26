@@ -34,6 +34,8 @@
     "replay-parity:rules": "pnpm --filter @deployai/eval run replay-parity:rules",
     "replay-parity:judge": "pnpm --filter @deployai/eval run replay-parity:judge",
     "quarterly:report": "node scripts/quarterly-report.mjs",
+    "ci:turbo:full": "bash scripts/ci-turbo-full.sh",
+    "vpat:aggregate": "pnpm --filter @deployai/vpat-aggregator run vpat-aggregate",
     "clean": "turbo run clean && rm -rf node_modules .turbo"
   },
   "devDependencies": {

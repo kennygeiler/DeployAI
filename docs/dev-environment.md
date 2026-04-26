@@ -60,6 +60,17 @@ cd apps/edge-agent/src-tauri && cargo fetch && cd -
 cd apps/foia-cli && go mod download && cd -
 ```
 
+## 2b. Full monorepo verify in one go (Node + Go + `uv` + `turbo`)
+
+The smoke command in [§4](#4-verify-the-smoke-suite) needs every toolchain and every Python tree synced. For CI-style parity on a clean machine, use the image in [`infra/docker/Dockerfile.turbo-all`](../infra/docker/Dockerfile.turbo-all) (see [`infra/docker/README-turbo-image.md`](../infra/docker/README-turbo-image.md)):
+
+```bash
+docker build -f infra/docker/Dockerfile.turbo-all -t deployai-turbo-all .
+docker run --rm -v "$PWD":/repo -w /repo deployai-turbo-all
+```
+
+The default container command runs `pnpm install --frozen-lockfile`, `scripts/ci-uv-sync-all.sh`, and `pnpm turbo run test lint typecheck build` (Tauri is not compiled in that image; it matches the Node-side smoke, not a full `cargo` build). If you already have Node 24, pnpm, Go, and `uv` on your host, the same sequence is in [`scripts/run-turbo-all.sh`](../scripts/run-turbo-all.sh).
+
 ## 3. Install pre-commit hooks (one-time)
 
 ```bash

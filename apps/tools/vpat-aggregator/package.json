@@ -1,0 +1,13 @@
+{
+  "name": "@deployai/vpat-aggregator",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Aggregates a11y / axe evidence for VPAT packaging (UX-DR35, Epic 7.15). Wire CI artifacts in release.",
+  "type": "module",
+  "bin": {
+    "vpat-aggregate": "./cli.mjs"
+  },
+  "scripts": {
+    "vpat-aggregate": "node ./cli.mjs"
+  }
+}
