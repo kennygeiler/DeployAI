@@ -4,9 +4,11 @@ import * as React from "react";
 import { usePathname } from "next/navigation";
 import {
   AgentOutageBanner,
+  SessionBanner,
   type DeploymentPhaseId,
   type FreshnessSurface,
 } from "@deployai/shared-ui";
+import type { StrategistSessionBannerPayload } from "@/lib/internal/strategist-demo-session";
 
 import { useStrategistSurface } from "@/lib/epic8/strategist-surface-context";
 
@@ -18,6 +20,7 @@ function freshnessForPath(pathname: string | null): FreshnessSurface {
   if (pathname === "/phase-tracking") {
     return "phase_tracking";
   }
+  /** Evening reuses digest NFR5 bands in `shared-ui` (same delivery class). */
   return "digest";
 }
 
@@ -28,6 +31,8 @@ export type AppShellProps = {
   /** Overrides route-based default (e.g. tests). */
   freshnessSurface?: FreshnessSurface;
   currentPhaseId?: DeploymentPhaseId;
+  /** Break-glass / external-auditor strip (Story 8.5) — from server env or future auth. */
+  sessionBanner?: StrategistSessionBannerPayload | null;
 };
 
 export function AppShell({
@@ -35,6 +40,7 @@ export function AppShell({
   lastSyncedAt,
   freshnessSurface: freshnessProp,
   currentPhaseId = "P5_pilot",
+  sessionBanner = null,
 }: AppShellProps) {
   const pathname = usePathname();
   const { agentDegraded } = useStrategistSurface();
@@ -60,6 +66,17 @@ export function AppShell({
 
   return (
     <div className="bg-background flex min-h-screen flex-col text-foreground">
+      {sessionBanner ? (
+        <div className="border-b border-amber-600/20 bg-amber-50/90">
+          <div className="mx-auto w-full max-w-[1600px] px-2 pt-1 md:px-4">
+            <SessionBanner
+              sessionId={sessionBanner.sessionId}
+              variant={sessionBanner.variant}
+              expiresAt={sessionBanner.expiresAt}
+            />
+          </div>
+        </div>
+      ) : null}
       {agentDegraded ? (
         <div className="border-b border-border">
           <div className="mx-auto w-full max-w-[1600px] px-4 pt-2 md:px-6">

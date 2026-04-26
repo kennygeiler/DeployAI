@@ -31,6 +31,13 @@ const columnHelper = createColumnHelper<ActionQueueRow>();
 const phaseOptions = ["All", "P5 Pilot", "P4 Design"] as const;
 const statusOptions = ["All", "open", "in_progress", "blocked"] as const;
 
+const assigneeOptions = [
+  "All",
+  ...Array.from(new Set(PHASE_TRACKING_ROWS.map((r) => r.assignee))).sort((a, b) =>
+    a.localeCompare(b, "en"),
+  ),
+] as const;
+
 function statusLabel(s: ActionQueueRow["status"]): string {
   if (s === "in_progress") {
     return "In progress";
@@ -50,6 +57,8 @@ export function PhaseTrackingClient() {
   const { agentDegraded } = useStrategistSurface();
   const [phaseFilter, setPhaseFilter] = React.useState<(typeof phaseOptions)[number]>("All");
   const [statusFilter, setStatusFilter] = React.useState<(typeof statusOptions)[number]>("All");
+  const [assigneeFilter, setAssigneeFilter] =
+    React.useState<(typeof assigneeOptions)[number]>("All");
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: "priority", desc: false },
     { id: "due", desc: false },
@@ -64,9 +73,12 @@ export function PhaseTrackingClient() {
       if (statusFilter !== "All" && r.status !== statusFilter) {
         return false;
       }
+      if (assigneeFilter !== "All" && r.assignee !== assigneeFilter) {
+        return false;
+      }
       return true;
     });
-  }, [phaseFilter, statusFilter]);
+  }, [phaseFilter, statusFilter, assigneeFilter]);
 
   React.useEffect(() => {
     if (rows.length === 0) {
@@ -192,6 +204,22 @@ export function PhaseTrackingClient() {
                 }}
               >
                 {s === "All" ? "All statuses" : statusLabel(s as ActionQueueRow["status"])}
+              </Button>
+            ))}
+            <span className="text-muted-foreground mx-1 h-4 w-px select-none" aria-hidden>
+              |
+            </span>
+            {assigneeOptions.map((a) => (
+              <Button
+                key={a}
+                type="button"
+                size="sm"
+                variant={assigneeFilter === a ? "default" : "outline"}
+                onClick={() => {
+                  setAssigneeFilter(a);
+                }}
+              >
+                {a === "All" ? "All assignees" : a}
               </Button>
             ))}
           </div>

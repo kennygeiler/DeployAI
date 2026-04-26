@@ -489,6 +489,7 @@ Build the three real agents on Epic 5's foundation. Cartographer: mission-releva
 ### Epic 7: Design System Component Library
 Ship **all nine custom composite components + primitives** as a cohesive design-system release BEFORE any surface epic consumes them — protecting the 07:00→10:03 identical-citation handshake by ensuring `CitationChip`, `EvidencePanel`, `FreshnessChip`, `PhaseIndicator`, `OverrideComposer`, `InMeetingAlertCard`, `ValidationQueueCard`, `TombstoneCard`, `AgentOutageBanner` are born in the same sprint, reviewed in the same Storybook story, and a11y-tested side-by-side. Also ship shared primitives: empty-state component, loading "loading from memory" chip, memory-syncing glyph, `SessionBanner` (break-glass variant), button-hierarchy/form/modal-pattern standards. Tablet + mobile-read-only variants baked into each component's acceptance (per UX-DR37/38).
 **Epic goal:** Surface epics (8, 9, 10, 12) become pure *composition* work — engineers compose an existing vocabulary, not bootstrap one under deadline pressure.
+**Status: shipped 2026-04-26** — see [`epic-7-design-system-completion.md`](../implementation-artifacts/epic-7-design-system-completion.md) and [`epic-7-retrospective-2026-04-26.md`](../implementation-artifacts/epic-7-retrospective-2026-04-26.md). **Next in sequence: Epic 8.**
 **FRs covered:** FR41 (CitationChip component), FR43 (shared visual token set), FR45 (empty-state primitive), FR46 (AgentOutageBanner primitive), FR48 (memory-syncing glyph)
 **NFRs covered:** NFR28 (WCAG 2.1 AA component-level), NFR41 (keyboard equivalence in primitives), NFR42 (WAI-ARIA semantic structure in primitives), NFR43 (a11y-first design artifacts)
 **UX-DRs covered:** UX-DR4, UX-DR5, UX-DR6, UX-DR7, UX-DR8, UX-DR9, UX-DR10, UX-DR11, UX-DR12, UX-DR22, UX-DR23, UX-DR24, UX-DR25, UX-DR39, UX-DR40, UX-DR41, UX-DR43 (Storybook governance), plus VPAT automation pipeline (UX-DR35 partial)
@@ -1525,6 +1526,8 @@ So that FR46 is satisfied and no surface displays silent-failure state.
 ---
 
 ## Epic 7: Design System Component Library
+
+> **Status: complete (shipped 2026-04-26).** Implementation summary: [`epic-7-design-system-completion.md`](../implementation-artifacts/epic-7-design-system-completion.md). Retrospective: [`epic-7-retrospective-2026-04-26.md`](../implementation-artifacts/epic-7-retrospective-2026-04-26.md). **Next:** [Epic 8](#epic-8-morning-digest-phase-tracking--evening-synthesis-surfaces) (surfaces).
 
 Ship all nine custom composite components + shared primitives as a cohesive design-system release BEFORE any surface epic consumes them — protecting the 07:00 → 10:03 identical-citation handshake.
 
