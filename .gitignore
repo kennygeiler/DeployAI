@@ -214,6 +214,9 @@ pa11y-screenshots/
 # commands run from root, but direct `cd apps/web && ...` invocations
 # are routine) so an accidental install doesn't balloon the commit.
 **/chrome/
+# App UI package path is named "chrome" (strategist shell); do not conflate with Google Chrome.
+!apps/web/src/components/chrome/
+!apps/web/src/components/chrome/**
 
 # ─────────────────────── Fuzz / contract evidence JSON (Story 1.10+) ───────────────────────
 # Generated locally and by `pnpm turbo run fuzz:cross-tenant`; CI uploads as a
