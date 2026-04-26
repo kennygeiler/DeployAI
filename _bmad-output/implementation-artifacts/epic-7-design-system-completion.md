@@ -10,7 +10,7 @@
 | 7.11 | `EmptyState`, `LoadingFromMemory`, `MemorySyncingGlyph` |
 | 7.13 (hook) | `useMobileReadOnlyGate` |
 
-**7.12** — `apps/web/src/stories/Patterns/DesignSystemPatterns.stories.tsx` documents button hierarchy; full lint gate for raw `<button>` deferred (see `docs/design-system/governance.md`).
+**7.12** — `DesignSystemPatterns.stories.tsx` documents button hierarchy. ESLint (`no-restricted-syntax` in `apps/web/eslint.config.mjs`) fails raw `<button>` in `src/**` (vendored `src/components/ui/**` excluded from lint); call sites in schema proposals + `PhaseIndicator` story use shadcn `<Button>`.
 
 **7.14** — `docs/design-system/governance.md` records governance. **Storybook** workflow (`.github/workflows/storybook.yml`) builds and uploads a static bundle every PR/push; add repository secret `CHROMATIC_PROJECT_TOKEN` to run Chromatic. Full polyglot `turbo` in one image: `infra/docker/Dockerfile.turbo-all` and `scripts/run-turbo-all.sh`.
 

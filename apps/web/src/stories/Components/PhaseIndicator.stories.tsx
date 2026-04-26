@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { PhaseIndicator, type PhaseIndicatorProps } from "@deployai/shared-ui";
 
 const meta: Meta<typeof PhaseIndicator> = {
@@ -46,16 +47,18 @@ function InteractivePhase(props: Omit<PhaseIndicatorProps, "currentPhaseId">) {
       </p>
       <div className="flex flex-wrap gap-2">
         {ids.map((id, i) => (
-          <button
+          <Button
             key={id}
             type="button"
-            className="text-body rounded border border-border bg-paper-100 px-2 py-1 font-mono text-xs"
+            variant="outline"
+            size="xs"
+            className="text-body border-border bg-paper-100 font-mono"
             onClick={() => {
               setIx(i);
             }}
           >
             {id.replace(/_/g, " ")}
-          </button>
+          </Button>
         ))}
       </div>
     </div>
