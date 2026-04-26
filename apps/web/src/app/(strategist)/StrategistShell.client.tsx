@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { AppShell } from "@/components/chrome/AppShell";
 import type { StrategistActivitySnapshot } from "@/lib/internal/load-strategist-activity";
+import type { StrategistSessionBannerPayload } from "@/lib/internal/strategist-demo-session";
 import {
   StrategistSurfaceProvider,
   type StrategistSurfaceValue,
@@ -13,6 +14,7 @@ type Props = {
   children: React.ReactNode;
   lastSyncedAt: number;
   initialActivity: StrategistActivitySnapshot;
+  sessionBanner: StrategistSessionBannerPayload | null;
 };
 
 function toSurfaceValue(s: StrategistActivitySnapshot): StrategistSurfaceValue {
@@ -23,7 +25,7 @@ function toSurfaceValue(s: StrategistActivitySnapshot): StrategistSurfaceValue {
  * Server passes initial `loadStrategistActivityForActor` snapshot; this client polls
  * `GET /api/internal/strategist-activity` (same logic) for live ingest + CP health.
  */
-export function StrategistShell({ children, lastSyncedAt, initialActivity }: Props) {
+export function StrategistShell({ children, lastSyncedAt, initialActivity, sessionBanner }: Props) {
   const [activity, setActivity] = React.useState<StrategistActivitySnapshot>(initialActivity);
   const requestId = React.useRef(0);
 
@@ -59,7 +61,9 @@ export function StrategistShell({ children, lastSyncedAt, initialActivity }: Pro
 
   return (
     <StrategistSurfaceProvider value={surface}>
-      <AppShell lastSyncedAt={lastSyncedAt}>{children}</AppShell>
+      <AppShell lastSyncedAt={lastSyncedAt} sessionBanner={sessionBanner}>
+        {children}
+      </AppShell>
     </StrategistSurfaceProvider>
   );
 }

@@ -11,12 +11,18 @@ import { useStrategistSurface } from "@/lib/epic8/strategist-surface-context";
 export type DigestEvidenceCardProps = {
   item: DigestTopItem;
   headingLevel?: "h2" | "h3";
+  /** When on dedicated `/evidence/:id` page, start with panel open (Story 8.4). */
+  defaultExpanded?: boolean;
 };
 
 /** CitationChip + inline EvidencePanel; “navigate to source” deep-link (Story 8.4). */
-export function DigestEvidenceCard({ item, headingLevel = "h2" }: DigestEvidenceCardProps) {
+export function DigestEvidenceCard({
+  item,
+  headingLevel = "h2",
+  defaultExpanded = false,
+}: DigestEvidenceCardProps) {
   const { agentDegraded } = useStrategistSurface();
-  const [expanded, setExpanded] = React.useState(false);
+  const [expanded, setExpanded] = React.useState(defaultExpanded);
   const H = headingLevel;
   const titleId = `digest-title-${item.id}`;
   const panelState = agentDegraded ? "degraded" : item.state;

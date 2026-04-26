@@ -135,4 +135,23 @@ test.describe("strategist", () => {
       expect(r?.status(), "unauthenticated /digest should be forbidden at edge").toBe(403);
     });
   });
+
+  test.describe("Story 8.4 — /evidence/:nodeId", () => {
+    test.use({ extraHTTPHeaders: strategistRoleHeader });
+
+    test("renders breadcrumb and evidence for a digest node id", async ({ page }) => {
+      const id = "2d4437ee-9336-441e-ab57-121b81ee57a4";
+      await page.goto(`/evidence/${encodeURIComponent(id)}`, { waitUntil: "domcontentloaded" });
+      await expect(page.getByTestId("evidence-breadcrumb")).toBeVisible();
+      await expect(page.getByRole("heading", { name: /Evidence node/i })).toBeVisible();
+      await expect(page.locator("[data-evidence-panel]")).toBeVisible();
+    });
+
+    test("placeholder strategist routes return 200", async ({ page }) => {
+      for (const path of ["/validation-queue", "/solidification-review", "/overrides", "/audit/personal"]) {
+        const r = await page.goto(path, { waitUntil: "domcontentloaded" });
+        expect(r?.status(), path).toBe(200);
+      }
+    });
+  });
 });

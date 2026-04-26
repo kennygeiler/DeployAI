@@ -192,3 +192,33 @@ export const PHASE_TRACKING_ROWS: readonly ActionQueueRow[] = [
     evidenceSpan: span("urn:deployai:evidence:action-aq-3#ex1", [8, 23]),
   },
 ];
+
+/**
+ * Story 8.4 — resolve digest or action-queue rows for `/evidence/[nodeId]`.
+ * Production will query canonical memory by `node_id`; this bridges mocks.
+ */
+export function getStrategistEvidenceByNodeId(nodeId: string): DigestTopItem | null {
+  const d = MORNING_DIGEST_TOP.find((x) => x.id === nodeId);
+  if (d) {
+    return d;
+  }
+  const aq = PHASE_TRACKING_ROWS.find((r) => r.id === nodeId);
+  if (!aq) {
+    return null;
+  }
+  return {
+    id: aq.id,
+    label: aq.title,
+    preview: {
+      citationId: aq.id,
+      retrievalPhase: `${aq.phase} (action)`,
+      confidence: "—",
+      signedTimestamp: aq.metadata.timestamp,
+    },
+    retrievalPhase: aq.retrievalPhase,
+    metadata: aq.metadata,
+    state: "loaded",
+    bodyText: `${aq.summary}\n\n${aq.bodyText}`,
+    evidenceSpan: aq.evidenceSpan,
+  };
+}
