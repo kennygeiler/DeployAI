@@ -46,3 +46,8 @@ export {
   type InMeetingAlertCardProps,
   type InMeetingAlertState,
 } from "./InMeetingAlertCard";
+export {
+  ValidationQueueCard,
+  type ValidationQueueCardProps,
+  type ValidationQueueState,
+} from "./ValidationQueueCard";
