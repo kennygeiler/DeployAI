@@ -48,9 +48,9 @@ export interface ExampleFormProps {
 
 export function ExampleForm({ onSubmit }: ExampleFormProps) {
   const form = useForm<ExampleFormValues>({
-    // Zod 4 + @hookform/resolvers: zod3-typed overloads; runtime is correct (see resolvers#839).
-    // @ts-expect-error Zod v4 object vs resolver Zod3Type overload
-    resolver: zodResolver(exampleFormSchema) as Resolver<ExampleFormValues>,
+    // zod@4 + @hookform/resolvers: zodResolver() expects a Zod3-typed schema; `as never` is the bridge
+    // until the resolver package aligns (Next production build is stricter than tsc --noEmit here).
+    resolver: zodResolver(exampleFormSchema as never) as Resolver<ExampleFormValues>,
     mode: "onBlur",
     defaultValues: { email: "", message: "" },
   });
