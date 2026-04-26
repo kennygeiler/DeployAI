@@ -28,7 +28,9 @@ describe("ValidationQueueCard", () => {
     );
     const articles = container.querySelectorAll("article");
     expect(articles.length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByRole("heading", { name: "Proposed fact" }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole("heading", { name: "Proposed fact" }).length).toBeGreaterThanOrEqual(
+      1,
+    );
     expect(screen.getByText(/NYC DOT committed/)).toBeInTheDocument();
   });
 

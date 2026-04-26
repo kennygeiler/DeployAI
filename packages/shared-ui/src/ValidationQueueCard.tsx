@@ -61,9 +61,14 @@ export function ValidationQueueCard({
 
   const [reason, setReason] = React.useState("");
   const [reasonError, setReasonError] = React.useState<string | null>(null);
-  const [pending, setPending] = React.useState<"confirm" | "modify" | "reject" | "defer" | null>(null);
+  const [pending, setPending] = React.useState<"confirm" | "modify" | "reject" | "defer" | null>(
+    null,
+  );
 
-  const withPending = async (kind: "confirm" | "modify" | "reject" | "defer", fn: () => void | Promise<void>) => {
+  const withPending = async (
+    kind: "confirm" | "modify" | "reject" | "defer",
+    fn: () => void | Promise<void>,
+  ) => {
     setPending(kind);
     try {
       await fn();
@@ -103,7 +108,8 @@ export function ValidationQueueCard({
       aria-labelledby={titleId}
       className={cn(
         "max-w-[min(100%,40rem)] rounded-lg border border-border bg-paper-100 p-4 text-ink-900 shadow-sm",
-        queueState === "in-review" && "border-l-4 border-l-evidence-600 ring-1 ring-evidence-700/15",
+        queueState === "in-review" &&
+          "border-l-4 border-l-evidence-600 ring-1 ring-evidence-700/15",
         queueState === "escalated" && "ring-1 ring-amber-600/25",
         queueState === "resolved" && "opacity-90",
         classNameProp,

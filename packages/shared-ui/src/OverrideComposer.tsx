@@ -67,7 +67,8 @@ export function OverrideComposer({
   const [status, setStatus] = React.useState<"idle" | "success" | "error">("idle");
 
   const whatErr = touched.what && what.trim().length === 0 ? "Describe what changed." : undefined;
-  const whyErr = touched.why && why.trim().length === 0 ? "Explain why the override is justified." : undefined;
+  const whyErr =
+    touched.why && why.trim().length === 0 ? "Explain why the override is justified." : undefined;
   const evErr =
     touched.evidence && selected.size === 0 ? "Select at least one evidence item." : undefined;
   const errorCount = [whatErr, whyErr, evErr].filter(Boolean).length;
@@ -183,7 +184,7 @@ export function OverrideComposer({
             disabled={disabled || submitting}
             autoComplete="off"
           />
-            {whatErr ? (
+          {whatErr ? (
             <p id={errWhat} className="text-xs text-rose-700">
               {whatErr}
             </p>
@@ -228,7 +229,9 @@ export function OverrideComposer({
           <legend className="text-sm font-medium text-ink-900">
             Evidence <span className="text-rose-700">*</span>
           </legend>
-          <p className="text-xs text-ink-600">Select one or more memory nodes. Cmd+Enter submits.</p>
+          <p className="text-xs text-ink-600">
+            Select one or more memory nodes. Cmd+Enter submits.
+          </p>
           <ul className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border p-2">
             {evidenceOptions.length === 0 ? (
               <li className="text-sm text-ink-500">No evidence nodes available.</li>
@@ -236,11 +239,11 @@ export function OverrideComposer({
               evidenceOptions.map((o) => {
                 const checked = selected.has(o.id);
                 return (
-                  <li key={o.id} className="flex items-start gap-2 text-sm">
+                  <li key={o.id} className="flex min-h-8 items-center gap-2 text-sm">
                     <input
                       type="checkbox"
                       id={`${formId}-ev-${o.id}`}
-                      className="mt-1"
+                      className="size-6 shrink-0 cursor-pointer accent-evidence-700"
                       checked={checked}
                       onChange={() => {
                         setTouched((t) => ({ ...t, evidence: true }));
@@ -287,8 +290,8 @@ export function OverrideComposer({
       >
         <h3 className="font-medium text-ink-900">Propagation preview (stub)</h3>
         <p className="mt-1 text-xs text-ink-600">
-          Affected surfaces for this override request (dependency resolution is stubbed; Epic 8+ will
-          bind to graph traversal).
+          Affected surfaces for this override request (dependency resolution is stubbed; Epic 8+
+          will bind to graph traversal).
         </p>
         <ul className="mt-2 list-inside list-disc space-y-0.5">
           {affectedSurfaces.map((s) => (

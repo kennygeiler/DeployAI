@@ -16,7 +16,11 @@ export type MemorySyncingGlyphProps = {
 /**
  * Small glyph + label for memory sync / exceed-SLO (FR48, UX-DR25). Pairs with `FreshnessChip` thresholds.
  */
-export function MemorySyncingGlyph({ state, label, className: classNameProp }: MemorySyncingGlyphProps) {
+export function MemorySyncingGlyph({
+  state,
+  label,
+  className: classNameProp,
+}: MemorySyncingGlyphProps) {
   const Icon = state === "unavailable" ? CloudOff : RefreshCw;
   return (
     <span
@@ -28,10 +32,7 @@ export function MemorySyncingGlyph({ state, label, className: classNameProp }: M
         classNameProp,
       )}
     >
-      <Icon
-        className={cn("size-3.5", state === "syncing" && "animate-spin")}
-        aria-hidden
-      />
+      <Icon className={cn("size-3.5", state === "syncing" && "animate-spin")} aria-hidden />
       <span>{label}</span>
     </span>
   );

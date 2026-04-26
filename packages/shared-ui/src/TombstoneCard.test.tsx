@@ -16,9 +16,7 @@ describe("TombstoneCard", () => {
     );
     expect(screen.getByRole("article")).toBeInTheDocument();
     expect(screen.getByText(/90-day rolling retention/)).toBeInTheDocument();
-    expect(
-      screen.getByText("a1b2c3d4-aaaa-bbbb-cccc-ddddeeee0001"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("a1b2c3d4-aaaa-bbbb-cccc-ddddeeee0001")).toBeInTheDocument();
   });
 
   it("shows appeal when enabled", async () => {

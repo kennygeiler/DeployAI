@@ -141,10 +141,7 @@ export function InMeetingAlertCard({
   const expanded = !peeking;
   const w = expanded ? W : PEEK;
   const h = expanded ? H : PEEK;
-  const effectivePos = React.useMemo(
-    () => clampToViewport(pos.left, pos.top, w, h),
-    [pos, w, h],
-  );
+  const effectivePos = React.useMemo(() => clampToViewport(pos.left, pos.top, w, h), [pos, w, h]);
 
   // Focus trap when summoned via keyboard shortcut
   React.useEffect(() => {
@@ -188,8 +185,7 @@ export function InMeetingAlertCard({
   // Cmd+\ / Ctrl+\ to expand + trap; Esc to collapse (peek)
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const isSummon =
-        (e.key === "\\" || e.code === "Backslash") && (e.metaKey || e.ctrlKey);
+      const isSummon = (e.key === "\\" || e.code === "Backslash") && (e.metaKey || e.ctrlKey);
       if (isSummon) {
         e.preventDefault();
         setPeeking(false);
@@ -340,9 +336,7 @@ export function InMeetingAlertCard({
             onPointerCancel={onPointerUp}
           >
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-ink-900">
-                {meetingTitle}
-              </p>
+              <p className="truncate text-sm font-medium text-ink-900">{meetingTitle}</p>
               <p className="truncate text-xs text-ink-600">
                 {phaseLabel} — {freshnessLabel}
               </p>

@@ -1,10 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import {
-  EmptyState,
-  LoadingFromMemory,
-  MemorySyncingGlyph,
-} from "@deployai/shared-ui";
+import { EmptyState, LoadingFromMemory, MemorySyncingGlyph } from "@deployai/shared-ui";
 
 const meta: Meta = {
   title: "Components/Memory and empty (7-11)",

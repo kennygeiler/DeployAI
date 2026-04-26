@@ -51,9 +51,7 @@ export function SessionBanner({
   const [now, setNow] = React.useState(nowMs);
   const [polite, setPolite] = React.useState("");
   const label =
-    variant === "break-glass"
-      ? "Break-glass session"
-      : "External auditor read-only session";
+    variant === "break-glass" ? "Break-glass session" : "External auditor read-only session";
 
   React.useEffect(() => {
     const t = window.setInterval(() => {
@@ -82,10 +80,8 @@ export function SessionBanner({
     <div
       className={cn(
         "w-full border-b px-4 py-2 text-sm",
-        variant === "break-glass" &&
-          "border-amber-600/50 bg-amber-50/95 text-amber-950",
-        variant === "external-auditor" &&
-          "border-evidence-700/25 bg-evidence-50/90 text-ink-900",
+        variant === "break-glass" && "border-amber-600/50 bg-amber-50/95 text-amber-950",
+        variant === "external-auditor" && "border-evidence-700/25 bg-evidence-50/90 text-ink-900",
         classNameProp,
       )}
       role="region"

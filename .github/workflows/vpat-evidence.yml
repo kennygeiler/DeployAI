@@ -56,7 +56,7 @@ jobs:
       # S3: uncomment when `AWS_DEPLOYAI_ROLE_ARN` + `VPAT_S3_BUCKET` exist.
       # - name: Upload to S3
       #   if: vars.VPAT_S3_ENABLED == 'true'
-      #   uses: aws-actions/configure-aws-credentials@... 
+      #   uses: aws-actions/configure-aws-credentials@...
       #   with:
       #     role-to-assume: ${{ secrets.AWS_DEPLOYAI_ROLE_ARN }}
       #     aws-region: us-gov-west-1

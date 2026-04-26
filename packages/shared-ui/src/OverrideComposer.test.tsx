@@ -17,9 +17,7 @@ describe("OverrideComposer", () => {
     const onSubmit = vi.fn();
     render(<OverrideComposer evidenceOptions={opts} onSubmit={onSubmit} />);
     await user.click(screen.getByRole("button", { name: /submit override/i }));
-    expect(
-      await screen.findByText(/3 fields need attention/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/3 fields need attention/i)).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
 
     await user.type(screen.getByRole("textbox", { name: /what changed/i }), "Updated owner");

@@ -57,11 +57,7 @@ export {
   type AgentOutageBannerProps,
   type AgentOutageBannerVariant,
 } from "./AgentOutageBanner";
-export {
-  SessionBanner,
-  type SessionBannerProps,
-  type SessionBannerVariant,
-} from "./SessionBanner";
+export { SessionBanner, type SessionBannerProps, type SessionBannerVariant } from "./SessionBanner";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
 export { LoadingFromMemory, type LoadingFromMemoryProps } from "./LoadingFromMemory";
 export {

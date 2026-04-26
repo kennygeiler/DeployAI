@@ -16,13 +16,7 @@ const meta: Meta<typeof InMeetingAlertCard> = {
       },
     },
   },
-  decorators: [
-    (s) => (
-      <div className="bg-paper-200 relative min-h-[520px] w-full">
-        {s()}
-      </div>
-    ),
-  ],
+  decorators: [(s) => <div className="bg-paper-200 relative min-h-[520px] w-full">{s()}</div>],
 } satisfies Meta<typeof InMeetingAlertCard>;
 
 export default meta;
@@ -113,7 +107,8 @@ export const ArchivedNote: Story = {
     return (
       <div className="p-4 text-sm text-ink-700">
         <p>
-          When <code>state=&quot;archived&quot;</code>, the card unmounts — the host shows history elsewhere.
+          When <code>state=&quot;archived&quot;</code>, the card unmounts — the host shows history
+          elsewhere.
         </p>
         <p className="mt-2 text-ink-500">(No floating node — intentional.)</p>
       </div>

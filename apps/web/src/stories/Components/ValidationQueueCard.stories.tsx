@@ -52,13 +52,7 @@ const chips = (
   </>
 );
 
-function Interactive({
-  state,
-  log = true,
-}: {
-  state: ValidationQueueState;
-  log?: boolean;
-}) {
+function Interactive({ state, log = true }: { state: ValidationQueueState; log?: boolean }) {
   const [lines, setLines] = useState<string[]>([]);
   const push = (s: string) => {
     setLines((L) => [...L, s]);

@@ -71,14 +71,13 @@ export function TombstoneCard({
           <dt className="shrink-0 font-medium text-ink-900">Authorized by</dt>
           <dd>{authorityActor}</dd>
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-ink-600">
-          <Shield className="size-3.5" aria-hidden />
-          <span>
-            Timestamp {rfc3161Verified ? "verified (RFC 3161 trail)" : "not verified"}{" "}
-            in audit log
-          </span>
-        </div>
       </dl>
+      <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-600">
+        <Shield className="size-3.5" aria-hidden />
+        <span>
+          Timestamp {rfc3161Verified ? "verified (RFC 3161 trail)" : "not verified"} in audit log
+        </span>
+      </p>
       {appealAvailable && onAppeal ? (
         <div className="mt-4 border-t border-border pt-3">
           <button
