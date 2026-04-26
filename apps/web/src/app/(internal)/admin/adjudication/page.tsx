@@ -69,7 +69,11 @@ export default async function AdminAdjudicationPage() {
           from the control plane when{" "}
           <code className="text-body bg-paper-200 rounded px-1">DEPLOYAI_CONTROL_PLANE_URL</code>{" "}
           and <code className="text-body bg-paper-200 rounded px-1">DEPLOYAI_INTERNAL_API_KEY</code>{" "}
-          are set.
+          are set. When an item’s <code className="text-body bg-paper-200 rounded px-1">meta</code>{" "}
+          includes a <code className="text-body bg-paper-200 rounded px-1">citation_envelope</code>{" "}
+          (v0.1.0) plus optional{" "}
+          <code className="text-body bg-paper-200 rounded px-1">evidence_body</code>, the Memory
+          column shows the live Citation chip and evidence panel.
         </p>
         {!cpReady ? (
           <p className="text-body text-ink-500 mt-2">
