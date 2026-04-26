@@ -3,6 +3,9 @@
 #
 # These hooks run on STAGED files only. They enforce formatting and lightweight
 # lint before every commit; full CI coverage remains in .github/workflows/ci.yml.
+#
+# Epic 6 retro: ruff + ruff-format also cover the Python agent services
+# (cartographer, oracle, master_strategist), not just control-plane + ingest.
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -29,9 +32,9 @@ repos:
     hooks:
       - id: ruff
         args: ["--fix"]
-        files: ^services/(control-plane|ingest)/(src|tests|alembic)/.*\.py$
+        files: ^services/(control-plane|ingest|cartographer|oracle|master_strategist)/(src|tests|alembic)/.*\.py$
       - id: ruff-format
-        files: ^services/(control-plane|ingest)/(src|tests|alembic)/.*\.py$
+        files: ^services/(control-plane|ingest|cartographer|oracle|master_strategist)/(src|tests|alembic)/.*\.py$
 
   - repo: https://github.com/dnephin/pre-commit-golang
     rev: v0.5.1

@@ -32,7 +32,19 @@ const eslintConfig = defineConfig([
   ...nextTs,
   {
     files: ["src/**/*.{ts,tsx,jsx}"],
-    rules: jsxA11y.flatConfigs.recommended.rules,
+    rules: {
+      ...jsxA11y.flatConfigs.recommended.rules,
+      // Story 7.12 (UX-DR39): app code must use shadcn Button; primitives live
+      // under `src/components/ui` which is not linted (see globalIgnores).
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "JSXOpeningElement[name.name='button']",
+          message:
+            "Use <Button> from @/components/ui/button instead of a raw <button> (see docs/design-system/governance.md).",
+        },
+      ],
+    },
   },
   globalIgnores([
     ".next/**",

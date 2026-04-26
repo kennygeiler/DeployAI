@@ -221,6 +221,8 @@ pa11y-screenshots/
 artifacts/fuzz/
 artifacts/replay-parity/
 artifacts/quarterly/
+# VPAT stub JSON from `vpat-aggregate` / CI — ship via workflow artifacts, not the repo
+artifacts/vpat/
 services/control-plane/artifacts/fuzz/
 
 # ─────────────────────── Misc ───────────────────────

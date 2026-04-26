@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,9 @@ export interface ExampleFormProps {
 
 export function ExampleForm({ onSubmit }: ExampleFormProps) {
   const form = useForm<ExampleFormValues>({
-    resolver: zodResolver(exampleFormSchema),
+    // zod@4 + @hookform/resolvers: zodResolver() expects a Zod3-typed schema; `as never` is the bridge
+    // until the resolver package aligns (Next production build is stricter than tsc --noEmit here).
+    resolver: zodResolver(exampleFormSchema as never) as Resolver<ExampleFormValues>,
     mode: "onBlur",
     defaultValues: { email: "", message: "" },
   });

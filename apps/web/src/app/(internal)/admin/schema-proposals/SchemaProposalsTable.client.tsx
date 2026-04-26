@@ -9,6 +9,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -130,13 +131,14 @@ export function SchemaProposalsTable({ forwardActor, initialRows }: Props) {
     <>
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <button
+          <Button
             type="button"
-            className="text-body rounded-md border border-ink-200 bg-white px-3 py-1.5 text-ink-950"
+            variant="outline"
+            className="text-body border-ink-200 bg-white text-ink-950"
             onClick={() => void load()}
           >
             Refresh
-          </button>
+          </Button>
           <p className="text-body text-ink-600">Pending proposals — tenant: {tenant ?? "—"}</p>
         </div>
         <div className="flex max-w-md flex-col gap-1">
@@ -168,35 +170,40 @@ export function SchemaProposalsTable({ forwardActor, initialRows }: Props) {
                   {p.proposed_field_path ?? "—"}{" "}
                   <span className="text-ink-500">({p.proposer_agent ?? "?"})</span>
                 </div>
-                <button
+                <Button
                   type="button"
-                  className="text-body mt-1 text-left text-ink-700 underline"
+                  variant="link"
+                  className="text-body mt-1 h-auto min-h-0 p-0 text-left text-ink-700"
                   onClick={() => {
                     setDetail(p);
                     setOpen(true);
                   }}
                 >
                   view DDL
-                </button>
+                </Button>
               </TableCell>
               <TableCell>{p.status}</TableCell>
               <TableCell className="text-body whitespace-nowrap">{p.created_at}</TableCell>
               <TableCell className="text-right">
                 <div className="flex flex-col items-end gap-1">
-                  <button
+                  <Button
                     type="button"
-                    className="text-body rounded border border-ink-200 bg-white px-2 py-1"
+                    variant="outline"
+                    size="sm"
+                    className="text-body border-ink-200 bg-white"
                     onClick={() => void promote(p.id)}
                   >
                     Promote
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="text-body rounded border border-ink-200 bg-white px-2 py-1"
+                    variant="outline"
+                    size="sm"
+                    className="text-body border-ink-200 bg-white"
                     onClick={() => void reject(p.id)}
                   >
                     Reject
-                  </button>
+                  </Button>
                 </div>
               </TableCell>
             </TableRow>
