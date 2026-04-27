@@ -15,7 +15,7 @@ risk_mitigations:
   - id: R1-planning-drift
     title: "Align sprint-status + board with merged main"
     status: in_progress
-    next_action: "2026-04-28: sprint-status marks 8-7 done (FR46/FR47 + three-surface E2E + URL demo merge). Next bump: first Epic 9 story merged or Epic 8 retrospective closed."
+    next_action: "2026-04-28: Epic 7 Stories 7-12–7-14 on PR #45; Epic 8 grid closed. Next bump: Epic 9 first story or 7-15 / Epic 8 retro."
 
   - id: R2-scope
     title: "Hold MVP scope — defer non-MVP epics explicitly"
