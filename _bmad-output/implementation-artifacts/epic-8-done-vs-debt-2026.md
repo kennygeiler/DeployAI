@@ -6,7 +6,7 @@
 - **Surfaces** — Morning digest, phase tracking, evening synthesis with mock or remote-backed data where noted below.
 - **Evidence** — `/evidence/:nodeId` for digest + action-queue mock ids; breadcrumbs.
 - **BFF** — `GET /api/internal/strategist-activity` aggregates control-plane liveness, ingestion, optional Oracle health, and strategist-local date.
-- **BFF (search)** — `GET /api/bff/strategist-memory-search?q=` proxies `DEPLOYAI_CANONICAL_MEMORY_SEARCH_URL` when set; otherwise in-process mock search over digest + action-queue rows.
+- **BFF (search)** — `GET /api/bff/strategist-memory-search?q=` proxies `DEPLOYAI_CANONICAL_MEMORY_SEARCH_URL` when set; otherwise in-process mock search over digest + action-queue rows. **Cmd+K** calls this endpoint (debounced ~320ms) when the query is non-empty; empty query shows a static “recent preview” list.
 
 ## Environment (operator reference)
 
@@ -43,7 +43,7 @@
 ## Gaps to close next
 
 1. **Replace remaining mocks** with canonical-memory reads and Oracle-ranked digests when APIs exist.
-2. **Cmd+K** — Client-side list remains preview; wire the palette to `…/strategist-memory-search` for live typeahead if desired.
+2. **Cmd+K** — Wired to `GET /api/bff/strategist-memory-search` (debounced). Optional: richer preview cards or streaming for large result sets.
 3. **Evening + phase** — Same pattern as `STRATEGIST_DIGEST_SOURCE_URL`: optional remote JSON loaders (not yet all extracted to code paths).
 
 See planning artifact `epics.md` (Epic 8 / 9) for product acceptance criteria.
