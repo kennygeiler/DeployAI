@@ -279,6 +279,57 @@ test.describe("strategist", () => {
     });
   });
 
+  test.describe("Story 9.1 — meeting signal + NFR1 render budget (Epic 9.1)", () => {
+    test.use({
+      extraHTTPHeaders: {
+        "x-deployai-role": "deployment_strategist",
+        "x-deployai-tenant": "00000000-0000-4000-8000-000000000001",
+      },
+    });
+
+    test.afterEach(async ({ page }) => {
+      await page.unroute("**/api/internal/strategist-activity*");
+    });
+
+    test("BFF inMeeting surfaces FR36 active card within 8s (single-sample NFR1)", async ({
+      page,
+    }) => {
+      const today = new Date().toISOString().slice(0, 10);
+      const oracleAt = new Date().toISOString();
+      await page.route("**/api/internal/strategist-activity*", async (route) => {
+        if (route.request().method() !== "GET") {
+          await route.continue();
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            agentDegraded: false,
+            ingestionInProgress: false,
+            controlPlane: "ok",
+            strategistLocalDate: today,
+            agentServiceHealth: "unconfigured",
+            inMeeting: true,
+            meetingId: "demo-meeting-e2e",
+            meetingTitle: "E2E stub meeting (Graph calendar deferred)",
+            oracleInMeetingAlertAt: oracleAt,
+          }),
+        });
+      });
+      const t0 = Date.now();
+      await page.goto("/in-meeting", { waitUntil: "domcontentloaded" });
+      await expect(page.locator('[data-epic91-meeting-alert="active"]')).toBeVisible({
+        timeout: 8000,
+      });
+      const elapsed = Date.now() - t0;
+      expect(
+        elapsed,
+        `NFR1/FR36 single-sample ceiling 8s from navigation to active card (was ${elapsed}ms)`,
+      ).toBeLessThanOrEqual(8000);
+    });
+  });
+
   test.describe("strategist route middleware", () => {
     for (const path of ["/digest", "/in-meeting"] as const) {
       test(`returns 403 for ${path} when x-deployai-role is missing`, async ({ page }) => {
