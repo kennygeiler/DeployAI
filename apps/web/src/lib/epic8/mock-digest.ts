@@ -129,6 +129,39 @@ export type ActionQueueRow = {
   evidenceSpan: EvidenceSpan;
 };
 
+/** Strategist-local “today” for mock due-date windows (Story 8.2 date-range chips). */
+export const PHASE_TRACKING_MOCK_TODAY = "2026-04-24" as const;
+
+export type DueDateWindow = "all" | "today" | "next7" | "overdue";
+
+function addDaysToIsoDate(isoDate: string, days: number): string {
+  const t = new Date(`${isoDate}T12:00:00.000Z`);
+  t.setUTCDate(t.getUTCDate() + days);
+  return t.toISOString().slice(0, 10);
+}
+
+/**
+ * YYYY-MM-DD due cell vs window chips (string comparison is valid for ISO dates).
+ * `next7` = today through today+6 (seven calendar days inclusive).
+ */
+export function actionQueueRowMatchesDueWindow(
+  due: string,
+  window: DueDateWindow,
+  today: string = PHASE_TRACKING_MOCK_TODAY,
+): boolean {
+  if (window === "all") {
+    return true;
+  }
+  if (window === "today") {
+    return due === today;
+  }
+  if (window === "overdue") {
+    return due < today;
+  }
+  const end = addDaysToIsoDate(today, 6);
+  return due >= today && due <= end;
+}
+
 export const PHASE_TRACKING_ROWS: readonly ActionQueueRow[] = [
   {
     id: "aq-1",
@@ -190,6 +223,26 @@ export const PHASE_TRACKING_ROWS: readonly ActionQueueRow[] = [
     },
     bodyText: "Dry run: Tuesday 10:00 local; Teams bridge for remote observers.",
     evidenceSpan: span("urn:deployai:evidence:action-aq-3#ex1", [8, 23]),
+  },
+  {
+    id: "aq-4",
+    title: "Confirm data residency language with security",
+    phase: "P4 Design",
+    status: "open",
+    assignee: "Security",
+    due: "2026-04-20",
+    priority: 4,
+    summary: "Blocker for pilot contract — due last week; escalate if no answer.",
+    retrievalPhase: "master_strategist",
+    metadata: {
+      sourceType: "Action Queue",
+      timestamp: "2026-04-20T14:00:00.000Z",
+      phase: "P4 Design",
+      confidence: "—",
+      supersession: "current",
+    },
+    bodyText: "Residency: US-only store for pilot artifacts; legal needs the approved clause id.",
+    evidenceSpan: span("urn:deployai:evidence:action-aq-4#ex1", [0, 24]),
   },
 ];
 
