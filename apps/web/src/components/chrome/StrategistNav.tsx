@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, CheckSquare, FileWarning, ListChecks, Sun, UserRound } from "lucide-react";
+import { BookOpen, CheckSquare, FileWarning, ListChecks, Sun, UserRound, Video } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,7 @@ type NavItem = { href: string; label: string; icon: React.ComponentType<{ classN
 
 const primary: readonly NavItem[] = [
   { href: "/digest", label: "Morning digest", icon: Sun },
+  { href: "/in-meeting", label: "In-meeting alert", icon: Video },
   { href: "/phase-tracking", label: "Phase & tasks", icon: ListChecks },
   { href: "/evening", label: "Evening synthesis", icon: BookOpen },
   { href: "/validation-queue", label: "Validation queue", icon: CheckSquare },

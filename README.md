@@ -2,7 +2,7 @@
 
 > A Canonical-Memory-backed digital twin for long-cycle government deployments. Built to walk the operator into every meeting prepared — with every claim citation-backed, every override logged, and every retrieval deterministically replayable.
 
-**Status:** **Epics 1–6** are **done** (through Cartographer / Oracle / Master Strategist services). **Epic 7** (shared UI + design tokens) has **delivered the MVP component set** used by strategist surfaces; **7-12–7-14** are **done** (pattern stories, viewport + Chromatic widths, CI axe + governance + PR Storybook artifact comments); **7-15** (VPAT evidence pipeline beyond the existing stub) remains **backlog**. **Epic 8** (strategist daily loop): story grid **8-1–8-7** is **done** on `main` (digest, phase tracking, evening synthesis, nav chrome, Cmd+K, inline evidence + `/evidence/[nodeId]`, FR46/47 degradation + ingest indicators, demo query overrides for QA). **Epic 9** (queues / in-meeting alert) is the next major slice. Hardening against the full `epics.md` letter remains tracked in [`epic-8-implementation-status.md`](./_bmad-output/implementation-artifacts/epic-8-implementation-status.md). Authoritative rows: [`_bmad-output/implementation-artifacts/sprint-status.yaml`](./_bmad-output/implementation-artifacts/sprint-status.yaml). **Board + MVP path:** [`_bmad-output/implementation-artifacts/development-board.yaml`](./_bmad-output/implementation-artifacts/development-board.yaml) · [`_bmad-output/planning-artifacts/mvp-operating-plan-2026.md`](./_bmad-output/planning-artifacts/mvp-operating-plan-2026.md).
+**Status:** **Epics 1–6** are **done** (through Cartographer / Oracle / Master Strategist services). **Epic 7** (shared UI + design tokens) has **delivered the MVP component set** used by strategist surfaces; **7-12–7-14** are **done** (pattern stories, viewport + Chromatic widths, CI axe + governance + PR Storybook artifact comments); **7-15** (VPAT evidence pipeline beyond the existing stub) remains **backlog**. **Epic 8** (strategist daily loop): story grid **8-1–8-7** is **done** on `main` (digest, phase tracking, evening synthesis, nav chrome, Cmd+K, inline evidence + `/evidence/[nodeId]`, FR46/47 degradation + ingest indicators, demo query overrides for QA). **MVP operating plan [Track D](./_bmad-output/planning-artifacts/mvp-operating-plan-2026.md):** thin **`/in-meeting`** surface (`InMeetingAlertCard` + **same citation payloads as the morning digest** — mock meeting trigger, honest copy). **Epic 9** full stories (calendar detection, action queue lifecycle, etc.) remain **in progress** in [`sprint-status.yaml`](./_bmad-output/implementation-artifacts/sprint-status.yaml). Hardening against the full `epics.md` letter remains tracked in [`epic-8-implementation-status.md`](./_bmad-output/implementation-artifacts/epic-8-implementation-status.md). Authoritative rows: [`_bmad-output/implementation-artifacts/sprint-status.yaml`](./_bmad-output/implementation-artifacts/sprint-status.yaml). **Board + MVP path:** [`_bmad-output/implementation-artifacts/development-board.yaml`](./_bmad-output/implementation-artifacts/development-board.yaml) · [`_bmad-output/planning-artifacts/mvp-operating-plan-2026.md`](./_bmad-output/planning-artifacts/mvp-operating-plan-2026.md).
 
 ---
 
@@ -14,7 +14,7 @@ This is the **DeployAI monorepo**: a **polyglot** codebase (TypeScript/Next.js, 
 
 | Area | Notes |
 |------|--------|
-| `apps/web` | Next.js 16 strategist + admin surfaces, **a11y-gated** Playwright + Storybook; Epic 8 routes (`/digest`, `/phase-tracking`, `/evening`, `/evidence/[nodeId]`, …) |
+| `apps/web` | Next.js 16 strategist + admin surfaces, **a11y-gated** Playwright + Storybook; Epic 8 routes + MVP **`/in-meeting`** (`/digest`, `/in-meeting`, `/phase-tracking`, `/evening`, `/evidence/[nodeId]`, …) |
 | `apps/edge-agent` | Tauri desktop agent |
 | `apps/foia-cli` | Go CLI |
 | `services/control-plane` | FastAPI: tenancy, M365/Slack/Gmail-style integrations, upload flows, **pytest** + Docker integration |
@@ -87,7 +87,7 @@ This project uses the [BMAD Method](./.cursor/skills/) — specialized AI agents
 
 ## Strategist web (Epic 8) — what ships in `apps/web`
 
-- **Primary routes:** `/digest` (morning digest), `/phase-tracking`, `/evening`, **`/evidence/[nodeId]`** (canonical evidence view), plus nav placeholders (validation queue, overrides, audit).
+- **Primary routes:** `/digest` (morning digest), **`/in-meeting`** (MVP — floating alert, digest-aligned mock citations), `/phase-tracking`, `/evening`, **`/evidence/[nodeId]`** (canonical evidence view), plus nav placeholders (validation queue, overrides, audit).
 - **Remote fixtures (optional):** server loaders validate JSON from env URLs (never silent fallback when a URL is set and fails):
   - `STRATEGIST_DIGEST_SOURCE_URL` — array of digest “top item” rows.
   - `STRATEGIST_PHASE_TRACKING_SOURCE_URL` — array of action-queue rows.

@@ -48,9 +48,9 @@ test.describe("strategist", () => {
       await expect(page.getByRole("dialog")).toBeVisible();
       const input = page.getByTestId("command-palette-input");
       await expect(input).toBeVisible();
-      // Roving: 4 Navigate items, then the Actions group (CommandSeparator is not a focus stop).
-      // Four ArrowDown moves from the input land on the first Action row in this build.
-      for (let i = 0; i < 4; i += 1) {
+      // Roving: 5 Navigate items, then the Actions group (CommandSeparator is not a focus stop).
+      // Five ArrowDown moves from the input land on the first Action row in this build.
+      for (let i = 0; i < 5; i += 1) {
         await page.keyboard.press("ArrowDown");
       }
       await expect(page.locator('[cmdk-item][aria-selected="true"]')).toContainText(
@@ -121,6 +121,7 @@ test.describe("strategist", () => {
 
     for (const [path, heading] of [
       ["/digest", /Morning digest/i] as const,
+      ["/in-meeting", /In-meeting alert/i] as const,
       ["/evening", /Evening synthesis/i] as const,
       ["/phase-tracking", /Phase & task tracking/i] as const,
     ] as const) {
@@ -226,13 +227,37 @@ test.describe("strategist", () => {
       await expect(page).toHaveURL(new RegExp(`/evidence/${id}`));
       await expect(page.getByRole("heading", { name: /Evidence node/i })).toBeVisible();
     });
+
+    test("MVP Track D — in-meeting alert reuses first digest node id in evidence link", async ({
+      page,
+    }) => {
+      const id = "2d4437ee-9336-441e-ab57-121b81ee57a4";
+      await page.goto("/in-meeting", { waitUntil: "domcontentloaded" });
+      await expect(page.getByRole("heading", { name: /In-meeting alert/i })).toBeVisible();
+      await expect(page.locator("[data-mvp-in-meeting-demo]")).toBeVisible();
+      await expect(page.getByRole("complementary", { name: /In-meeting alert/i })).toBeVisible();
+      const chip = page.locator(`#citation-in-meeting-${id}`);
+      await expect(chip).toBeVisible();
+      await page.evaluate((cid) => {
+        (
+          document.querySelector(`#citation-in-meeting-${cid}`) as HTMLButtonElement | null
+        )?.click();
+      }, id);
+      const panel = page.locator("[data-evidence-panel]").first();
+      await expect(panel).toBeVisible();
+      await panel.getByRole("link", { name: /navigate to source/i }).click();
+      await expect(page).toHaveURL(new RegExp(`/evidence/${id}`));
+      await expect(page.getByRole("heading", { name: /Evidence node/i })).toBeVisible();
+    });
   });
 
   test.describe("strategist route middleware", () => {
-    test("returns 403 for /digest when x-deployai-role is missing", async ({ page }) => {
-      const r = await page.goto("/digest", { waitUntil: "domcontentloaded" });
-      expect(r?.status(), "unauthenticated /digest should be forbidden at edge").toBe(403);
-    });
+    for (const path of ["/digest", "/in-meeting"] as const) {
+      test(`returns 403 for ${path} when x-deployai-role is missing`, async ({ page }) => {
+        const r = await page.goto(path, { waitUntil: "domcontentloaded" });
+        expect(r?.status(), `unauthenticated ${path} should be forbidden at edge`).toBe(403);
+      });
+    }
   });
 
   test.describe("Story 8.4 — /evidence/:nodeId", () => {

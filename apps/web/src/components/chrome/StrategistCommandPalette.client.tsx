@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import type { CitationPreview } from "@deployai/shared-ui";
-import { BookOpen, ListChecks, PlusCircle, UserRound, Waypoints } from "lucide-react";
+import { BookOpen, ListChecks, PlusCircle, UserRound, Video, Waypoints } from "lucide-react";
 
 import {
   CommandDialog,
@@ -21,6 +21,12 @@ import { MORNING_DIGEST_TOP } from "@/lib/epic8/mock-digest";
 
 const navigateItems = [
   { href: "/digest", label: "Morning digest", value: "nav digest morning", Icon: Waypoints },
+  {
+    href: "/in-meeting",
+    label: "In-meeting alert (MVP mock)",
+    value: "nav in meeting alert",
+    Icon: Video,
+  },
   {
     href: "/phase-tracking",
     label: "Phase & task tracking",

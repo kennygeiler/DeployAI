@@ -7,6 +7,7 @@ const isAdmin = (p: string) =>
 
 const isStrategistSurface = (p: string) =>
   p === "/digest" ||
+  p === "/in-meeting" ||
   p === "/phase-tracking" ||
   p === "/evening" ||
   p.startsWith("/evidence/") ||
@@ -75,6 +76,7 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     "/digest",
+    "/in-meeting",
     "/phase-tracking",
     "/evening",
     "/evidence/:path*",
