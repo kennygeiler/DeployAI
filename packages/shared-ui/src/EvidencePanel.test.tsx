@@ -1,5 +1,5 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { EvidencePanel, renderHighlightedBody } from "./EvidencePanel";
 
@@ -12,6 +12,10 @@ const meta = {
 };
 
 describe("renderHighlightedBody", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it("wraps the span in a single mark", () => {
     const { container } = render(
       <p>{renderHighlightedBody("The quick brown fox", { start: 4, end: 9, source_ref: "n1" })}</p>,

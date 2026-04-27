@@ -92,7 +92,7 @@ This project uses the [BMAD Method](./.cursor/skills/) — specialized AI agents
   - `STRATEGIST_DIGEST_SOURCE_URL` — array of digest “top item” rows.
   - `STRATEGIST_PHASE_TRACKING_SOURCE_URL` — array of action-queue rows.
   - `STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL` — object `{ candidates, patterns? }`.
-- **FR41 / Story 8.4:** `CitationChip` toggles inline **`EvidencePanel`**; **“Navigate to source”** lives in the panel footer and links to **`/evidence/:node_id`**. Vitest continuity checks live in [`apps/web/src/lib/epic8/mock-digest.evidence.test.ts`](./apps/web/src/lib/epic8/mock-digest.evidence.test.ts). Playwright coverage: [`apps/web/tests/e2e/strategist-command-palette.spec.ts`](./apps/web/tests/e2e/strategist-command-palette.spec.ts) (expand-inline **NFR4** timing + navigation).
+- **FR41 / Story 8.4:** `CitationChip` toggles inline **`EvidencePanel`**; **“Navigate to source”** lives in the panel footer and links to **`/evidence/:node_id`**. Vitest continuity checks live in [`apps/web/src/lib/epic8/mock-digest.evidence.test.ts`](./apps/web/src/lib/epic8/mock-digest.evidence.test.ts). Playwright coverage: [`apps/web/tests/e2e/strategist-command-palette.spec.ts`](./apps/web/tests/e2e/strategist-command-palette.spec.ts) asserts expand-to-visible **≤1500ms** (single CI sample aligned with **NFR4** 1.5s budget; not a statistical p95 harness) plus navigation from the footer link.
 - **`@deployai/shared-ui`:** consumers resolve **types from `packages/shared-ui/dist`**. After editing `packages/shared-ui/src`, run **`pnpm --filter @deployai/shared-ui build`** (or `npx tsc -p packages/shared-ui/tsconfig.build.json`) before `apps/web` `tsc`, or rely on **`pnpm turbo run build`** / CI ordering.
 
 ## Development & testing
