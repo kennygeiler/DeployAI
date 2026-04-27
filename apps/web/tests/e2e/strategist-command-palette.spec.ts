@@ -57,7 +57,7 @@ test.describe("strategist", () => {
       const input = page.getByTestId("command-palette-input");
       await expect(input).toBeVisible();
       await input.click();
-      // Roving crosses Navigate (5 items) and CommandSeparator (not a focus stop), then Actions.
+      // Roving crosses Navigate (6 items) and CommandSeparator (not a focus stop), then Actions.
       // cmdk minor versions differ on whether the first ArrowDown leaves the filter input — step
       // until the first Action row is selected instead of assuming a fixed key count.
       const firstActionRow = /Resolve|claim|Action Queue/i;
@@ -262,7 +262,18 @@ test.describe("strategist", () => {
       }, id);
       const panel = page.locator("[data-evidence-panel]").first();
       await expect(panel).toBeVisible();
-      await panel.getByRole("link", { name: /navigate to source/i }).click();
+      // Floating InMeetingAlertCard + compact panel: footer link can sit outside the viewport
+      // while still "visible" to Playwright; DOM click matches digest chip pattern in this file.
+      await page.evaluate(() => {
+        const root = document.querySelector("[data-evidence-panel]");
+        if (!root) {
+          return;
+        }
+        const link = Array.from(root.querySelectorAll("a")).find((a) =>
+          /navigate to source/i.test(a.textContent ?? ""),
+        ) as HTMLAnchorElement | undefined;
+        link?.click();
+      });
       await expect(page).toHaveURL(new RegExp(`/evidence/${id}`));
       await expect(page.getByRole("heading", { name: /Evidence node/i })).toBeVisible();
     });
