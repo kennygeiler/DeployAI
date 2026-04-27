@@ -148,7 +148,7 @@ DeployAI/
 | [`_bmad-output/implementation-artifacts/development-board.yaml`](./_bmad-output/implementation-artifacts/development-board.yaml) | Board, MVP tracks, risks |
 | [`_bmad-output/planning-artifacts/mvp-operating-plan-2026.md`](./_bmad-output/planning-artifacts/mvp-operating-plan-2026.md) | MVP phasing |
 
-**Status (high level):** Epics **1–8** are largely **done** on `main` for the walking skeleton. **Epic 9** is **in progress** — **Story 9.1** ships configurable **≤ 30 s** activity poll, CP meeting-presence contract + stub, and a **single-sample ≤ 8 s** Playwright gate for the active alert card after a BFF `inMeeting` signal; **100-run p95**, Graph calendar wiring, and lazy-evidence timing are still backlog vs `epics.md`. **Epic 7-15** (VPAT evidence pipeline) is backlog. Hardening notes: [`epic-8-implementation-status.md`](./_bmad-output/implementation-artifacts/epic-8-implementation-status.md).
+**Status (high level):** Epics **1–8** are largely **done** on `main` for the walking skeleton. **Epic 9** is **in progress** — vertical slice merged (presence stub, queues BFF, surfaces, E2E). **Story 9.1** adds configurable **≤ 30 s** activity poll, documents CP meeting-presence + stub env, and a **single-sample ≤ 8 s** Playwright gate for the active alert card after a BFF `inMeeting` signal; **100-run p95**, Graph calendar wiring, and lazy-evidence timing remain vs `epics.md`. **Epic 7-15** (VPAT evidence pipeline) is backlog. Hardening notes: [`epic-8-implementation-status.md`](./_bmad-output/implementation-artifacts/epic-8-implementation-status.md).
 
 ---
 
