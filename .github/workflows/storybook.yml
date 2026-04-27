@@ -1,7 +1,10 @@
-# Storybook static build + optional Chromatic (Epic 7, UX-DR43). Fork-safe: no secrets on fork PRs
-# without explicit tokens. `CHROMATIC_PROJECT_TOKEN` enables visual baselines in Chromatic.
+# Storybook static build + optional Chromatic (Epic 7, UX-DR43 / Stories 7-13–7-14).
+# Fork-safe: Chromatic and PR comments skip when secrets / permissions are unavailable.
 #
-# Build artifact is always uploaded for design review. Chromatic is skipped if the token is unset.
+# - `CHROMATIC_PROJECT_TOKEN` enables Chromatic. **Strict** (no `--exit-zero-on-changes`) on
+#   `push` to `main` so post-merge regressions fail CI. **PRs** use `--exit-zero-on-changes` so
+#   pending Chromatic reviews do not block merge while diffs are triaged in Chromatic’s UI.
+# - Same-repo PRs get a sticky comment with the Actions artifact link for `storybook-static`.
 
 name: Storybook
 
@@ -11,9 +14,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-
-permissions:
-  contents: read
 
 concurrency:
   group: storybook-${{ github.workflow }}-${{ github.ref }}
@@ -28,6 +28,8 @@ jobs:
     name: build-storybook + optional Chromatic
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
@@ -62,4 +64,59 @@ jobs:
         working-directory: apps/web
         env:
           CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
-        run: pnpm exec chromatic --ci --project-token "$CHROMATIC_PROJECT_TOKEN" --storybook-build-dir=storybook-static --exit-zero-on-changes
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            pnpm exec chromatic --ci \
+              --project-token "$CHROMATIC_PROJECT_TOKEN" \
+              --storybook-build-dir=storybook-static
+          else
+            pnpm exec chromatic --ci \
+              --project-token "$CHROMATIC_PROJECT_TOKEN" \
+              --storybook-build-dir=storybook-static \
+              --exit-zero-on-changes
+          fi
+
+  storybook-pr-comment:
+    name: PR comment (artifact link)
+    needs: build
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Upsert Storybook comment
+        uses: actions/github-script@62c3794a3eb6788d9a4aae18d420744cc0accc3b # v7.1.0
+        with:
+          script: |
+            const marker = "<!-- deployai-storybook-bot -->";
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body =
+              `${marker}\n` +
+              `## Storybook (this PR)\n\n` +
+              `- **Download \`storybook-static\`:** open the [workflow run](${runUrl}) and download the **storybook-static** artifact.\n` +
+              `- **Chromatic:** when the Chromatic check is present, use it for the hosted build and visual review.\n`;
+            const issue_number = context.payload.pull_request.number;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              per_page: 100,
+            });
+            const existing = comments.find((c) => c.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number,
+                body,
+              });
+            }
