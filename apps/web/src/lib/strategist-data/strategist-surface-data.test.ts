@@ -120,7 +120,9 @@ describe("loadMorningDigestTopItemsResult", () => {
 
   it("returns degraded on HTTP error with mock items", async () => {
     process.env.STRATEGIST_DIGEST_SOURCE_URL = "https://digest.example/items.json";
-    globalThis.fetch = vi.fn().mockResolvedValue(new Response("", { status: 502 })) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response("", { status: 502 })) as unknown as typeof fetch;
 
     const r = await loadMorningDigestTopItemsResult();
     expect(r.source).toBe("degraded");
@@ -131,9 +133,9 @@ describe("loadMorningDigestTopItemsResult", () => {
 
   it("returns degraded on invalid JSON body", async () => {
     process.env.STRATEGIST_DIGEST_SOURCE_URL = "https://digest.example/items.json";
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response("not json", { status: 200 }),
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response("not json", { status: 200 })) as unknown as typeof fetch;
 
     const r = await loadMorningDigestTopItemsResult();
     expect(r.source).toBe("degraded");
@@ -143,9 +145,11 @@ describe("loadMorningDigestTopItemsResult", () => {
 
   it("returns degraded on empty array", async () => {
     process.env.STRATEGIST_DIGEST_SOURCE_URL = "https://digest.example/items.json";
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify([]), { status: 200 }),
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify([]), { status: 200 }),
+      ) as unknown as typeof fetch;
 
     const r = await loadMorningDigestTopItemsResult();
     expect(r.source).toBe("degraded");
