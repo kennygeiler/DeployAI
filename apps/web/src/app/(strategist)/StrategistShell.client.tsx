@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { AppShell } from "@/components/chrome/AppShell";
+import { StrategistToaster } from "@/components/chrome/StrategistToaster";
 import type { StrategistActivitySnapshot } from "@/lib/internal/load-strategist-activity";
 import type { StrategistSessionBannerPayload } from "@/lib/internal/strategist-demo-session";
 import { mergeStrategistSurfaceFromDemoQuery } from "@/lib/epic8/strategist-surface-flags";
@@ -28,6 +29,8 @@ function toSurfaceValue(s: StrategistActivitySnapshot): StrategistSurfaceValue {
     meetingId: s.meetingId,
     meetingTitle: s.meetingTitle,
     oracleInMeetingAlertAt: s.oracleInMeetingAlertAt,
+    meetingDetectionSource: s.meetingDetectionSource,
+    calendarPollIntervalSeconds: s.calendarPollIntervalSeconds,
   };
 }
 
@@ -117,6 +120,9 @@ export function StrategistShell({ children, lastSyncedAt, initialActivity, sessi
         meetingId: j.meetingId ?? prev.meetingId,
         meetingTitle: j.meetingTitle ?? prev.meetingTitle,
         oracleInMeetingAlertAt: j.oracleInMeetingAlertAt ?? prev.oracleInMeetingAlertAt,
+        meetingDetectionSource: j.meetingDetectionSource ?? prev.meetingDetectionSource,
+        calendarPollIntervalSeconds:
+          j.calendarPollIntervalSeconds ?? prev.calendarPollIntervalSeconds,
       }));
     })();
   }, []);
@@ -136,6 +142,7 @@ export function StrategistShell({ children, lastSyncedAt, initialActivity, sessi
 
   return (
     <StrategistSurfaceProvider value={surface}>
+      <StrategistToaster />
       <AppShell lastSyncedAt={lastSyncedAt} sessionBanner={sessionBanner}>
         {children}
       </AppShell>

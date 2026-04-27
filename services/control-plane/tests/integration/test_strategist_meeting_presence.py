@@ -43,6 +43,7 @@ async def test_meeting_presence_off_by_default(meeting_client: AsyncClient) -> N
     j = r.json()
     assert j["in_meeting"] is False
     assert j["meeting_id"] is None
+    assert j["detection_source"] == "off"
 
 
 @pytest.mark.asyncio
@@ -57,3 +58,5 @@ async def test_meeting_presence_on_for_stub_tenant(
     assert j["in_meeting"] is True
     assert j["meeting_id"] is not None
     assert j["oracle_in_meeting_alert_at"] is not None
+    assert j["detection_source"] == "oracle_signal"
+    assert j["calendar_poll_interval_seconds"] == 30

@@ -23,6 +23,8 @@ const IDLE_MEETING = {
   meetingId: null as string | null,
   meetingTitle: null as string | null,
   oracleInMeetingAlertAt: null as string | null,
+  meetingDetectionSource: null as string | null,
+  calendarPollIntervalSeconds: null as number | null,
 };
 
 export type StrategistActivitySnapshot = {
@@ -41,6 +43,10 @@ export type StrategistActivitySnapshot = {
   meetingId: string | null;
   meetingTitle: string | null;
   oracleInMeetingAlertAt: string | null;
+  /** From CP `meeting-presence` (`detection_source`) or URL demo merge. */
+  meetingDetectionSource: string | null;
+  /** CP-suggested poll cadence for calendar/presence (seconds, 5–30). */
+  calendarPollIntervalSeconds: number | null;
 };
 
 type ActivityWithoutDate = Omit<StrategistActivitySnapshot, "strategistLocalDate">;
@@ -56,22 +62,38 @@ function snapshot(
   return { strategistLocalDate: day, ...IDLE_MEETING, ...partial };
 }
 
+function clampPollSeconds(n: unknown): number | null {
+  if (typeof n !== "number" || !Number.isFinite(n)) {
+    return null;
+  }
+  const r = Math.round(n);
+  return Math.min(30, Math.max(5, r));
+}
+
 function parseMeetingPresenceJson(
   body: unknown,
 ): Pick<
   StrategistActivitySnapshot,
-  "inMeeting" | "meetingId" | "meetingTitle" | "oracleInMeetingAlertAt"
+  | "inMeeting"
+  | "meetingId"
+  | "meetingTitle"
+  | "oracleInMeetingAlertAt"
+  | "meetingDetectionSource"
+  | "calendarPollIntervalSeconds"
 > {
   if (!body || typeof body !== "object") {
     return IDLE_MEETING;
   }
   const j = body as Record<string, unknown>;
+  const src = j.detection_source;
   return {
     inMeeting: Boolean(j.in_meeting),
     meetingId: typeof j.meeting_id === "string" ? j.meeting_id : null,
     meetingTitle: typeof j.meeting_title === "string" ? j.meeting_title : null,
     oracleInMeetingAlertAt:
       typeof j.oracle_in_meeting_alert_at === "string" ? j.oracle_in_meeting_alert_at : null,
+    meetingDetectionSource: typeof src === "string" && src.length > 0 ? src : null,
+    calendarPollIntervalSeconds: clampPollSeconds(j.calendar_poll_interval_seconds),
   };
 }
 
@@ -82,7 +104,12 @@ async function fetchMeetingPresence(
 ): Promise<
   Pick<
     StrategistActivitySnapshot,
-    "inMeeting" | "meetingId" | "meetingTitle" | "oracleInMeetingAlertAt"
+    | "inMeeting"
+    | "meetingId"
+    | "meetingTitle"
+    | "oracleInMeetingAlertAt"
+    | "meetingDetectionSource"
+    | "calendarPollIntervalSeconds"
   >
 > {
   if (!tenantId) {

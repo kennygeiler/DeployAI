@@ -340,6 +340,7 @@ export function InMeetingAlertCard({
         </button>
       ) : (
         <div
+          data-fr36-expanded-chrome="true"
           className={cn(
             "flex h-full w-full flex-col overflow-hidden rounded-lg border border-border bg-paper-100 text-ink-900 shadow-lg",
             stateProp === "idle" && "opacity-80",

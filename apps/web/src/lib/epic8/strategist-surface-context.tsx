@@ -14,6 +14,8 @@ export type StrategistSurfaceValue = {
   meetingId: string | null;
   meetingTitle: string | null;
   oracleInMeetingAlertAt: string | null;
+  meetingDetectionSource: string | null;
+  calendarPollIntervalSeconds: number | null;
 };
 
 const defaultValue: StrategistSurfaceValue = {
@@ -24,6 +26,8 @@ const defaultValue: StrategistSurfaceValue = {
   meetingId: null,
   meetingTitle: null,
   oracleInMeetingAlertAt: null,
+  meetingDetectionSource: "off",
+  calendarPollIntervalSeconds: null,
 };
 
 const StrategistSurfaceContext = React.createContext<StrategistSurfaceValue | null>(null);

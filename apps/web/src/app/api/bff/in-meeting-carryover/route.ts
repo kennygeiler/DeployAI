@@ -2,9 +2,9 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { decideSync } from "@deployai/authz";
 
-import { appendActionQueueItems, type ActionQueueItem } from "@/lib/bff/strategist-queues-store";
+import { appendActionQueueItems } from "@/lib/bff/strategist-queues-store";
+import { buildInMeetingCarryoverRows } from "@/lib/epic9/in-meeting-carryover-build";
 import { getActorFromHeaders } from "@/lib/internal/actor";
-import { MORNING_DIGEST_TOP } from "@/lib/epic8/mock-digest";
 
 type Body = {
   unattendedIds: string[];
@@ -32,20 +32,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "unattendedIds array required" }, { status: 400 });
   }
   const now = new Date().toISOString();
-  const rows: ActionQueueItem[] = body.unattendedIds.map((id) => {
-    const row = MORNING_DIGEST_TOP.find((x) => x.id === id);
-    return {
-      id: `carry-${id}-${Date.now()}`,
-      priority: "P2",
-      phase: "P3 — Ecosystem map",
-      description: row?.label ?? `Carryover from in-meeting alert (${id})`,
-      status: "open",
-      claimed_by: null,
-      updated_at: now,
-      source: "in_meeting_alert",
-      evidence_node_ids: [id],
-    };
-  });
+  const rows = buildInMeetingCarryoverRows(body.unattendedIds, now);
   appendActionQueueItems(actor.tenantId ?? null, rows);
   return NextResponse.json({ ok: true, inserted: rows.length }, { status: 200 });
 }
