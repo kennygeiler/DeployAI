@@ -16,6 +16,14 @@ const isStrategistSurface = (p: string) =>
   p === "/overrides" ||
   p.startsWith("/audit/");
 
+/** BFF + internal routes the strategist shell polls; need the same actor as pages. */
+const isStrategistApi = (p: string) =>
+  p.startsWith("/api/bff/") || p === "/api/internal/strategist-activity";
+
+function shouldRunAuthz(pathname: string): boolean {
+  return isAdmin(pathname) || isStrategistSurface(pathname) || isStrategistApi(pathname);
+}
+
 function parseRole(r: string | null): V1Role | null {
   const allowed: V1Role[] = [
     "platform_admin",
@@ -32,7 +40,7 @@ function parseRole(r: string | null): V1Role | null {
 }
 
 function actionForPath(pathname: string): Action {
-  if (isStrategistSurface(pathname)) {
+  if (isStrategistSurface(pathname) || isStrategistApi(pathname)) {
     return "canonical:read";
   }
   if (pathname.startsWith("/admin/schema-proposals")) {
@@ -45,18 +53,27 @@ function actionForPath(pathname: string): Action {
 }
 
 function resourceForPath(pathname: string): Resource {
-  if (isStrategistSurface(pathname)) {
+  if (isStrategistSurface(pathname) || isStrategistApi(pathname)) {
     return { kind: "canonical_memory" };
   }
   return { kind: "global" };
 }
 
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  if (!isAdmin(pathname) && !isStrategistSurface(pathname)) {
-    return NextResponse.next();
+  const requestHeaders = new Headers(request.headers);
+  if (
+    process.env.NODE_ENV === "development" &&
+    process.env.DEPLOYAI_DISABLE_DEV_STRATEGIST !== "1" &&
+    !requestHeaders.get("x-deployai-role")
+  ) {
+    requestHeaders.set("x-deployai-role", "deployment_strategist");
   }
-  const role = parseRole(request.headers.get("x-deployai-role"));
+
+  const { pathname } = request.nextUrl;
+  if (!shouldRunAuthz(pathname)) {
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+  const role = parseRole(requestHeaders.get("x-deployai-role"));
   if (!role) {
     return new NextResponse("Forbidden: missing or invalid x-deployai-role (see docs).", {
       status: 403,
@@ -70,7 +87,7 @@ export function middleware(request: NextRequest) {
       status: 403,
     });
   }
-  return NextResponse.next();
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {
@@ -84,6 +101,8 @@ export const config = {
     "/solidification-review",
     "/overrides",
     "/audit/:path*",
+    "/api/bff/:path*",
+    "/api/internal/strategist-activity",
     "/admin/runs",
     "/admin/adjudication",
     "/admin/schema-proposals",

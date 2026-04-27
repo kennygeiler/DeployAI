@@ -119,6 +119,13 @@ pnpm --filter @deployai/web test:a11y
 
 `@axe-core/react` also logs violations to the browser console when running `pnpm --filter @deployai/web dev` — no setup required, tree-shaken out of prod builds.
 
+## Strategist UI (`next dev`)
+
+[`apps/web/middleware.ts`](../apps/web/middleware.ts) injects `x-deployai-role: deployment_strategist` in **`NODE_ENV=development`** when the header is missing, so you can open `/digest`, `/in-meeting`, et al. in a normal browser without an extension. Client fetches to `/api/bff/*` and `/api/internal/strategist-activity` get the same header.
+
+- **Disable** the default (e.g. to test 403): `DEPLOYAI_DISABLE_DEV_STRATEGIST=1 pnpm --filter @deployai/web dev`
+- **Production / CI** (`next start`, `next build`): no injection — E2E and staging still use real headers or expect 403.
+
 ## 5. Run each workspace
 
 ```bash
