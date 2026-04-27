@@ -15,7 +15,7 @@
 # days on both pass and fail — the JSON is the audit evidence NFR52 demands.
 #
 # Note: this file is in `on.pull_request.paths`; touch it to re-run when required.
-# Nudge 2026-04-27: required ruleset; touch this file when the PR does not change services/tenancy paths.
+# Nudge 2026-04-28: required ruleset; touch this file when the PR does not change services/tenancy paths.
 
 name: fuzz
 

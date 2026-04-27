@@ -7,11 +7,14 @@ export type StrategistSurfaceValue = {
   agentDegraded: boolean;
   /** Ingestion / extraction in flight (FR47) — top-rail activity. */
   ingestionInProgress: boolean;
+  /** Strategist-local calendar day (YYYY-MM-DD) from server BFF for mock due windows. */
+  strategistLocalDate: string;
 };
 
 const defaultValue: StrategistSurfaceValue = {
   agentDegraded: false,
   ingestionInProgress: false,
+  strategistLocalDate: "1970-01-01",
 };
 
 const StrategistSurfaceContext = React.createContext<StrategistSurfaceValue | null>(null);

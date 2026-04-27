@@ -44,6 +44,7 @@ describe("loadStrategistActivityForActor", () => {
     expect(r).toEqual({
       agentDegraded: false,
       ingestionInProgress: true,
+      strategistLocalDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       controlPlane: "ok",
     });
   });
@@ -73,6 +74,7 @@ describe("loadStrategistActivityForActor", () => {
     expect(r).toEqual({
       agentDegraded: true,
       ingestionInProgress: false,
+      strategistLocalDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       controlPlane: "error",
     });
   });
