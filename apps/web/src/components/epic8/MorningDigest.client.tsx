@@ -8,9 +8,17 @@ import { useStrategistSurface } from "@/lib/epic8/strategist-surface-context";
 export type MorningDigestClientProps = {
   /** When omitted, uses mock `MORNING_DIGEST_TOP` (Storybook, tests). */
   topItems?: readonly DigestTopItem[];
+  /**
+   * Server-computed notice when the digest feed failed validation or HTTP and seeded demo items
+   * are shown instead (never silent fallback).
+   */
+  digestBanner?: string | null;
 };
 
-export function MorningDigestClient({ topItems: topItemsProp }: MorningDigestClientProps) {
+export function MorningDigestClient({
+  topItems: topItemsProp,
+  digestBanner,
+}: MorningDigestClientProps) {
   const { agentDegraded } = useStrategistSurface();
   const topItems = topItemsProp ?? MORNING_DIGEST_TOP;
   return (
@@ -21,6 +29,11 @@ export function MorningDigestClient({ topItems: topItemsProp }: MorningDigestCli
           Phase-contextual priorities for today — three items (FR34). No loading shimmer on agent
           body text (UX-DR23).
         </p>
+        {digestBanner ? (
+          <p className="text-ink-800 mt-2 max-w-2xl rounded-md border border-amber-600/30 bg-amber-50/80 px-3 py-2 text-sm">
+            {digestBanner}
+          </p>
+        ) : null}
         {agentDegraded ? (
           <p className="text-ink-800 mt-2 max-w-2xl rounded-md border border-amber-600/30 bg-amber-50/80 px-3 py-2 text-sm">
             Agent ranking is paused; evidence below shows the last materialized sync from canonical
