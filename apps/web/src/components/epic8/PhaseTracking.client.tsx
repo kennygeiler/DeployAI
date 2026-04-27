@@ -59,12 +59,24 @@ function statusSort(a: string, b: string): number {
   return o(a) - o(b);
 }
 
-export function PhaseTrackingClient() {
+export type PhaseTrackingClientProps = {
+  /** When set (normal `/phase-tracking` RSC path), table uses server-loaded rows. */
+  initialPhaseTrackingRows?: readonly ActionQueueRow[];
+  /** Shown when remote feed failed but seeded demo rows are displayed. */
+  phaseTrackingBanner?: string | null;
+};
+
+export function PhaseTrackingClient({
+  initialPhaseTrackingRows,
+  phaseTrackingBanner,
+}: PhaseTrackingClientProps) {
   const { agentDegraded, strategistLocalDate } = useStrategistSurface();
-  const baseRows = React.useMemo(
-    () => buildPhaseTrackingRows(strategistLocalDate),
-    [strategistLocalDate],
-  );
+  const baseRows = React.useMemo(() => {
+    if (initialPhaseTrackingRows !== undefined) {
+      return initialPhaseTrackingRows;
+    }
+    return buildPhaseTrackingRows(strategistLocalDate);
+  }, [initialPhaseTrackingRows, strategistLocalDate]);
   const assigneeOptions = React.useMemo(() => assigneeOptionsForRows(baseRows), [baseRows]);
   const [phaseFilter, setPhaseFilter] = React.useState<(typeof phaseOptions)[number]>("All");
   const [statusFilter, setStatusFilter] = React.useState<(typeof statusOptions)[number]>("All");
@@ -174,6 +186,14 @@ export function PhaseTrackingClient() {
         <p className="text-body text-ink-600 mt-1 max-w-2xl">
           Action queue, blockers, and phase context (FR39). Default sort: priority, then due date.
         </p>
+        {phaseTrackingBanner ? (
+          <p
+            className="text-ink-800 mt-2 max-w-2xl rounded-md border border-amber-600/30 bg-amber-50/80 px-3 py-2 text-sm"
+            role="status"
+          >
+            {phaseTrackingBanner}
+          </p>
+        ) : null}
         {agentDegraded ? (
           <p
             className="text-ink-800 mt-2 max-w-2xl rounded-md border border-amber-600/30 bg-amber-50/80 px-3 py-2 text-sm"

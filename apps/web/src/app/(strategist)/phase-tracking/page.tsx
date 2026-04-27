@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 
 import { PhaseTrackingClient } from "@/components/epic8/PhaseTracking.client";
+import { getStrategistLocalDateForServer } from "@/lib/internal/strategist-local-date";
 import { requireCanonicalRead } from "@/lib/internal/strategist-surface";
+import {
+  loadPhaseTrackingRowsResult,
+  phaseTrackingBannerMessage,
+} from "@/lib/strategist-data/strategist-surface-data";
 
 export const metadata: Metadata = {
   title: "Phase & task tracking",
@@ -10,5 +15,13 @@ export const metadata: Metadata = {
 
 export default async function PhaseTrackingPage() {
   await requireCanonicalRead();
-  return <PhaseTrackingClient />;
+  const today = getStrategistLocalDateForServer();
+  const phaseLoad = await loadPhaseTrackingRowsResult(today);
+  const phaseTrackingBanner = phaseTrackingBannerMessage(phaseLoad);
+  return (
+    <PhaseTrackingClient
+      initialPhaseTrackingRows={phaseLoad.items}
+      phaseTrackingBanner={phaseTrackingBanner}
+    />
+  );
 }
