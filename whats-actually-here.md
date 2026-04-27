@@ -2,8 +2,16 @@
 
 **Living document.** Update this file when epics ship, env contracts change, or a surface moves from mock → live. Goal: one honest place to **catalog reality**, **demo the product**, and **talk to stakeholders** without conflating “CI green” with “operator’s daily driver.”
 
-| Maintainer tip | When you merge a story that changes strategist data sources, BFF contracts, or CP routes, add a row to §2 or adjust §5. |
-|----------------|--------------------------------------------------------------------------------------------------------------------------|
+## 0. How to keep this document honest
+
+1. **A PR changes strategist data** (loaders, `apps/web/src/app/api/bff/*`, CP routes feeding activity or digest): edit the **§2 table** and add a **§10 changelog** row (date + one line).
+2. **A PR changes “how demo-able we are”** (new env var, new fallback): update **§7** and/or **[.env.example](./.env.example)**; mention the var here if strategists need it for demos.
+3. **An epic’s *truth* changes** (e.g. queues move off in-memory store): refresh **§3**, **§6**, or **§8** so “pilot” language stays accurate.
+
+| Quick rule | If it affects what appears on `/digest`, `/evening`, `/in-meeting`, or `/api/internal/strategist-activity`, touch **§2** + **§10**. |
+|------------|-------------------------------------------------------------------------------------------------------------------------------------|
+
+**Env template:** strategist-facing variables are commented in [.env.example](./.env.example) under **apps/web — strategist surfaces**.
 
 ---
 
@@ -29,11 +37,13 @@
 | `/evidence/[nodeId]` | Works for fixture IDs linked from digest | Needs canonical graph backing same IDs |
 | Activity / degrade banners | `GET /api/internal/strategist-activity` → CP + ingest + optional Oracle **health** URL | `DEPLOYAI_ORACLE_HEALTH_URL` (liveness, not inference) |
 
+All `STRATEGIST_*`, `DEPLOYAI_ORACLE_HEALTH_URL`, `NEXT_PUBLIC_DEPLOYAI_STRATEGIST_ACTIVITY_POLL_MS`, and CP URL/key pairs for web are **documented as comments** in [.env.example](./.env.example).
+
 ---
 
 ## 3. What nine epics of work *did* accomplish (framing)
 
-Rough mapping (see `_bmad-output/implementation-artifacts/sprint-status.yaml` for story-level truth; Epic **7** still has backlog items, Epic **9** still has **9-8** in progress).
+Rough mapping (see [_bmad-output/implementation-artifacts/sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml) for story-level truth). **Epic 7** and **Epic 9** are story-complete on `main` (design system through VPAT evidence pipeline stub + in-meeting alert persistence UX); **Epic 10+** still own durable overrides and CP-backed queues.
 
 | Area | What you got |
 |------|----------------|
@@ -177,3 +187,4 @@ Use this to run a **credible demo** without claiming full production.
 | Date | Change |
 |------|--------|
 | 2026-04-26 | Initial catalog: surfaces table, epic framing, mermaid flows, demo checklist, distance-to-pilot. |
+| 2026-04-26 | §0 maintenance workflow; §2 pointer to `.env.example` strategist vars; Epic 7/9 story-complete note. Story **9.8**: header **context menu** “Reset position to default” (`InMeetingAlertCard`). Story **7.15**: VPAT aggregator + `vpat-evidence.yml` tracked as done in sprint-status. |

@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { InMeetingAlertCard } from "./InMeetingAlertCard";
@@ -28,5 +29,21 @@ describe("InMeetingAlertCard", () => {
       </InMeetingAlertCard>,
     );
     expect(container.firstChild).toBeNull();
+  });
+
+  it("header context menu offers reset when showResetPosition (Story 9.8)", async () => {
+    const user = userEvent.setup();
+    render(
+      <InMeetingAlertCard {...base} state="active" showResetPosition userId="u-1">
+        <span>chip</span>
+      </InMeetingAlertCard>,
+    );
+    const landmark = screen.getByRole("complementary", { name: "In-meeting alert" });
+    const title = within(landmark).getByText("Meeting with GC");
+    const header = title.closest('[role="presentation"]');
+    expect(header).toBeTruthy();
+    fireEvent.contextMenu(header!);
+    const item = await screen.findByRole("menuitem", { name: /reset position to default/i });
+    await user.click(item);
   });
 });
