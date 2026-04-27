@@ -103,7 +103,9 @@ export const MORNING_DIGEST_RANKED_OUT: readonly { id: string; label: string; re
   { id: "out-2", label: "Duplicate: same DOT thread (older)", reason: "Superseded by item 1" },
 ];
 
-export const EVENING_CANDIDATES: readonly { id: string; title: string; note: string }[] = [
+export type EveningPatternRow = { id: string; title: string; note: string };
+
+export const EVENING_CANDIDATES: readonly EveningPatternRow[] = [
   {
     id: "e1",
     title: "Recurring: vendor latency on artifact uploads",
