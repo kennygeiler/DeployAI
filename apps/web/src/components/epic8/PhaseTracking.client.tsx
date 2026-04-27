@@ -11,8 +11,8 @@ import {
 } from "@tanstack/react-table";
 
 import { EvidencePanel } from "@deployai/shared-ui";
-import type { ActionQueueRow } from "@/lib/epic8/mock-digest";
-import { PHASE_TRACKING_ROWS } from "@/lib/epic8/mock-digest";
+import type { ActionQueueRow, DueDateWindow } from "@/lib/epic8/mock-digest";
+import { PHASE_TRACKING_ROWS, actionQueueRowMatchesDueWindow } from "@/lib/epic8/mock-digest";
 import { useStrategistSurface } from "@/lib/epic8/strategist-surface-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,13 @@ const assigneeOptions = [
   ),
 ] as const;
 
+const dueDateOptions: { value: DueDateWindow; label: string }[] = [
+  { value: "all", label: "All dates" },
+  { value: "today", label: "Today" },
+  { value: "next7", label: "Next 7 days" },
+  { value: "overdue", label: "Overdue" },
+];
+
 function statusLabel(s: ActionQueueRow["status"]): string {
   if (s === "in_progress") {
     return "In progress";
@@ -59,6 +66,7 @@ export function PhaseTrackingClient() {
   const [statusFilter, setStatusFilter] = React.useState<(typeof statusOptions)[number]>("All");
   const [assigneeFilter, setAssigneeFilter] =
     React.useState<(typeof assigneeOptions)[number]>("All");
+  const [dueDateWindow, setDueDateWindow] = React.useState<DueDateWindow>("all");
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: "priority", desc: false },
     { id: "due", desc: false },
@@ -76,9 +84,12 @@ export function PhaseTrackingClient() {
       if (assigneeFilter !== "All" && r.assignee !== assigneeFilter) {
         return false;
       }
+      if (!actionQueueRowMatchesDueWindow(r.due, dueDateWindow)) {
+        return false;
+      }
       return true;
     });
-  }, [phaseFilter, statusFilter, assigneeFilter]);
+  }, [phaseFilter, statusFilter, assigneeFilter, dueDateWindow]);
 
   React.useEffect(() => {
     if (rows.length === 0) {
@@ -220,6 +231,22 @@ export function PhaseTrackingClient() {
                 }}
               >
                 {a === "All" ? "All assignees" : a}
+              </Button>
+            ))}
+            <span className="text-muted-foreground mx-1 h-4 w-px select-none" aria-hidden>
+              |
+            </span>
+            {dueDateOptions.map((d) => (
+              <Button
+                key={d.value}
+                type="button"
+                size="sm"
+                variant={dueDateWindow === d.value ? "default" : "ghost"}
+                onClick={() => {
+                  setDueDateWindow(d.value);
+                }}
+              >
+                {d.label}
               </Button>
             ))}
           </div>
