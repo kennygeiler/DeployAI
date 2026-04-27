@@ -69,7 +69,7 @@ export type PhaseTrackingClientProps = {
 export function PhaseTrackingClient({
   initialPhaseTrackingRows,
   phaseTrackingBanner,
-}: PhaseTrackingClientProps = {}) {
+}: PhaseTrackingClientProps) {
   const { agentDegraded, strategistLocalDate } = useStrategistSurface();
   const baseRows = React.useMemo(() => {
     if (initialPhaseTrackingRows !== undefined) {
