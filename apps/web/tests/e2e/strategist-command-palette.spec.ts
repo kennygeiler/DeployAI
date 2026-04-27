@@ -176,9 +176,8 @@ test.describe("strategist", () => {
   test.describe("Story 8.4 — expand-inline EvidencePanel (NFR4 budget in CI)", () => {
     test.use({ extraHTTPHeaders: strategistRoleHeader });
 
-    test("citation chip shows [data-evidence-panel] under 2s (NFR4 slack in CI)", async ({
-      page,
-    }) => {
+    /** NFR4: ≤1.5s p95; single CI sample uses 1500ms ceiling (same headroom class as PRD). */
+    test("citation chip shows [data-evidence-panel] within 1500ms (NFR4)", async ({ page }) => {
       await page.goto("/digest", { waitUntil: "domcontentloaded" });
       const chip = page.locator("[data-citation-chip]").first();
       await expect(chip).toBeVisible();
@@ -190,7 +189,26 @@ test.describe("strategist", () => {
       const panel = page.locator("[data-evidence-panel]");
       await expect(panel).toBeVisible();
       const ms = Date.now() - t0;
-      expect(ms, `NFR4 expand-inline: panel visible in <2000ms (was ${ms}ms)`).toBeLessThan(2000);
+      expect(ms, `NFR4 expand-inline: panel visible in ≤1500ms (was ${ms}ms)`).toBeLessThanOrEqual(
+        1500,
+      );
+      await expect(chip).toHaveAttribute("aria-expanded", "true");
+    });
+
+    test("Navigate to source inside panel reaches /evidence/:nodeId", async ({ page }) => {
+      const id = "2d4437ee-9336-441e-ab57-121b81ee57a4";
+      await page.goto("/digest", { waitUntil: "domcontentloaded" });
+      const chip = page.locator("[data-citation-chip]").first();
+      await expect(chip).toBeVisible();
+      await page.evaluate(() => {
+        (document.querySelector("[data-citation-chip]") as HTMLButtonElement | null)?.click();
+      });
+      const panel = page.locator("[data-evidence-panel]").first();
+      await expect(panel).toBeVisible();
+      await expect(panel.locator("[data-evidence-panel-footer]")).toBeVisible();
+      await panel.getByRole("link", { name: /navigate to source/i }).click();
+      await expect(page).toHaveURL(new RegExp(`/evidence/${id}`));
+      await expect(page.getByRole("heading", { name: /Evidence node/i })).toBeVisible();
     });
   });
 

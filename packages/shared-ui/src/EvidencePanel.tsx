@@ -64,6 +64,11 @@ export type EvidencePanelProps = {
    * @default true
    */
   visible?: boolean;
+  /**
+   * Optional actions below the body (Story 8.4 — e.g. deep link to `/evidence/:node_id`).
+   * Rendered inside the panel for `loaded` and `degraded` states only.
+   */
+  footer?: React.ReactNode;
   className?: string;
 } & VariantProps<typeof panelRoot>;
 
@@ -116,6 +121,7 @@ export function EvidencePanel({
   degradedHint = "Content still syncing. Showing what we have so far.",
   tombstoneMessage = "This evidence is no longer available in canonical memory.",
   visible = true,
+  footer,
   className: classNameProp,
   variant = "default",
 }: EvidencePanelProps) {
@@ -219,6 +225,12 @@ export function EvidencePanel({
               {evidenceSpan ? renderHighlightedBody(bodyText, evidenceSpan) : bodyText}
             </p>
           )}
+        </div>
+      ) : null}
+
+      {footer != null && footer !== false && (state === "loaded" || state === "degraded") ? (
+        <div className="mt-4 border-t border-border pt-3 font-sans" data-evidence-panel-footer>
+          {footer}
         </div>
       ) : null}
     </article>

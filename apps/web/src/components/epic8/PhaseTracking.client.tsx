@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   createColumnHelper,
   flexRender,
@@ -9,6 +10,7 @@ import {
   useReactTable,
   type SortingState,
 } from "@tanstack/react-table";
+import { ChevronRight } from "lucide-react";
 
 import { EvidencePanel } from "@deployai/shared-ui";
 import type { ActionQueueRow, DueDateWindow } from "@/lib/epic8/mock-digest";
@@ -391,6 +393,15 @@ export function PhaseTrackingClient({
                 bodyText={selectedRow.bodyText}
                 evidenceSpan={selectedRow.evidenceSpan}
                 variant="compact"
+                footer={
+                  <Link
+                    href={`/evidence/${encodeURIComponent(selectedRow.id)}`}
+                    className="text-evidence-700 focus-visible:ring-ring inline-flex items-center gap-1 text-sm font-medium underline-offset-2 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                  >
+                    Navigate to source
+                    <ChevronRight className="size-3.5 shrink-0" aria-hidden />
+                  </Link>
+                }
               />
               <p className="text-muted-foreground text-xs">
                 Resolution / claim / defer actions wire with Action Queue API in a follow-up.

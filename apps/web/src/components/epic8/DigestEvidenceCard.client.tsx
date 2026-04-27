@@ -53,13 +53,6 @@ export function DigestEvidenceCard({
             onCopyLink={() => {}}
             onCiteInOverride={() => {}}
           />
-          <Link
-            href={`/evidence/${item.id}`}
-            className="text-evidence-700 focus-visible:ring-ring inline-flex items-center gap-1 text-sm font-medium underline-offset-2 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-          >
-            Navigate to source
-            <ChevronRight className="size-3.5 shrink-0" aria-hidden />
-          </Link>
         </div>
       </div>
       {expanded ? (
@@ -72,6 +65,15 @@ export function DigestEvidenceCard({
           bodyText={item.bodyText}
           evidenceSpan={item.evidenceSpan}
           variant="compact"
+          footer={
+            <Link
+              href={`/evidence/${encodeURIComponent(item.id)}`}
+              className="text-evidence-700 focus-visible:ring-ring inline-flex items-center gap-1 text-sm font-medium underline-offset-2 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            >
+              Navigate to source
+              <ChevronRight className="size-3.5 shrink-0" aria-hidden />
+            </Link>
+          }
         />
       ) : null}
     </section>
