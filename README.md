@@ -1,114 +1,182 @@
-# DeployAI — Agentic Deployment System of Record
+# DeployAI
 
-> A Canonical-Memory-backed digital twin for long-cycle government deployments. Built to walk the operator into every meeting prepared — with every claim citation-backed, every override logged, and every retrieval deterministically replayable.
+[![Node](https://img.shields.io/badge/node-24.x-339933?logo=nodedotjs)](./.nvmrc)
+[![pnpm](https://img.shields.io/badge/pnpm-workspace-f69220?logo=pnpm)](./pnpm-workspace.yaml)
+[![Turbo](https://img.shields.io/badge/build-turbo-000000?logo=turborepo)](./turbo.json)
+[![License](https://img.shields.io/badge/license-TBD-lightgrey.svg)](./README.md#license)
 
-**Status:** **Epics 1–6** are **done** (through Cartographer / Oracle / Master Strategist services). **Epic 7** (shared UI + design tokens) has **delivered the MVP component set** used by strategist surfaces; **7-12–7-14** are **done** (pattern stories, viewport + Chromatic widths, CI axe + governance + PR Storybook artifact comments); **7-15** (VPAT evidence pipeline beyond the existing stub) remains **backlog**. **Epic 8** (strategist daily loop): story grid **8-1–8-7** is **done** on `main` (digest, phase tracking, evening synthesis, nav chrome, Cmd+K, inline evidence + `/evidence/[nodeId]`, FR46/47 degradation + ingest indicators, demo query overrides for QA). **MVP operating plan:** [Track D](./_bmad-output/planning-artifacts/mvp-operating-plan-2026.md) — thin **`/in-meeting`** (`InMeetingAlertCard` + digest-aligned mock citations). **[Track E](./_bmad-output/planning-artifacts/mvp-operating-plan-2026.md)** (hardening) is **in progress**: golden-path **Playwright** smoke ([`mvp-golden-path.spec.ts`](./apps/web/tests/e2e/mvp-golden-path.spec.ts)); mock BFF consolidation + further cleanup remain. **Epic 9** full stories stay **in progress** in [`sprint-status.yaml`](./_bmad-output/implementation-artifacts/sprint-status.yaml). Hardening against the full `epics.md` letter remains tracked in [`epic-8-implementation-status.md`](./_bmad-output/implementation-artifacts/epic-8-implementation-status.md). Authoritative rows: [`_bmad-output/implementation-artifacts/sprint-status.yaml`](./_bmad-output/implementation-artifacts/sprint-status.yaml). **Board + MVP path:** [`_bmad-output/implementation-artifacts/development-board.yaml`](./_bmad-output/implementation-artifacts/development-board.yaml) · [`_bmad-output/planning-artifacts/mvp-operating-plan-2026.md`](./_bmad-output/planning-artifacts/mvp-operating-plan-2026.md).
+**Agentic deployment system of record** — a canonical-memory-backed digital twin for long-cycle government deployments. Walk into every meeting prepared: claims are citation-backed, overrides are logged, retrieval is replayable.
 
 ---
 
-## What this repo is
+## What it does
 
-This is the **DeployAI monorepo**: a **polyglot** codebase (TypeScript/Next.js, Python/FastAPI, Go, Rust/Tauri) with **enforced CI** (smoke, a11y, schema, fuzz, SBOM, CVE, integration tests) on every PR to `main`, plus **BMAD** planning under `_bmad-output/` and agent skills under `.cursor/skills/`. It is not a “planning only” tree—`apps/`, `services/`, `packages/`, `tests/`, and `infra/compose` contain shipping or story-delivered code paths.
+- **Morning loop (Epic 8)** — Digest, phase tracking, evening synthesis, Cmd+K chrome, inline evidence and `/evidence/[nodeId]`.
+- **Reactive meeting + queues (Epic 9)** — In-meeting alert (presence stub + URL demos), three-item surface budget, carryover into an Action Queue, BFF-mocked queue lifecycles, validation and solidification surfaces.
+- **Platform spine** — Control plane (FastAPI), ingestion, Cartographer / Oracle contracts, design tokens + `shared-ui`, multi-layer CI (smoke, a11y, schema, fuzz, SBOM, integration).
 
-## Where things live (quick map)
+You plan in **BMAD** (`_bmad-output/`, `.cursor/skills/`). You ship in **`apps/web`**, **`services/*`**, **`packages/*`**. CI on every PR to `main` enforces the gates in [`.github/workflows/README.md`](./.github/workflows/README.md).
+
+---
+
+## Why DeployAI (vs generic PM tools)
+
+| Capability | DeployAI | Typical PM / chat |
+|------------|----------|-------------------|
+| **Mandatory citations** | Signed citation envelope + RFC-3161 posture (product intent) | Ad hoc links |
+| **Tenant isolation** | Three-layer model + authz resolver | Varies |
+| **Deterministic replay** | LangGraph checkpointing story (Cartographer) | None |
+| **Compliance-native intent** | NIST AI RMF, 508/WCAG gates in CI from Epic 1 | Rare |
+| **Strategist UX** | Digest ↔ same evidence in meeting alert | Siloed tools |
+
+The [**MVP operating plan**](./_bmad-output/planning-artifacts/mvp-operating-plan-2026.md) sequences a demo-ready slice first; formal compliance program work is explicitly staged later.
+
+---
+
+## Quick start
+
+```bash
+git clone https://github.com/kennygeiler/DeployAI.git
+cd DeployAI
+# Node 24.x — see .nvmrc (root engines reject unsupported majors)
+pnpm install --frozen-lockfile
+pnpm turbo run lint typecheck test build
+```
+
+**Local services, env vars, and tool versions:** [docs/dev-environment.md](./docs/dev-environment.md)
+
+**Strategist E2E (Playwright):** from `apps/web`, after a production build, `CI=1 pnpm test:e2e` (avoids attaching Playwright to the wrong process on `:3000`; see [apps/web/playwright.config.ts](./apps/web/playwright.config.ts)).
+
+---
+
+## Cursor / BMAD — what to say
+
+| You want | Skill / entry |
+|----------|----------------|
+| Orient + next step | `bmad-help` |
+| Sprint snapshot | `bmad-sprint-status` |
+| PRD / epics / architecture | `bmad-create-prd`, `bmad-create-epics-and-stories`, `bmad-create-architecture` |
+| UX + implementation readiness | `bmad-create-ux-design`, `bmad-check-implementation-readiness` |
+| Author a story file | `bmad-create-story` |
+| Implement from a story | `bmad-dev-story`, `bmad-quick-dev` |
+| Adversarial review | `bmad-code-review` |
+| Multi-agent discussion | `bmad-party-mode` |
+
+Agents map to skills under [`.cursor/skills/`](./.cursor/skills/) (PM John, Analyst Mary, Architect Winston, UX Sally, Dev Amelia, Tech-writer Paige, etc.).
+
+---
+
+## Flows — BMAD + strategist runtime
+
+**Programmatic source (copy into [Mermaid Live](https://mermaid.live) or Obsidian):** [`docs/diagrams/deployai-bmad-and-runtime-flow.mjs`](./docs/diagrams/deployai-bmad-and-runtime-flow.mjs) — exports `bmadAgentFlow`, `strategistRuntimeFlow`, and `bmadAndRuntimeFlow`.
+
+Overview (same content as `bmadAndRuntimeFlow` in the `.mjs` file):
+
+```mermaid
+flowchart TB
+  subgraph bmad["BMAD in Cursor"]
+    direction TB
+    U[You] --> HELP[["bmad-help"]]
+    HELP --> ROLES["PM · Analyst · Architect\nUX · Tech-writer skills"]
+    ROLES --> ART["_bmad-output/\nprd · epics · architecture"]
+    ART --> STORY[["bmad-create-story"]]
+    STORY --> DEV[["bmad-dev-story / quick-dev"]]
+    DEV --> REV[["bmad-code-review"]]
+    REV --> MAIN[CI + merge to main]
+  end
+
+  subgraph rt["Strategist runtime Epics 8–9"]
+    direction TB
+    WEB["Next.js strategist routes"] --> SH[StrategistShell]
+    SH --> SURF["Digest / phases / evening\n/in-meeting alert"]
+    SH --> QUEUES["Action + validation +\nsolidification queues"]
+    SH --> POLL["strategist-activity BFF"]
+    POLL --> CP["control-plane\nhealthz · ingestion-runs\nmeeting-presence"]
+    QUEUES --> BFF["/api/bff/*\nin-memory store"]
+  end
+
+  bmad -->|"ships code into"| rt
+```
+
+---
+
+## Where things live
 
 | Area | Notes |
 |------|--------|
-| `apps/web` | Next.js 16 strategist + admin surfaces, **a11y-gated** Playwright + Storybook; Epic 8 routes + MVP **`/in-meeting`** (`/digest`, `/in-meeting`, `/phase-tracking`, `/evening`, `/evidence/[nodeId]`, …) |
+| `apps/web` | Next.js 16 strategist + admin; Epic 8–9 routes, BFF mocks, Playwright + Storybook |
 | `apps/edge-agent` | Tauri desktop agent |
 | `apps/foia-cli` | Go CLI |
-| `services/control-plane` | FastAPI: tenancy, M365/Slack/Gmail-style integrations, upload flows, **pytest** + Docker integration |
-| `services/ingest` | Ingestion worker stack (Epic 3) |
-| `services/cartographer` | **Epic 4-1** LangGraph stub, citation envelope path, `uv` + pytest in **turbo** |
-| `packages/` | **design-tokens**, **contracts**, **`shared-ui`** (CitationChip, EvidencePanel, … — ships **`dist/`** from `tsc -p tsconfig.build.json`), **`llm-provider`** / **`llm-provider-py`**, **authz**, etc. |
-| `services/_shared/runtime` | **Epic 5** — Jinja2 prompt registry, tool JSON, phase modulator (see `docs/prompts/CHANGELOG.md`) |
-| `tests/` | Continuity, tenant-isolation fuzz, and other cross-workspace harnesses |
-| `infra/compose` | Local docker-compose dev stack |
-| `.github/workflows/` | CI, a11y, compose-smoke, schema, fuzz (see [workflows README](./.github/workflows/README.md)) |
+| `services/control-plane` | FastAPI — tenancy, integrations, **meeting-presence** internal route (stub), pytest + Docker integration |
+| `services/ingest` | Ingestion worker stack |
+| `services/cartographer` | LangGraph stub, citation envelope path |
+| `packages/` | `design-tokens`, `contracts`, **`shared-ui`**, `authz`, LLM adapters |
+| `tests/` | Continuity, cross-tenant fuzz, shared harnesses |
+| `infra/compose` | Local compose |
+| `.github/workflows/` | CI, a11y, compose-smoke — [workflows README](./.github/workflows/README.md) |
+| `_bmad-output/` | PRD, epics, sprint status, stories |
+| `.cursor/skills/` | BMAD + Cursor skills |
+| `docs/diagrams/` | Mermaid `.mjs` exports for flows |
 
-## Repository layout (directory tree)
+**Full repo conventions:** [docs/repo-layout.md](./docs/repo-layout.md)
 
-See [`docs/repo-layout.md`](./docs/repo-layout.md) for the full convention (adding workspaces, `pnpm` + `uv`, Turbo).
-
-At a glance:
+**Directory tree (short):**
 
 ```
 DeployAI/
-├── apps/          # web (Next.js) · edge-agent (Tauri) · foia-cli (Go)
-├── services/      # control-plane · ingest · cartographer · `services/_shared/*`
-├── packages/      # design-tokens, contracts, llm-provider, authz, …
-├── infra/         # compose dev env · Terraform/Terragrunt
-├── tests/         # continuity-of-reference, tenant-isolation fuzz, …
-├── docs/          # dev env, a11y gates, security, repo-layout, …
-├── .github/       # workflows (CI, a11y, dependabot) · CODEOWNERS
-├── _bmad/         # BMAD agent & workflow configuration
-└── _bmad-output/  # PRD, epics, sprint-status, retrospectives, stories
+├── apps/           # web · edge-agent · foia-cli
+├── services/       # control-plane · ingest · cartographer · _shared
+├── packages/       # tokens, contracts, shared-ui, authz, …
+├── tests/
+├── docs/           # dev env, a11y, diagrams, …
+├── _bmad-output/   # planning + sprint-status + stories
+├── .cursor/skills/
+└── .github/
 ```
 
-## Planning & tracking (start here for “what’s next”)
+---
+
+## Planning & tracking
 
 | Document | Purpose |
-|---|---|
-| [`_bmad-output/planning-artifacts/prd.md`](./_bmad-output/planning-artifacts/prd.md) | 79 FRs · 78 NFRs · 12 design-philosophy commitments |
-| [`_bmad-output/planning-artifacts/architecture.md`](./_bmad-output/planning-artifacts/architecture.md) | Tech stack, deployment, compliance, 28 ARs |
-| [`_bmad-output/planning-artifacts/ux-design-specification.md`](./_bmad-output/planning-artifacts/ux-design-specification.md) | Visual system, custom components, 43 UX-DRs |
-| [`_bmad-output/planning-artifacts/epics.md`](./_bmad-output/planning-artifacts/epics.md) | 14 epics · 123 stories · full FR coverage map |
-| [`_bmad-output/implementation-artifacts/sprint-status.yaml`](./_bmad-output/implementation-artifacts/sprint-status.yaml) | Machine-readable sprint tracking (epics / stories) |
-| [`_bmad-output/implementation-artifacts/development-board.yaml`](./_bmad-output/implementation-artifacts/development-board.yaml) | File-backed **development board** — risks, MVP tracks, gates |
-| [`_bmad-output/planning-artifacts/mvp-operating-plan-2026.md`](./_bmad-output/planning-artifacts/mvp-operating-plan-2026.md) | **MVP operating plan** — risk mitigations, MVP definition, phased path to a usable product slice |
+|----------|---------|
+| [`_bmad-output/planning-artifacts/prd.md`](./_bmad-output/planning-artifacts/prd.md) | FRs / NFRs / design commitments |
+| [`_bmad-output/planning-artifacts/architecture.md`](./_bmad-output/planning-artifacts/architecture.md) | Stack, deployment, ARs |
+| [`_bmad-output/planning-artifacts/ux-design-specification.md`](./_bmad-output/planning-artifacts/ux-design-specification.md) | UX-DRs |
+| [`_bmad-output/planning-artifacts/epics.md`](./_bmad-output/planning-artifacts/epics.md) | 14 epics, full story grid |
+| [`_bmad-output/implementation-artifacts/sprint-status.yaml`](./_bmad-output/implementation-artifacts/sprint-status.yaml) | Machine-readable epic/story status |
+| [`_bmad-output/implementation-artifacts/development-board.yaml`](./_bmad-output/implementation-artifacts/development-board.yaml) | Board, MVP tracks, risks |
+| [`_bmad-output/planning-artifacts/mvp-operating-plan-2026.md`](./_bmad-output/planning-artifacts/mvp-operating-plan-2026.md) | MVP phasing |
 
-## Core product principles (non-negotiable)
+**Status (high level):** Epics **1–8** are largely **done** on `main` for the walking skeleton. **Epic 9** is **in progress** — vertical slice merged (presence stub, queues BFF, surfaces, E2E); full `epics.md` ACs (Graph calendar, p95 perf harness, CP-backed queues, OverrideComposer wire-up) remain. **Epic 7-15** (VPAT evidence pipeline) is backlog. Hardening notes: [`epic-8-implementation-status.md`](./_bmad-output/implementation-artifacts/epic-8-implementation-status.md).
 
-1. **Mandatory citations** — every agent output carries a signed citation envelope (RFC 3161).
-2. **Deterministic replay-parity** — LangGraph checkpoints enable bit-identical replay for compliance.
-3. **Three-layer tenant isolation** — app-level `TenantScopedSession` + Postgres RLS + per-tenant KMS envelope encryption.
-4. **Compliance-native** — FIPS 140-2, NIST AI RMF mapping, SLSA L2, SBOM (SPDX/CycloneDX), US-only data residency.
-5. **Earned-trust UX** — WCAG 2.1 AA + Section 508 enforced by CI-blocking a11y tests from Epic 1 onward.
-
-The PRD’s compliance and long-term security posture remain **product intent**. The [**MVP operating plan**](./_bmad-output/planning-artifacts/mvp-operating-plan-2026.md) sequences **a usable, demo-ready slice first** and explicitly **defers compliance and security program work** (FOIA, VPAT, formal audit, chaos/SLO) until after that slice ships.
+---
 
 ## The defining user journey
 
-> **07:00** · Morning Digest surfaces "Permit #2231 blocked by DEP sign-off; last action 9 days ago."
-> **10:03** · In-Meeting Alert fires during the DOT standup with the *identical citation chip* — same evidence, same RFC-3161 timestamp, same override history — so the operator can act immediately without context-switching.
+> **07:00** — Morning Digest: “Permit #2231 blocked by DEP sign-off; last action 9 days ago.”  
+> **10:03** — In-Meeting Alert during the DOT standup with the **same citation chip** — same evidence, same operator muscle memory.
 
-Every story in `epics.md` serves this moment.
+---
 
-## Working with BMAD in this repo
+## Strategist web (`apps/web`) — shipped highlights
 
-This project uses the [BMAD Method](./.cursor/skills/) — specialized AI agents for planning, execution, and review. Common entry points:
+- **Routes:** `/digest`, `/in-meeting`, `/phase-tracking`, `/evening`, `/evidence/[nodeId]`, `/action-queue`, `/validation-queue`, `/solidification-review`, placeholders (overrides, audit).
+- **Remote fixtures (optional):** env URLs for digest / phase / evening JSON (see README history in git for variable names); failures are explicit when a URL is set.
+- **FR41 / Story 8.4:** `CitationChip` + `EvidencePanel`, “Navigate to source” → `/evidence/:nodeId`. Playwright: [`strategist-command-palette.spec.ts`](./apps/web/tests/e2e/strategist-command-palette.spec.ts), [`mvp-golden-path.spec.ts`](./apps/web/tests/e2e/mvp-golden-path.spec.ts).
+- **FR46 / FR47 / Story 8.7:** [`loadStrategistActivityForActor`](./apps/web/src/lib/internal/load-strategist-activity.ts) + [`StrategistShell.client.tsx`](./apps/web/src/app/(strategist)/StrategistShell.client.tsx) — demo query merges (`?agentError=1`, `?ingest=1`, `?inMeeting=1`, …).
+- **`@deployai/shared-ui`:** build after source edits: `pnpm --filter @deployai/shared-ui build` (or full turbo build).
 
-- `bmad-help` — "what should I do next?"
-- `bmad-sprint-status` — human-readable sprint summary
-- `bmad-create-story` — author the next story spec from `sprint-status.yaml`
-- `bmad-dev-story` — execute a fully-specced story
-- `bmad-code-review` — adversarial review of a change
-- `bmad-party-mode` — convene multiple agents for a group discussion
+---
 
-## Strategist web (Epic 8) — what ships in `apps/web`
+## Development & CI
 
-- **Primary routes:** `/digest` (morning digest), **`/in-meeting`** (MVP — floating alert, digest-aligned mock citations), `/phase-tracking`, `/evening`, **`/evidence/[nodeId]`** (canonical evidence view), plus nav placeholders (validation queue, overrides, audit).
-- **Remote fixtures (optional):** server loaders validate JSON from env URLs (never silent fallback when a URL is set and fails):
-  - `STRATEGIST_DIGEST_SOURCE_URL` — array of digest “top item” rows.
-  - `STRATEGIST_PHASE_TRACKING_SOURCE_URL` — array of action-queue rows.
-  - `STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL` — object `{ candidates, patterns? }`.
-- **FR41 / Story 8.4:** `CitationChip` toggles inline **`EvidencePanel`**; **“Navigate to source”** lives in the panel footer and links to **`/evidence/:node_id`**. Vitest continuity checks live in [`apps/web/src/lib/epic8/mock-digest.evidence.test.ts`](./apps/web/src/lib/epic8/mock-digest.evidence.test.ts). Playwright coverage: [`apps/web/tests/e2e/strategist-command-palette.spec.ts`](./apps/web/tests/e2e/strategist-command-palette.spec.ts) asserts expand-to-visible **≤1500ms** (single CI sample aligned with **NFR4** 1.5s budget; not a statistical p95 harness) plus navigation from the footer link.
-- **FR46 / FR47 / Story 8.7:** BFF snapshot from [`loadStrategistActivityForActor`](./apps/web/src/lib/internal/load-strategist-activity.ts) + client poll; optional demo overrides **`?agentError=1`** / **`?agentDegraded=1`** / **`?degraded=1`** and **`?ingest=1`** / **`?ingesting=1`** (merged in [`StrategistShell`](./apps/web/src/app/(strategist)/StrategistShell.client.tsx) via `useSyncExternalStore` on `window.location.search` + BFF poll so demo flags survive refresh without `useSearchParams`/`Suspense` on the shell). Surfaces hide agent-only blocks (e.g. digest “ranked out”, evening patterns) while **`DigestEvidenceCard`** citations remain.
-- **`@deployai/shared-ui`:** consumers resolve **types from `packages/shared-ui/dist`**. After editing `packages/shared-ui/src`, run **`pnpm --filter @deployai/shared-ui build`** (or `npx tsc -p packages/shared-ui/tsconfig.build.json`) before `apps/web` `tsc`, or rely on **`pnpm turbo run build`** / CI ordering.
+- **Smoke loop:** `pnpm turbo run lint typecheck test build` from repo root.
+- **Control plane:** [services/control-plane/README.md — Tests](./services/control-plane/README.md#tests); **Cartographer** tests run via turbo smoke.
+- **`main` ruleset:** [`scripts/github/main-ruleset.json`](./scripts/github/main-ruleset.json) — [scripts/github/README.md](./scripts/github/README.md).
+- **Retrospectives / deferrals:** [`_bmad-output/implementation-artifacts/`](./_bmad-output/implementation-artifacts/) — see `epic-*-retrospective*.md`, `deferred-work.md`.
 
-## Development & testing
-
-- **Local setup:** [docs/dev-environment.md](./docs/dev-environment.md) — **Node 24.x** (see [`.nvmrc`](./.nvmrc); root `engines` rejects e.g. Node 25 with `ERR_PNPM_UNSUPPORTED_ENGINE`), pnpm, **uv** (Python), Go, Rust as needed per workspace.
-- **Smoke / CI loop:** from the repo root, `pnpm install` and `pnpm turbo run lint typecheck test build` (see `turbo.json` for the full graph); Python services also use `uv sync` / `uv run …` in their directories.
-- **Strategist E2E (subset):** from `apps/web`, `pnpm test:e2e -- tests/e2e/strategist-command-palette.spec.ts` and **`tests/e2e/mvp-golden-path.spec.ts`** (MVP Track E smoke; requires `next start` / CI Playwright).
-
-## Testing (control plane + cartographer + CI)
-
-`services/control-plane` is covered by a default **unit** `pytest` run and a Docker-backed **integration** suite; see [services/control-plane/README.md — Tests](./services/control-plane/README.md#tests). The **Control plane (integration)** job in [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) runs the full `tests/integration/` tree on every PR to `main`. **Cartographer (Epic 4-1):** the **smoke** job’s `pnpm turbo run test` includes workspace [**@deployai/cartographer**](./services/cartographer/) (`uv run pytest` under the hood) so the LangGraph stub and citation-envelope path stay exercised on every PR.
-
-**`main` ruleset (GitHub):** A repository **ruleset** is defined in [`scripts/github/main-ruleset.json`](./scripts/github/main-ruleset.json) (applied 2026-04-24) and enforces the 14 required checks in [`.github/workflows/README.md`](./.github/workflows/README.md#required-checks-on-main). Re-apply or edit via [`scripts/github/README.md`](./scripts/github/README.md#classic-branch-protection-vs-repository-ruleset-no-double-enforcement). If **classic branch protection** and the **ruleset** both target `main`, remove the duplicate so only one enforces; details are in that README.
-
-**Retrospectives** for closed epics: [`epic-2-retrospective-2026-04-23.md`](./_bmad-output/implementation-artifacts/epic-2-retrospective-2026-04-23.md) · [`epic-3-retrospective-2026-04-23.md`](./_bmad-output/implementation-artifacts/epic-3-retrospective-2026-04-23.md). **Backlog follow-ups (Epic 3):** [deferred-work.md — Epic 3 section](./_bmad-output/implementation-artifacts/deferred-work.md#epic-3-backlog-follow-ups-2026-04-23).
+---
 
 ## License
 
