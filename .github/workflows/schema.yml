@@ -20,6 +20,7 @@
 # a doc-only change must satisfy required checks on `main`.
 # (Ruleset lists this job as required even when other paths do not match — nudge via this file.)
 # Nudge 2026-04-26: doc/apps-only PRs still need this required check context on `main`.
+# Doc-only unblock: comment-only edit dispatches this required ruleset check when PR paths skip.
 
 name: schema
 

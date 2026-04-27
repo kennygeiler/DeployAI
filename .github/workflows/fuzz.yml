@@ -16,6 +16,7 @@
 #
 # Note: this file is in `on.pull_request.paths`; touch it to re-run when required.
 # Nudge 2026-04-26: path-filtered (doc/chore/apps-only) PRs still need this required check on `main`.
+# Doc-only unblock: comment-only edit dispatches this required ruleset check when PR paths skip.
 
 name: fuzz
 

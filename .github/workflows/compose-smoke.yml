@@ -14,6 +14,7 @@
 # Note: this file is listed under `on.pull_request.paths`; a no-op edit here
 # re-runs the job so path-filtered PRs can still satisfy the `main` ruleset.
 # Nudge 2026-04-26: path-filtered (doc/chore) PRs that skip stack paths still need this on `main`.
+# Doc-only unblock: comment-only edit dispatches this required ruleset check when PR paths skip.
 
 name: compose-smoke
 
