@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { usePathname } from "next/navigation";
 
 import { AppShell } from "@/components/chrome/AppShell";
 import type { StrategistActivitySnapshot } from "@/lib/internal/load-strategist-activity";
@@ -28,13 +27,49 @@ function toSurfaceValue(s: StrategistActivitySnapshot): StrategistSurfaceValue {
 }
 
 /**
+ * Subscribe to URL search changes without `useSearchParams` (avoids top-level Suspense that
+ * broke ⌃K / Cmd+K E2E). Patch history only while this shell is mounted.
+ */
+function subscribeDemoSearch(onStoreChange: () => void): () => void {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+  const fire = () => {
+    queueMicrotask(onStoreChange);
+  };
+  const origPush = history.pushState.bind(history);
+  const origReplace = history.replaceState.bind(history);
+  history.pushState = (...args: Parameters<History["pushState"]>) => {
+    origPush(...args);
+    fire();
+  };
+  history.replaceState = (...args: Parameters<History["replaceState"]>) => {
+    origReplace(...args);
+    fire();
+  };
+  window.addEventListener("popstate", fire);
+  return () => {
+    history.pushState = origPush;
+    history.replaceState = origReplace;
+    window.removeEventListener("popstate", fire);
+  };
+}
+
+function getDemoSearchSnapshot(): string {
+  return typeof window !== "undefined" ? window.location.search : "";
+}
+
+function getServerDemoSearchSnapshot(): string {
+  return "";
+}
+
+/**
  * Server passes initial `loadStrategistActivityForActor` snapshot; this client polls
  * `GET /api/internal/strategist-activity` (same logic) for live ingest + CP health.
  *
  * Demo query flags (`?agentError=1`, `?ingest=1`, …) merge on top of the snapshot (Epic 8.7).
- * We read `window.location.search` in `useLayoutEffect` (not `useSearchParams`) so the shell
- * does not suspend under a top-level `Suspense` boundary — that was breaking ⌃K / Cmd+K
- * command palette E2E (dialog never mounted in time).
+ * `useSyncExternalStore` reads `window.location.search` without `useSearchParams`/`Suspense`
+ * and satisfies `react-hooks/set-state-in-effect` (no setState inside effects for the merge).
  */
 export function StrategistShell({
   children,
@@ -42,20 +77,21 @@ export function StrategistShell({
   initialActivity,
   sessionBanner,
 }: Props) {
-  const pathname = usePathname();
   const [activity, setActivity] = React.useState<StrategistActivitySnapshot>(initialActivity);
   const requestId = React.useRef(0);
 
   const base = React.useMemo(() => toSurfaceValue(activity), [activity]);
 
-  const [surface, setSurface] = React.useState<StrategistSurfaceValue>(() =>
-    mergeStrategistSurfaceFromDemoQuery(toSurfaceValue(initialActivity), ""),
+  const demoSearch = React.useSyncExternalStore(
+    subscribeDemoSearch,
+    getDemoSearchSnapshot,
+    getServerDemoSearchSnapshot,
   );
 
-  React.useLayoutEffect(() => {
-    const q = typeof window !== "undefined" ? window.location.search : "";
-    setSurface(mergeStrategistSurfaceFromDemoQuery(base, q));
-  }, [base, pathname]);
+  const surface = React.useMemo(
+    () => mergeStrategistSurfaceFromDemoQuery(base, demoSearch),
+    [base, demoSearch],
+  );
 
   const refresh = React.useCallback(() => {
     const id = (requestId.current += 1);
