@@ -5,6 +5,7 @@ import * as React from "react";
 import { AppShell } from "@/components/chrome/AppShell";
 import type { StrategistActivitySnapshot } from "@/lib/internal/load-strategist-activity";
 import type { StrategistSessionBannerPayload } from "@/lib/internal/strategist-demo-session";
+import { mergeStrategistSurfaceFromDemoQuery } from "@/lib/epic8/strategist-surface-flags";
 import {
   StrategistSurfaceProvider,
   type StrategistSurfaceValue,
@@ -26,14 +27,66 @@ function toSurfaceValue(s: StrategistActivitySnapshot): StrategistSurfaceValue {
 }
 
 /**
+ * Subscribe to URL search changes without `useSearchParams` (avoids top-level Suspense that
+ * broke ⌃K / Cmd+K E2E). Patch history only while this shell is mounted.
+ */
+function subscribeDemoSearch(onStoreChange: () => void): () => void {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+  const fire = () => {
+    queueMicrotask(onStoreChange);
+  };
+  const origPush = history.pushState.bind(history);
+  const origReplace = history.replaceState.bind(history);
+  history.pushState = (...args: Parameters<History["pushState"]>) => {
+    origPush(...args);
+    fire();
+  };
+  history.replaceState = (...args: Parameters<History["replaceState"]>) => {
+    origReplace(...args);
+    fire();
+  };
+  window.addEventListener("popstate", fire);
+  return () => {
+    history.pushState = origPush;
+    history.replaceState = origReplace;
+    window.removeEventListener("popstate", fire);
+  };
+}
+
+function getDemoSearchSnapshot(): string {
+  return typeof window !== "undefined" ? window.location.search : "";
+}
+
+function getServerDemoSearchSnapshot(): string {
+  return "";
+}
+
+/**
  * Server passes initial `loadStrategistActivityForActor` snapshot; this client polls
  * `GET /api/internal/strategist-activity` (same logic) for live ingest + CP health.
+ *
+ * Demo query flags (`?agentError=1`, `?ingest=1`, …) merge on top of the snapshot (Epic 8.7).
+ * `useSyncExternalStore` reads `window.location.search` without `useSearchParams`/`Suspense`
+ * and satisfies `react-hooks/set-state-in-effect` (no setState inside effects for the merge).
  */
 export function StrategistShell({ children, lastSyncedAt, initialActivity, sessionBanner }: Props) {
   const [activity, setActivity] = React.useState<StrategistActivitySnapshot>(initialActivity);
   const requestId = React.useRef(0);
 
-  const surface = React.useMemo(() => toSurfaceValue(activity), [activity]);
+  const base = React.useMemo(() => toSurfaceValue(activity), [activity]);
+
+  const demoSearch = React.useSyncExternalStore(
+    subscribeDemoSearch,
+    getDemoSearchSnapshot,
+    getServerDemoSearchSnapshot,
+  );
+
+  const surface = React.useMemo(
+    () => mergeStrategistSurfaceFromDemoQuery(base, demoSearch),
+    [base, demoSearch],
+  );
 
   const refresh = React.useCallback(() => {
     const id = (requestId.current += 1);

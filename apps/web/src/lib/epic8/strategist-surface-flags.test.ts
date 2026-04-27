@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { parseStrategistSurfaceQuery } from "./strategist-surface-flags";
+import {
+  mergeStrategistSurfaceFromDemoQuery,
+  parseStrategistSurfaceQuery,
+} from "./strategist-surface-flags";
 
 describe("parseStrategistSurfaceQuery", () => {
   it("defaults to healthy when no params", () => {
@@ -43,5 +46,36 @@ describe("parseStrategistSurfaceQuery", () => {
 
   it("ignores non-1 values", () => {
     expect(parseStrategistSurfaceQuery("?agentError=true")).toMatchObject({ agentDegraded: false });
+  });
+});
+
+describe("mergeStrategistSurfaceFromDemoQuery", () => {
+  const baseHealthy = {
+    agentDegraded: false,
+    ingestionInProgress: false,
+    strategistLocalDate: "2026-04-28",
+  };
+
+  it("keeps server flags when query is empty", () => {
+    expect(mergeStrategistSurfaceFromDemoQuery(baseHealthy, "")).toEqual(baseHealthy);
+  });
+
+  it("ORs demo agent degradation onto healthy server snapshot", () => {
+    expect(mergeStrategistSurfaceFromDemoQuery(baseHealthy, "?agentError=1")).toEqual({
+      ...baseHealthy,
+      agentDegraded: true,
+    });
+  });
+
+  it("ORs demo ingestion onto server snapshot", () => {
+    expect(mergeStrategistSurfaceFromDemoQuery(baseHealthy, "?ingest=1")).toEqual({
+      ...baseHealthy,
+      ingestionInProgress: true,
+    });
+  });
+
+  it("preserves server degradation when query is healthy", () => {
+    const degraded = { ...baseHealthy, agentDegraded: true };
+    expect(mergeStrategistSurfaceFromDemoQuery(degraded, "")).toEqual(degraded);
   });
 });
