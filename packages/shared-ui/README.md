@@ -13,7 +13,8 @@ Epic 7 design-system composites (shadcn + `@deployai/design-tokens` via app glob
 - **7-9** — `AgentOutageBanner` (UX-DR12, FR46): full-width amber banner; `status` / `alert` roles; status link + optional retry.
 - **7-10** — `SessionBanner` (UX-DR42): break-glass vs external-auditor styling; session id + countdown; 5-min `aria-live` cadence.
 - **7-11** — `EmptyState`, `LoadingFromMemory`, `MemorySyncingGlyph` (UX-DR22/23/25).
-- **7-13** — `useMobileReadOnlyGate` (UX-DR38): `true` below 768px by default (mobile read-only for write flows); `BREAKPOINT_PX` / `MOBILE_READ_ONLY_PX` exported for alignment (UX-DR37–38) with `breakpoints.test.ts` regression coverage.
+- **7-12** — UX-DR39–41 pattern reference lives in **`apps/web`** (`src/stories/Patterns/DesignSystemPatterns.stories.tsx`: buttons, **ExampleForm**, Dialog/Sheet/Popover); ESLint blocks raw `<button>` outside `src/components/ui` (see `docs/design-system/governance.md`).
+- **7-13** — `useMobileReadOnlyGate` (UX-DR38): `true` below 768px by default (mobile read-only for write flows); `BREAKPOINT_PX` / `MOBILE_READ_ONLY_PX` exported for alignment (UX-DR37–38) with `breakpoints.test.ts` regression coverage; Storybook readout in `apps/web/src/stories/Patterns/MobileReadOnlyGate.stories.tsx`.
 - **Consumers:** add `@source` in `apps/web` `globals.css` for Tailwind v4 to scan this package; Storybook lives in `apps/web`.
 - **Buttons (policy):** `apps/web` enforces shadcn `<Button>` (Story 7.12). This package stays **app-agnostic** and may use native `<button>` where a host `Button` is not available; keep minimum touch targets and pass Storybook + `a11y.yml` (axe).
 

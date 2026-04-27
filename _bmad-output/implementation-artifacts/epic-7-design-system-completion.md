@@ -10,7 +10,7 @@
 | 7.9 | `AgentOutageBanner` |
 | 7.10 | `SessionBanner` (5-min `aria-live` cadence + 1s visual countdown) |
 | 7.11 | `EmptyState`, `LoadingFromMemory`, `MemorySyncingGlyph` |
-| 7.12 | No raw `<button>` in `apps/web` (ESLint + shadcn `Button`); see governance |
+| 7.12 | No raw `<button>` in `apps/web` (ESLint + shadcn `Button`); Pattern stories for buttons + **ExampleForm** + Dialog/Sheet/Popover in `apps/web/src/stories/Patterns/DesignSystemPatterns.stories.tsx` (see governance) |
 | 7.13 (hook) | `useMobileReadOnlyGate` + `BREAKPOINT_PX` / `MOBILE_READ_ONLY_PX` in `breakpoints.ts` |
 
 **7.14** — `docs/design-system/governance.md` records governance. **Storybook** workflow (`.github/workflows/storybook.yml`) builds and uploads a static bundle every PR/push; add repository secret `CHROMATIC_PROJECT_TOKEN` to run Chromatic. Full polyglot `turbo` in one image: `infra/docker/Dockerfile.turbo-all` and `scripts/run-turbo-all.sh`.
