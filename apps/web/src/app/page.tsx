@@ -17,8 +17,9 @@ export default function Home() {
         DeployAI — initializing
       </h1>
       <p className="max-w-md text-body text-ink-600">
-        Strategist preview routes: in <code className="text-body bg-paper-200 rounded px-1">next dev</code> a
-        default role is applied. Otherwise set{" "}
+        Strategist preview routes: in{" "}
+        <code className="text-body bg-paper-200 rounded px-1">next dev</code> a default role is
+        applied. Otherwise set{" "}
         <code className="text-body bg-paper-200 rounded px-1">x-deployai-role</code> (e.g. for{" "}
         <code className="text-body bg-paper-200 rounded px-1">next start</code>).
       </p>
