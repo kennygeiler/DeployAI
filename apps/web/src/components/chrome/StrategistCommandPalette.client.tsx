@@ -93,12 +93,28 @@ export function StrategistCommandPalette({ open, onOpenChange }: StrategistComma
   const [searchError, setSearchError] = React.useState<string | null>(null);
   const req = React.useRef(0);
 
+  const onPaletteOpenChange = React.useCallback(
+    (next: boolean) => {
+      if (!next) {
+        setSearch("");
+        setDebounced("");
+        setBffHits([]);
+        setSource(null);
+        setSearchError(null);
+        setSearchLoading(false);
+        req.current += 1;
+      }
+      onOpenChange(next);
+    },
+    [onOpenChange],
+  );
+
   const run = React.useCallback(
     (href: string) => {
-      onOpenChange(false);
+      onPaletteOpenChange(false);
       router.push(href);
     },
-    [onOpenChange, router],
+    [onPaletteOpenChange, router],
   );
 
   React.useEffect(() => {
@@ -114,16 +130,17 @@ export function StrategistCommandPalette({ open, onOpenChange }: StrategistComma
     }
     const q = debounced.trim();
     if (q.length < 1) {
-      setBffHits([]);
-      setSource(null);
-      setSearchLoading(false);
-      setSearchError(null);
+      req.current += 1;
       return;
     }
     const id = (req.current += 1);
-    setSearchLoading(true);
-    setSearchError(null);
     void (async () => {
+      await Promise.resolve();
+      if (id !== req.current) {
+        return;
+      }
+      setSearchLoading(true);
+      setSearchError(null);
       try {
         const u = new URL("/api/bff/strategist-memory-search", window.location.origin);
         u.searchParams.set("q", q);
@@ -133,9 +150,6 @@ export function StrategistCommandPalette({ open, onOpenChange }: StrategistComma
           return;
         }
         if (!r.ok) {
-          if (id !== req.current) {
-            return;
-          }
           setSearchError(
             typeof (j as { error?: string }).error === "string"
               ? (j as { error: string }).error
@@ -145,10 +159,10 @@ export function StrategistCommandPalette({ open, onOpenChange }: StrategistComma
           setSource("error");
           return;
         }
+        const p = parseStrategistMemorySearchResponse(j);
         if (id !== req.current) {
           return;
         }
-        const p = parseStrategistMemorySearchResponse(j);
         setBffHits(p.hits);
         setSource(p.source);
         setSearchError(null);
@@ -167,18 +181,8 @@ export function StrategistCommandPalette({ open, onOpenChange }: StrategistComma
     })();
   }, [debounced, open]);
 
-  React.useEffect(() => {
-    if (!open) {
-      setSearch("");
-      setDebounced("");
-      setBffHits([]);
-      setSource(null);
-      setSearchError(null);
-      setSearchLoading(false);
-    }
-  }, [open]);
-
   const showBff = debounced.trim().length > 0;
+  const displayLoading = showBff && searchLoading;
   const searchHeading = showBff
     ? "Search (canonical memory — BFF)"
     : "Search (recent — type to search memory)";
@@ -186,7 +190,7 @@ export function StrategistCommandPalette({ open, onOpenChange }: StrategistComma
   return (
     <CommandDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={onPaletteOpenChange}
       title="Strategist command palette"
       description="Navigate surfaces, run actions, and search. Results come from /api/bff/strategist-memory-search when you type. Esc to close."
       commandProps={{ label: "Strategist command" }}
@@ -199,7 +203,7 @@ export function StrategistCommandPalette({ open, onOpenChange }: StrategistComma
       />
       <CommandList>
         <CommandEmpty>
-          {searchLoading
+          {displayLoading
             ? "Loading…"
             : "No results — try “digest”, “phase”, or a keyword from an evidence item."}
         </CommandEmpty>
@@ -234,12 +238,12 @@ export function StrategistCommandPalette({ open, onOpenChange }: StrategistComma
         </CommandGroup>
         <CommandSeparator />
         <CommandGroup heading={searchHeading} data-memory-search={showBff ? "bff" : "recent"}>
-          {searchError ? (
+          {showBff && searchError ? (
             <div className="text-destructive px-2 py-2 text-xs" data-memory-search-error>
               {searchError}
             </div>
           ) : null}
-          {searchLoading && showBff ? (
+          {displayLoading ? (
             <div className="text-muted-foreground px-2 py-2 text-sm" data-memory-search-loading>
               Searching memory…
             </div>
@@ -294,7 +298,7 @@ export function StrategistCommandPalette({ open, onOpenChange }: StrategistComma
                   </CommandItem>
                 );
               })}
-          {!searchLoading && showBff && bffHits.length === 0 && !searchError ? (
+          {!displayLoading && showBff && bffHits.length === 0 && !searchError ? (
             <p className="text-muted-foreground px-2 py-2 text-sm">
               No memory matches for that query.
             </p>
