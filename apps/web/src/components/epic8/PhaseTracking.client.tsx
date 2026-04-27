@@ -12,7 +12,7 @@ import {
 
 import { EvidencePanel } from "@deployai/shared-ui";
 import type { ActionQueueRow, DueDateWindow } from "@/lib/epic8/mock-digest";
-import { PHASE_TRACKING_ROWS, actionQueueRowMatchesDueWindow } from "@/lib/epic8/mock-digest";
+import { buildPhaseTrackingRows, actionQueueRowMatchesDueWindow } from "@/lib/epic8/mock-digest";
 import { useStrategistSurface } from "@/lib/epic8/strategist-surface-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,12 +31,11 @@ const columnHelper = createColumnHelper<ActionQueueRow>();
 const phaseOptions = ["All", "P5 Pilot", "P4 Design"] as const;
 const statusOptions = ["All", "open", "in_progress", "blocked"] as const;
 
-const assigneeOptions = [
-  "All",
-  ...Array.from(new Set(PHASE_TRACKING_ROWS.map((r) => r.assignee))).sort((a, b) =>
-    a.localeCompare(b, "en"),
-  ),
-] as const;
+const assigneeOptionsForRows = (rows: readonly ActionQueueRow[]) =>
+  [
+    "All",
+    ...Array.from(new Set(rows.map((r) => r.assignee))).sort((a, b) => a.localeCompare(b, "en")),
+  ] as const;
 
 const dueDateOptions: { value: DueDateWindow; label: string }[] = [
   { value: "all", label: "All dates" },
@@ -61,20 +60,24 @@ function statusSort(a: string, b: string): number {
 }
 
 export function PhaseTrackingClient() {
-  const { agentDegraded } = useStrategistSurface();
+  const { agentDegraded, strategistLocalDate } = useStrategistSurface();
+  const baseRows = React.useMemo(
+    () => buildPhaseTrackingRows(strategistLocalDate),
+    [strategistLocalDate],
+  );
+  const assigneeOptions = React.useMemo(() => assigneeOptionsForRows(baseRows), [baseRows]);
   const [phaseFilter, setPhaseFilter] = React.useState<(typeof phaseOptions)[number]>("All");
   const [statusFilter, setStatusFilter] = React.useState<(typeof statusOptions)[number]>("All");
-  const [assigneeFilter, setAssigneeFilter] =
-    React.useState<(typeof assigneeOptions)[number]>("All");
+  const [assigneeFilter, setAssigneeFilter] = React.useState<string>("All");
   const [dueDateWindow, setDueDateWindow] = React.useState<DueDateWindow>("all");
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: "priority", desc: false },
     { id: "due", desc: false },
   ]);
-  const [selectedId, setSelectedId] = React.useState(PHASE_TRACKING_ROWS[0]!.id);
+  const [selectedId, setSelectedId] = React.useState("aq-1");
 
   const rows = React.useMemo(() => {
-    return PHASE_TRACKING_ROWS.filter((r) => {
+    return baseRows.filter((r) => {
       if (phaseFilter !== "All" && r.phase !== phaseFilter) {
         return false;
       }
@@ -84,12 +87,12 @@ export function PhaseTrackingClient() {
       if (assigneeFilter !== "All" && r.assignee !== assigneeFilter) {
         return false;
       }
-      if (!actionQueueRowMatchesDueWindow(r.due, dueDateWindow)) {
+      if (!actionQueueRowMatchesDueWindow(r.due, dueDateWindow, strategistLocalDate)) {
         return false;
       }
       return true;
     });
-  }, [phaseFilter, statusFilter, assigneeFilter, dueDateWindow]);
+  }, [baseRows, phaseFilter, statusFilter, assigneeFilter, dueDateWindow, strategistLocalDate]);
 
   React.useEffect(() => {
     if (rows.length === 0) {

@@ -7,6 +7,7 @@ describe("parseStrategistSurfaceQuery", () => {
     expect(parseStrategistSurfaceQuery("")).toEqual({
       agentDegraded: false,
       ingestionInProgress: false,
+      strategistLocalDate: "1970-01-01",
     });
   });
 
@@ -20,10 +21,12 @@ describe("parseStrategistSurfaceQuery", () => {
     expect(parseStrategistSurfaceQuery("?ingest=1")).toEqual({
       agentDegraded: false,
       ingestionInProgress: true,
+      strategistLocalDate: "1970-01-01",
     });
     expect(parseStrategistSurfaceQuery("?ingesting=1")).toEqual({
       agentDegraded: false,
       ingestionInProgress: true,
+      strategistLocalDate: "1970-01-01",
     });
   });
 
@@ -34,6 +37,7 @@ describe("parseStrategistSurfaceQuery", () => {
     expect(parseStrategistSurfaceQuery(p)).toEqual({
       agentDegraded: true,
       ingestionInProgress: true,
+      strategistLocalDate: "1970-01-01",
     });
   });
 

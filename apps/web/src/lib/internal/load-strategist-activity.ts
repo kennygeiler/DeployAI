@@ -1,6 +1,7 @@
 import { decideSync, type AuthActor } from "@deployai/authz";
 
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "./control-plane";
+import { getStrategistLocalDateForServer } from "./strategist-local-date";
 
 /**
  * Ingestion run row from `GET /internal/v1/ingestion-runs` (control plane).
@@ -14,6 +15,8 @@ type CpIngestionRun = {
 export type StrategistActivitySnapshot = {
   agentDegraded: boolean;
   ingestionInProgress: boolean;
+  /** Mock surfaces + due-window chips: strategist calendar date (YYYY-MM-DD). */
+  strategistLocalDate: string;
   /** `ok` — CP list fetched; `unconfigured` — no URL/key; `error` — non-2xx or network failure. */
   controlPlane: "ok" | "unconfigured" | "error";
 };
@@ -25,17 +28,33 @@ export type StrategistActivitySnapshot = {
 export async function loadStrategistActivityForActor(
   actor: AuthActor | null,
 ): Promise<StrategistActivitySnapshot> {
+  const day = getStrategistLocalDateForServer();
   if (!actor) {
-    return { agentDegraded: false, ingestionInProgress: false, controlPlane: "unconfigured" };
+    return {
+      agentDegraded: false,
+      ingestionInProgress: false,
+      strategistLocalDate: day,
+      controlPlane: "unconfigured",
+    };
   }
   const d = decideSync(actor, "canonical:read", { kind: "canonical_memory" });
   if (!d.allow) {
-    return { agentDegraded: false, ingestionInProgress: false, controlPlane: "unconfigured" };
+    return {
+      agentDegraded: false,
+      ingestionInProgress: false,
+      strategistLocalDate: day,
+      controlPlane: "unconfigured",
+    };
   }
   const base = getControlPlaneBaseUrl();
   const key = getControlPlaneInternalKey();
   if (!base || !key) {
-    return { agentDegraded: false, ingestionInProgress: false, controlPlane: "unconfigured" };
+    return {
+      agentDegraded: false,
+      ingestionInProgress: false,
+      strategistLocalDate: day,
+      controlPlane: "unconfigured",
+    };
   }
   const url = `${base.replace(/\/$/, "")}/internal/v1/ingestion-runs?limit=200`;
   try {
@@ -44,11 +63,21 @@ export async function loadStrategistActivityForActor(
       cache: "no-store",
     });
     if (!r.ok) {
-      return { agentDegraded: true, ingestionInProgress: false, controlPlane: "error" };
+      return {
+        agentDegraded: true,
+        ingestionInProgress: false,
+        strategistLocalDate: day,
+        controlPlane: "error",
+      };
     }
     const runs = (await r.json()) as CpIngestionRun[];
     if (!Array.isArray(runs)) {
-      return { agentDegraded: true, ingestionInProgress: false, controlPlane: "error" };
+      return {
+        agentDegraded: true,
+        ingestionInProgress: false,
+        strategistLocalDate: day,
+        controlPlane: "error",
+      };
     }
     const tid = actor.tenantId?.trim() ?? null;
     const scoped = tid ? runs.filter((x) => x.tenant_id === tid) : runs;
@@ -56,9 +85,15 @@ export async function loadStrategistActivityForActor(
     return {
       agentDegraded: false,
       ingestionInProgress: running.length > 0,
+      strategistLocalDate: day,
       controlPlane: "ok",
     };
   } catch {
-    return { agentDegraded: true, ingestionInProgress: false, controlPlane: "error" };
+    return {
+      agentDegraded: true,
+      ingestionInProgress: false,
+      strategistLocalDate: day,
+      controlPlane: "error",
+    };
   }
 }

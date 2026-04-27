@@ -18,7 +18,11 @@ type Props = {
 };
 
 function toSurfaceValue(s: StrategistActivitySnapshot): StrategistSurfaceValue {
-  return { agentDegraded: s.agentDegraded, ingestionInProgress: s.ingestionInProgress };
+  return {
+    agentDegraded: s.agentDegraded,
+    ingestionInProgress: s.ingestionInProgress,
+    strategistLocalDate: s.strategistLocalDate,
+  };
 }
 
 /**
@@ -42,7 +46,10 @@ export function StrategistShell({ children, lastSyncedAt, initialActivity, sessi
         return;
       }
       const j = (await r.json()) as StrategistActivitySnapshot;
-      setActivity(j);
+      setActivity((prev) => ({
+        ...j,
+        strategistLocalDate: j.strategistLocalDate ?? prev.strategistLocalDate,
+      }));
     })();
   }, []);
 

@@ -13,7 +13,7 @@
 #
 # Note: this file is listed under `on.pull_request.paths`; a no-op edit here
 # re-runs the job so path-filtered PRs can still satisfy the `main` ruleset.
-# Nudge 2026-04-27: required ruleset; touch this file when the PR does not change stack paths.
+# Nudge 2026-04-28: required ruleset; touch this file when the PR does not change stack paths.
 
 name: compose-smoke
 
