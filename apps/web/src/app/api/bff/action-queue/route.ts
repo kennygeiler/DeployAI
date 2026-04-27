@@ -5,6 +5,7 @@ import { decideSync } from "@deployai/authz";
 import {
   listActionQueue,
   mutateActionQueueItem,
+  pushActionQueueAudit,
   type ActionQueueStatus,
 } from "@/lib/bff/strategist-queues-store";
 import { getActorFromHeaders } from "@/lib/internal/actor";
@@ -17,10 +18,11 @@ type PostBody =
       id: string;
       state: "resolved" | "deferred" | "rejected_with_reason";
       reason?: string;
+      evidence_event_ids?: string[];
     };
 
 /**
- * Epic 9.5 — Action Queue list + lifecycle (BFF mock until CP `action_queue_items` ships).
+ * Epic 9.5 — Action Queue list + legacy POST body (prefer `/action-queue/:id/{claim,progress,resolve}`).
  */
 export async function GET() {
   const actor = await getActorFromHeaders();
@@ -55,6 +57,12 @@ export async function POST(request: NextRequest) {
       status: "claimed",
       claimed_by: who,
     });
+    if (next) {
+      pushActionQueueAudit(actor.tenantId ?? null, "action_queue.claimed", {
+        itemId: body.id,
+        claimed_by: who,
+      });
+    }
     return next
       ? NextResponse.json({ item: next })
       : NextResponse.json({ error: "not found" }, { status: 404 });
@@ -64,6 +72,12 @@ export async function POST(request: NextRequest) {
       status: "in_progress",
       claimed_by: who,
     });
+    if (next) {
+      pushActionQueueAudit(actor.tenantId ?? null, "action_queue.in_progress", {
+        itemId: body.id,
+        claimed_by: who,
+      });
+    }
     return next
       ? NextResponse.json({ item: next })
       : NextResponse.json({ error: "not found" }, { status: 404 });
@@ -80,10 +94,23 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+    const evidenceIds = Array.isArray(body.evidence_event_ids)
+      ? body.evidence_event_ids.filter((x) => typeof x === "string" && x.length > 0)
+      : undefined;
     const next = mutateActionQueueItem(actor.tenantId ?? null, body.id, {
       status: st,
       claimed_by: who,
+      resolution_reason: body.reason?.trim() || null,
+      evidence_event_ids: evidenceIds && evidenceIds.length > 0 ? evidenceIds : null,
     });
+    if (next) {
+      pushActionQueueAudit(actor.tenantId ?? null, "action_queue.resolved", {
+        itemId: body.id,
+        state: body.state,
+        reason: body.reason?.trim() ?? null,
+        evidence_event_ids: evidenceIds ?? null,
+      });
+    }
     return next
       ? NextResponse.json({ item: next })
       : NextResponse.json({ error: "not found" }, { status: 404 });

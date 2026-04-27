@@ -11,6 +11,8 @@ export type EveningSynthesisClientProps = {
   initialCandidates?: readonly DigestTopItem[];
   initialPatterns?: readonly EveningPatternRow[];
   eveningBanner?: string | null;
+  /** Epic 9.7 — weekly Class B nudge count from BFF store (mock). */
+  solidificationPendingCount?: number;
 };
 
 /**
@@ -21,6 +23,7 @@ export function EveningSynthesisClient({
   initialCandidates,
   initialPatterns,
   eveningBanner,
+  solidificationPendingCount = 0,
 }: EveningSynthesisClientProps) {
   const { agentDegraded } = useStrategistSurface();
   const candidates = initialCandidates ?? MORNING_DIGEST_TOP.slice(0, 2);
@@ -84,6 +87,17 @@ export function EveningSynthesisClient({
         <h2 id="class-b" className="text-foreground text-sm font-semibold">
           Class B solidification
         </h2>
+        {solidificationPendingCount > 0 ? (
+          <p
+            className="text-ink-800 mt-2 rounded-md border border-evidence-600/25 bg-evidence-50/80 px-3 py-2 text-sm"
+            role="status"
+          >
+            Weekly review nudge:{" "}
+            <strong className="font-semibold">{solidificationPendingCount}</strong> Class B item
+            {solidificationPendingCount === 1 ? "" : "s"} pending in the solidification queue (Epic
+            9.7).
+          </p>
+        ) : null}
         <p className="text-body text-ink-700 mt-1">
           Open the review queue to promote, demote, or defer pattern extractions (Epic 9).
         </p>

@@ -49,6 +49,9 @@ jobs:
       - name: pnpm install
         run: pnpm install --frozen-lockfile
 
+      - name: Build @deployai/shared-ui (fresh dist)
+        run: pnpm --filter @deployai/shared-ui build
+
       - name: Build Storybook
         run: pnpm turbo run build-storybook --filter=@deployai/web
 

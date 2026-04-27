@@ -101,13 +101,25 @@ function AlertDigestChip({
           className="bg-evidence-100 text-evidence-900 border-evidence-600/30 hover:bg-evidence-100/90 focus-visible:ring-evidence-700 inline-flex min-h-9 gap-2 border px-3 text-xs font-semibold shadow-none"
           onClick={() => {
             void (async () => {
-              await fetch("/api/bff/in-meeting-feedback", {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ itemId: item.id, action: "correct" }),
-              });
-              onHandled(item.id, "correct");
-              router.push(`/overrides?focus=${encodeURIComponent(item.id)}`);
+              try {
+                const res = await fetch("/api/bff/in-meeting-feedback", {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ itemId: item.id, action: "correct" }),
+                });
+                if (!res.ok) {
+                  const desc = (await res.text()).slice(0, 240);
+                  toast.error("Could not record correction", { description: desc });
+                  return;
+                }
+                onHandled(item.id, "correct");
+                toast.success("Correction recorded", { description: "Opening overrides…" });
+                router.push(`/overrides?focus=${encodeURIComponent(item.id)}`);
+              } catch (e) {
+                toast.error("Correction failed", {
+                  description: e instanceof Error ? e.message : String(e),
+                });
+              }
             })();
           }}
         >
@@ -120,12 +132,26 @@ function AlertDigestChip({
           size="sm"
           className="text-ink-700 inline-flex min-h-9 gap-2 px-2"
           onClick={() => {
-            void fetch("/api/bff/in-meeting-feedback", {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ itemId: item.id, action: "dismiss" }),
-            });
-            onHandled(item.id, "dismiss");
+            void (async () => {
+              try {
+                const res = await fetch("/api/bff/in-meeting-feedback", {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ itemId: item.id, action: "dismiss" }),
+                });
+                if (!res.ok) {
+                  const desc = (await res.text()).slice(0, 240);
+                  toast.error("Could not record dismiss", { description: desc });
+                  return;
+                }
+                onHandled(item.id, "dismiss");
+                toast.success("Dismiss recorded");
+              } catch (e) {
+                toast.error("Dismiss failed", {
+                  description: e instanceof Error ? e.message : String(e),
+                });
+              }
+            })();
           }}
         >
           <Ban className="size-4 shrink-0" aria-hidden />

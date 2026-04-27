@@ -27,12 +27,36 @@ export type ValidationQueueCardProps = {
   disabled?: boolean;
   /** Shown in `in-review` (e.g. "Assigned to you for review"). */
   inReviewHint?: string;
+  /** Epic 9.7 — relabel actions (e.g. Promote / Demote / Defer) without forking the card. */
+  actionLabels?: Partial<{
+    confirm: string;
+    modify: string;
+    reject: string;
+    defer: string;
+  }>;
+  /** Hide **Reject** when the queue only needs three actions (solidification promote/demote/defer). */
+  hideReject?: boolean;
+  /** Override default status line copy (e.g. Class B solidification). */
+  statusHints?: Partial<{
+    inReview: string;
+    resolved: string;
+    escalated: string;
+  }>;
+  /** Sub-label under "Response reason" (default mentions modify + reject). */
+  reasonRequirementHint?: string;
 };
 
 const fieldClass =
   "min-h-20 w-full rounded-md border border-border bg-paper-100 px-3 py-2 text-sm text-ink-900 shadow-xs " +
   "placeholder:text-ink-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
   "disabled:cursor-not-allowed disabled:opacity-50";
+
+const defaultLabels = {
+  confirm: "Confirm",
+  modify: "Modify",
+  reject: "Reject",
+  defer: "Defer",
+} as const;
 
 /**
  * One validation / solidification queue item (UX-DR10, FR33, Story 6.6). `article` landmark;
@@ -52,12 +76,18 @@ export function ValidationQueueCard({
   id: idProp,
   disabled = false,
   inReviewHint = "Assigned to you for review.",
+  actionLabels,
+  hideReject = false,
+  statusHints,
+  reasonRequirementHint,
 }: ValidationQueueCardProps) {
   const baseId = idProp ?? React.useId();
   const titleId = `${baseId}-title`;
   const reasonId = `${baseId}-reason`;
   const reasonErr = `${baseId}-reason-err`;
   const statusId = `${baseId}-status`;
+
+  const lbl = { ...defaultLabels, ...actionLabels };
 
   const [reason, setReason] = React.useState("");
   const [reasonError, setReasonError] = React.useState<string | null>(null);
@@ -77,30 +107,47 @@ export function ValidationQueueCard({
     }
   };
 
-  const needsReason = () => {
+  const needsReason = (modes: "modify" | "modify-or-reject") => {
     const t = reason.trim();
     if (t.length === 0) {
-      setReasonError("Add a reason for the proposal team and Oracle re-rank.");
+      setReasonError(
+        modes === "modify"
+          ? "Add a reason (required for demote / Oracle re-rank)."
+          : "Add a reason for the proposal team and Oracle re-rank.",
+      );
       return null;
     }
     setReasonError(null);
     return t;
   };
 
-  const runWithReason = async (
-    action: "modify" | "reject",
-    fn: (r: string) => void | Promise<void>,
-  ) => {
-    const r = needsReason();
+  const runModify = async () => {
+    const r = needsReason(hideReject ? "modify" : "modify-or-reject");
     if (r === null) {
       return;
     }
-    await withPending(action, () => fn(r));
+    await withPending("modify", () => onModify(r));
+  };
+
+  const runReject = async () => {
+    const r = needsReason("modify-or-reject");
+    if (r === null) {
+      return;
+    }
+    await withPending("reject", () => onReject(r));
   };
 
   const actionLocked = disabled || queueState === "resolved" || queueState === "escalated";
   const showReason = queueState === "unresolved" || queueState === "in-review";
   const reasonInvalid = Boolean(reasonError);
+
+  const hintInReview = statusHints?.inReview ?? inReviewHint;
+  const hintResolved = statusHints?.resolved ?? "Resolved — this proposal is closed.";
+  const hintEscalated =
+    statusHints?.escalated ?? "Escalated — awaiting chair review; actions are read-only.";
+  const reasonHint =
+    reasonRequirementHint ??
+    (hideReject ? "(required for demote)" : "(required for modify and reject)");
 
   return (
     <article
@@ -118,17 +165,17 @@ export function ValidationQueueCard({
     >
       {queueState === "in-review" ? (
         <p id={statusId} className="mb-2 text-xs font-medium text-evidence-800" role="status">
-          {inReviewHint}
+          {hintInReview}
         </p>
       ) : null}
       {queueState === "resolved" ? (
         <p id={statusId} className="mb-2 text-sm font-medium text-ink-800" role="status">
-          Resolved — this proposal is closed.
+          {hintResolved}
         </p>
       ) : null}
       {queueState === "escalated" ? (
         <p id={statusId} className="mb-2 text-sm font-medium text-amber-950" role="status">
-          Escalated — awaiting chair review; actions are read-only.
+          {hintEscalated}
         </p>
       ) : null}
 
@@ -147,7 +194,7 @@ export function ValidationQueueCard({
       {showReason && !actionLocked ? (
         <div className="mt-4 space-y-1">
           <label htmlFor={reasonId} className="text-sm font-medium text-ink-900">
-            Response reason <span className="text-ink-500">(required for modify and reject)</span>
+            Response reason <span className="text-ink-500">{reasonHint}</span>
           </label>
           <textarea
             id={reasonId}
@@ -187,47 +234,49 @@ export function ValidationQueueCard({
           <button
             type="button"
             className="inline-flex h-9 min-w-[2.75rem] items-center justify-center rounded-md border border-evidence-700/30 bg-evidence-700 px-3 text-sm font-medium text-paper-100 hover:bg-evidence-600 disabled:opacity-50"
-            aria-label="Confirm proposal"
+            aria-label={`${lbl.confirm} proposal`}
             disabled={disabled || pending !== null}
             onClick={() => {
               void withPending("confirm", () => onConfirm());
             }}
           >
-            {pending === "confirm" ? "…" : "Confirm"}
+            {pending === "confirm" ? "…" : lbl.confirm}
           </button>
           <button
             type="button"
             className="inline-flex h-9 min-w-[2.75rem] items-center justify-center rounded-md border border-border bg-paper-200 px-3 text-sm font-medium text-ink-900 hover:bg-paper-300 disabled:opacity-50"
-            aria-label="Modify proposal"
+            aria-label={`${lbl.modify} proposal`}
             disabled={disabled || pending !== null}
             onClick={() => {
-              void runWithReason("modify", onModify);
+              void runModify();
             }}
           >
-            {pending === "modify" ? "…" : "Modify"}
+            {pending === "modify" ? "…" : lbl.modify}
           </button>
-          <button
-            type="button"
-            className="inline-flex h-9 min-w-[2.75rem] items-center justify-center rounded-md border border-rose-600/30 bg-rose-50/90 px-3 text-sm font-medium text-ink-900 hover:bg-rose-100 disabled:opacity-50"
-            aria-label="Reject proposal"
-            disabled={disabled || pending !== null}
-            onClick={() => {
-              void runWithReason("reject", onReject);
-            }}
-          >
-            {pending === "reject" ? "…" : "Reject"}
-          </button>
+          {hideReject ? null : (
+            <button
+              type="button"
+              className="inline-flex h-9 min-w-[2.75rem] items-center justify-center rounded-md border border-rose-600/30 bg-rose-50/90 px-3 text-sm font-medium text-ink-900 hover:bg-rose-100 disabled:opacity-50"
+              aria-label={`${lbl.reject} proposal`}
+              disabled={disabled || pending !== null}
+              onClick={() => {
+                void runReject();
+              }}
+            >
+              {pending === "reject" ? "…" : lbl.reject}
+            </button>
+          )}
           <button
             type="button"
             className="inline-flex h-9 min-w-[2.75rem] items-center justify-center rounded-md border border-dashed border-border bg-transparent px-3 text-sm font-medium text-ink-800 hover:bg-paper-200/80 disabled:opacity-50"
-            aria-label="Defer proposal"
+            aria-label={`${lbl.defer} proposal`}
             disabled={disabled || pending !== null}
             onClick={() => {
               setReasonError(null);
               void withPending("defer", () => onDefer());
             }}
           >
-            {pending === "defer" ? "…" : "Defer"}
+            {pending === "defer" ? "…" : lbl.defer}
           </button>
         </div>
       ) : null}

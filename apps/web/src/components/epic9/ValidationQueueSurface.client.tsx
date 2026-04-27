@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 import { CitationChip, ValidationQueueCard } from "@deployai/shared-ui";
 
@@ -20,6 +21,9 @@ export function ValidationQueueSurface() {
   const refresh = React.useCallback(async () => {
     const r = await fetch("/api/bff/validation-queue", { cache: "no-store" });
     if (!r.ok) {
+      toast.error("Validation queue failed to load", {
+        description: (await r.text()).slice(0, 200),
+      });
       return;
     }
     const j = (await r.json()) as { items: Row[] };
@@ -27,22 +31,26 @@ export function ValidationQueueSurface() {
   }, []);
 
   React.useEffect(() => {
-    const t = window.setTimeout(() => {
-      void refresh();
-    }, 0);
-    return () => {
-      window.clearTimeout(t);
-    };
+    const t = window.setTimeout(() => void refresh(), 0);
+    return () => window.clearTimeout(t);
   }, [refresh]);
 
-  const post = async (body: unknown) => {
-    await fetch("/api/bff/validation-queue", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    await refresh();
-  };
+  const post = React.useCallback(
+    async (body: unknown, okMessage: string) => {
+      const r = await fetch("/api/bff/validation-queue", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        toast.error("Action failed", { description: (await r.text()).slice(0, 200) });
+        return;
+      }
+      toast.success(okMessage);
+      await refresh();
+    },
+    [refresh],
+  );
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -50,12 +58,12 @@ export function ValidationQueueSurface() {
         <h1 className="text-display text-ink-950 font-semibold tracking-tight">Validation queue</h1>
         <p className="text-body text-ink-600 mt-1">
           Epic 9.6 — confirm / modify / reject with reasons (BFF mock; Oracle re-rank wiring
-          deferred).
+          deferred). Resolved rows drop from this surface.
         </p>
       </div>
       <div className="flex flex-col gap-4">
-        {rows.map((row) => {
-          const digest = MORNING_DIGEST_TOP[0];
+        {rows.map((row, idx) => {
+          const digest = MORNING_DIGEST_TOP[idx % MORNING_DIGEST_TOP.length];
           return (
             <ValidationQueueCard
               key={row.id}
@@ -82,10 +90,16 @@ export function ValidationQueueSurface() {
                   <span className="text-ink-600 text-xs">No citation fixture</span>
                 )
               }
-              onConfirm={() => post({ op: "confirm", id: row.id })}
-              onModify={(reason) => post({ op: "modify", id: row.id, reason })}
-              onReject={(reason) => post({ op: "reject", id: row.id, reason })}
-              onDefer={() => post({ op: "defer", id: row.id })}
+              onConfirm={() =>
+                post({ op: "confirm", id: row.id }, "Confirmed — promoted toward canonical")
+              }
+              onModify={(reason) =>
+                post({ op: "modify", id: row.id, reason }, "Modification recorded")
+              }
+              onReject={(reason) =>
+                post({ op: "reject", id: row.id, reason }, "Rejection recorded for re-ranking")
+              }
+              onDefer={() => post({ op: "defer", id: row.id }, "Deferred to next review")}
             />
           );
         })}
