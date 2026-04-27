@@ -15,6 +15,15 @@
 - **ESLint “no raw `<button>`”** (Story 7.12): `no-restricted-syntax` in `apps/web/eslint.config.mjs` on `src/**` (shadcn primitives under `src/components/ui/**` are lint-ignored, so the Button file is exempt). New code should use shadcn `<Button>`.
 - **CI / merge (path-gated jobs):** `schema`, `fuzz`, and `compose-smoke` use a `prep` + `paths-filter` pattern so the heavy job is **skipped** (success) on irrelevant PRs instead of leaving required checks as **“expected”** — see [`.github/workflows/README.md`](../../.github/workflows/README.md) §Required checks.
 
+## Pattern stories (UX-DR39–41, Story 7.12)
+
+Host Storybook under `apps/web/src/stories/Patterns/` (shadcn primitives are app-scoped):
+
+- [`DesignSystemPatterns.stories.tsx`](../../apps/web/src/stories/Patterns/DesignSystemPatterns.stories.tsx) — button hierarchy, canonical **ExampleForm** stack (Cmd/Ctrl+Enter submit), Dialog (`role="alertdialog"` for destructive mock) + Sheet + Popover.
+- [`MobileReadOnlyGate.stories.tsx`](../../apps/web/src/stories/Patterns/MobileReadOnlyGate.stories.tsx) — live readout for `useMobileReadOnlyGate` (UX-DR38 / Story 7-13); resize the viewport across 768px to verify.
+
+These stories run through the same **`@storybook/addon-a11y`** configuration as other composites (`apps/web/.storybook/preview.ts`).
+
 ## Review bar
 
 Every new `shared-ui` composite ships with: unit tests in `packages/shared-ui`, Storybook stories in `apps/web`, and README bullets in `packages/shared-ui/README.md`.
