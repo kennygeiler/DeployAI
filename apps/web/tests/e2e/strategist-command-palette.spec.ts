@@ -176,9 +176,8 @@ test.describe("strategist", () => {
   test.describe("Story 8.4 — expand-inline EvidencePanel (NFR4 budget in CI)", () => {
     test.use({ extraHTTPHeaders: strategistRoleHeader });
 
-    test("citation chip shows [data-evidence-panel] under 2s (NFR4 slack in CI)", async ({
-      page,
-    }) => {
+    /** NFR4: ≤1.5s p95; single CI sample uses 1500ms ceiling (same headroom class as PRD). */
+    test("citation chip shows [data-evidence-panel] within 1500ms (NFR4)", async ({ page }) => {
       await page.goto("/digest", { waitUntil: "domcontentloaded" });
       const chip = page.locator("[data-citation-chip]").first();
       await expect(chip).toBeVisible();
@@ -190,7 +189,9 @@ test.describe("strategist", () => {
       const panel = page.locator("[data-evidence-panel]");
       await expect(panel).toBeVisible();
       const ms = Date.now() - t0;
-      expect(ms, `NFR4 expand-inline: panel visible in <2000ms (was ${ms}ms)`).toBeLessThan(2000);
+      expect(ms, `NFR4 expand-inline: panel visible in ≤1500ms (was ${ms}ms)`).toBeLessThanOrEqual(
+        1500,
+      );
       await expect(chip).toHaveAttribute("aria-expanded", "true");
     });
 

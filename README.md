@@ -2,7 +2,7 @@
 
 > A Canonical-Memory-backed digital twin for long-cycle government deployments. Built to walk the operator into every meeting prepared — with every claim citation-backed, every override logged, and every retrieval deterministically replayable.
 
-**Status:** **Epics 1–6** are **done** (through Cartographer / Oracle / Strategist services). **Epic 7** (design system) is **in progress**. **Epic 8** (Morning Digest, phase tracking, strategist chrome — **usable MVP focus**) is **in progress**. Authoritative story rows: [`_bmad-output/implementation-artifacts/sprint-status.yaml`](./_bmad-output/implementation-artifacts/sprint-status.yaml). **Execution board + MVP path:** [`_bmad-output/implementation-artifacts/development-board.yaml`](./_bmad-output/implementation-artifacts/development-board.yaml) · [`_bmad-output/planning-artifacts/mvp-operating-plan-2026.md`](./_bmad-output/planning-artifacts/mvp-operating-plan-2026.md).
+**Status:** **Epics 1–6** are **done** (through Cartographer / Oracle / Master Strategist services). **Epic 7** (shared UI + design tokens) has **delivered the MVP component set** used by strategist surfaces; stories **7-12–7-15** remain **backlog** (patterns, responsive tokens, Storybook governance, VPAT pipeline). **Epic 8** (strategist daily loop) is **in progress**: **Morning digest**, **phase & task tracking**, **evening synthesis**, **nav chrome** (left/top rail, breadcrumbs on `/evidence/*`), **Cmd+K**, and **8.4 expand-inline citations + `/evidence/[nodeId]`** are implemented on `main`; **8.7** (agent error / ingest states across surfaces) is the next Epic 8 backlog item. Authoritative rows: [`_bmad-output/implementation-artifacts/sprint-status.yaml`](./_bmad-output/implementation-artifacts/sprint-status.yaml). **Board + MVP path:** [`_bmad-output/implementation-artifacts/development-board.yaml`](./_bmad-output/implementation-artifacts/development-board.yaml) · [`_bmad-output/planning-artifacts/mvp-operating-plan-2026.md`](./_bmad-output/planning-artifacts/mvp-operating-plan-2026.md).
 
 ---
 
@@ -14,13 +14,13 @@ This is the **DeployAI monorepo**: a **polyglot** codebase (TypeScript/Next.js, 
 
 | Area | Notes |
 |------|--------|
-| `apps/web` | Next.js app (admin shell, a11y-gated) |
+| `apps/web` | Next.js 16 strategist + admin surfaces, **a11y-gated** Playwright + Storybook; Epic 8 routes (`/digest`, `/phase-tracking`, `/evening`, `/evidence/[nodeId]`, …) |
 | `apps/edge-agent` | Tauri desktop agent |
 | `apps/foia-cli` | Go CLI |
 | `services/control-plane` | FastAPI: tenancy, M365/Slack/Gmail-style integrations, upload flows, **pytest** + Docker integration |
 | `services/ingest` | Ingestion worker stack (Epic 3) |
 | `services/cartographer` | **Epic 4-1** LangGraph stub, citation envelope path, `uv` + pytest in **turbo** |
-| `packages/` | design-tokens, contracts, `llm-provider` (TypeScript contract), **`llm-provider-py`** (Anthropic / OpenAI / failover — Epic 5), authz, etc. |
+| `packages/` | **design-tokens**, **contracts**, **`shared-ui`** (CitationChip, EvidencePanel, … — ships **`dist/`** from `tsc -p tsconfig.build.json`), **`llm-provider`** / **`llm-provider-py`**, **authz**, etc. |
 | `services/_shared/runtime` | **Epic 5** — Jinja2 prompt registry, tool JSON, phase modulator (see `docs/prompts/CHANGELOG.md`) |
 | `tests/` | Continuity, tenant-isolation fuzz, and other cross-workspace harnesses |
 | `infra/compose` | Local docker-compose dev stack |
@@ -85,10 +85,21 @@ This project uses the [BMAD Method](./.cursor/skills/) — specialized AI agents
 - `bmad-code-review` — adversarial review of a change
 - `bmad-party-mode` — convene multiple agents for a group discussion
 
+## Strategist web (Epic 8) — what ships in `apps/web`
+
+- **Primary routes:** `/digest` (morning digest), `/phase-tracking`, `/evening`, **`/evidence/[nodeId]`** (canonical evidence view), plus nav placeholders (validation queue, overrides, audit).
+- **Remote fixtures (optional):** server loaders validate JSON from env URLs (never silent fallback when a URL is set and fails):
+  - `STRATEGIST_DIGEST_SOURCE_URL` — array of digest “top item” rows.
+  - `STRATEGIST_PHASE_TRACKING_SOURCE_URL` — array of action-queue rows.
+  - `STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL` — object `{ candidates, patterns? }`.
+- **FR41 / Story 8.4:** `CitationChip` toggles inline **`EvidencePanel`**; **“Navigate to source”** lives in the panel footer and links to **`/evidence/:node_id`**. Vitest continuity checks live in [`apps/web/src/lib/epic8/mock-digest.evidence.test.ts`](./apps/web/src/lib/epic8/mock-digest.evidence.test.ts). Playwright coverage: [`apps/web/tests/e2e/strategist-command-palette.spec.ts`](./apps/web/tests/e2e/strategist-command-palette.spec.ts) (expand-inline **NFR4** timing + navigation).
+- **`@deployai/shared-ui`:** consumers resolve **types from `packages/shared-ui/dist`**. After editing `packages/shared-ui/src`, run **`pnpm --filter @deployai/shared-ui build`** (or `npx tsc -p packages/shared-ui/tsconfig.build.json`) before `apps/web` `tsc`, or rely on **`pnpm turbo run build`** / CI ordering.
+
 ## Development & testing
 
 - **Local setup:** [docs/dev-environment.md](./docs/dev-environment.md) — **Node 24.x** (see [`.nvmrc`](./.nvmrc); root `engines` rejects e.g. Node 25 with `ERR_PNPM_UNSUPPORTED_ENGINE`), pnpm, **uv** (Python), Go, Rust as needed per workspace.
 - **Smoke / CI loop:** from the repo root, `pnpm install` and `pnpm turbo run lint typecheck test build` (see `turbo.json` for the full graph); Python services also use `uv sync` / `uv run …` in their directories.
+- **Strategist E2E (subset):** from `apps/web`, `pnpm test:e2e -- tests/e2e/strategist-command-palette.spec.ts` (requires a runnable web dev server or CI’s Playwright job).
 
 ## Testing (control plane + cartographer + CI)
 
