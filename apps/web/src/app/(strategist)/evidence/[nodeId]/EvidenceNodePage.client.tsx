@@ -10,6 +10,7 @@ export function EvidenceNodePageClient({ item }: { item: DigestTopItem }) {
     <div className="flex flex-col gap-6">
       <StrategistBreadcrumb
         data-testid="evidence-breadcrumb"
+        navigationLabel="Evidence page path"
         items={[
           { href: "/digest", label: "Morning digest" },
           { label: "Evidence" },

@@ -17,8 +17,11 @@ export default function Home() {
         DeployAI — initializing
       </h1>
       <p className="max-w-md text-body text-ink-600">
-        Feature surfaces: strategist preview routes (set{" "}
-        <code className="text-body bg-paper-200 rounded px-1">x-deployai-role</code> to enter).
+        Strategist preview routes: in{" "}
+        <code className="text-body bg-paper-200 rounded px-1">next dev</code> a default role is
+        applied. Otherwise set{" "}
+        <code className="text-body bg-paper-200 rounded px-1">x-deployai-role</code> (e.g. for{" "}
+        <code className="text-body bg-paper-200 rounded px-1">next start</code>).
       </p>
       <ul className="text-body text-evidence-800 flex max-w-sm flex-col gap-2 text-left">
         {surfaces.map((s) => (

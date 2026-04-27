@@ -35,12 +35,21 @@ export async function initAxeInDev(): Promise<void> {
   initialized = true;
 
   try {
-    const [React, ReactDOM, axeMod] = await Promise.all([
+    const [reactMod, reactDomMod, axeMod] = await Promise.all([
       import("react"),
       import("react-dom"),
       import("@axe-core/react"),
     ]);
     const axe = axeMod.default ?? axeMod;
+    // Dynamic `import("react")` yields a namespace object whose exports are getters only.
+    // @axe-core/react assigns `React.createElement = …` (see upstream reactAxe); pass the
+    // default export — the real React module object — or initialization throws:
+    // "Cannot set property createElement of [object Module] which has only a getter".
+    const React = reactMod.default;
+    const ReactDOM = reactDomMod.default;
+    if (React == null || ReactDOM == null) {
+      throw new Error("react or react-dom missing default export");
+    }
     // Use the object-form `{type: 'tag', values: [...]}` rather than a
     // bare string[]. axe-core's runtime auto-detects arrays of known
     // tags as tags (so the bare form worked), but any typo silently

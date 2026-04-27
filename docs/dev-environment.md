@@ -119,6 +119,16 @@ pnpm --filter @deployai/web test:a11y
 
 `@axe-core/react` also logs violations to the browser console when running `pnpm --filter @deployai/web dev` — no setup required, tree-shaken out of prod builds.
 
+## Strategist UI (`next dev`)
+
+[`apps/web/middleware.ts`](../apps/web/middleware.ts) injects `x-deployai-role: deployment_strategist` in **`NODE_ENV=development`** when the header is missing, so you can open `/digest`, `/in-meeting`, et al. in a normal browser without an extension. Client fetches to `/api/bff/*` and `/api/internal/strategist-activity` get the same header.
+
+[`getActorFromHeaders`](../apps/web/src/lib/internal/actor.ts) applies the **same default role in development** if the header still does not reach a Route Handler (avoids **401** on `strategist-activity` / memory-search in some `next dev` setups).
+
+- **Disable** the default (e.g. to test 403/401 without role): `DEPLOYAI_DISABLE_DEV_STRATEGIST=1 pnpm --filter @deployai/web dev`
+- **Production / CI** (`next start`, `next build`): no middleware injection and no actor fallback — E2E and staging use real headers or expect 403/401.
+- **`/digest` 404 while `/` works:** Turbopack may have inferred the wrong workspace root (e.g. another `package-lock.json` on your machine). Remove or rename that stray lockfile, or follow [Turbopack `root`](https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory) in `apps/web/next.config.ts` for your layout.
+
 ## 5. Run each workspace
 
 ```bash

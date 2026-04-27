@@ -8,14 +8,14 @@
 
 meta:
   plan: _bmad-output/planning-artifacts/mvp-operating-plan-2026.md
-  last_updated: "2026-04-26"
-  note: "MVP Track D: thin /in-meeting surface (mock meeting + InMeetingAlertCard + digest-aligned citations) on main. Next: full Epic 9 stories or Track E (E2E / mock cleanup)."
+  last_updated: "2026-04-27"
+  note: "Track D on main. Track E: golden-path Playwright spec (`tests/e2e/mvp-golden-path.spec.ts`); BFF / dead-flag cleanup still open."
 
 risk_mitigations:
   - id: R1-planning-drift
     title: "Align sprint-status + board with merged main"
     status: in_progress
-    next_action: "2026-04-26: Track D thin slice (9-0) merged; keep sprint-status + board aligned on subsequent PRs."
+    next_action: "2026-04-27: After Track E E2E PR, reconcile sprint rows + board note with main."
 
   - id: R2-scope
     title: "Hold MVP scope — defer non-MVP epics explicitly"
@@ -56,7 +56,7 @@ mvp_tracks:
 
   - id: E-harden-demo
     title: "Track E — Golden-path E2E + mock cleanup"
-    status: backlog
+    status: in_progress
 
 mvp_gates:
   - id: G1-demo-checklist
