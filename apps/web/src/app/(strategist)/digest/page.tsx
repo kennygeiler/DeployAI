@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { MorningDigestClient } from "@/components/epic8/MorningDigest.client";
 import { requireCanonicalRead } from "@/lib/internal/strategist-surface";
+import { loadMorningDigestTopItems } from "@/lib/strategist-data/strategist-surface-data";
 
 export const metadata: Metadata = {
   title: "Morning digest",
@@ -10,5 +11,6 @@ export const metadata: Metadata = {
 
 export default async function DigestPage() {
   await requireCanonicalRead();
-  return <MorningDigestClient />;
+  const topItems = await loadMorningDigestTopItems();
+  return <MorningDigestClient topItems={topItems} />;
 }

@@ -19,7 +19,7 @@
 # Note: this file is in `on.pull_request.paths`; touch it to run the gate when
 # a doc-only change must satisfy required checks on `main`.
 # (Ruleset lists this job as required even when other paths do not match — nudge via this file.)
-# Nudge 2026-04-28: required ruleset; touch this file when the PR does not change schema paths.
+# Nudge 2026-04-29: required ruleset; touch this file when the PR does not change schema paths.
 
 name: schema
 

@@ -49,6 +49,7 @@ export function StrategistShell({ children, lastSyncedAt, initialActivity, sessi
       setActivity((prev) => ({
         ...j,
         strategistLocalDate: j.strategistLocalDate ?? prev.strategistLocalDate,
+        agentServiceHealth: j.agentServiceHealth ?? prev.agentServiceHealth,
       }));
     })();
   }, []);

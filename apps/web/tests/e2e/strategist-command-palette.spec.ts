@@ -81,6 +81,7 @@ test.describe("strategist", () => {
             ingestionInProgress: true,
             controlPlane: "ok",
             strategistLocalDate: isoToday(),
+            agentServiceHealth: "unconfigured",
           }),
         });
       });
@@ -102,6 +103,7 @@ test.describe("strategist", () => {
             ingestionInProgress: false,
             controlPlane: "error",
             strategistLocalDate: isoToday(),
+            agentServiceHealth: "unconfigured",
           }),
         });
       });
@@ -135,6 +137,7 @@ test.describe("strategist", () => {
               ingestionInProgress: true,
               controlPlane: "ok",
               strategistLocalDate: today(),
+              agentServiceHealth: "unconfigured",
             }),
           });
         });
@@ -157,6 +160,7 @@ test.describe("strategist", () => {
               ingestionInProgress: false,
               controlPlane: "error",
               strategistLocalDate: today(),
+              agentServiceHealth: "unconfigured",
             }),
           });
         });

@@ -1,11 +1,18 @@
 "use client";
 
 import { DigestEvidenceCard } from "./DigestEvidenceCard.client";
+import type { DigestTopItem } from "@/lib/epic8/mock-digest";
 import { MORNING_DIGEST_RANKED_OUT, MORNING_DIGEST_TOP } from "@/lib/epic8/mock-digest";
 import { useStrategistSurface } from "@/lib/epic8/strategist-surface-context";
 
-export function MorningDigestClient() {
+export type MorningDigestClientProps = {
+  /** When omitted, uses mock `MORNING_DIGEST_TOP` (Storybook, tests). */
+  topItems?: readonly DigestTopItem[];
+};
+
+export function MorningDigestClient({ topItems: topItemsProp }: MorningDigestClientProps) {
   const { agentDegraded } = useStrategistSurface();
+  const topItems = topItemsProp ?? MORNING_DIGEST_TOP;
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -25,7 +32,7 @@ export function MorningDigestClient() {
         className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
         data-testid="morning-digest-top"
       >
-        {MORNING_DIGEST_TOP.map((item) => (
+        {topItems.map((item) => (
           <DigestEvidenceCard key={item.id} item={item} headingLevel="h2" />
         ))}
       </div>

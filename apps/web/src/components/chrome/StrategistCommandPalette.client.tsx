@@ -90,7 +90,7 @@ export function StrategistCommandPalette({ open, onOpenChange }: StrategistComma
       open={open}
       onOpenChange={onOpenChange}
       title="Strategist command palette"
-      description="Search surfaces, actions, or canonical memory. Esc to close."
+      description="Navigate surfaces, run actions, and search. Canonical search uses mock data unless DEPLOYAI_CANONICAL_MEMORY_SEARCH_URL is set (see BFF /epic-8 status doc). Esc to close."
     >
       <CommandInput
         placeholder="Type a command, surface, or citation…"
@@ -130,7 +130,7 @@ export function StrategistCommandPalette({ open, onOpenChange }: StrategistComma
           ))}
         </CommandGroup>
         <CommandSeparator />
-        <CommandGroup heading="Search (canonical memory preview)">
+        <CommandGroup heading="Search (mock / preview — set DEPLOYAI_CANONICAL_MEMORY_SEARCH_URL for live)">
           {MORNING_DIGEST_TOP.map((row) => (
             <CommandItem
               key={row.id}
