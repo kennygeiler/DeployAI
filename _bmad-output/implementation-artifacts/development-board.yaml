@@ -29,8 +29,8 @@ risk_mitigations:
 
   - id: R4-ci-merge
     title: "Keep required checks mergeable (path-gate prep jobs on main)"
-    status: done
-    next_action: "Merge open CI hygiene PR if branch is still open"
+    status: in_progress
+    next_action: "Merge PR that adds prep + paths-filter to compose/schema/fuzz (when green)"
 
   - id: R5-ops-depth
     title: "Defer SLO/chaos/on-call until after MVP"
