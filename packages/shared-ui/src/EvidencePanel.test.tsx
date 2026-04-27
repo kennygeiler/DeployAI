@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { EvidencePanel, renderHighlightedBody } from "./EvidencePanel";
@@ -23,6 +23,10 @@ describe("renderHighlightedBody", () => {
 });
 
 describe("EvidencePanel", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it("exposes an article with labelled heading and a mark in loaded state", () => {
     render(
       <EvidencePanel
@@ -47,5 +51,41 @@ describe("EvidencePanel", () => {
     );
     const live = container.querySelector("[aria-live='polite']");
     expect(live).toBeInTheDocument();
+  });
+
+  it("renders footer inside the article for loaded state (Story 8.4)", () => {
+    render(
+      <EvidencePanel
+        retrievalPhase="oracle"
+        metadata={meta}
+        state="loaded"
+        bodyText="Body"
+        footer={<a href="/evidence/n1">Navigate to source</a>}
+      />,
+    );
+    const article = screen.getByRole("article");
+    expect(article.querySelector("[data-evidence-panel-footer]")).toBeInTheDocument();
+    expect(within(article).getByRole("link", { name: /navigate to source/i })).toHaveAttribute(
+      "href",
+      "/evidence/n1",
+    );
+  });
+
+  it("renders footer for degraded state (Story 8.4)", () => {
+    render(
+      <EvidencePanel
+        retrievalPhase="oracle"
+        metadata={meta}
+        state="degraded"
+        bodyText="Partial"
+        evidenceSpan={{ start: 0, end: 4, source_ref: "r" }}
+        footer={<a href="/evidence/n2">Navigate to source</a>}
+      />,
+    );
+    const article = screen.getByRole("article");
+    expect(within(article).getByRole("link", { name: /navigate to source/i })).toHaveAttribute(
+      "href",
+      "/evidence/n2",
+    );
   });
 });

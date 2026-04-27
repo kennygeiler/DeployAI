@@ -9,13 +9,13 @@
 meta:
   plan: _bmad-output/planning-artifacts/mvp-operating-plan-2026.md
   last_updated: "2026-04-28"
-  note: "Compliance/security program work is deferred for MVP; see plan §3. Sprint rows reconciled with main (strategist + Epic 7 components) 2026-04-28."
+  note: "Compliance/security program work is deferred for MVP; see plan §3. Epic 8 walking skeleton: 8-1..8-5 + 8-4 (EvidencePanel footer deep-link, E2E) aligned with sprint-status; remaining Epic 8 backlog 8-7."
 
 risk_mitigations:
   - id: R1-planning-drift
     title: "Align sprint-status + board with merged main"
     status: in_progress
-    next_action: "2026-04-28: reconciled Epic 7 component rows 7-3..7-11 and Epic 8 walking-skeleton 8-1,8-2,8-3,8-5 → see sprint-status. Ongoing: same-day row updates on strategist merges; full re-audit next Epic 8 vertical slice to done"
+    next_action: "2026-04-28: sprint-status includes 8-4 done (FR41 footer deep-link + digest E2E). Next board bump: when 8-7 lands or Epic 9 thin slice starts; same-day updates on strategist merges."
 
   - id: R2-scope
     title: "Hold MVP scope — defer non-MVP epics explicitly"

@@ -191,6 +191,21 @@ test.describe("strategist", () => {
       await expect(panel).toBeVisible();
       const ms = Date.now() - t0;
       expect(ms, `NFR4 expand-inline: panel visible in <2000ms (was ${ms}ms)`).toBeLessThan(2000);
+      await expect(chip).toHaveAttribute("aria-expanded", "true");
+    });
+
+    test("Navigate to source inside panel reaches /evidence/:nodeId", async ({ page }) => {
+      const id = "2d4437ee-9336-441e-ab57-121b81ee57a4";
+      await page.goto("/digest", { waitUntil: "domcontentloaded" });
+      await page.evaluate(() => {
+        (document.querySelector("[data-citation-chip]") as HTMLButtonElement | null)?.click();
+      });
+      const panel = page.locator("[data-evidence-panel]").first();
+      await expect(panel).toBeVisible();
+      await expect(panel.locator("[data-evidence-panel-footer]")).toBeVisible();
+      await panel.getByRole("link", { name: /navigate to source/i }).click();
+      await expect(page).toHaveURL(new RegExp(`/evidence/${id}`));
+      await expect(page.getByRole("heading", { name: /Evidence node/i })).toBeVisible();
     });
   });
 
