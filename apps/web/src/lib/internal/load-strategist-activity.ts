@@ -1,5 +1,9 @@
 import { decideSync, type AuthActor } from "@deployai/authz";
 
+import {
+  fetchControlPlaneHealthzOk,
+  fetchOptionalOracleServiceHealth,
+} from "./control-plane-fetch";
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "./control-plane";
 import { getStrategistLocalDateForServer } from "./strategist-local-date";
 
@@ -12,50 +16,84 @@ type CpIngestionRun = {
   status: string;
 };
 
+export type AgentServiceHealth = "unconfigured" | "ok" | "error";
+
 export type StrategistActivitySnapshot = {
   agentDegraded: boolean;
   ingestionInProgress: boolean;
-  /** Mock surfaces + due-window chips: strategist calendar date (YYYY-MM-DD). */
   strategistLocalDate: string;
-  /** `ok` — CP list fetched; `unconfigured` — no URL/key; `error` — non-2xx or network failure. */
+  /** `ok` — CP list fetched; `unconfigured` — no URL/key; `error` — health or ingest path failed. */
   controlPlane: "ok" | "unconfigured" | "error";
+  /**
+   * Optional Oracle (or other agent) HTTP liveness. `unconfigured` when
+   * `DEPLOYAI_ORACLE_HEALTH_URL` is unset. When `error` and not unconfigured, surfaces degrade.
+   */
+  agentServiceHealth: AgentServiceHealth;
 };
 
+function snapshot(
+  day: string,
+  partial: Omit<StrategistActivitySnapshot, "strategistLocalDate">,
+): StrategistActivitySnapshot {
+  return { strategistLocalDate: day, ...partial };
+}
+
 /**
- * Health + running-ingest for strategist chrome (FR46/FR47). Agent “degrade” in V1 is
- * “control plane unavailable for this check” (no separate Oracle service endpoint yet).
+ * Health + running-ingest for strategist chrome (FR46/FR47).
+ * - Liveness: `GET {controlPlane}/healthz` before internal APIs.
+ * - Ingest: `GET /internal/v1/ingestion-runs` (tenant-scoped; **no** tenant id ⇒ no running rows / FR47).
+ * - Optional agents: `GET DEPLOYAI_ORACLE_HEALTH_URL` when set.
  */
 export async function loadStrategistActivityForActor(
   actor: AuthActor | null,
 ): Promise<StrategistActivitySnapshot> {
   const day = getStrategistLocalDateForServer();
   if (!actor) {
-    return {
+    return snapshot(day, {
       agentDegraded: false,
       ingestionInProgress: false,
-      strategistLocalDate: day,
       controlPlane: "unconfigured",
-    };
+      agentServiceHealth: "unconfigured",
+    });
   }
   const d = decideSync(actor, "canonical:read", { kind: "canonical_memory" });
   if (!d.allow) {
-    return {
+    return snapshot(day, {
       agentDegraded: false,
       ingestionInProgress: false,
-      strategistLocalDate: day,
       controlPlane: "unconfigured",
-    };
+      agentServiceHealth: "unconfigured",
+    });
   }
   const base = getControlPlaneBaseUrl();
   const key = getControlPlaneInternalKey();
   if (!base || !key) {
-    return {
+    return snapshot(day, {
       agentDegraded: false,
       ingestionInProgress: false,
-      strategistLocalDate: day,
       controlPlane: "unconfigured",
-    };
+      agentServiceHealth: "unconfigured",
+    });
   }
+
+  const oracleUrl = process.env.DEPLOYAI_ORACLE_HEALTH_URL?.trim();
+  const [healthzOk, oracleRes] = await Promise.all([
+    fetchControlPlaneHealthzOk(base),
+    fetchOptionalOracleServiceHealth(oracleUrl || undefined),
+  ]);
+  const agentHealth: AgentServiceHealth =
+    oracleRes === null ? "unconfigured" : oracleRes ? "ok" : "error";
+  const agentDegradedFromOracle = oracleRes !== null && !oracleRes;
+
+  if (!healthzOk) {
+    return snapshot(day, {
+      agentDegraded: true,
+      ingestionInProgress: false,
+      controlPlane: "error",
+      agentServiceHealth: agentHealth,
+    });
+  }
+
   const url = `${base.replace(/\/$/, "")}/internal/v1/ingestion-runs?limit=200`;
   try {
     const r = await fetch(url, {
@@ -63,37 +101,37 @@ export async function loadStrategistActivityForActor(
       cache: "no-store",
     });
     if (!r.ok) {
-      return {
+      return snapshot(day, {
         agentDegraded: true,
         ingestionInProgress: false,
-        strategistLocalDate: day,
         controlPlane: "error",
-      };
+        agentServiceHealth: agentHealth,
+      });
     }
     const runs = (await r.json()) as CpIngestionRun[];
     if (!Array.isArray(runs)) {
-      return {
+      return snapshot(day, {
         agentDegraded: true,
         ingestionInProgress: false,
-        strategistLocalDate: day,
         controlPlane: "error",
-      };
+        agentServiceHealth: agentHealth,
+      });
     }
     const tid = actor.tenantId?.trim() ?? null;
-    const scoped = tid ? runs.filter((x) => x.tenant_id === tid) : runs;
+    const scoped = tid ? runs.filter((x) => x.tenant_id === tid) : [];
     const running = scoped.filter((x) => x.status === "running");
-    return {
-      agentDegraded: false,
+    return snapshot(day, {
+      agentDegraded: agentDegradedFromOracle,
       ingestionInProgress: running.length > 0,
-      strategistLocalDate: day,
       controlPlane: "ok",
-    };
+      agentServiceHealth: agentHealth,
+    });
   } catch {
-    return {
+    return snapshot(day, {
       agentDegraded: true,
       ingestionInProgress: false,
-      strategistLocalDate: day,
       controlPlane: "error",
-    };
+      agentServiceHealth: agentHealth,
+    });
   }
 }
