@@ -11,8 +11,8 @@ import {
 } from "@tanstack/react-table";
 
 import { EvidencePanel } from "@deployai/shared-ui";
-import type { ActionQueueRow } from "@/lib/epic8/mock-digest";
-import { PHASE_TRACKING_ROWS } from "@/lib/epic8/mock-digest";
+import type { ActionQueueRow, DueDateWindow } from "@/lib/epic8/mock-digest";
+import { buildPhaseTrackingRows, actionQueueRowMatchesDueWindow } from "@/lib/epic8/mock-digest";
 import { useStrategistSurface } from "@/lib/epic8/strategist-surface-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,19 @@ const columnHelper = createColumnHelper<ActionQueueRow>();
 const phaseOptions = ["All", "P5 Pilot", "P4 Design"] as const;
 const statusOptions = ["All", "open", "in_progress", "blocked"] as const;
 
+const assigneeOptionsForRows = (rows: readonly ActionQueueRow[]) =>
+  [
+    "All",
+    ...Array.from(new Set(rows.map((r) => r.assignee))).sort((a, b) => a.localeCompare(b, "en")),
+  ] as const;
+
+const dueDateOptions: { value: DueDateWindow; label: string }[] = [
+  { value: "all", label: "All dates" },
+  { value: "today", label: "Today" },
+  { value: "next7", label: "Next 7 days" },
+  { value: "overdue", label: "Overdue" },
+];
+
 function statusLabel(s: ActionQueueRow["status"]): string {
   if (s === "in_progress") {
     return "In progress";
@@ -47,26 +60,39 @@ function statusSort(a: string, b: string): number {
 }
 
 export function PhaseTrackingClient() {
-  const { agentDegraded } = useStrategistSurface();
+  const { agentDegraded, strategistLocalDate } = useStrategistSurface();
+  const baseRows = React.useMemo(
+    () => buildPhaseTrackingRows(strategistLocalDate),
+    [strategistLocalDate],
+  );
+  const assigneeOptions = React.useMemo(() => assigneeOptionsForRows(baseRows), [baseRows]);
   const [phaseFilter, setPhaseFilter] = React.useState<(typeof phaseOptions)[number]>("All");
   const [statusFilter, setStatusFilter] = React.useState<(typeof statusOptions)[number]>("All");
+  const [assigneeFilter, setAssigneeFilter] = React.useState<string>("All");
+  const [dueDateWindow, setDueDateWindow] = React.useState<DueDateWindow>("all");
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: "priority", desc: false },
     { id: "due", desc: false },
   ]);
-  const [selectedId, setSelectedId] = React.useState(PHASE_TRACKING_ROWS[0]!.id);
+  const [selectedId, setSelectedId] = React.useState("aq-1");
 
   const rows = React.useMemo(() => {
-    return PHASE_TRACKING_ROWS.filter((r) => {
+    return baseRows.filter((r) => {
       if (phaseFilter !== "All" && r.phase !== phaseFilter) {
         return false;
       }
       if (statusFilter !== "All" && r.status !== statusFilter) {
         return false;
       }
+      if (assigneeFilter !== "All" && r.assignee !== assigneeFilter) {
+        return false;
+      }
+      if (!actionQueueRowMatchesDueWindow(r.due, dueDateWindow, strategistLocalDate)) {
+        return false;
+      }
       return true;
     });
-  }, [phaseFilter, statusFilter]);
+  }, [baseRows, phaseFilter, statusFilter, assigneeFilter, dueDateWindow, strategistLocalDate]);
 
   React.useEffect(() => {
     if (rows.length === 0) {
@@ -192,6 +218,38 @@ export function PhaseTrackingClient() {
                 }}
               >
                 {s === "All" ? "All statuses" : statusLabel(s as ActionQueueRow["status"])}
+              </Button>
+            ))}
+            <span className="text-muted-foreground mx-1 h-4 w-px select-none" aria-hidden>
+              |
+            </span>
+            {assigneeOptions.map((a) => (
+              <Button
+                key={a}
+                type="button"
+                size="sm"
+                variant={assigneeFilter === a ? "default" : "outline"}
+                onClick={() => {
+                  setAssigneeFilter(a);
+                }}
+              >
+                {a === "All" ? "All assignees" : a}
+              </Button>
+            ))}
+            <span className="text-muted-foreground mx-1 h-4 w-px select-none" aria-hidden>
+              |
+            </span>
+            {dueDateOptions.map((d) => (
+              <Button
+                key={d.value}
+                type="button"
+                size="sm"
+                variant={dueDateWindow === d.value ? "default" : "ghost"}
+                onClick={() => {
+                  setDueDateWindow(d.value);
+                }}
+              >
+                {d.label}
               </Button>
             ))}
           </div>

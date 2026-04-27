@@ -13,7 +13,7 @@
 - **VPAT evidence (7.15):** [`apps/tools/vpat-aggregator/`](../../apps/tools/vpat-aggregator) writes a versioned JSON stub under `artifacts/vpat/`. [`.github/workflows/vpat-evidence.yml`](../../.github/workflows/vpat-evidence.yml) runs on `workflow_dispatch` and on `release: published` and uploads that folder as a workflow artifact; an **S3 sync** block is commented until `AWS` OIDC, bucket, and program sign-off (Epic 13 / infra) exist.
 
 - **ESLint “no raw `<button>`”** (Story 7.12): `no-restricted-syntax` in `apps/web/eslint.config.mjs` on `src/**` (shadcn primitives under `src/components/ui/**` are lint-ignored, so the Button file is exempt). New code should use shadcn `<Button>`.
-- **CI / merge (path-filtered jobs):** Branch rules on `main` can require e.g. **`canonical-memory-schema`** while [`.github/workflows/schema.yml`](../../.github/workflows/schema.yml) only runs when certain paths change. If GitHub shows the check as **“expected”** and blocks merge, either enable **“do not require status checks that are skipped”** in the ruleset, or add a no-op nudge to that workflow file (see the comment in `schema.yml`). Same idea applies to other path-gated workflows documented in [`.github/workflows/README.md`](../../.github/workflows/README.md).
+- **CI / merge (path-gated jobs):** `schema`, `fuzz`, and `compose-smoke` use a `prep` + `paths-filter` pattern so the heavy job is **skipped** (success) on irrelevant PRs instead of leaving required checks as **“expected”** — see [`.github/workflows/README.md`](../../.github/workflows/README.md) §Required checks.
 
 ## Review bar
 

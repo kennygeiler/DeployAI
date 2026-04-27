@@ -65,6 +65,8 @@ test.describe("strategist", () => {
   test.describe("strategist activity BFF (control plane + ingestion)", () => {
     test.use({ extraHTTPHeaders: strategistRoleHeader });
 
+    const isoToday = () => new Date().toISOString().slice(0, 10);
+
     test("ingestion in progress shows top-rail status", async ({ page }) => {
       await page.route("**/api/internal/strategist-activity*", async (route) => {
         if (route.request().method() !== "GET") {
@@ -78,6 +80,8 @@ test.describe("strategist", () => {
             agentDegraded: false,
             ingestionInProgress: true,
             controlPlane: "ok",
+            strategistLocalDate: isoToday(),
+            agentServiceHealth: "unconfigured",
           }),
         });
       });
@@ -98,6 +102,8 @@ test.describe("strategist", () => {
             agentDegraded: true,
             ingestionInProgress: false,
             controlPlane: "error",
+            strategistLocalDate: isoToday(),
+            agentServiceHealth: "unconfigured",
           }),
         });
       });
@@ -106,6 +112,65 @@ test.describe("strategist", () => {
       await expect(outage).toBeVisible({ timeout: 20_000 });
       await expect(outage).toContainText("Oracle");
     });
+  });
+
+  test.describe("Story 8.7 — agent + ingestion on all three surfaces (mock BFF)", () => {
+    test.use({ extraHTTPHeaders: strategistRoleHeader });
+
+    const today = () => new Date().toISOString().slice(0, 10);
+
+    for (const [path, heading] of [
+      ["/evening", /Evening synthesis/i] as const,
+      ["/phase-tracking", /Phase & task tracking/i] as const,
+    ] as const) {
+      test(`ingestion top-rail on ${path}`, async ({ page }) => {
+        await page.route("**/api/internal/strategist-activity*", async (route) => {
+          if (route.request().method() !== "GET") {
+            await route.continue();
+            return;
+          }
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              agentDegraded: false,
+              ingestionInProgress: true,
+              controlPlane: "ok",
+              strategistLocalDate: today(),
+              agentServiceHealth: "unconfigured",
+            }),
+          });
+        });
+        await page.goto(path, { waitUntil: "domcontentloaded" });
+        await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+        await expect(page.locator("[data-ingestion-active]")).toBeVisible({ timeout: 20_000 });
+      });
+
+      test(`agent outage banner on ${path}`, async ({ page }) => {
+        await page.route("**/api/internal/strategist-activity*", async (route) => {
+          if (route.request().method() !== "GET") {
+            await route.continue();
+            return;
+          }
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              agentDegraded: true,
+              ingestionInProgress: false,
+              controlPlane: "error",
+              strategistLocalDate: today(),
+              agentServiceHealth: "unconfigured",
+            }),
+          });
+        });
+        await page.goto(path, { waitUntil: "domcontentloaded" });
+        await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+        const outage = page.locator("[data-agent-outage]");
+        await expect(outage).toBeVisible({ timeout: 20_000 });
+        await expect(outage).toContainText("Oracle");
+      });
+    }
   });
 
   test.describe("Story 8.4 — expand-inline EvidencePanel (NFR4 budget in CI)", () => {
@@ -133,6 +198,30 @@ test.describe("strategist", () => {
     test("returns 403 for /digest when x-deployai-role is missing", async ({ page }) => {
       const r = await page.goto("/digest", { waitUntil: "domcontentloaded" });
       expect(r?.status(), "unauthenticated /digest should be forbidden at edge").toBe(403);
+    });
+  });
+
+  test.describe("Story 8.4 — /evidence/:nodeId", () => {
+    test.use({ extraHTTPHeaders: strategistRoleHeader });
+
+    test("renders breadcrumb and evidence for a digest node id", async ({ page }) => {
+      const id = "2d4437ee-9336-441e-ab57-121b81ee57a4";
+      await page.goto(`/evidence/${encodeURIComponent(id)}`, { waitUntil: "domcontentloaded" });
+      await expect(page.getByTestId("evidence-breadcrumb")).toBeVisible();
+      await expect(page.getByRole("heading", { name: /Evidence node/i })).toBeVisible();
+      await expect(page.locator("[data-evidence-panel]")).toBeVisible();
+    });
+
+    test("placeholder strategist routes return 200", async ({ page }) => {
+      for (const path of [
+        "/validation-queue",
+        "/solidification-review",
+        "/overrides",
+        "/audit/personal",
+      ]) {
+        const r = await page.goto(path, { waitUntil: "domcontentloaded" });
+        expect(r?.status(), path).toBe(200);
+      }
     });
   });
 });

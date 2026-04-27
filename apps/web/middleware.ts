@@ -6,7 +6,14 @@ const isAdmin = (p: string) =>
   p === "/admin/runs" || p === "/admin/adjudication" || p.startsWith("/admin/schema-proposals");
 
 const isStrategistSurface = (p: string) =>
-  p === "/digest" || p === "/phase-tracking" || p === "/evening";
+  p === "/digest" ||
+  p === "/phase-tracking" ||
+  p === "/evening" ||
+  p.startsWith("/evidence/") ||
+  p === "/validation-queue" ||
+  p === "/solidification-review" ||
+  p === "/overrides" ||
+  p.startsWith("/audit/");
 
 function parseRole(r: string | null): V1Role | null {
   const allowed: V1Role[] = [
@@ -70,6 +77,11 @@ export const config = {
     "/digest",
     "/phase-tracking",
     "/evening",
+    "/evidence/:path*",
+    "/validation-queue",
+    "/solidification-review",
+    "/overrides",
+    "/audit/:path*",
     "/admin/runs",
     "/admin/adjudication",
     "/admin/schema-proposals",
