@@ -2,6 +2,16 @@ import { expect, test, type Page } from "@playwright/test";
 
 const strategistRoleHeader = { "x-deployai-role": "deployment_strategist" };
 
+/** Bodies must satisfy `StrategistActivitySnapshot` shape for client merge. */
+const meetingIdleFields = {
+  inMeeting: false,
+  meetingId: null,
+  meetingTitle: null,
+  oracleInMeetingAlertAt: null,
+  meetingDetectionSource: "off",
+  calendarPollIntervalSeconds: null,
+} as const;
+
 /** Client `AppShell` must be hydrated so the ⌃K listener is attached (domcontentloaded alone is not enough). */
 async function waitForStrategistCommandShell(page: Page): Promise<void> {
   await expect(page.getByTestId("command-palette-trigger")).toBeVisible();
@@ -99,6 +109,7 @@ test.describe("strategist", () => {
             controlPlane: "ok",
             strategistLocalDate: isoToday(),
             agentServiceHealth: "unconfigured",
+            ...meetingIdleFields,
           }),
         });
       });
@@ -121,6 +132,7 @@ test.describe("strategist", () => {
             controlPlane: "error",
             strategistLocalDate: isoToday(),
             agentServiceHealth: "unconfigured",
+            ...meetingIdleFields,
           }),
         });
       });
@@ -157,6 +169,7 @@ test.describe("strategist", () => {
               controlPlane: "ok",
               strategistLocalDate: today(),
               agentServiceHealth: "unconfigured",
+              ...meetingIdleFields,
             }),
           });
         });
@@ -180,6 +193,7 @@ test.describe("strategist", () => {
               controlPlane: "error",
               strategistLocalDate: today(),
               agentServiceHealth: "unconfigured",
+              ...meetingIdleFields,
             }),
           });
         });
@@ -314,6 +328,8 @@ test.describe("strategist", () => {
             meetingId: "demo-meeting-e2e",
             meetingTitle: "E2E stub meeting (Graph calendar deferred)",
             oracleInMeetingAlertAt: oracleAt,
+            meetingDetectionSource: "oracle_signal",
+            calendarPollIntervalSeconds: 30,
           }),
         });
       });
@@ -326,6 +342,101 @@ test.describe("strategist", () => {
       expect(
         elapsed,
         `NFR1/FR36 single-sample ceiling 8s from navigation to active card (was ${elapsed}ms)`,
+      ).toBeLessThanOrEqual(8000);
+    });
+
+    test("Epic 9.1 debt — lazy citation mounts ≤3s after active alert chrome", async ({ page }) => {
+      const today = new Date().toISOString().slice(0, 10);
+      const oracleAt = new Date().toISOString();
+      const firstId = "2d4437ee-9336-441e-ab57-121b81ee57a4";
+      await page.route("**/api/internal/strategist-activity*", async (route) => {
+        if (route.request().method() !== "GET") {
+          await route.continue();
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            agentDegraded: false,
+            ingestionInProgress: false,
+            controlPlane: "ok",
+            strategistLocalDate: today,
+            agentServiceHealth: "unconfigured",
+            inMeeting: true,
+            meetingId: "demo-meeting-e2e",
+            meetingTitle: "E2E stub meeting (Graph calendar deferred)",
+            oracleInMeetingAlertAt: oracleAt,
+            meetingDetectionSource: "oracle_signal",
+            calendarPollIntervalSeconds: 30,
+          }),
+        });
+      });
+      await page.goto("/in-meeting", { waitUntil: "domcontentloaded" });
+      await expect(page.locator('[data-epic91-meeting-alert="active"]')).toBeVisible({
+        timeout: 8000,
+      });
+      const t0 = Date.now();
+      await expect(page.locator(`#citation-in-meeting-${firstId}`)).toBeVisible({ timeout: 3000 });
+      expect(
+        Date.now() - t0,
+        "lazy citation should mount within 3s of the active meeting alert",
+      ).toBeLessThanOrEqual(3000);
+    });
+
+    test("Epic 9.1 debt — NFR1 p95 ≤8s over repeated navigations (EPIC91_NFR1_SAMPLES)", async ({
+      page,
+    }) => {
+      test.setTimeout(600_000);
+      const today = new Date().toISOString().slice(0, 10);
+      const oracleAt = new Date().toISOString();
+      const iterations = Number(process.env.EPIC91_NFR1_SAMPLES ?? (process.env.CI ? "20" : "100"));
+      await page.route("**/api/internal/strategist-activity*", async (route) => {
+        if (route.request().method() !== "GET") {
+          await route.continue();
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            agentDegraded: false,
+            ingestionInProgress: false,
+            controlPlane: "ok",
+            strategistLocalDate: today,
+            agentServiceHealth: "unconfigured",
+            inMeeting: true,
+            meetingId: "demo-meeting-e2e",
+            meetingTitle: "E2E stub meeting (Graph calendar deferred)",
+            oracleInMeetingAlertAt: oracleAt,
+            meetingDetectionSource: "oracle_signal",
+            calendarPollIntervalSeconds: 30,
+          }),
+        });
+      });
+
+      function p95(samples: number[]): number {
+        if (samples.length === 0) {
+          return 0;
+        }
+        const s = [...samples].sort((a, b) => a - b);
+        const idx = Math.ceil(0.95 * s.length) - 1;
+        return s[Math.max(0, idx)]!;
+      }
+
+      const samples: number[] = [];
+      for (let i = 0; i < iterations; i++) {
+        const nav0 = Date.now();
+        await page.goto("/in-meeting", { waitUntil: "domcontentloaded" });
+        await expect(page.locator('[data-epic91-meeting-alert="active"]')).toBeVisible({
+          timeout: 8000,
+        });
+        samples.push(Date.now() - nav0);
+      }
+      const p = p95(samples);
+      expect(
+        p,
+        `NFR1 p95 over ${iterations} navigations should be ≤8000ms (p95 was ${p}ms)`,
       ).toBeLessThanOrEqual(8000);
     });
   });

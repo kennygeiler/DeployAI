@@ -2,12 +2,19 @@ import type { StrategistSurfaceValue } from "./strategist-surface-context";
 
 const meetingOff: Pick<
   StrategistSurfaceValue,
-  "inMeeting" | "meetingId" | "meetingTitle" | "oracleInMeetingAlertAt"
+  | "inMeeting"
+  | "meetingId"
+  | "meetingTitle"
+  | "oracleInMeetingAlertAt"
+  | "meetingDetectionSource"
+  | "calendarPollIntervalSeconds"
 > = {
   inMeeting: false,
   meetingId: null,
   meetingTitle: null,
   oracleInMeetingAlertAt: null,
+  meetingDetectionSource: "off",
+  calendarPollIntervalSeconds: null,
 };
 
 /**
@@ -30,6 +37,16 @@ export function mergeStrategistSurfaceFromDemoQuery(
     oracleInMeetingAlertAt: inMeeting
       ? (q.oracleInMeetingAlertAt ?? base.oracleInMeetingAlertAt)
       : base.oracleInMeetingAlertAt,
+    meetingDetectionSource: inMeeting
+      ? q.inMeeting
+        ? "url_demo"
+        : (base.meetingDetectionSource ?? null)
+      : "off",
+    calendarPollIntervalSeconds: inMeeting
+      ? q.inMeeting
+        ? 30
+        : (base.calendarPollIntervalSeconds ?? null)
+      : null,
   };
 }
 
@@ -56,6 +73,8 @@ export function parseStrategistSurfaceQuery(
           meetingId: meetingIdParam || "demo-meeting",
           meetingTitle: meetingTitleParam || "Demo meeting (URL flag)",
           oracleInMeetingAlertAt: new Date().toISOString(),
+          meetingDetectionSource: "url_demo",
+          calendarPollIntervalSeconds: 30,
         }
       : meetingOff),
   };

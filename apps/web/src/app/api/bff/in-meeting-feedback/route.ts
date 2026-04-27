@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { decideSync } from "@deployai/authz";
 
 import { pushInMeetingAudit } from "@/lib/bff/strategist-queues-store";
+import { auditTypeForInMeetingAction } from "@/lib/epic9/in-meeting-alert-actions";
 import { getActorFromHeaders } from "@/lib/internal/actor";
 
 type Body = {
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
-  const type = body.action === "dismiss" ? "alert.dismissed" : "alert.corrected";
+  const type = auditTypeForInMeetingAction(body.action);
   pushInMeetingAudit(actor.tenantId ?? null, { type, itemId: body.itemId });
   return NextResponse.json({ ok: true, type }, { status: 200 });
 }

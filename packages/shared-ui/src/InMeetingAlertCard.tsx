@@ -3,6 +3,12 @@
 import * as React from "react";
 import { Bell, MessageSquare, PanelBottomClose } from "lucide-react";
 
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "./components/ui/context-menu";
 import { cn } from "./lib/utils";
 
 const W = 360;
@@ -259,6 +265,15 @@ export function InMeetingAlertCard({
     };
   }, [storageKey, w, h]);
 
+  const resetPositionToDefault = React.useCallback(() => {
+    try {
+      window.localStorage.removeItem(storageKey);
+    } catch {
+      /* ignore */
+    }
+    setPos(defaultPosition());
+  }, [storageKey]);
+
   const onPointerDownHeader = (e: React.PointerEvent) => {
     if (e.button !== 0) {
       return;
@@ -309,6 +324,40 @@ export function InMeetingAlertCard({
     return null;
   }
 
+  const meetingDragHeader = (
+    <div
+      role="presentation"
+      className="flex cursor-grab touch-none select-none items-center justify-between border-b border-border bg-paper-200/80 px-3 py-2 active:cursor-grabbing"
+      onPointerDown={onPointerDownHeader}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+    >
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-ink-900">{meetingTitle}</p>
+        <p className="truncate text-xs text-ink-600">
+          {phaseLabel} — {freshnessLabel}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        {stateProp === "degraded" ? (
+          <span className="rounded border border-amber-600/40 bg-amber-50/90 px-1.5 py-0.5 text-[0.65rem] font-medium text-amber-950">
+            Degraded
+          </span>
+        ) : null}
+        {showResetPosition ? (
+          <button
+            type="button"
+            className="text-ink-700 rounded px-1.5 py-0.5 text-[0.65rem] font-medium hover:bg-paper-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+            onClick={resetPositionToDefault}
+          >
+            Reset position
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+
   return (
     <div
       ref={cardRef}
@@ -340,50 +389,25 @@ export function InMeetingAlertCard({
         </button>
       ) : (
         <div
+          data-fr36-expanded-chrome="true"
           className={cn(
             "flex h-full w-full flex-col overflow-hidden rounded-lg border border-border bg-paper-100 text-ink-900 shadow-lg",
             stateProp === "idle" && "opacity-80",
             stateProp === "degraded" && "border-amber-600/50 ring-1 ring-amber-500/20",
           )}
         >
-          <div
-            role="presentation"
-            className="flex cursor-grab touch-none select-none items-center justify-between border-b border-border bg-paper-200/80 px-3 py-2 active:cursor-grabbing"
-            onPointerDown={onPointerDownHeader}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
-          >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-ink-900">{meetingTitle}</p>
-              <p className="truncate text-xs text-ink-600">
-                {phaseLabel} — {freshnessLabel}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              {stateProp === "degraded" ? (
-                <span className="rounded border border-amber-600/40 bg-amber-50/90 px-1.5 py-0.5 text-[0.65rem] font-medium text-amber-950">
-                  Degraded
-                </span>
-              ) : null}
-              {showResetPosition ? (
-                <button
-                  type="button"
-                  className="text-ink-700 rounded px-1.5 py-0.5 text-[0.65rem] font-medium hover:bg-paper-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
-                  onClick={() => {
-                    try {
-                      window.localStorage.removeItem(storageKey);
-                    } catch {
-                      /* ignore */
-                    }
-                    setPos(defaultPosition());
-                  }}
-                >
-                  Reset position
-                </button>
-              ) : null}
-            </div>
-          </div>
+          {showResetPosition ? (
+            <ContextMenu>
+              <ContextMenuTrigger asChild>{meetingDragHeader}</ContextMenuTrigger>
+              <ContextMenuContent className="z-[100]">
+                <ContextMenuItem onSelect={resetPositionToDefault}>
+                  Reset position to default
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
+          ) : (
+            meetingDragHeader
+          )}
           <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
             <p className="text-xs text-ink-600">Retrieved for this meeting (max 3)</p>
             <div className="flex flex-col gap-2">{children}</div>

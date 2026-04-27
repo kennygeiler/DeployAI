@@ -139,6 +139,12 @@ jobs:
       - name: pnpm install
         run: pnpm install --frozen-lockfile
 
+      # Next production bundles `@deployai/shared-ui` from `packages/shared-ui/dist`.
+      # Build it explicitly before the monorepo turbo graph so `dist` never lags `src`
+      # if a future task graph changes (Epic 9 CI hardening).
+      - name: Build @deployai/shared-ui (fresh dist)
+        run: pnpm turbo run build --filter=@deployai/shared-ui
+
       - name: Sync Python workspaces (uv)
         run: bash scripts/ci-uv-sync-all.sh
 

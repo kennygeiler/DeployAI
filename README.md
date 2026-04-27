@@ -17,6 +17,8 @@
 
 You plan in **BMAD** (`_bmad-output/`, `.cursor/skills/`). You ship in **`apps/web`**, **`services/*`**, **`packages/*`**. CI on every PR to `main` enforces the gates in [`.github/workflows/README.md`](./.github/workflows/README.md).
 
+**Reality check for demos and stakeholder conversations:** [whats-actually-here.md](./whats-actually-here.md) — what is fixture vs live, demo checklist, and mermaid flows (living doc; update when surfaces change).
+
 ---
 
 ## Why DeployAI (vs generic PM tools)

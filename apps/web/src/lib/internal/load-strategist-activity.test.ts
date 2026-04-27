@@ -9,6 +9,8 @@ function meetingOffResponse() {
       meeting_id: null,
       meeting_title: null,
       oracle_in_meeting_alert_at: null,
+      detection_source: "off",
+      calendar_poll_interval_seconds: null,
     }),
     { status: 200, headers: { "content-type": "application/json" } },
   );
@@ -79,6 +81,8 @@ describe("loadStrategistActivityForActor", () => {
       controlPlane: "ok",
       agentServiceHealth: "unconfigured",
       inMeeting: false,
+      meetingDetectionSource: "off",
+      calendarPollIntervalSeconds: null,
     });
   });
 

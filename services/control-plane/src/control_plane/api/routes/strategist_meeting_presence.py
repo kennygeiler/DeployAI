@@ -10,10 +10,10 @@ from __future__ import annotations
 import os
 import uuid
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from control_plane.config.internal_api import verify_internal_key
 
@@ -35,6 +35,16 @@ class MeetingPresenceRead(BaseModel):
     meeting_id: str | None = None
     meeting_title: str | None = None
     oracle_in_meeting_alert_at: str | None = None
+    detection_source: Literal["stub", "graph_cache", "oracle_signal", "off"] = Field(
+        default="off",
+        description="How the active-meeting signal was derived (stub until Graph calendar wiring).",
+    )
+    calendar_poll_interval_seconds: int = Field(
+        default=30,
+        ge=5,
+        le=30,
+        description="Suggested client poll cadence for presence refresh (Story 9.1: ≤ 30 s).",
+    )
 
 
 def _stub_tenant_ids() -> set[str]:
@@ -60,10 +70,15 @@ async def read_meeting_presence(
             meeting_id="00000000-0000-4000-8000-00000000c001",
             meeting_title="Stub meeting (Graph calendar deferred)",
             oracle_in_meeting_alert_at=now,
+            # Contract: live Oracle uses ``oracle_signal``; stub tenants exercise the same shape.
+            detection_source="oracle_signal",
+            calendar_poll_interval_seconds=30,
         )
     return MeetingPresenceRead(
         in_meeting=False,
         meeting_id=None,
         meeting_title=None,
         oracle_in_meeting_alert_at=None,
+        detection_source="off",
+        calendar_poll_interval_seconds=30,
     )

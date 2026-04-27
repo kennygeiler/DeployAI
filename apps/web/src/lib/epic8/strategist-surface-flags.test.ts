@@ -10,6 +10,8 @@ const idleMeeting = {
   meetingId: null,
   meetingTitle: null,
   oracleInMeetingAlertAt: null,
+  meetingDetectionSource: "off",
+  calendarPollIntervalSeconds: null,
 } as const;
 
 describe("parseStrategistSurfaceQuery", () => {
@@ -65,6 +67,8 @@ describe("parseStrategistSurfaceQuery", () => {
     expect(r.meetingId).toBe("demo-meeting");
     expect(r.meetingTitle).toBe("Demo meeting (URL flag)");
     expect(r.oracleInMeetingAlertAt).toEqual(expect.any(String));
+    expect(r.meetingDetectionSource).toBe("url_demo");
+    expect(r.calendarPollIntervalSeconds).toBe(30);
   });
 });
 
@@ -103,5 +107,7 @@ describe("mergeStrategistSurfaceFromDemoQuery", () => {
     const merged = mergeStrategistSurfaceFromDemoQuery(baseHealthy, "?inMeeting=1");
     expect(merged.inMeeting).toBe(true);
     expect(merged.meetingTitle).toBeTruthy();
+    expect(merged.meetingDetectionSource).toBe("url_demo");
+    expect(merged.calendarPollIntervalSeconds).toBe(30);
   });
 });

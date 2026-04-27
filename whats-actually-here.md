@@ -1,0 +1,190 @@
+# What’s actually here
+
+**Living document.** Update this file when epics ship, env contracts change, or a surface moves from mock → live. Goal: one honest place to **catalog reality**, **demo the product**, and **talk to stakeholders** without conflating “CI green” with “operator’s daily driver.”
+
+## 0. How to keep this document honest
+
+1. **A PR changes strategist data** (loaders, `apps/web/src/app/api/bff/*`, CP routes feeding activity or digest): edit the **§2 table** and add a **§10 changelog** row (date + one line).
+2. **A PR changes “how demo-able we are”** (new env var, new fallback): update **§7** and/or **[.env.example](./.env.example)**; mention the var here if strategists need it for demos.
+3. **An epic’s *truth* changes** (e.g. queues move off in-memory store): refresh **§3**, **§6**, or **§8** so “pilot” language stays accurate.
+
+| Quick rule | If it affects what appears on `/digest`, `/evening`, `/in-meeting`, or `/api/internal/strategist-activity`, touch **§2** + **§10**. |
+|------------|-------------------------------------------------------------------------------------------------------------------------------------|
+
+**Env template:** strategist-facing variables are commented in [.env.example](./.env.example) under **apps/web — strategist surfaces**.
+
+---
+
+## 1. TL;DR
+
+- **A lot of “hard work” is real:** monorepo gates, schemas, tenant-isolation tests, ingestion/control-plane direction, agent/eval **contracts and harnesses**, design system, strategist **screens and flows**.
+- **The strategist browser experience is often demo-shaped:** digest/evening/phase can use **fixtures or optional HTTP URLs**; queues use an **in-memory BFF store**; meeting presence uses **CP stub + URL flags**; **no live agent streaming** into the UI today.
+- **“Demo usable”** = walk the workflow with fixtures + dev role headers + optional env URLs + CP where configured. **“Pilot usable”** = same surfaces backed by **durable APIs + tenant truth**. See **§7** (checklist) and **§8** (stages).
+
+---
+
+## 2. Strategist surfaces: what drives them
+
+| Surface | Default data | “More real” lever |
+|---------|----------------|-------------------|
+| `/digest` | `MORNING_DIGEST_TOP` in code | `STRATEGIST_DIGEST_SOURCE_URL` → validated JSON array |
+| `/phase-tracking` | Optional remote feed; else seeded fallback + banner | Wire feed; fix payload to schema |
+| `/evening` | Mock slice + patterns; solidification **nudge count** from in-memory store | `STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL` |
+| `/in-meeting` | Meeting signal from activity poll + digest-aligned fixtures | CP `meeting-presence` + stub tenant env; or `?inMeeting=1` |
+| `/action-queue` | Empty until carryover or tests | In-meeting end → carryover POST; later CP rows |
+| `/validation-queue` | **Auto-seeded** 10 rows on first tenant touch (BFF) | Replace with CP-backed queue |
+| `/solidification-review` | **Auto-seeded** 20 rows on first tenant touch | Replace with CP-backed queue |
+| `/evidence/[nodeId]` | Works for fixture IDs linked from digest | Needs canonical graph backing same IDs |
+| Activity / degrade banners | `GET /api/internal/strategist-activity` → CP + ingest + optional Oracle **health** URL | `DEPLOYAI_ORACLE_HEALTH_URL` (liveness, not inference) |
+
+All `STRATEGIST_*`, `DEPLOYAI_ORACLE_HEALTH_URL`, `NEXT_PUBLIC_DEPLOYAI_STRATEGIST_ACTIVITY_POLL_MS`, and CP URL/key pairs for web are **documented as comments** in [.env.example](./.env.example).
+
+---
+
+## 3. What nine epics of work *did* accomplish (framing)
+
+Rough mapping (see [_bmad-output/implementation-artifacts/sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml) for story-level truth). **Epic 7** and **Epic 9** are story-complete on `main` (design system through VPAT evidence pipeline stub + in-meeting alert persistence UX); **Epic 10+** still own durable overrides and CP-backed queues.
+
+| Area | What you got |
+|------|----------------|
+| **Epic 1** | Scaffold, CI/SBOM/CVE posture, a11y gates, tokens, **citation envelope + isolation + continuity** tests — *rules of the road* |
+| **Epics 2–3** | Identity/tenancy and ingestion **plumbing** (services, CP direction) |
+| **Epics 4–6** | Agent runtime **contracts**, eval harness, providers, cartographer/oracle **design** — *lab + spec*, not full browser loop |
+| **Epic 7** | **shared-ui** primitives (citation, evidence, alert, validation card, …) — reusable, tested components |
+| **Epic 8** | Strategist **shell**: digest, phase, evening, Cmd+K, evidence deep links, degraded states |
+| **Epic 9** | In-meeting **UX**, carryover, action-queue **lifecycle APIs**, validation/solidification **surfaces** (BFF mock store) |
+
+**Not the same as:** “Strategist opens app → live model continuously updates every surface with production data.” That’s **integration + Epic 10+** territory.
+
+---
+
+## 4. Mermaid — demo user journey (fixture-heavy)
+
+```mermaid
+flowchart LR
+  subgraph entry["Entry"]
+    Dev[Dev browser / optional SSO later]
+  end
+  subgraph loop["Morning / day loop"]
+    D["/digest\nfixtures or STRATEGIST_DIGEST_SOURCE_URL"]
+    P["/phase-tracking\nfeed or fallback"]
+    E["/evening\nmock or STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL"]
+  end
+  subgraph reactive["Reactive / queues"]
+    M["/in-meeting\n?inMeeting=1 or CP presence"]
+    A["/action-queue\ncarryover or empty"]
+    V["/validation-queue\nauto-seed ×10"]
+    S["/solidification-review\nauto-seed ×20"]
+  end
+  subgraph evidence["Evidence"]
+    Ev["/evidence/nodeId\nfrom digest chips"]
+  end
+  Dev --> D --> Ev
+  Dev --> P
+  Dev --> E
+  Dev --> M --> A
+  Dev --> V
+  Dev --> S
+```
+
+---
+
+## 5. Mermaid — data & control flow (web ↔ CP ↔ BFF)
+
+```mermaid
+flowchart TB
+  subgraph browser["Browser"]
+    Shell["StrategistShell\npolls activity"]
+    Pages["Pages /digest /evening /queues …"]
+  end
+  subgraph web["apps/web"]
+    Activity["GET /api/internal/strategist-activity"]
+    BFF["GET/POST /api/bff/*\nqueues, feedback, carryover"]
+    Loaders["SSR loaders\noptional STRATEGIST_* URLs"]
+  end
+  subgraph cp["services/control-plane"]
+    Healthz["/healthz"]
+    Ingest["ingestion-runs"]
+    Meet["meeting-presence stub"]
+  end
+  subgraph external["Optional"]
+    OracleH["DEPLOYAI_ORACLE_HEALTH_URL\nGET liveness only"]
+    DigestURL["STRATEGIST_DIGEST_SOURCE_URL"]
+    EveningURL["STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL"]
+  end
+  Shell --> Activity
+  Pages --> Loaders
+  Pages --> BFF
+  Activity --> Healthz
+  Activity --> Ingest
+  Activity --> Meet
+  Activity --> OracleH
+  Loaders --> DigestURL
+  Loaders --> EveningURL
+  BFF --> Mem[("In-memory queue store\ndemo / dev")]
+```
+
+---
+
+## 6. Mermaid — “real” vs “stub” lens
+
+```mermaid
+flowchart LR
+  subgraph real["Engineering-real"]
+    CI[CI gates / SBOM / a11y]
+    Schema[Citation + tenant contracts]
+    CP[Control plane APIs]
+    Ingest[Ingestion services]
+    UI[shared-ui + routes]
+  end
+  subgraph stub["Product-stub / demo"]
+    MemQ[In-memory BFF queues]
+    Fix[Digest fixtures]
+    Poll[Activity poll is not agent stream]
+  end
+  real --> stub
+  stub --> Future["Pilot: DB-backed queues\nlive feeds\nEpic 10 overrides"]
+```
+
+---
+
+## 7. Demo-usable checklist (for you + guests)
+
+Use this to run a **credible demo** without claiming full production.
+
+- [ ] **Build:** `pnpm install --frozen-lockfile` && `pnpm turbo run lint typecheck test build` (or CI green on branch).
+- [ ] **Web:** `apps/web` — `pnpm dev` or `pnpm start` after `pnpm build`; strategist routes require role (dev middleware injects strategist — see [docs/dev-environment.md](./docs/dev-environment.md)).
+- [ ] **Digest path:** Open `/digest` → expand citation → `/evidence/...` works for fixture-linked IDs.
+- [ ] **Degraded story (optional):** `?agentError=1` / `?ingest=1` on surfaces to show banners (Epic 8.7).
+- [ ] **In-meeting:** `?inMeeting=1` **or** CP stub tenant for meeting-presence; end meeting → carryover toast → `/action-queue` shows rows.
+- [ ] **Queues:** `/validation-queue` and `/solidification-review` show cards immediately (auto-seed).
+- [ ] **Optional realism:** Set `STRATEGIST_DIGEST_SOURCE_URL` / evening URL / `DEPLOYAI_CONTROL_PLANE_URL` + internal key per dev docs and [.env.example](./.env.example).
+- [ ] **Say honestly:** “Surfaces are production-shaped; much data is fixture or BFF mock until CP tables back these queues.”
+
+---
+
+## 8. How far to “actually usable” for operators
+
+| Stage | Meaning |
+|-------|---------|
+| **Demo** | Above checklist; stakeholders see **intent and UX**. |
+| **Pilot** | Queues + audits + digest/synthesis **durable per tenant**; meeting from **real calendar**; ingestion **feeds** evidence graph. |
+| **Production** | SSO/session as deployed; **agent events** or batch jobs **drive** updates; **Epic 10** trust/override **durable**; no dev-only role injection. |
+
+---
+
+## 9. Related docs
+
+- [docs/dev-environment.md](./docs/dev-environment.md) — local run, headers, poll interval, CP vars.
+- [.env.example](./.env.example) — CP, OIDC, ingestion placeholders.
+- [_bmad-output/implementation-artifacts/sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml) — story-level done/in-progress.
+- [docs/diagrams/deployai-bmad-and-runtime-flow.mjs](./docs/diagrams/deployai-bmad-and-runtime-flow.mjs) — BMAD + runtime export (Mermaid JS).
+
+---
+
+## 10. Changelog (high signal)
+
+| Date | Change |
+|------|--------|
+| 2026-04-26 | Initial catalog: surfaces table, epic framing, mermaid flows, demo checklist, distance-to-pilot. |
+| 2026-04-26 | §0 maintenance workflow; §2 pointer to `.env.example` strategist vars; Epic 7/9 story-complete note. Story **9.8**: header **context menu** “Reset position to default” (`InMeetingAlertCard`). Story **7.15**: VPAT aggregator + `vpat-evidence.yml` tracked as done in sprint-status. |

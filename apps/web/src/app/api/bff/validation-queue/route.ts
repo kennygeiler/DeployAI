@@ -2,7 +2,11 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { decideSync } from "@deployai/authz";
 
-import { listValidationQueue, patchValidationRow } from "@/lib/bff/strategist-queues-store";
+import {
+  listValidationQueue,
+  patchValidationRow,
+  pushValidationAudit,
+} from "@/lib/bff/strategist-queues-store";
 import { getActorFromHeaders } from "@/lib/internal/actor";
 
 type PostBody =
@@ -48,13 +52,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
   if (body.op === "confirm") {
+    pushValidationAudit(actor.tenantId ?? null, "validation.confirmed", { id: body.id });
     const row = patchValidationRow(actor.tenantId ?? null, body.id, "resolved");
     return row
       ? NextResponse.json({ item: row })
       : NextResponse.json({ error: "not found" }, { status: 404 });
   }
   if (body.op === "defer") {
-    const row = patchValidationRow(actor.tenantId ?? null, body.id, "escalated");
+    pushValidationAudit(actor.tenantId ?? null, "validation.deferred", { id: body.id });
+    const row = patchValidationRow(actor.tenantId ?? null, body.id, "in-review");
     return row
       ? NextResponse.json({ item: row })
       : NextResponse.json({ error: "not found" }, { status: 404 });
@@ -63,6 +69,11 @@ export async function POST(request: NextRequest) {
     if (!body.reason?.trim()) {
       return NextResponse.json({ error: "reason required" }, { status: 400 });
     }
+    const kind = body.op === "modify" ? "validation.modified" : "validation.rejected";
+    pushValidationAudit(actor.tenantId ?? null, kind, {
+      id: body.id,
+      reason: body.reason.trim(),
+    });
     const row = patchValidationRow(actor.tenantId ?? null, body.id, "resolved");
     return row
       ? NextResponse.json({ item: row })
