@@ -120,6 +120,7 @@ test.describe("strategist", () => {
     const today = () => new Date().toISOString().slice(0, 10);
 
     for (const [path, heading] of [
+      ["/digest", /Morning digest/i] as const,
       ["/evening", /Evening synthesis/i] as const,
       ["/phase-tracking", /Phase & task tracking/i] as const,
     ] as const) {
@@ -171,6 +172,21 @@ test.describe("strategist", () => {
         await expect(outage).toContainText("Oracle");
       });
     }
+
+    test("demo query ?agentError=1 shows outage without route mock (URL merge survives BFF poll)", async ({
+      page,
+    }) => {
+      await page.goto("/digest?agentError=1", { waitUntil: "domcontentloaded" });
+      await expect(page.getByRole("heading", { name: /Morning digest/i })).toBeVisible();
+      await expect(page.locator("[data-agent-outage]")).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByRole("heading", { name: /What I ranked out/i })).not.toBeVisible();
+    });
+
+    test("demo query ?ingest=1 shows top-rail ingestion without route mock", async ({ page }) => {
+      await page.goto("/digest?ingest=1", { waitUntil: "domcontentloaded" });
+      await expect(page.getByRole("heading", { name: /Morning digest/i })).toBeVisible();
+      await expect(page.locator("[data-ingestion-active]")).toBeVisible({ timeout: 20_000 });
+    });
   });
 
   test.describe("Story 8.4 — expand-inline EvidencePanel (NFR4 budget in CI)", () => {

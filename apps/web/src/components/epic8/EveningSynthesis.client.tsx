@@ -62,19 +62,21 @@ export function EveningSynthesisClient({
           <DigestEvidenceCard key={item.id} item={item} headingLevel="h2" />
         ))}
       </div>
-      <section className="border-border rounded-lg border p-4" aria-labelledby="evening-patterns">
-        <h2 id="evening-patterns" className="text-foreground text-sm font-semibold">
-          Cross-account patterns
-        </h2>
-        <ul className="text-body text-ink-800 mt-2 space-y-2">
-          {patterns.map((c) => (
-            <li key={c.id} className="border-border/80 rounded border bg-paper-100 px-3 py-2">
-              <p className="font-medium text-ink-900">{c.title}</p>
-              <p className="text-ink-600 text-sm">{c.note}</p>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {!agentDegraded ? (
+        <section className="border-border rounded-lg border p-4" aria-labelledby="evening-patterns">
+          <h2 id="evening-patterns" className="text-foreground text-sm font-semibold">
+            Cross-account patterns
+          </h2>
+          <ul className="text-body text-ink-800 mt-2 space-y-2">
+            {patterns.map((c) => (
+              <li key={c.id} className="border-border/80 rounded border bg-paper-100 px-3 py-2">
+                <p className="font-medium text-ink-900">{c.title}</p>
+                <p className="text-ink-600 text-sm">{c.note}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <section
         className="bg-paper-100 border-border rounded-lg border p-4"
         aria-labelledby="class-b"

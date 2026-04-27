@@ -49,16 +49,18 @@ export function MorningDigestClient({
           <DigestEvidenceCard key={item.id} item={item} headingLevel="h2" />
         ))}
       </div>
-      <footer className="border-border rounded-lg border border-dashed p-4">
-        <h2 className="text-foreground text-sm font-semibold">What I ranked out</h2>
-        <ul className="text-body text-ink-700 mt-2 list-inside list-disc space-y-1">
-          {MORNING_DIGEST_RANKED_OUT.map((o) => (
-            <li key={o.id}>
-              <span className="font-medium text-ink-900">{o.label}</span> — {o.reason}
-            </li>
-          ))}
-        </ul>
-      </footer>
+      {!agentDegraded ? (
+        <footer className="border-border rounded-lg border border-dashed p-4">
+          <h2 className="text-foreground text-sm font-semibold">What I ranked out</h2>
+          <ul className="text-body text-ink-700 mt-2 list-inside list-disc space-y-1">
+            {MORNING_DIGEST_RANKED_OUT.map((o) => (
+              <li key={o.id}>
+                <span className="font-medium text-ink-900">{o.label}</span> — {o.reason}
+              </li>
+            ))}
+          </ul>
+        </footer>
+      ) : null}
     </div>
   );
 }

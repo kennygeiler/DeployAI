@@ -1,6 +1,22 @@
 import type { StrategistSurfaceValue } from "./strategist-surface-context";
 
 /**
+ * ORs demo query flags onto the server/BFF snapshot so `?agentError=1` survives client refresh
+ * polling (Epic 8.7 manual QA without intercepting `/api/internal/strategist-activity`).
+ */
+export function mergeStrategistSurfaceFromDemoQuery(
+  base: StrategistSurfaceValue,
+  query: string | Readonly<URLSearchParams> | URLSearchParams,
+): StrategistSurfaceValue {
+  const q = parseStrategistSurfaceQuery(query);
+  return {
+    strategistLocalDate: base.strategistLocalDate,
+    agentDegraded: base.agentDegraded || q.agentDegraded,
+    ingestionInProgress: base.ingestionInProgress || q.ingestionInProgress,
+  };
+}
+
+/**
  * Centralizes dev / preview query parsing for Epic 8.7. Replace with health API in production.
  * Pure: unit-test this without a browser.
  */

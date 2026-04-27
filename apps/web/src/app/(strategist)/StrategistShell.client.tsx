@@ -1,10 +1,13 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { AppShell } from "@/components/chrome/AppShell";
 import type { StrategistActivitySnapshot } from "@/lib/internal/load-strategist-activity";
 import type { StrategistSessionBannerPayload } from "@/lib/internal/strategist-demo-session";
+import { mergeStrategistSurfaceFromDemoQuery } from "@/lib/epic8/strategist-surface-flags";
 import {
   StrategistSurfaceProvider,
   type StrategistSurfaceValue,
@@ -25,15 +28,45 @@ function toSurfaceValue(s: StrategistActivitySnapshot): StrategistSurfaceValue {
   };
 }
 
+function StrategistShellFallback({
+  children,
+  lastSyncedAt,
+  initialActivity,
+  sessionBanner,
+}: Props) {
+  const surface = React.useMemo(
+    () => mergeStrategistSurfaceFromDemoQuery(toSurfaceValue(initialActivity), ""),
+    [initialActivity],
+  );
+  return (
+    <StrategistSurfaceProvider value={surface}>
+      <AppShell lastSyncedAt={lastSyncedAt} sessionBanner={sessionBanner}>
+        {children}
+      </AppShell>
+    </StrategistSurfaceProvider>
+  );
+}
+
 /**
  * Server passes initial `loadStrategistActivityForActor` snapshot; this client polls
  * `GET /api/internal/strategist-activity` (same logic) for live ingest + CP health.
+ * Demo query flags (`?agentError=1`, `?ingest=1`, …) merge on top of the snapshot (Epic 8.7).
  */
-export function StrategistShell({ children, lastSyncedAt, initialActivity, sessionBanner }: Props) {
+function StrategistShellInner({
+  children,
+  lastSyncedAt,
+  initialActivity,
+  sessionBanner,
+}: Props) {
+  const searchParams = useSearchParams();
+  const demoQueryString = searchParams.toString();
   const [activity, setActivity] = React.useState<StrategistActivitySnapshot>(initialActivity);
   const requestId = React.useRef(0);
 
-  const surface = React.useMemo(() => toSurfaceValue(activity), [activity]);
+  const surface = React.useMemo(
+    () => mergeStrategistSurfaceFromDemoQuery(toSurfaceValue(activity), demoQueryString),
+    [activity, demoQueryString],
+  );
 
   const refresh = React.useCallback(() => {
     const id = (requestId.current += 1);
@@ -73,5 +106,13 @@ export function StrategistShell({ children, lastSyncedAt, initialActivity, sessi
         {children}
       </AppShell>
     </StrategistSurfaceProvider>
+  );
+}
+
+export function StrategistShell(props: Props) {
+  return (
+    <Suspense fallback={<StrategistShellFallback {...props} />}>
+      <StrategistShellInner {...props} />
+    </Suspense>
   );
 }
