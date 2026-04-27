@@ -1,6 +1,11 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const strategistRoleHeader = { "x-deployai-role": "deployment_strategist" };
+
+/** Client `AppShell` must be hydrated so the ⌃K listener is attached (domcontentloaded alone is not enough). */
+async function waitForStrategistCommandShell(page: Page): Promise<void> {
+  await expect(page.getByTestId("command-palette-trigger")).toBeVisible();
+}
 
 /**
  * All strategist browser tests run serially: parallel navigations + one `next start` process
@@ -19,6 +24,7 @@ test.describe("strategist", () => {
     test("open palette (⌃K) and close on phase-tracking and digest", async ({ page }) => {
       await page.goto("/phase-tracking", { waitUntil: "domcontentloaded" });
       await expect(page.getByRole("heading", { name: /Phase & task tracking/i })).toBeVisible();
+      await waitForStrategistCommandShell(page);
       await page.keyboard.press("Control+K");
       await expect(page.getByRole("dialog")).toBeVisible();
       await expect(page.getByTestId("command-palette-input")).toBeVisible();
@@ -31,6 +37,7 @@ test.describe("strategist", () => {
 
       await page.goto("/digest", { waitUntil: "domcontentloaded" });
       await expect(page.getByRole("heading", { name: /Morning digest/i })).toBeVisible();
+      await waitForStrategistCommandShell(page);
       await page.keyboard.press("Control+K");
       await expect(page.getByRole("dialog")).toBeVisible();
       await page.evaluate(() => {
@@ -44,18 +51,28 @@ test.describe("strategist", () => {
     }) => {
       await page.goto("/digest", { waitUntil: "domcontentloaded" });
       await expect(page.getByRole("heading", { name: /Morning digest/i })).toBeVisible();
+      await waitForStrategistCommandShell(page);
       await page.keyboard.press("Control+K");
       await expect(page.getByRole("dialog")).toBeVisible();
       const input = page.getByTestId("command-palette-input");
       await expect(input).toBeVisible();
-      // Roving: 5 Navigate items, then the Actions group (CommandSeparator is not a focus stop).
-      // Five ArrowDown moves from the input land on the first Action row in this build.
-      for (let i = 0; i < 5; i += 1) {
+      await input.click();
+      // Roving crosses Navigate (5 items) and CommandSeparator (not a focus stop), then Actions.
+      // cmdk minor versions differ on whether the first ArrowDown leaves the filter input — step
+      // until the first Action row is selected instead of assuming a fixed key count.
+      const firstActionRow = /Resolve|claim|Action Queue/i;
+      let reachedAction = false;
+      for (let i = 0; i < 24; i += 1) {
         await page.keyboard.press("ArrowDown");
+        const selected = page.locator('[cmdk-item][aria-selected="true"]');
+        await expect(selected).toBeVisible();
+        if (firstActionRow.test((await selected.textContent()) ?? "")) {
+          reachedAction = true;
+          break;
+        }
       }
-      await expect(page.locator('[cmdk-item][aria-selected="true"]')).toContainText(
-        /Resolve|claim|Action Queue/i,
-      );
+      expect(reachedAction, "roving should reach the first Actions group row").toBe(true);
+      await expect(page.locator('[cmdk-item][aria-selected="true"]')).toContainText(firstActionRow);
       await page.evaluate(() => {
         document.querySelector<HTMLButtonElement>("[data-slot=dialog-close]")?.click();
       });

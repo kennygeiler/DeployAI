@@ -60,8 +60,10 @@ export function AppShell({
         setCommandOpen((o) => !o);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // Capture phase: runs before focused descendants handle the key, and before
+    // React effects on child trees — pairs with E2E waiting on `command-palette-trigger`.
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, []);
 
   return (
