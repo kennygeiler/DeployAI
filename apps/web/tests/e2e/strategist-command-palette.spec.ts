@@ -198,6 +198,8 @@ test.describe("strategist", () => {
     test("Navigate to source inside panel reaches /evidence/:nodeId", async ({ page }) => {
       const id = "2d4437ee-9336-441e-ab57-121b81ee57a4";
       await page.goto("/digest", { waitUntil: "domcontentloaded" });
+      const chip = page.locator("[data-citation-chip]").first();
+      await expect(chip).toBeVisible();
       await page.evaluate(() => {
         (document.querySelector("[data-citation-chip]") as HTMLButtonElement | null)?.click();
       });
