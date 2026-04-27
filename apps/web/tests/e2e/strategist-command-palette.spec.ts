@@ -249,7 +249,7 @@ test.describe("strategist", () => {
       page,
     }) => {
       const id = "2d4437ee-9336-441e-ab57-121b81ee57a4";
-      await page.goto("/in-meeting", { waitUntil: "domcontentloaded" });
+      await page.goto("/in-meeting?inMeeting=1", { waitUntil: "domcontentloaded" });
       await expect(page.getByRole("heading", { name: /In-meeting alert/i })).toBeVisible();
       await expect(page.locator("[data-mvp-in-meeting-demo]")).toBeVisible();
       await expect(page.getByRole("complementary", { name: /In-meeting alert/i })).toBeVisible();
@@ -290,6 +290,7 @@ test.describe("strategist", () => {
 
     test("placeholder strategist routes return 200", async ({ page }) => {
       for (const path of [
+        "/action-queue",
         "/validation-queue",
         "/solidification-review",
         "/overrides",

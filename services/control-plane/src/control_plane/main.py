@@ -42,6 +42,9 @@ from control_plane.api.routes.internal_session import router as internal_session
 from control_plane.api.routes.phase_transitions import router as phase_transitions_internal_router
 from control_plane.api.routes.platform import router as platform_router
 from control_plane.api.routes.schema_proposals import router as schema_proposals_internal_router
+from control_plane.api.routes.strategist_meeting_presence import (
+    router as strategist_meeting_presence_internal_router,
+)
 from control_plane.api.routes.scim import router as scim_users_router
 from control_plane.api.routes.upload_artifacts import router as upload_artifacts_router
 
@@ -81,6 +84,7 @@ app.include_router(adjudication_queue_internal_router, prefix="/internal/v1")
 app.include_router(phase_transitions_internal_router, prefix="/internal/v1")
 app.include_router(internal_metrics_router, prefix="/internal/v1")
 app.include_router(internal_session_router, prefix="/internal/v1")
+app.include_router(strategist_meeting_presence_internal_router, prefix="/internal/v1")
 app.include_router(scim_users_router, prefix="/scim/v2")
 
 

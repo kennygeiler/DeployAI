@@ -1,19 +1,14 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 
-export default function ValidationQueuePage() {
-  return (
-    <div className="max-w-2xl space-y-4">
-      <h1 className="text-display text-ink-950 font-semibold tracking-tight">Validation queue</h1>
-      <p className="text-body text-ink-600">
-        User Validation Queue and promote/demote actions land in Epic 9. This page exists so left
-        nav and the command palette route resolve without 404.
-      </p>
-      <Link
-        href="/digest"
-        className="text-evidence-800 text-sm font-medium underline-offset-2 hover:underline"
-      >
-        Back to Morning digest
-      </Link>
-    </div>
-  );
+import { ValidationQueueSurface } from "@/components/epic9/ValidationQueueSurface.client";
+import { requireCanonicalRead } from "@/lib/internal/strategist-surface";
+
+export const metadata: Metadata = {
+  title: "Validation queue",
+  description: "Epic 9.6 — User Validation Queue with confirm / modify / reject.",
+};
+
+export default async function ValidationQueuePage() {
+  await requireCanonicalRead();
+  return <ValidationQueueSurface />;
 }

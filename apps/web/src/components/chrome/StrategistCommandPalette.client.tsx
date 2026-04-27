@@ -3,7 +3,15 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import type { CitationPreview } from "@deployai/shared-ui";
-import { BookOpen, ListChecks, PlusCircle, UserRound, Video, Waypoints } from "lucide-react";
+import {
+  BookOpen,
+  ListChecks,
+  ListTodo,
+  PlusCircle,
+  UserRound,
+  Video,
+  Waypoints,
+} from "lucide-react";
 
 import {
   CommandDialog,
@@ -34,6 +42,12 @@ const navigateItems = [
     Icon: ListChecks,
   },
   { href: "/evening", label: "Evening synthesis", value: "nav evening synthesis", Icon: BookOpen },
+  {
+    href: "/action-queue",
+    label: "Action queue",
+    value: "nav action queue",
+    Icon: ListTodo,
+  },
   {
     href: "/validation-queue",
     label: "Validation queue (Epic 9)",

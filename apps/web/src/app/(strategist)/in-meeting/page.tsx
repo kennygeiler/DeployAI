@@ -6,7 +6,7 @@ import { requireCanonicalRead } from "@/lib/internal/strategist-surface";
 export const metadata: Metadata = {
   title: "In-meeting alert",
   description:
-    "MVP Track D — in-meeting alert with digest-aligned mock citations (Epic 9 thin slice).",
+    "Epic 9.1–9.4 — meeting presence, three-item budget, correction vs dismissal, carryover to Action Queue.",
 };
 
 export default async function InMeetingPage() {
