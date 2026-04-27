@@ -23,6 +23,10 @@ function toSurfaceValue(s: StrategistActivitySnapshot): StrategistSurfaceValue {
     agentDegraded: s.agentDegraded,
     ingestionInProgress: s.ingestionInProgress,
     strategistLocalDate: s.strategistLocalDate,
+    inMeeting: s.inMeeting,
+    meetingId: s.meetingId,
+    meetingTitle: s.meetingTitle,
+    oracleInMeetingAlertAt: s.oracleInMeetingAlertAt,
   };
 }
 
@@ -103,6 +107,10 @@ export function StrategistShell({ children, lastSyncedAt, initialActivity, sessi
         ...j,
         strategistLocalDate: j.strategistLocalDate ?? prev.strategistLocalDate,
         agentServiceHealth: j.agentServiceHealth ?? prev.agentServiceHealth,
+        inMeeting: j.inMeeting ?? prev.inMeeting,
+        meetingId: j.meetingId ?? prev.meetingId,
+        meetingTitle: j.meetingTitle ?? prev.meetingTitle,
+        oracleInMeetingAlertAt: j.oracleInMeetingAlertAt ?? prev.oracleInMeetingAlertAt,
       }));
     })();
   }, []);

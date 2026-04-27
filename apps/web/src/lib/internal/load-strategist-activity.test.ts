@@ -2,6 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { loadStrategistActivityForActor } from "./load-strategist-activity";
 
+function meetingOffResponse() {
+  return new Response(
+    JSON.stringify({
+      in_meeting: false,
+      meeting_id: null,
+      meeting_title: null,
+      oracle_in_meeting_alert_at: null,
+    }),
+    { status: 200, headers: { "content-type": "application/json" } },
+  );
+}
+
 describe("loadStrategistActivityForActor", () => {
   const original = globalThis.fetch;
   const originalBase = process.env.DEPLOYAI_CONTROL_PLANE_URL;
@@ -40,6 +52,9 @@ describe("loadStrategistActivityForActor", () => {
       if (u.includes("/healthz")) {
         return Promise.resolve(new Response(JSON.stringify({ status: "ok" }), { status: 200 }));
       }
+      if (u.includes("meeting-presence")) {
+        return Promise.resolve(meetingOffResponse());
+      }
       if (u.includes("ingestion-runs")) {
         return Promise.resolve(
           new Response(
@@ -57,12 +72,13 @@ describe("loadStrategistActivityForActor", () => {
       role: "deployment_strategist",
       tenantId: "t1",
     });
-    expect(r).toEqual({
+    expect(r).toMatchObject({
       agentDegraded: false,
       ingestionInProgress: true,
       strategistLocalDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       controlPlane: "ok",
       agentServiceHealth: "unconfigured",
+      inMeeting: false,
     });
   });
 
@@ -71,6 +87,9 @@ describe("loadStrategistActivityForActor", () => {
       const u = typeof input === "string" ? input : String(input);
       if (u.includes("/healthz")) {
         return Promise.resolve(new Response(JSON.stringify({ status: "ok" }), { status: 200 }));
+      }
+      if (u.includes("meeting-presence")) {
+        return Promise.resolve(meetingOffResponse());
       }
       if (u.includes("ingestion-runs")) {
         return Promise.resolve(
@@ -130,6 +149,9 @@ describe("loadStrategistActivityForActor", () => {
       if (u.includes("/healthz")) {
         return Promise.resolve(new Response(JSON.stringify({ status: "ok" }), { status: 200 }));
       }
+      if (u.includes("meeting-presence")) {
+        return Promise.resolve(meetingOffResponse());
+      }
       if (u.includes("ingestion-runs")) {
         return Promise.reject(new TypeError("network"));
       }
@@ -139,12 +161,13 @@ describe("loadStrategistActivityForActor", () => {
       role: "deployment_strategist",
       tenantId: "t1",
     });
-    expect(r).toEqual({
+    expect(r).toMatchObject({
       agentDegraded: true,
       ingestionInProgress: false,
       strategistLocalDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       controlPlane: "error",
       agentServiceHealth: "unconfigured",
+      inMeeting: false,
     });
   });
 });

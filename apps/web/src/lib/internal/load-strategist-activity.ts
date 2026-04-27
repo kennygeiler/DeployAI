@@ -18,6 +18,13 @@ type CpIngestionRun = {
 
 export type AgentServiceHealth = "unconfigured" | "ok" | "error";
 
+const IDLE_MEETING = {
+  inMeeting: false,
+  meetingId: null as string | null,
+  meetingTitle: null as string | null,
+  oracleInMeetingAlertAt: null as string | null,
+};
+
 export type StrategistActivitySnapshot = {
   agentDegraded: boolean;
   ingestionInProgress: boolean;
@@ -29,13 +36,71 @@ export type StrategistActivitySnapshot = {
    * `DEPLOYAI_ORACLE_HEALTH_URL` is unset. When `error` and not unconfigured, surfaces degrade.
    */
   agentServiceHealth: AgentServiceHealth;
+  /** Epic 9.1 — Graph calendar wiring deferred; values come from CP stub or URL demo merge. */
+  inMeeting: boolean;
+  meetingId: string | null;
+  meetingTitle: string | null;
+  oracleInMeetingAlertAt: string | null;
 };
+
+type ActivityWithoutDate = Omit<StrategistActivitySnapshot, "strategistLocalDate">;
 
 function snapshot(
   day: string,
-  partial: Omit<StrategistActivitySnapshot, "strategistLocalDate">,
+  partial: Partial<ActivityWithoutDate> &
+    Pick<
+      StrategistActivitySnapshot,
+      "agentDegraded" | "ingestionInProgress" | "controlPlane" | "agentServiceHealth"
+    >,
 ): StrategistActivitySnapshot {
-  return { strategistLocalDate: day, ...partial };
+  return { strategistLocalDate: day, ...IDLE_MEETING, ...partial };
+}
+
+function parseMeetingPresenceJson(
+  body: unknown,
+): Pick<
+  StrategistActivitySnapshot,
+  "inMeeting" | "meetingId" | "meetingTitle" | "oracleInMeetingAlertAt"
+> {
+  if (!body || typeof body !== "object") {
+    return IDLE_MEETING;
+  }
+  const j = body as Record<string, unknown>;
+  return {
+    inMeeting: Boolean(j.in_meeting),
+    meetingId: typeof j.meeting_id === "string" ? j.meeting_id : null,
+    meetingTitle: typeof j.meeting_title === "string" ? j.meeting_title : null,
+    oracleInMeetingAlertAt:
+      typeof j.oracle_in_meeting_alert_at === "string" ? j.oracle_in_meeting_alert_at : null,
+  };
+}
+
+async function fetchMeetingPresence(
+  base: string,
+  key: string,
+  tenantId: string | null,
+): Promise<
+  Pick<
+    StrategistActivitySnapshot,
+    "inMeeting" | "meetingId" | "meetingTitle" | "oracleInMeetingAlertAt"
+  >
+> {
+  if (!tenantId) {
+    return IDLE_MEETING;
+  }
+  try {
+    const u = `${base.replace(/\/$/, "")}/internal/v1/strategist/meeting-presence?tenant_id=${encodeURIComponent(tenantId)}`;
+    const r = await fetch(u, {
+      headers: { "X-DeployAI-Internal-Key": key },
+      cache: "no-store",
+    });
+    if (!r.ok) {
+      return IDLE_MEETING;
+    }
+    return parseMeetingPresenceJson(await r.json());
+  } catch {
+    return IDLE_MEETING;
+  }
 }
 
 /**
@@ -43,6 +108,7 @@ function snapshot(
  * - Liveness: `GET {controlPlane}/healthz` before internal APIs.
  * - Ingest: `GET /internal/v1/ingestion-runs` (tenant-scoped; **no** tenant id ⇒ no running rows / FR47).
  * - Optional agents: `GET DEPLOYAI_ORACLE_HEALTH_URL` when set.
+ * - Epic 9.1: `GET /internal/v1/strategist/meeting-presence` (best-effort; older CP builds omit it).
  */
 export async function loadStrategistActivityForActor(
   actor: AuthActor | null,
@@ -94,18 +160,24 @@ export async function loadStrategistActivityForActor(
     });
   }
 
-  const url = `${base.replace(/\/$/, "")}/internal/v1/ingestion-runs?limit=200`;
+  const tid = actor.tenantId?.trim() ?? null;
+  const ingestUrl = `${base.replace(/\/$/, "")}/internal/v1/ingestion-runs?limit=200`;
+
   try {
-    const r = await fetch(url, {
-      headers: { "X-DeployAI-Internal-Key": key },
-      cache: "no-store",
-    });
+    const [r, meetingPart] = await Promise.all([
+      fetch(ingestUrl, {
+        headers: { "X-DeployAI-Internal-Key": key },
+        cache: "no-store",
+      }),
+      fetchMeetingPresence(base, key, tid),
+    ]);
     if (!r.ok) {
       return snapshot(day, {
         agentDegraded: true,
         ingestionInProgress: false,
         controlPlane: "error",
         agentServiceHealth: agentHealth,
+        ...meetingPart,
       });
     }
     const runs = (await r.json()) as CpIngestionRun[];
@@ -115,9 +187,9 @@ export async function loadStrategistActivityForActor(
         ingestionInProgress: false,
         controlPlane: "error",
         agentServiceHealth: agentHealth,
+        ...meetingPart,
       });
     }
-    const tid = actor.tenantId?.trim() ?? null;
     const scoped = tid ? runs.filter((x) => x.tenant_id === tid) : [];
     const running = scoped.filter((x) => x.status === "running");
     return snapshot(day, {
@@ -125,6 +197,7 @@ export async function loadStrategistActivityForActor(
       ingestionInProgress: running.length > 0,
       controlPlane: "ok",
       agentServiceHealth: agentHealth,
+      ...meetingPart,
     });
   } catch {
     return snapshot(day, {
@@ -132,6 +205,7 @@ export async function loadStrategistActivityForActor(
       ingestionInProgress: false,
       controlPlane: "error",
       agentServiceHealth: agentHealth,
+      ...IDLE_MEETING,
     });
   }
 }

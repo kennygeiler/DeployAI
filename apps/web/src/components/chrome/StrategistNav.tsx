@@ -8,6 +8,7 @@ import {
   CheckSquare,
   FileWarning,
   ListChecks,
+  ListTodo,
   Sun,
   UserRound,
   Video,
@@ -22,6 +23,7 @@ const primary: readonly NavItem[] = [
   { href: "/in-meeting", label: "In-meeting alert", icon: Video },
   { href: "/phase-tracking", label: "Phase & tasks", icon: ListChecks },
   { href: "/evening", label: "Evening synthesis", icon: BookOpen },
+  { href: "/action-queue", label: "Action queue", icon: ListTodo },
   { href: "/validation-queue", label: "Validation queue", icon: CheckSquare },
 ];
 

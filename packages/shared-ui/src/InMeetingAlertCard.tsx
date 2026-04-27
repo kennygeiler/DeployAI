@@ -77,15 +77,21 @@ export type InMeetingAlertCardProps = {
   freshnessLabel: string;
   /** Up to 3 `CitationChip` (or other) nodes; host limits count. */
   children?: React.ReactNode;
+  /** Epic 9.2 — collapsible “ranked out” list rendered below primary items. */
+  rankedOut?: React.ReactNode;
   state: InMeetingAlertState;
   /**
    * Defaults to `tenant:<tenantId>:alert:position` (JSON { left, top } for `position: fixed`).
+   * When `userId` is set, key becomes `tenant:<tenantId>:user:<userId>:alert:position` (Epic 9.8).
    * Override for tests (pass e.g. a random key) to isolate storage.
    */
   positionStorageKey?: string;
+  userId?: string;
   className?: string;
   /** "Not now" — dismiss to tray (host handles persistence). */
   onNotNow?: () => void;
+  /** Epic 9.8 — show “Reset position” in the header (clears storage + snaps to default). */
+  showResetPosition?: boolean;
 };
 
 /**
@@ -100,12 +106,19 @@ export function InMeetingAlertCard({
   phaseLabel,
   freshnessLabel,
   children,
+  rankedOut,
   state: stateProp,
   positionStorageKey: positionStorageKeyProp,
+  userId,
   className: classNameProp,
   onNotNow,
+  showResetPosition = false,
 }: InMeetingAlertCardProps) {
-  const storageKey = positionStorageKeyProp ?? `tenant:${tenantId}:alert:position`;
+  const storageKey =
+    positionStorageKeyProp ??
+    (userId
+      ? `tenant:${tenantId}:user:${userId}:alert:position`
+      : `tenant:${tenantId}:alert:position`);
   const cardRef = React.useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = React.useState(defaultPosition);
   const [peeking, setPeeking] = React.useState(() => stateProp === "collapsed");
@@ -347,12 +360,36 @@ export function InMeetingAlertCard({
                   Degraded
                 </span>
               ) : null}
+              {showResetPosition ? (
+                <button
+                  type="button"
+                  className="text-ink-700 rounded px-1.5 py-0.5 text-[0.65rem] font-medium hover:bg-paper-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                  onClick={() => {
+                    try {
+                      window.localStorage.removeItem(storageKey);
+                    } catch {
+                      /* ignore */
+                    }
+                    setPos(defaultPosition());
+                  }}
+                >
+                  Reset position
+                </button>
+              ) : null}
             </div>
           </div>
           <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
             <p className="text-xs text-ink-600">Retrieved for this meeting (max 3)</p>
             <div className="flex flex-col gap-2">{children}</div>
           </div>
+          {rankedOut ? (
+            <details className="border-t border-border bg-paper-100/90">
+              <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-ink-700 hover:bg-paper-200/80">
+                Ranked out (not shown in top 3)
+              </summary>
+              <div className="max-h-28 space-y-2 overflow-y-auto px-3 pb-3">{rankedOut}</div>
+            </details>
+          ) : null}
           <div className="flex items-center justify-between border-t border-border bg-paper-200/50 px-2 py-1.5">
             <button
               type="button"

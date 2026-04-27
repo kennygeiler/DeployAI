@@ -5,12 +5,20 @@ import {
   parseStrategistSurfaceQuery,
 } from "./strategist-surface-flags";
 
+const idleMeeting = {
+  inMeeting: false,
+  meetingId: null,
+  meetingTitle: null,
+  oracleInMeetingAlertAt: null,
+} as const;
+
 describe("parseStrategistSurfaceQuery", () => {
   it("defaults to healthy when no params", () => {
     expect(parseStrategistSurfaceQuery("")).toEqual({
       agentDegraded: false,
       ingestionInProgress: false,
       strategistLocalDate: "1970-01-01",
+      ...idleMeeting,
     });
   });
 
@@ -25,11 +33,13 @@ describe("parseStrategistSurfaceQuery", () => {
       agentDegraded: false,
       ingestionInProgress: true,
       strategistLocalDate: "1970-01-01",
+      ...idleMeeting,
     });
     expect(parseStrategistSurfaceQuery("?ingesting=1")).toEqual({
       agentDegraded: false,
       ingestionInProgress: true,
       strategistLocalDate: "1970-01-01",
+      ...idleMeeting,
     });
   });
 
@@ -41,11 +51,20 @@ describe("parseStrategistSurfaceQuery", () => {
       agentDegraded: true,
       ingestionInProgress: true,
       strategistLocalDate: "1970-01-01",
+      ...idleMeeting,
     });
   });
 
   it("ignores non-1 values", () => {
     expect(parseStrategistSurfaceQuery("?agentError=true")).toMatchObject({ agentDegraded: false });
+  });
+
+  it("flags inMeeting for inMeeting=1", () => {
+    const r = parseStrategistSurfaceQuery("?inMeeting=1");
+    expect(r.inMeeting).toBe(true);
+    expect(r.meetingId).toBe("demo-meeting");
+    expect(r.meetingTitle).toBe("Demo meeting (URL flag)");
+    expect(r.oracleInMeetingAlertAt).toEqual(expect.any(String));
   });
 });
 
@@ -54,6 +73,7 @@ describe("mergeStrategistSurfaceFromDemoQuery", () => {
     agentDegraded: false,
     ingestionInProgress: false,
     strategistLocalDate: "2026-04-28",
+    ...idleMeeting,
   };
 
   it("keeps server flags when query is empty", () => {
@@ -77,5 +97,11 @@ describe("mergeStrategistSurfaceFromDemoQuery", () => {
   it("preserves server degradation when query is healthy", () => {
     const degraded = { ...baseHealthy, agentDegraded: true };
     expect(mergeStrategistSurfaceFromDemoQuery(degraded, "")).toEqual(degraded);
+  });
+
+  it("ORs demo inMeeting onto server snapshot", () => {
+    const merged = mergeStrategistSurfaceFromDemoQuery(baseHealthy, "?inMeeting=1");
+    expect(merged.inMeeting).toBe(true);
+    expect(merged.meetingTitle).toBeTruthy();
   });
 });

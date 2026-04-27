@@ -11,6 +11,7 @@ const isStrategistSurface = (p: string) =>
   p === "/phase-tracking" ||
   p === "/evening" ||
   p.startsWith("/evidence/") ||
+  p === "/action-queue" ||
   p === "/validation-queue" ||
   p === "/solidification-review" ||
   p === "/overrides" ||
@@ -94,6 +95,7 @@ export const config = {
   matcher: [
     "/digest",
     "/in-meeting",
+    "/action-queue",
     "/phase-tracking",
     "/evening",
     "/evidence/:path*",

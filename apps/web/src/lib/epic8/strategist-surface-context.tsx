@@ -9,12 +9,21 @@ export type StrategistSurfaceValue = {
   ingestionInProgress: boolean;
   /** Strategist-local calendar day (YYYY-MM-DD) from server BFF for mock due windows. */
   strategistLocalDate: string;
+  /** Epic 9.1 — meeting presence from control plane stub or URL demo flags. */
+  inMeeting: boolean;
+  meetingId: string | null;
+  meetingTitle: string | null;
+  oracleInMeetingAlertAt: string | null;
 };
 
 const defaultValue: StrategistSurfaceValue = {
   agentDegraded: false,
   ingestionInProgress: false,
   strategistLocalDate: "1970-01-01",
+  inMeeting: false,
+  meetingId: null,
+  meetingTitle: null,
+  oracleInMeetingAlertAt: null,
 };
 
 const StrategistSurfaceContext = React.createContext<StrategistSurfaceValue | null>(null);
