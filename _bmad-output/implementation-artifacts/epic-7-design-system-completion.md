@@ -1,6 +1,6 @@
 # Epic 7 — Design system library (completion note)
 
-**Planning closure:** In `_bmad-output/planning-artifacts/epics.md`, the Epic 7 entry (Overview + full epic) is marked **shipped 2026-04-26** with cross-links to this file and the retrospective.
+**See also (Epic 8):** [`epic-8-implementation-status.md`](./epic-8-implementation-status.md) — strategist walking skeleton and gaps vs `epics.md` Stories 8.1–8.7.
 
 **Stories 7.1–7.13 (components + patterns + hook):** implemented under `packages/shared-ui` and `apps/web` (Vitest + Storybook; button lint in 7.12).
 

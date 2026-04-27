@@ -497,6 +497,7 @@ Ship **all nine custom composite components + primitives** as a cohesive design-
 ### Epic 8: Morning Digest, Phase Tracking & Evening Synthesis Surfaces
 Compose Epic 7's primitives into the three V1 "reflective/proactive" surfaces — Morning Digest (hard 3-item top + "What I Ranked Out" footer + emotional pacing), Phase & Task Tracking (TanStack Table two-pane with filter chips + default sort + aria-sort), Evening Synthesis (backward-looking reconciliation + Class B review entry point). Wire nav chrome (240 px left rail / 56 px top rail collapsible) and Cmd+K command palette with verb-based access to every user workflow. Keyboard-equivalence + screen-reader task-completion parity on the top-5 journeys scripted via axe-playwright (VoiceOver, NVDA, JAWS).
 **Epic goal:** Strategist walks in prepared (Journey 1); Phase Tracking is operational; the calm-authority aesthetic ships on day one.
+**Status: V1 walking skeleton on `main` (2026-04)** — surfaces + chrome + activity BFF + mocks; full Story 8.x ACs in `epics.md` (Oracle-backed digest, NFR2/NFR4 gates, integration tests, SessionBanner slot, global Cmd+K search) are **not** all satisfied. See [`epic-8-implementation-status.md`](../implementation-artifacts/epic-8-implementation-status.md) and [`epic-8-retrospective-2026-04-26.md`](../implementation-artifacts/epic-8-retrospective-2026-04-26.md). **Hardening** continues; **next epic in sequence: Epic 9.**
 **FRs covered:** FR34, FR35, FR39, FR41 (surface integration), FR42 (surface integration), FR44 (surface keyboard/SR), FR47 (ingestion-in-progress indicator)
 **NFRs covered:** NFR1 (Morning Digest delivery), NFR2 (digest latency), NFR3 (Evening Synthesis delivery), NFR4 (citation expand-inline), NFR5 (surface freshness SLOs), NFR28 (surface-level VPAT scope), NFR40 (screen-reader parity top-5), NFR45, NFR46, NFR47
 **ARs covered:** AR24 (REST consumption), AR25, AR26
@@ -1782,6 +1783,8 @@ So that Epic 13's VPAT authoring consumes ready evidence rather than hand-compil
 ---
 
 ## Epic 8: Morning Digest, Phase Tracking & Evening Synthesis Surfaces
+
+> **Status: V1 walking skeleton shipped (2026-04).** The detailed stories below remain the **target**; implementation coverage vs `main` is tracked in [`epic-8-implementation-status.md`](../implementation-artifacts/epic-8-implementation-status.md) · [retrospective](../implementation-artifacts/epic-8-retrospective-2026-04-26.md). **Next:** [Epic 9](#epic-9-in-meeting-alert-action-queue--validation-queues) (in-meeting + queues) after scheduling remaining Epic 8 hardening (Oracle, perf E2E, nav completeness).
 
 Compose Epic 7's primitives into the three V1 "reflective/proactive" surfaces. The Morning Digest + Phase Tracking + Evening Synthesis stack lands by week 19.
 
