@@ -2,7 +2,7 @@
 
 > A Canonical-Memory-backed digital twin for long-cycle government deployments. Built to walk the operator into every meeting prepared — with every claim citation-backed, every override logged, and every retrieval deterministically replayable.
 
-**Status:** **Epics 1–3** are **done** (foundations, identity/SSO, ingestion). **Epic 4** is **done** (replay-parity harness, golden corpus, `apps/eval`, adjudication API + web shell). **Epic 5** is **done**: concrete **Python** LLMs in [`packages/llm-provider-py`](./packages/llm-provider-py/) (Anthropic + OpenAI + failover; matrix script), shared **prompts** + **phase modulator** in [`services/_shared/runtime`](./services/_shared/runtime/), 7-phase **deployment state machine** + internal APIs and **tiered solidification classifier** in `services/control-plane` (migrations, unit + integration tests). **Epic 6** (Cartographer / Oracle / Strategist) is in progress: triage + extraction ship in `services/cartographer`; **Oracle** phase-gated retrieval (Story 6-3) lives in `services/oracle`. Story states: [`_bmad-output/implementation-artifacts/sprint-status.yaml`](./_bmad-output/implementation-artifacts/sprint-status.yaml).
+**Status:** **Epics 1–6** are **done** (through Cartographer / Oracle / Strategist services). **Epic 7** (design system) is **in progress**. **Epic 8** (Morning Digest, phase tracking, strategist chrome — **usable MVP focus**) is **in progress**. Authoritative story rows: [`_bmad-output/implementation-artifacts/sprint-status.yaml`](./_bmad-output/implementation-artifacts/sprint-status.yaml). **Execution board + MVP path:** [`_bmad-output/implementation-artifacts/development-board.yaml`](./_bmad-output/implementation-artifacts/development-board.yaml) · [`_bmad-output/planning-artifacts/mvp-operating-plan-2026.md`](./_bmad-output/planning-artifacts/mvp-operating-plan-2026.md).
 
 ---
 
@@ -53,7 +53,9 @@ DeployAI/
 | [`_bmad-output/planning-artifacts/architecture.md`](./_bmad-output/planning-artifacts/architecture.md) | Tech stack, deployment, compliance, 28 ARs |
 | [`_bmad-output/planning-artifacts/ux-design-specification.md`](./_bmad-output/planning-artifacts/ux-design-specification.md) | Visual system, custom components, 43 UX-DRs |
 | [`_bmad-output/planning-artifacts/epics.md`](./_bmad-output/planning-artifacts/epics.md) | 14 epics · 123 stories · full FR coverage map |
-| [`_bmad-output/implementation-artifacts/sprint-status.yaml`](./_bmad-output/implementation-artifacts/sprint-status.yaml) | Machine-readable sprint tracking |
+| [`_bmad-output/implementation-artifacts/sprint-status.yaml`](./_bmad-output/implementation-artifacts/sprint-status.yaml) | Machine-readable sprint tracking (epics / stories) |
+| [`_bmad-output/implementation-artifacts/development-board.yaml`](./_bmad-output/implementation-artifacts/development-board.yaml) | File-backed **development board** — risks, MVP tracks, gates |
+| [`_bmad-output/planning-artifacts/mvp-operating-plan-2026.md`](./_bmad-output/planning-artifacts/mvp-operating-plan-2026.md) | **MVP operating plan** — risk mitigations, MVP definition, phased path to a usable product slice |
 
 ## Core product principles (non-negotiable)
 
@@ -62,6 +64,8 @@ DeployAI/
 3. **Three-layer tenant isolation** — app-level `TenantScopedSession` + Postgres RLS + per-tenant KMS envelope encryption.
 4. **Compliance-native** — FIPS 140-2, NIST AI RMF mapping, SLSA L2, SBOM (SPDX/CycloneDX), US-only data residency.
 5. **Earned-trust UX** — WCAG 2.1 AA + Section 508 enforced by CI-blocking a11y tests from Epic 1 onward.
+
+The PRD’s compliance and long-term security posture remain **product intent**. The [**MVP operating plan**](./_bmad-output/planning-artifacts/mvp-operating-plan-2026.md) sequences **a usable, demo-ready slice first** and explicitly **defers compliance and security program work** (FOIA, VPAT, formal audit, chaos/SLO) until after that slice ships.
 
 ## The defining user journey
 

@@ -19,6 +19,10 @@ date: '2026-04-21'
 
 # DeployAI — Agentic Deployment System of Record - Epic Breakdown
 
+## Execution focus (MVP)
+
+For **near-term sequencing** — which epics matter first for a **usable working MVP**, how we **mitigate planning and scope risk**, and what is **explicitly deferred** (including compliance/security *program* work): read [**mvp-operating-plan-2026.md**](./mvp-operating-plan-2026.md) and the file-backed board [**development-board.yaml**](../implementation-artifacts/development-board.yaml). The detailed story list below remains the **long-range** map; the MVP plan narrows what to build **next**.
+
 ## Overview
 
 This document provides the complete epic and story breakdown for **DeployAI — Agentic Deployment System of Record**, decomposing the requirements from the PRD (79 FRs + 78 NFRs + 12 Design Philosophy commitments), the Architecture document (stack, deployment, compliance, monorepo structure), and the UX Design Specification (9 custom components, WCAG 2.1 AA + Section 508, responsive strategy) into implementable stories.

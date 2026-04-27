@@ -21,12 +21,14 @@ Load config from `{project-root}/_bmad/bmm/config.yaml` and resolve:
 ### Paths
 
 - `sprint_status_file` = `{implementation_artifacts}/sprint-status.yaml`
+- `development_board_file` = `{implementation_artifacts}/development-board.yaml` (optional; MVP tracks + risk mitigations)
 
 ### Input Files
 
 | Input | Path | Load Strategy |
 |-------|------|---------------|
 | Sprint status | `{sprint_status_file}` | FULL_LOAD |
+| Development board | `{development_board_file}` | FULL_LOAD if present |
 
 ### Context
 
