@@ -92,6 +92,8 @@ export type InMeetingAlertCardProps = {
   onNotNow?: () => void;
   /** Epic 9.8 — show “Reset position” in the header (clears storage + snaps to default). */
   showResetPosition?: boolean;
+  /** Epic 9.1 — optional `data-epic91-meeting-alert` on the root node for E2E / observability. */
+  epic91MeetingAlertMarker?: "active";
 };
 
 /**
@@ -113,6 +115,7 @@ export function InMeetingAlertCard({
   className: classNameProp,
   onNotNow,
   showResetPosition = false,
+  epic91MeetingAlertMarker,
 }: InMeetingAlertCardProps) {
   const storageKey =
     positionStorageKeyProp ??
@@ -312,6 +315,9 @@ export function InMeetingAlertCard({
       role="complementary"
       aria-label="In-meeting alert"
       className={cn("fixed z-50", classNameProp)}
+      {...(epic91MeetingAlertMarker
+        ? { "data-epic91-meeting-alert": epic91MeetingAlertMarker }
+        : {})}
       style={{
         left: effectivePos.left,
         top: effectivePos.top,

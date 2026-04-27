@@ -176,6 +176,7 @@ export function InMeetingAlertDemo() {
           freshnessLabel={freshness}
           state="active"
           showResetPosition
+          epic91MeetingAlertMarker="active"
           rankedOut={rankedOut.length > 0 ? rankedOutNodes : undefined}
         >
           {primary.map((item) => (

@@ -126,6 +126,9 @@ pnpm --filter @deployai/web test:a11y
 [`getActorFromHeaders`](../apps/web/src/lib/internal/actor.ts) applies the **same default role in development** if the header still does not reach a Route Handler (avoids **401** on `strategist-activity` / memory-search in some `next dev` setups).
 
 - **Disable** the default (e.g. to test 403/401 without role): `DEPLOYAI_DISABLE_DEV_STRATEGIST=1 pnpm --filter @deployai/web dev`
+- **Epic 9.1 — meeting presence + poll cadence**
+  - Control plane stub: `DEPLOYAI_STUB_IN_MEETING_TENANT_IDS` (comma-separated UUIDs) marks those tenants **in meeting** for `GET /internal/v1/strategist/meeting-presence`. The web app must send **`x-deployai-tenant`** with the same UUID for server-side `loadStrategistActivityForActor` to see it.
+  - Client poll interval (default **30 s**, max **30 s**): set at **build** time with `NEXT_PUBLIC_DEPLOYAI_STRATEGIST_ACTIVITY_POLL_MS` (e.g. `10000` for a 10 s poll in local prod builds). Used by `StrategistShell` for `GET /api/internal/strategist-activity` while the tab is visible.
 - **Production / CI** (`next start`, `next build`): no middleware injection and no actor fallback — E2E and staging use real headers or expect 403/401.
 - **`/digest` 404 while `/` works:** Turbopack may have inferred the wrong workspace root (e.g. another `package-lock.json` on your machine). Remove or rename that stray lockfile, or follow [Turbopack `root`](https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory) in `apps/web/next.config.ts` for your layout.
 

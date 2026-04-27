@@ -175,7 +175,7 @@ development_status:
   epic-9: in-progress
   9-0-mvp-in-meeting-alert-thin-surface: done
   mvp-track-e-golden-path-e2e: done
-  9-1-in-meeting-alert-detection-and-eight-second-render: in-progress
+  9-1-in-meeting-alert-detection-and-eight-second-render: done
   9-2-three-item-hard-budget-enforcement: done
   9-3-correction-vs-dismissal-non-confusable-actions: in-progress
   9-4-unattended-alert-items-persist-as-action-queue: in-progress

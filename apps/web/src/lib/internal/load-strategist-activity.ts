@@ -108,7 +108,9 @@ async function fetchMeetingPresence(
  * - Liveness: `GET {controlPlane}/healthz` before internal APIs.
  * - Ingest: `GET /internal/v1/ingestion-runs` (tenant-scoped; **no** tenant id ⇒ no running rows / FR47).
  * - Optional agents: `GET DEPLOYAI_ORACLE_HEALTH_URL` when set.
- * - Epic 9.1: `GET /internal/v1/strategist/meeting-presence` (best-effort; older CP builds omit it).
+ * - Epic 9.1: `GET /internal/v1/strategist/meeting-presence` (active-meeting signal). Microsoft Graph
+ *   calendar polling is deferred; CP may stub tenants via `DEPLOYAI_STUB_IN_MEETING_TENANT_IDS`.
+ *   Browser demo flags (`?inMeeting=1`, …) merge in `StrategistShell` after this snapshot.
  */
 export async function loadStrategistActivityForActor(
   actor: AuthActor | null,

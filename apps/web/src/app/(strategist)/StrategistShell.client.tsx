@@ -6,6 +6,7 @@ import { AppShell } from "@/components/chrome/AppShell";
 import type { StrategistActivitySnapshot } from "@/lib/internal/load-strategist-activity";
 import type { StrategistSessionBannerPayload } from "@/lib/internal/strategist-demo-session";
 import { mergeStrategistSurfaceFromDemoQuery } from "@/lib/epic8/strategist-surface-flags";
+import { getStrategistActivityPollIntervalMs } from "@/lib/epic9/strategist-activity-poll";
 import {
   StrategistSurfaceProvider,
   type StrategistSurfaceValue,
@@ -74,10 +75,15 @@ function getServerDemoSearchSnapshot(): string {
  * Demo query flags (`?agentError=1`, `?ingest=1`, …) merge on top of the snapshot (Epic 8.7).
  * `useSyncExternalStore` reads `window.location.search` without `useSearchParams`/`Suspense`
  * and satisfies `react-hooks/set-state-in-effect` (no setState inside effects for the merge).
+ *
+ * Epic 9.1: visibility-gated poll of `/api/internal/strategist-activity` at
+ * `getStrategistActivityPollIntervalMs()` (default 30 s, max 30 s; override via
+ * `NEXT_PUBLIC_DEPLOYAI_STRATEGIST_ACTIVITY_POLL_MS` in dev builds).
  */
 export function StrategistShell({ children, lastSyncedAt, initialActivity, sessionBanner }: Props) {
   const [activity, setActivity] = React.useState<StrategistActivitySnapshot>(initialActivity);
   const requestId = React.useRef(0);
+  const pollIntervalMs = React.useMemo(() => getStrategistActivityPollIntervalMs(), []);
 
   const base = React.useMemo(() => toSurfaceValue(activity), [activity]);
 
@@ -124,9 +130,9 @@ export function StrategistShell({ children, lastSyncedAt, initialActivity, sessi
       if (document.visibilityState === "visible") {
         refresh();
       }
-    }, 30_000);
+    }, pollIntervalMs);
     return () => clearInterval(t);
-  }, [refresh]);
+  }, [refresh, pollIntervalMs]);
 
   return (
     <StrategistSurfaceProvider value={surface}>
