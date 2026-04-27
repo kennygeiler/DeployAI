@@ -157,6 +157,7 @@ Use this to run a **credible demo** without claiming full production.
 - [ ] **Digest path:** Open `/digest` → expand citation → `/evidence/...` works for fixture-linked IDs.
 - [ ] **Degraded story (optional):** `?agentError=1` / `?ingest=1` on surfaces to show banners (Epic 8.7).
 - [ ] **In-meeting:** `?inMeeting=1` **or** CP stub tenant for meeting-presence; end meeting → carryover toast → `/action-queue` shows rows.
+- [ ] **In-meeting alert position (Story 9.8):** Drag position + reset are **`localStorage` only** (per browser / profile). **No server or cross-device** layout sync yet—say that plainly in demos; a follow-up would persist coordinates (or a named preset) via CP or user preferences.
 - [ ] **Queues:** `/validation-queue` and `/solidification-review` show cards immediately (auto-seed).
 - [ ] **Optional realism:** Set `STRATEGIST_DIGEST_SOURCE_URL` / evening URL / `DEPLOYAI_CONTROL_PLANE_URL` + internal key per dev docs and [.env.example](./.env.example).
 - [ ] **Say honestly:** “Surfaces are production-shaped; much data is fixture or BFF mock until CP tables back these queues.”
@@ -188,3 +189,4 @@ Use this to run a **credible demo** without claiming full production.
 |------|--------|
 | 2026-04-26 | Initial catalog: surfaces table, epic framing, mermaid flows, demo checklist, distance-to-pilot. |
 | 2026-04-26 | §0 maintenance workflow; §2 pointer to `.env.example` strategist vars; Epic 7/9 story-complete note. Story **9.8**: header **context menu** “Reset position to default” (`InMeetingAlertCard`). Story **7.15**: VPAT aggregator + `vpat-evidence.yml` tracked as done in sprint-status. |
+| 2026-04-27 | §7: explicit **9.8** caveat—in-meeting alert **position is `localStorage` only** (not cross-device / server-backed). |
