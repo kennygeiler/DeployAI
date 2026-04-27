@@ -147,11 +147,14 @@ From `fuzz.yml`:
 
 - `cross-tenant-fuzz`
 
-**Path-filtered workflows** (`schema`, `fuzz`, `compose-smoke`): they only
-run when changed paths match `on: paths:`. On PRs that **do not** touch
-those paths, GitHub may show these checks as **skipped** — in **Rulesets**,
-use **“Do not require status checks that are skipped”** (or merge with admin
-overrides) so docs-only PRs are not stuck.
+**Path-gated PR gates** (`schema`, `fuzz`, `compose-smoke`): each workflow
+**always runs on `pull_request`** to `main`, but a cheap `prep` job uses
+`dorny/paths-filter` to decide whether the heavy job runs. If paths do not
+match, the heavy job is **skipped** (not “expected”) — which GitHub counts as
+a successful required check, so **docs-only PRs** do not need ruleset
+workarounds or no-op workflow nudges. `push` to `main` still uses `on: paths`
+for `schema` and `fuzz` to avoid spurious post-merge runs; `compose-smoke`
+runs the heavy job on every push (same as before).
 
 **Repository ruleset (automated):** the `main` branch has an active
 **ruleset** (status checks + PR-only merge) defined as JSON in

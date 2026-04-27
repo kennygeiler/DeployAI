@@ -10,26 +10,17 @@
 #   - AC7  learning_state_t enum rejection
 #   - AC12 lifecycle transition end-to-end + tombstone bytea roundtrip
 #
-# Path-filtered to only run when the schema, models, migration harness,
-# or postgres image can plausibly be affected. Listed as a **required**
-# check on `main` in `.github/workflows/README.md` §3 (add in GitHub branch
-# protection: `schema / canonical-memory-schema`). Unrelated PRs may skip
-# this workflow when paths do not match — configure rules accordingly.
+# PRs: workflow always dispatches; `prep` + path filter; heavy job skipped when
+# irrelevant (required check still passes). Pushes to `main` use top-level
+# `paths` so the workflow only starts when the merge touches schema surfaces.
 #
-# Note: this file is in `on.pull_request.paths`; touch it to run the gate when
-# a doc-only change must satisfy required checks on `main`.
-# (Ruleset lists this job as required even when other paths do not match — nudge via this file.)
-# Nudge 2026-04-30: required ruleset; touch this file when the PR does not change schema paths.
+# See `.github/workflows/README.md` §3 for required check name on `main`.
 
 name: schema
 
 on:
   pull_request:
     branches: [main]
-    paths:
-      - "services/control-plane/**"
-      - "infra/compose/postgres/**"
-      - ".github/workflows/schema.yml"
   push:
     branches: [main]
     paths:
@@ -49,8 +40,43 @@ defaults:
     shell: bash
 
 jobs:
+  prep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.resolve.outputs.run }}
+    steps:
+      - name: Checkout
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Path filter (pull request)
+        if: github.event_name == 'pull_request'
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            schema:
+              - "services/control-plane/**"
+              - "infra/compose/postgres/**"
+              - ".github/workflows/schema.yml"
+
+      - name: Set run output (push = always, PR = path filter)
+        id: resolve
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            echo "run=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "run=${{ steps.filter.outputs.schema }}" >> "${GITHUB_OUTPUT}"
+          fi
+
   canonical-memory-schema:
     name: canonical-memory-schema
+    needs: prep
+    if: needs.prep.outputs.run == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:

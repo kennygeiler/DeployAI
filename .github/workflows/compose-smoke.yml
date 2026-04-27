@@ -5,32 +5,20 @@
 # seeds the fixtures schema, and probes every service's health endpoint.
 # Fails if wall-clock exceeds 30 min (NFR77 onboarding budget).
 #
-# Path-filtered to surfaces that can break the stack.
+# PRs: the workflow always dispatches. A cheap `paths-filter` in `prep` decides
+# whether the heavy `compose-smoke` job runs; if not, that job is skipped and
+# GitHub counts it as a successful required check (unlike top-level
+# `on.pull_request.paths`, which left checks stuck on "expected").
+# Pushes to `main` always run the heavy job when this workflow runs.
 #
-# See .github/workflows/README.md §Conventions for SHA-pinning + least-
-# privilege rules. See docs/dev-environment.md §Local stack via
-# docker-compose for local reproduction.
-#
-# Note: this file is listed under `on.pull_request.paths`; a no-op edit here
-# re-runs the job so path-filtered PRs can still satisfy the `main` ruleset.
-# Nudge 2026-04-30: required ruleset; touch this file when the PR does not change stack paths.
+# See .github/workflows/README.md §Conventions. See docs/dev-environment.md
+# for local `make dev` reproduction.
 
 name: compose-smoke
 
 on:
   pull_request:
     branches: [main]
-    paths:
-      - "infra/**"
-      - "services/**"
-      - "apps/web/Dockerfile"
-      - "apps/web/next.config.*"
-      - "apps/web/package.json"
-      - "packages/authz/**"
-      - "packages/design-tokens/**"
-      - "Makefile"
-      - ".github/workflows/compose-smoke.yml"
-      - "pnpm-lock.yaml"
   push:
     branches: [main]
 
@@ -46,8 +34,50 @@ defaults:
     shell: bash
 
 jobs:
+  prep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.resolve.outputs.run }}
+    steps:
+      - name: Checkout
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Path filter (pull request)
+        if: github.event_name == 'pull_request'
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            run:
+              - "infra/**"
+              - "services/**"
+              - "apps/web/Dockerfile"
+              - "apps/web/next.config.*"
+              - "apps/web/package.json"
+              - "packages/authz/**"
+              - "packages/design-tokens/**"
+              - "Makefile"
+              - ".github/workflows/compose-smoke.yml"
+              - "pnpm-lock.yaml"
+
+      - name: Set run output (push = always, PR = path filter)
+        id: resolve
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            echo "run=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "run=${{ steps.filter.outputs.run }}" >> "${GITHUB_OUTPUT}"
+          fi
+
   compose-smoke:
     name: compose-smoke
+    needs: prep
+    if: needs.prep.outputs.run == 'true'
     runs-on: ubuntu-24.04
     # 30-min stack ceiling per AC10 + 5-min buffer for runner setup.
     timeout-minutes: 35
