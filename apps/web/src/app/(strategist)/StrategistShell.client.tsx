@@ -71,12 +71,7 @@ function getServerDemoSearchSnapshot(): string {
  * `useSyncExternalStore` reads `window.location.search` without `useSearchParams`/`Suspense`
  * and satisfies `react-hooks/set-state-in-effect` (no setState inside effects for the merge).
  */
-export function StrategistShell({
-  children,
-  lastSyncedAt,
-  initialActivity,
-  sessionBanner,
-}: Props) {
+export function StrategistShell({ children, lastSyncedAt, initialActivity, sessionBanner }: Props) {
   const [activity, setActivity] = React.useState<StrategistActivitySnapshot>(initialActivity);
   const requestId = React.useRef(0);
 
