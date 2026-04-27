@@ -44,7 +44,7 @@ export function ChromeTopBar({
       nodeId.length === 0 ? "…" : nodeId.length > 28 ? `${nodeId.slice(0, 14)}…` : nodeId;
     return (
       <nav
-        aria-label="Breadcrumb"
+        aria-label="Evidence context (header trail)"
         className="text-muted-foreground mr-1 hidden min-w-0 max-w-[min(28rem,42vw)] items-center gap-1 truncate text-xs md:flex"
       >
         <Link href="/digest" className="shrink-0 hover:underline">

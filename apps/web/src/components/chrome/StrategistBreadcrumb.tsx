@@ -11,14 +11,17 @@ export function StrategistBreadcrumb({
   items,
   className,
   "data-testid": testId,
+  /** Must be unique vs other `<nav>` landmarks (e.g. header evidence trail on `/evidence/*`). */
+  navigationLabel = "Page path",
 }: {
   items: readonly Crumb[];
   className?: string;
   "data-testid"?: string;
+  navigationLabel?: string;
 }) {
   return (
     <nav
-      aria-label="Breadcrumb"
+      aria-label={navigationLabel}
       data-testid={testId}
       className={cn("text-ink-600 text-sm", className)}
     >
