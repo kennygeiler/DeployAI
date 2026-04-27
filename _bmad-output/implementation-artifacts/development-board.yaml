@@ -1,0 +1,68 @@
+# File-backed development board (DeployAI)
+#
+# Complements development_status in sprint-status.yaml (epic/story grid).
+# Status values: backlog | ready | in_progress | blocked | done | deferred
+#
+# Plan: ../planning-artifacts/mvp-operating-plan-2026.md
+# Process: update rows when work moves; weekly review with main.
+
+meta:
+  plan: _bmad-output/planning-artifacts/mvp-operating-plan-2026.md
+  last_updated: "2026-04-27"
+  note: "Compliance/security program work is deferred for MVP; see plan §3."
+
+risk_mitigations:
+  - id: R1-planning-drift
+    title: "Align sprint-status + board with merged main"
+    status: in_progress
+    next_action: "Reconcile Epic 8 / Cmd+K and strategist stories with main; same-day updates on merge"
+
+  - id: R2-scope
+    title: "Hold MVP scope — defer non-MVP epics explicitly"
+    status: in_progress
+    next_action: "Any new PR maps to mvp-operating-plan §2 or is logged as post-MVP"
+
+  - id: R3-polyglot-tax
+    title: "Default to web + control-plane for MVP changes"
+    status: ready
+    next_action: "Avoid edge-agent / foia-cli unless blocking demo"
+
+  - id: R4-ci-merge
+    title: "Keep required checks mergeable (path-gate prep jobs on main)"
+    status: in_progress
+    next_action: "Merge PR that adds prep + paths-filter to compose/schema/fuzz (when green)"
+
+  - id: R5-ops-depth
+    title: "Defer SLO/chaos/on-call until after MVP"
+    status: deferred
+    next_action: "Document make dev + demo data only"
+
+mvp_tracks:
+  - id: A-truth-board
+    title: "Track A — Board + sprint truth"
+    status: in_progress
+
+  - id: B-design-system-mvp
+    title: "Track B — Epic 7 minimal components for MVP surfaces"
+    status: ready
+
+  - id: C-strategist-loop
+    title: "Track C — Epic 8 daily loop (digest, phase, synthesis, Cmd+K)"
+    status: in_progress
+
+  - id: D-one-escalation
+    title: "Track D — Thin Epic 9 (one alert or queue)"
+    status: backlog
+
+  - id: E-harden-demo
+    title: "Track E — Golden-path E2E + mock cleanup"
+    status: backlog
+
+mvp_gates:
+  - id: G1-demo-checklist
+    title: "§2 MVP checklist passes on seeded data (mvp-operating-plan)"
+    status: backlog
+
+  - id: G2-internal-review
+    title: "Named internal reviewer signs off without engineer present"
+    status: backlog
