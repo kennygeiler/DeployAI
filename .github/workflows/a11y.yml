@@ -102,7 +102,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build @deployai/shared-ui (fresh dist)
-        run: pnpm --filter @deployai/shared-ui build
+        run: pnpm turbo run build --filter=@deployai/shared-ui
 
       # test-runner uses Playwright under the hood; install its
       # Chromium + system deps (`--with-deps` pulls libnss3 etc.).
@@ -178,7 +178,7 @@ jobs:
         run: pnpm --filter @deployai/web exec playwright install --with-deps chromium
 
       - name: Build @deployai/shared-ui (fresh dist)
-        run: pnpm --filter @deployai/shared-ui build
+        run: pnpm turbo run build --filter=@deployai/shared-ui
 
       # Use turbo so `@deployai/design-tokens` is built first
       # (apps/web's globals.css `@import`s its tailwind preset).
@@ -233,7 +233,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build @deployai/shared-ui (fresh dist)
-        run: pnpm --filter @deployai/shared-ui build
+        run: pnpm turbo run build --filter=@deployai/shared-ui
 
       # pa11y-ci uses puppeteer-core which expects a Chrome binary in
       # ~/.cache/puppeteer. Install the pinned Chrome-for-Testing
