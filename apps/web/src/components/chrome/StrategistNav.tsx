@@ -26,7 +26,7 @@ export function StrategistNav() {
   return (
     <nav
       aria-label="Primary strategist"
-      className="bg-paper-100 border-border flex w-14 shrink-0 flex-col border-r xl:w-60"
+      className="bg-paper-100 border-border flex w-[56px] shrink-0 flex-col border-r xl:w-[240px]"
     >
       <div className="border-border hidden h-14 items-center border-b px-3 xl:flex">
         <Link

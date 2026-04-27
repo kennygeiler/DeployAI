@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   FreshnessChip,
   type FreshnessSurface,
@@ -29,7 +31,42 @@ export function ChromeTopBar({
   className: classNameProp,
   onOpenCommandPalette,
 }: ChromeTopBarProps) {
+  const pathname = usePathname();
   const { ingestionInProgress } = useStrategistSurface();
+
+  const evidenceBreadcrumb = React.useMemo(() => {
+    if (!pathname?.startsWith("/evidence/")) {
+      return null;
+    }
+    const rest = pathname.slice("/evidence/".length);
+    const nodeId = rest.split("/")[0] ?? "";
+    const label =
+      nodeId.length === 0 ? "…" : nodeId.length > 28 ? `${nodeId.slice(0, 14)}…` : nodeId;
+    return (
+      <nav
+        aria-label="Breadcrumb"
+        className="text-muted-foreground mr-1 hidden min-w-0 max-w-[min(28rem,42vw)] items-center gap-1 truncate text-xs md:flex"
+      >
+        <Link href="/digest" className="shrink-0 hover:underline">
+          Strategist
+        </Link>
+        <span className="shrink-0" aria-hidden>
+          /
+        </span>
+        <span className="text-ink-700 shrink-0 font-medium text-foreground">Evidence</span>
+        <span className="shrink-0" aria-hidden>
+          /
+        </span>
+        <span
+          className="text-ink-900 min-w-0 truncate font-mono text-[0.7rem]"
+          title={nodeId || undefined}
+        >
+          {label}
+        </span>
+      </nav>
+    );
+  }, [pathname]);
+
   return (
     <header
       className={cn(
@@ -37,6 +74,7 @@ export function ChromeTopBar({
         classNameProp,
       )}
     >
+      {evidenceBreadcrumb}
       <div className="min-w-0 shrink-0">
         <PhaseIndicator currentPhaseId={currentPhaseId} variant="locked" />
       </div>
