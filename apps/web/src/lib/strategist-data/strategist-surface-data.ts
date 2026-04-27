@@ -2,8 +2,12 @@ import type { CitationPreview } from "@deployai/shared-ui";
 import type { EvidencePanelMetadata, EvidencePanelState } from "@deployai/shared-ui";
 import type { EvidenceSpan } from "@deployai/contracts";
 
-import type { ActionQueueRow, DigestTopItem } from "@/lib/epic8/mock-digest";
-import { buildPhaseTrackingRows, MORNING_DIGEST_TOP } from "@/lib/epic8/mock-digest";
+import type { ActionQueueRow, DigestTopItem, EveningPatternRow } from "@/lib/epic8/mock-digest";
+import {
+  buildPhaseTrackingRows,
+  EVENING_CANDIDATES,
+  MORNING_DIGEST_TOP,
+} from "@/lib/epic8/mock-digest";
 
 const STRATEGIST_REMOTE_FETCH_TIMEOUT_MS = 8000;
 
@@ -93,6 +97,11 @@ function isDigestTopItem(x: unknown): x is DigestTopItem {
   return true;
 }
 
+function isEveningPatternRow(x: unknown): x is EveningPatternRow {
+  if (!isRecord(x)) return false;
+  return typeof x.id === "string" && typeof x.title === "string" && typeof x.note === "string";
+}
+
 function isActionQueueRow(x: unknown): x is ActionQueueRow {
   if (!isRecord(x)) return false;
   if (
@@ -128,6 +137,33 @@ export function parseDigestTopItemsPayload(json: unknown): readonly DigestTopIte
     out.push(row);
   }
   return out;
+}
+
+/**
+ * Remote evening payload: digest-shaped candidate cards + cross-account pattern rows.
+ * `candidates` must be a non-empty array of valid `DigestTopItem` rows.
+ * `patterns` is optional; when omitted, treated as empty (valid).
+ */
+export function parseEveningSynthesisPayload(json: unknown): {
+  candidates: readonly DigestTopItem[];
+  patterns: readonly EveningPatternRow[];
+} | null {
+  if (!isRecord(json)) return null;
+  const candJson = json.candidates;
+  if (!Array.isArray(candJson)) return null;
+  const candidates = parseDigestTopItemsPayload(candJson);
+  if (!candidates) return null;
+  const p = json.patterns;
+  if (p !== undefined && !Array.isArray(p)) return null;
+  const patternsRaw: unknown[] = p === undefined ? [] : p;
+  const patterns: EveningPatternRow[] = [];
+  for (const row of patternsRaw) {
+    if (!isEveningPatternRow(row)) {
+      return null;
+    }
+    patterns.push(row);
+  }
+  return { candidates, patterns };
 }
 
 export function parsePhaseTrackingRowsPayload(json: unknown): readonly ActionQueueRow[] | null {
@@ -304,5 +340,95 @@ export function phaseTrackingBannerMessage(result: PhaseTrackingLoadResult): str
       return "Phase-tracking feed returned no rows. Showing seeded demo rows.";
     default:
       return "Phase-tracking feed is unavailable. Showing seeded demo rows.";
+  }
+}
+
+export type EveningSynthesisLoadSource = MorningDigestLoadSource;
+
+export type EveningSynthesisDegradedReason = MorningDigestDegradedReason;
+
+export type EveningSynthesisLoadResult = {
+  readonly candidates: readonly DigestTopItem[];
+  readonly patterns: readonly EveningPatternRow[];
+  readonly source: EveningSynthesisLoadSource;
+  readonly degradedReason?: EveningSynthesisDegradedReason;
+  readonly httpStatus?: number;
+};
+
+function eveningSynthesisFallback(): {
+  candidates: readonly DigestTopItem[];
+  patterns: readonly EveningPatternRow[];
+} {
+  return {
+    candidates: MORNING_DIGEST_TOP.slice(0, 2),
+    patterns: EVENING_CANDIDATES,
+  };
+}
+
+/**
+ * Optional remote JSON object `{ candidates: DigestTopItem[], patterns?: EveningPatternRow[] }`.
+ * When `STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL` is unset, returns seeded stand-ins (`source: mock`).
+ */
+export async function loadEveningSynthesisResult(): Promise<EveningSynthesisLoadResult> {
+  const u = process.env.STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL?.trim();
+  const fallback = eveningSynthesisFallback();
+  if (!u) {
+    return { ...fallback, source: "mock" };
+  }
+  try {
+    const r = await fetch(u, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(STRATEGIST_REMOTE_FETCH_TIMEOUT_MS),
+    });
+    if (!r.ok) {
+      return {
+        ...fallback,
+        source: "degraded",
+        degradedReason: "http_error",
+        httpStatus: r.status,
+      };
+    }
+    let body: unknown;
+    try {
+      body = await r.json();
+    } catch {
+      return { ...fallback, source: "degraded", degradedReason: "invalid_payload" };
+    }
+    if (!isRecord(body)) {
+      return { ...fallback, source: "degraded", degradedReason: "invalid_payload" };
+    }
+    const parsed = parseEveningSynthesisPayload(body);
+    if (!parsed) {
+      return { ...fallback, source: "degraded", degradedReason: "invalid_payload" };
+    }
+    return { ...parsed, source: "live" };
+  } catch {
+    return { ...fallback, source: "degraded", degradedReason: "fetch_error" };
+  }
+}
+
+export async function loadEveningSynthesis(): Promise<{
+  candidates: readonly DigestTopItem[];
+  patterns: readonly EveningPatternRow[];
+}> {
+  const r = await loadEveningSynthesisResult();
+  return { candidates: r.candidates, patterns: r.patterns };
+}
+
+export function eveningSynthesisBannerMessage(result: EveningSynthesisLoadResult): string | null {
+  if (result.source !== "degraded" || !result.degradedReason) {
+    return null;
+  }
+  switch (result.degradedReason) {
+    case "fetch_error":
+      return "Could not reach the configured evening synthesis feed in time. Showing seeded demo content.";
+    case "http_error":
+      return `Evening synthesis feed returned HTTP ${result.httpStatus ?? "error"}. Showing seeded demo content.`;
+    case "invalid_payload":
+      return "Evening synthesis feed returned data we could not validate. Showing seeded demo content.";
+    case "empty_array":
+      return "Evening synthesis feed returned no usable payload. Showing seeded demo content.";
+    default:
+      return "Evening synthesis feed is unavailable. Showing seeded demo content.";
   }
 }

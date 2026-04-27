@@ -2,18 +2,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildPhaseTrackingRows,
+  EVENING_CANDIDATES,
   MORNING_DIGEST_TOP,
   PHASE_TRACKING_MOCK_TODAY,
   PHASE_TRACKING_ROWS,
 } from "@/lib/epic8/mock-digest";
 
 import {
+  eveningSynthesisBannerMessage,
+  loadEveningSynthesis,
+  loadEveningSynthesisResult,
   loadMorningDigestTopItems,
   loadMorningDigestTopItemsResult,
   loadPhaseTrackingRows,
   loadPhaseTrackingRowsResult,
   morningDigestBannerMessage,
   parseDigestTopItemsPayload,
+  parseEveningSynthesisPayload,
   parsePhaseTrackingRowsPayload,
   phaseTrackingBannerMessage,
 } from "./strategist-surface-data";
@@ -304,5 +309,120 @@ describe("loadPhaseTrackingRowsResult", () => {
     delete process.env.STRATEGIST_PHASE_TRACKING_SOURCE_URL;
     const items = await loadPhaseTrackingRows(today);
     expect(items).toEqual(buildPhaseTrackingRows(today));
+  });
+});
+
+describe("parseEveningSynthesisPayload", () => {
+  it("returns null when root is not an object", () => {
+    expect(parseEveningSynthesisPayload(null)).toBeNull();
+    expect(parseEveningSynthesisPayload([])).toBeNull();
+  });
+
+  it("returns null when candidates missing or invalid", () => {
+    expect(parseEveningSynthesisPayload({ patterns: EVENING_CANDIDATES })).toBeNull();
+    expect(parseEveningSynthesisPayload({ candidates: [] })).toBeNull();
+  });
+
+  it("rejects invalid pattern rows", () => {
+    const bad = {
+      candidates: structuredClone(MORNING_DIGEST_TOP),
+      patterns: [{ id: "x", title: "t" }],
+    };
+    expect(parseEveningSynthesisPayload(bad)).toBeNull();
+  });
+
+  it("accepts candidates with optional patterns", () => {
+    const p = parseEveningSynthesisPayload({
+      candidates: structuredClone(MORNING_DIGEST_TOP),
+    });
+    expect(p).not.toBeNull();
+    expect(p!.candidates.length).toBe(3);
+    expect(p!.patterns).toEqual([]);
+  });
+
+  it("accepts candidates and patterns together", () => {
+    const p = parseEveningSynthesisPayload({
+      candidates: structuredClone(MORNING_DIGEST_TOP),
+      patterns: structuredClone(EVENING_CANDIDATES),
+    });
+    expect(p!.patterns).toHaveLength(2);
+  });
+});
+
+describe("eveningSynthesisBannerMessage", () => {
+  const fb = {
+    candidates: MORNING_DIGEST_TOP.slice(0, 2),
+    patterns: EVENING_CANDIDATES,
+  };
+
+  it("returns null unless degraded", () => {
+    expect(eveningSynthesisBannerMessage({ ...fb, source: "mock" })).toBeNull();
+    expect(eveningSynthesisBannerMessage({ ...fb, source: "live" })).toBeNull();
+  });
+
+  it("includes HTTP status when degraded", () => {
+    expect(
+      eveningSynthesisBannerMessage({
+        ...fb,
+        source: "degraded",
+        degradedReason: "http_error",
+        httpStatus: 418,
+      }),
+    ).toContain("418");
+  });
+});
+
+describe("loadEveningSynthesisResult", () => {
+  const originalFetch = globalThis.fetch;
+  const originalUrl = process.env.STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    if (originalUrl === undefined) {
+      delete process.env.STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL;
+    } else {
+      process.env.STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL = originalUrl;
+    }
+  });
+
+  it("returns mock when URL unset", async () => {
+    delete process.env.STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL;
+    const r = await loadEveningSynthesisResult();
+    expect(r.source).toBe("mock");
+    expect(r.candidates).toEqual(MORNING_DIGEST_TOP.slice(0, 2));
+    expect(r.patterns).toEqual(EVENING_CANDIDATES);
+  });
+
+  it("returns live on valid remote object", async () => {
+    process.env.STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL = "https://evening.example/synthesis.json";
+    const body = {
+      candidates: structuredClone(MORNING_DIGEST_TOP),
+      patterns: structuredClone(EVENING_CANDIDATES),
+    };
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    ) as unknown as typeof fetch;
+
+    const r = await loadEveningSynthesisResult();
+    expect(r.source).toBe("live");
+    expect(r.candidates.length).toBe(3);
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "https://evening.example/synthesis.json",
+      expect.objectContaining({ cache: "no-store" }),
+    );
+  });
+
+  it("loadEveningSynthesis returns candidates and patterns only", async () => {
+    delete process.env.STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL;
+    const r = await loadEveningSynthesis();
+    expect(r.candidates).toEqual(MORNING_DIGEST_TOP.slice(0, 2));
+    expect(r.patterns).toEqual(EVENING_CANDIDATES);
   });
 });
