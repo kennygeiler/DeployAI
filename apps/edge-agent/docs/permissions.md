@@ -1,5 +1,7 @@
 # Edge Agent Permissions (Story 1.15 spike)
 
+See also **[capabilities.md](../../../docs/edge-agent/capabilities.md)** for the Story 11.1 Tauri capability identifiers (`fs:local-only`, `dialog:file-select`, etc.) and CI audit rules.
+
 This spike intentionally keeps permissions minimal while proving the first-launch
 audio prompt path.
 

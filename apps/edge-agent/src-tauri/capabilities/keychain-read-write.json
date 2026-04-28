@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "keychain:read-write",
+  "description": "Keychain access is implemented in Rust (keyring crate) via allowlisted Tauri commands, not a browser-exposed plugin (Story 1.15 / 11.2). This capability documents the trust boundary.",
+  "windows": ["main"],
+  "permissions": []
+}

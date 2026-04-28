@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "audio:capture",
+  "description": "Microphone capture via WebView getUserMedia with OS consent (NSMicrophoneUsageDescription); no extra fs/http plugin surface. Two-party consent UX lands in Story 11.4.",
+  "windows": ["main"],
+  "permissions": []
+}
