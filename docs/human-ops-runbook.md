@@ -18,15 +18,6 @@ cd services/control-plane && uv sync
 env PYTEST_ADDOPTS= uv run pytest tests/integration/ -m integration
 ```
 
-## Edge agent kill-switch (Story 11.7)
-
-| Step | Action |
-|------|--------|
-| Platform | Ensure tenant exists in DB; register device via **`POST /internal/v1/edge-agents/register`** with `X-DeployAI-Internal-Key`. |
-| Kill | **`POST /internal/v1/edge-agents/{edge_agent_id}/kill`** with the same header. |
-| Agent | In the app, set **tenant id**, **internal key**, **control plane URL** → **Refresh kill-switch**. |
-| Note | Revoked flag clears only on **process restart**; poll sets revoked when `revoked_at` is non-null. |
-
 ## FOIA CLI — offline revocation list
 
 1. Build a JSON file: `{ "revocations": [ { "deviceId": "<manifest deviceId>", "revokedAtUnixMs": 123 } ] }`.

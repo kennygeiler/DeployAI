@@ -208,7 +208,7 @@ development_status:
   11-4-audio-capture-and-two-party-consent-ux: in-progress
   11-5-sparkle-auto-updater-with-signed-appcast: backlog
   11-6-offline-verification-via-foia-cli-integration: done
-  11-7-edge-agent-kill-switch: review
+  11-7-edge-agent-kill-switch: backlog
   epic-11-retrospective: optional
 
   # ======================================================================
