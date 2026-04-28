@@ -169,6 +169,9 @@ infra/compose/**/data/
 !.env.sample
 !.env.template
 *.pem
+# Story 15.1 Playwright JWT fixture — test-only signing key; not for production.
+!apps/web/tests/e2e/fixtures/pilot-access-e2e-public.pem
+!apps/web/tests/e2e/fixtures/pilot-access-e2e-private.pem
 *.key
 *.crt
 *.p12

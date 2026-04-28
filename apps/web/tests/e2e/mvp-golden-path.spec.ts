@@ -19,9 +19,9 @@ test.describe("MVP Track E — golden path", () => {
     const id = "2d4437ee-9336-441e-ab57-121b81ee57a4";
     await page.goto("/digest", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: /Morning digest/i })).toBeVisible();
-    await page.evaluate(() => {
-      (document.querySelector("[data-citation-chip]") as HTMLButtonElement | null)?.click();
-    });
+    const chip = page.locator("[data-citation-chip]").first();
+    await expect(chip).toBeVisible({ timeout: 15_000 });
+    await chip.click();
     const deepLink = page.locator(`a[href="/evidence/${id}"]`);
     await expect(deepLink).toBeVisible({ timeout: 15_000 });
     await page.evaluate((href) => {
