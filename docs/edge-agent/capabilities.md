@@ -40,7 +40,7 @@ This document maps each declared capability in `apps/edge-agent/src-tauri/tauri.
 ## Offline verification (Story 11.6)
 
 - **Purpose:** Third parties verify edge transcript bundles without calling DeployAI APIs.
-- **Scope:** Use `foia verify` against a bundle directory; CI exercises committed fixtures under `apps/foia-cli/testdata/edge-transcript-v1-*` via `go test ./pkg/verify/...` (no network to CP).
+- **Scope:** Use `foia verify` against a bundle directory; optional `--edge-revocation` JSON sidecar (offline device revocation list). CI exercises committed fixtures under `apps/foia-cli/testdata/edge-transcript-v1-*` via `go test ./pkg/verify/...` (no network to CP).
 
 ## CI audit
 

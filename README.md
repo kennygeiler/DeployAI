@@ -33,6 +33,15 @@ You plan in **BMAD** (`_bmad-output/`, `.cursor/skills/`). You ship in **`apps/w
 
 ---
 
+## What’s new
+
+| Area | Change |
+|------|--------|
+| **FOIA CLI** | **`foia verify`** supports **v1 + v2** transcript manifests, **`--edge-revocation`** sidecar JSON (for edge kill enforcement once CP/agent ship), and **`foia export --out --account`** (Story 12.2 skeleton). See [docs/foia/bundle-format.md](./docs/foia/bundle-format.md). |
+| **Ops** | [docs/human-ops-runbook.md](./docs/human-ops-runbook.md) — FOIA flags, integration tests, Sparkle pointer. |
+
+---
+
 ## Why DeployAI (vs generic PM tools)
 
 | Capability | DeployAI | Typical PM / chat |
