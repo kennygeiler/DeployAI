@@ -11,6 +11,7 @@ mod updater;
 mod crypto;
 mod device_identity;
 mod transcript;
+mod audio_capture;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -23,6 +24,9 @@ pub fn run() {
             device_identity::edge_agent_signing_identity,
             device_identity::edge_agent_register_with_control_plane,
             transcript::edge_agent_write_transcript_bundle,
+            kill_switch::edge_agent_kill_switch_status,
+            kill_switch::edge_agent_refresh_kill_switch_from_control_plane,
+            audio_capture::edge_agent_audio_capture_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
