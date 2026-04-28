@@ -51,3 +51,21 @@ Tracked after Epic 3 close; not reopening story rows in `sprint-status.yaml` unt
 ## Deferred from: code review of story-1-5-shadcn-ui-initialization-and-theme-bridging (2026-04-22)
 
 - **Narrow `exactOptionalPropertyTypes: false` to vendored primitives only** — Story 1.5 scopes the opt-out to the whole `apps/web` tsconfig to unblock the 3 shadcn/Radix prop-surface errors (`context-menu.tsx`, `dropdown-menu.tsx`, `sonner.tsx`). The opt-out is broader than the "vendored code only" discipline the story otherwise maintains: `ExampleForm.tsx`, stories, and future app code under `apps/web/src/**` now skip the strict flag too. Follow-up: split `apps/web/tsconfig.json` into a strict parent (covers app code) + a reference-project tsconfig that includes `src/components/ui/**` with the flag disabled, so the strict guard comes back for user-authored code. Low priority — Story 1.5's authored code already passes `tsc --noEmit` against the strict flag (verified pre-relaxation), and the narrowing is cosmetic. Revisit when a future Epic adds more app-authored forms/components and drift becomes measurable. _Source: Acceptance Auditor on code review of Story 1.5; also flagged in Story 1.5 Open Questions line 899._
+
+---
+
+## Epic retros follow-ups (2026-04-26)
+
+Captured when closing Epics **1, 6, 10, 11, 15, 16** retrospectives (`epic-*-retrospective-2026-04-26.md`). Does not reopen `sprint-status.yaml` story rows until scheduled.
+
+| Epic | Follow-up | Where / next step |
+|------|-----------|-------------------|
+| **1** | Keep [`whats-actually-here.md`](../../whats-actually-here.md) aligned with shipped reality | Same PR discipline as §0 workflow. |
+| **6** | Align roadmap language with deployable slices vs lab harness | Planning artifacts + pilot docs. |
+| **10** | CP-backed regression coverage for overrides + personal audit when schemas move | `services/control-plane` + web BFF tests; keep supersession changes paired across oracle + envelope. |
+| **11** | CoreAudio continuous capture (beyond mic consent / stub `edge_agent_audio_capture_status`) | New story: Epic 11 follow-up or Epic **14.5** Windows edge prerequisites. |
+| **11** | Keychain accessibility hardening (`kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly`) | Already noted in [`docs/edge-agent/capabilities.md`](../../docs/edge-agent/capabilities.md) (NFR20). |
+| **15** | Queue durability + single-replica messaging until CP-backed everywhere | [`whats-actually-here.md`](../../whats-actually-here.md) §10; Epic 12 integration path. |
+| **16** | Loader error surfaces + playbook refresh when Epic **12** auditor shell lands | `apps/web` loaders; `docs/pilot/`. |
+
+**Parallel arc:** Epic **12** (FOIA/compliance) and Epic **14** (post-V1 platform) proceed on separate branches without blocking Epic 11 closure — see Epic 11 retrospective §Parallel longer arc.
