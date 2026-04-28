@@ -48,6 +48,11 @@ class EdgeAgentReadResponse(BaseModel):
     revoked_at: datetime | None
 
 
+class EdgeAgentKillResponse(BaseModel):
+    edge_agent_id: uuid.UUID
+    revoked_at: datetime
+
+
 def _decode_ed25519_public(b64: str) -> bytes:
     raw = b64.strip().encode("ascii")
     try:
@@ -124,3 +129,23 @@ async def get_edge_agent_by_device(
         registered_at=row.registered_at,
         revoked_at=row.revoked_at,
     )
+
+
+@router.post(
+    "/{edge_agent_id}/kill",
+    response_model=EdgeAgentKillResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_internal)],
+)
+async def kill_edge_agent(edge_agent_id: uuid.UUID, session: AppDbSession) -> EdgeAgentKillResponse:
+    """Story 11.7 — mark edge agent revoked (kill-switch). Idempotent."""
+    r = await session.execute(select(EdgeAgent).where(EdgeAgent.id == edge_agent_id).limit(1))
+    row = r.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="edge agent not found")
+    now = datetime.now(UTC)
+    if row.revoked_at is None:
+        row.revoked_at = now
+        await session.commit()
+        await session.refresh(row)
+    return EdgeAgentKillResponse(edge_agent_id=row.id, revoked_at=row.revoked_at)

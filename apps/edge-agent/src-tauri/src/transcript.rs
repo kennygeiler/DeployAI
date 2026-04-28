@@ -12,6 +12,7 @@ use tsp_ltv::crypto::algorithm::DigestAlgorithm;
 use tsp_ltv::tsp::TsaClient;
 
 use crate::device_identity::{ensure_signing_identity, load_or_create_signing_key};
+use crate::kill_switch;
 
 pub const FORMAT: &str = "deployai.edge.transcript.v1";
 const PAYLOAD_LINE: &str = "DEPLOYAI_EDGE_TRANSCRIPT_V1";
@@ -115,6 +116,9 @@ pub async fn edge_agent_write_transcript_bundle(
     segments: Vec<String>,
     attach_rfc3161: bool,
 ) -> Result<serde_json::Value, String> {
+    if kill_switch::is_revoked() {
+        return Err("edge agent revoked — transcript signing blocked (Story 11.7)".into());
+    }
     let ident = ensure_signing_identity(&app)?;
     let sk = load_or_create_signing_key()?;
 

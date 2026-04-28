@@ -118,3 +118,37 @@ async def test_register_conflict_different_key(
         },
     )
     assert r.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_kill_edge_agent_idempotent(
+    ea_client: AsyncClient,
+    postgres_engine: Engine,
+) -> None:
+    tid = uuid.uuid4()
+    did = uuid.uuid4()
+    _ins_tenant(postgres_engine, tid)
+    b64 = base64.b64encode(b"\x05" * 32).decode("ascii")
+    reg = await ea_client.post(
+        "/internal/v1/edge-agents/register",
+        json={"tenant_id": str(tid), "device_id": str(did), "public_key_ed25519_b64": b64},
+    )
+    assert reg.status_code == 201, reg.text
+    eid = reg.json()["edge_agent_id"]
+
+    k1 = await ea_client.post(f"/internal/v1/edge-agents/{eid}/kill")
+    assert k1.status_code == 200, k1.text
+    j1 = k1.json()
+    assert j1["edge_agent_id"] == eid
+    assert j1["revoked_at"] is not None
+
+    k2 = await ea_client.post(f"/internal/v1/edge-agents/{eid}/kill")
+    assert k2.status_code == 200, k2.text
+    assert k2.json()["revoked_at"] == j1["revoked_at"]
+
+    g = await ea_client.get(
+        "/internal/v1/edge-agents/by-device",
+        params={"tenant_id": str(tid), "device_id": str(did)},
+    )
+    assert g.status_code == 200, g.text
+    assert g.json()["revoked_at"] == j1["revoked_at"]

@@ -82,6 +82,9 @@ function App() {
     import.meta.env.VITE_CONTROL_PLANE_URL?.trim() || "http://127.0.0.1:8000",
   );
   const [cpHealth, setCpHealth] = useState<string | null>(null);
+  const [tenantId, setTenantId] = useState("");
+  const [internalKey, setInternalKey] = useState("");
+  const [killStatus, setKillStatus] = useState<string | null>(null);
 
   const micGateOpen = !isTest && !consentOpen && !consentDeclined && !!consentRecord;
 
@@ -117,6 +120,29 @@ function App() {
       );
     } catch (error) {
       setCpHealth(`Request failed: ${String(error)}`);
+    }
+  }
+
+  async function runRefreshKillSwitch() {
+    const t = tenantId.trim();
+    const k = internalKey.trim();
+    const u = cpBase.trim();
+    if (!t || !k || !u) {
+      setKillStatus("Set control plane URL, tenant id, and internal API key.");
+      return;
+    }
+    try {
+      const j = await invoke<{ revoked: boolean; httpStatus?: number; note?: string }>(
+        "edge_agent_refresh_kill_switch_from_control_plane",
+        { baseUrl: u, tenantId: t, internalApiKey: k },
+      );
+      setKillStatus(
+        j.revoked
+          ? "Revoked on control plane — transcript signing is blocked until app restart."
+          : `Not revoked (HTTP ${j.httpStatus ?? "?"})${j.note ? ` — ${j.note}` : ""}`,
+      );
+    } catch (error) {
+      setKillStatus(`Kill-switch poll failed: ${String(error)}`);
     }
   }
 
@@ -197,6 +223,31 @@ function App() {
           Check /health
         </button>
         {cpHealth ? <p className="cp-out">{cpHealth}</p> : null}
+        <label>
+          Tenant id (UUID)
+          <input
+            className="cp-input"
+            value={tenantId}
+            onChange={(e) => setTenantId(e.target.value)}
+            placeholder="tenant UUID"
+            spellCheck={false}
+          />
+        </label>
+        <label>
+          Internal API key
+          <input
+            className="cp-input"
+            value={internalKey}
+            onChange={(e) => setInternalKey(e.target.value)}
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </label>
+        <button type="button" onClick={() => void runRefreshKillSwitch()}>
+          Refresh kill-switch (GET by-device)
+        </button>
+        {killStatus ? <p className="cp-out">{killStatus}</p> : null}
       </section>
       <section className="panel">
         <h2>Keychain Round-trip</h2>
