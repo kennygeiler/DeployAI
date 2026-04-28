@@ -86,8 +86,8 @@ async def _ensure_validation_solidification_seed(
         )
     )
     if (rv.scalar_one() or 0) == 0:
-        for row in _validation_seed_rows(tenant_id):
-            session.add(row)
+        for validation_row in _validation_seed_rows(tenant_id):
+            session.add(validation_row)
     rs = await session.execute(
         select(func.count())
         .select_from(StrategistSolidificationQueueItem)
@@ -96,8 +96,8 @@ async def _ensure_validation_solidification_seed(
         )
     )
     if (rs.scalar_one() or 0) == 0:
-        for row in _solidification_seed_rows(tenant_id):
-            session.add(row)
+        for solid_row in _solidification_seed_rows(tenant_id):
+            session.add(solid_row)
     await session.commit()
 
 
