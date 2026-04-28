@@ -130,6 +130,7 @@ pnpm --filter @deployai/web test:a11y
   - Control plane stub: `DEPLOYAI_STUB_IN_MEETING_TENANT_IDS` (comma-separated UUIDs) marks those tenants **in meeting** for `GET /internal/v1/strategist/meeting-presence`. The web app must send **`x-deployai-tenant`** with the same UUID for server-side `loadStrategistActivityForActor` to see it.
   - Client poll interval (default **30 s**, max **30 s**): set at **build** time with `NEXT_PUBLIC_DEPLOYAI_STRATEGIST_ACTIVITY_POLL_MS` (e.g. `10000` for a 10 s poll in local prod builds). Used by `StrategistShell` for `GET /api/internal/strategist-activity` while the tab is visible.
 - **Production / CI** (`next start`, `next build`): no middleware injection and no actor fallback — E2E and staging use real headers or expect 403/401.
+- **Pilot:** optional **`DEPLOYAI_STRATEGIST_REQUIRE_TENANT=1`** on `apps/web` enforces **`x-deployai-tenant`** on strategist pages and BFF/strategist-activity APIs — see [`docs/pilot/session-and-headers.md`](./pilot/session-and-headers.md) and [`docs/pilot/README.md`](./pilot/README.md).
 - **`/digest` 404 while `/` works:** Turbopack may have inferred the wrong workspace root (e.g. another `package-lock.json` on your machine). Remove or rename that stray lockfile, or follow [Turbopack `root`](https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory) in `apps/web/next.config.ts` for your layout.
 
 ## 5. Run each workspace

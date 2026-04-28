@@ -2692,6 +2692,8 @@ So that FR78 + NFR18 + NFR68 are satisfied at V1.5.
 
 Engineering and operational gates so a **hosted** strategist pilot does not fail for avoidable reasons (auth, tenant boundary, queue durability, honest meeting signal, supportability).
 
+**Operator docs (incremental delivery):** [`docs/pilot/README.md`](../../docs/pilot/README.md) — provisioning, queue durability modes, meeting-presence scope, support runbook, session/header pilot flag **`DEPLOYAI_STRATEGIST_REQUIRE_TENANT`** (`apps/web/middleware.ts`).
+
 ### Story 15.1: Hosted strategist session — tenant + role without dev header injection
 
 As a **Deployment Strategist**,

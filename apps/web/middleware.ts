@@ -21,6 +21,10 @@ const isStrategistSurface = (p: string) =>
 const isStrategistApi = (p: string) =>
   p.startsWith("/api/bff/") || p === "/api/internal/strategist-activity";
 
+function strategistPathRequiresTenant(pathname: string): boolean {
+  return isStrategistSurface(pathname) || isStrategistApi(pathname);
+}
+
 function shouldRunAuthz(pathname: string): boolean {
   return isAdmin(pathname) || isStrategistSurface(pathname) || isStrategistApi(pathname);
 }
@@ -87,6 +91,16 @@ export function middleware(request: NextRequest) {
     return new NextResponse("Forbidden: role cannot access this surface in V1.", {
       status: 403,
     });
+  }
+  if (
+    process.env.DEPLOYAI_STRATEGIST_REQUIRE_TENANT === "1" &&
+    strategistPathRequiresTenant(pathname) &&
+    !requestHeaders.get("x-deployai-tenant")?.trim()
+  ) {
+    return new NextResponse(
+      "Forbidden: missing x-deployai-tenant (pilot/staging: set headers from IdP/proxy or DEPLOYAI_STRATEGIST_REQUIRE_TENANT=0 — see docs/pilot/session-and-headers.md).",
+      { status: 403 },
+    );
   }
   return NextResponse.next({ request: { headers: requestHeaders } });
 }
