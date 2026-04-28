@@ -203,7 +203,7 @@ development_status:
   # ======================================================================
   epic-11: in-progress
   11-1-tauri-capability-based-permissions-scaffold: done
-  11-2-per-device-hardware-backed-signing-key: backlog
+  11-2-per-device-hardware-backed-signing-key: done
   11-3-tamper-evident-local-transcript: backlog
   11-4-audio-capture-and-two-party-consent-ux: backlog
   11-5-sparkle-auto-updater-with-signed-appcast: backlog

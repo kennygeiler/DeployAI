@@ -9,6 +9,7 @@ mod signing;
 mod transcription;
 mod updater;
 mod crypto;
+mod device_identity;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -18,6 +19,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             crypto::keychain_roundtrip,
             net::control_plane_health,
+            device_identity::edge_agent_signing_identity,
+            device_identity::edge_agent_register_with_control_plane,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

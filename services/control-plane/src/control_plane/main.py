@@ -20,6 +20,7 @@ from control_plane.api.routes.auth import router as auth_router
 from control_plane.api.routes.auth_oidc import auth_entry_router, oidc_router
 from control_plane.api.routes.auth_saml import router as auth_saml_router
 from control_plane.api.routes.break_glass import router as break_glass_router
+from control_plane.api.routes.edge_agents_internal import router as edge_agents_internal_router
 from control_plane.api.routes.ingestion_runs import router as ingestion_runs_internal_router
 from control_plane.api.routes.integrations import router as integrations_router
 from control_plane.api.routes.integrations_google_gmail import (
@@ -95,6 +96,7 @@ app.include_router(strategist_meeting_presence_internal_router, prefix="/interna
 app.include_router(strategist_pilot_surfaces_internal_router, prefix="/internal/v1")
 app.include_router(strategist_overrides_internal_router, prefix="/internal/v1")
 app.include_router(strategist_integration_records_internal_router, prefix="/internal/v1")
+app.include_router(edge_agents_internal_router, prefix="/internal/v1")
 app.include_router(scim_users_router, prefix="/scim/v2")
 
 
