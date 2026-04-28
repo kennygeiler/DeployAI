@@ -45,9 +45,7 @@ def _validation_seed_rows(tenant_id: uuid.UUID) -> list[StrategistValidationQueu
             StrategistValidationQueueItem(
                 id=f"vq-{i + 1}",
                 tenant_id=tenant_id,
-                proposed_fact=(
-                    f"Validation candidate {i + 1}: low-confidence extraction pending strategist review."
-                ),
+                proposed_fact=(f"Validation candidate {i + 1}: low-confidence extraction pending strategist review."),
                 confidence=f"{0.55 + i * 0.03:.2f}",
                 state="unresolved",
                 created_at=now,
@@ -81,7 +79,9 @@ async def _ensure_validation_solidification_seed(
 ) -> None:
     """Mirror ``seedStrategistQueuesIfEmpty`` from ``strategist-queues-store.ts``."""
     rv = await session.execute(
-        select(func.count()).select_from(StrategistValidationQueueItem).where(
+        select(func.count())
+        .select_from(StrategistValidationQueueItem)
+        .where(
             StrategistValidationQueueItem.tenant_id == tenant_id,
         )
     )
@@ -89,7 +89,9 @@ async def _ensure_validation_solidification_seed(
         for row in _validation_seed_rows(tenant_id):
             session.add(row)
     rs = await session.execute(
-        select(func.count()).select_from(StrategistSolidificationQueueItem).where(
+        select(func.count())
+        .select_from(StrategistSolidificationQueueItem)
+        .where(
             StrategistSolidificationQueueItem.tenant_id == tenant_id,
         )
     )
