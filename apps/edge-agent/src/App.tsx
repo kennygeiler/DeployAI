@@ -82,6 +82,12 @@ function App() {
     import.meta.env.VITE_CONTROL_PLANE_URL?.trim() || "http://127.0.0.1:8000",
   );
   const [cpHealth, setCpHealth] = useState<string | null>(null);
+  const [tenantId, setTenantId] = useState("");
+  const [internalKey, setInternalKey] = useState("");
+  const [killStatus, setKillStatus] = useState<string | null>(null);
+  const [transcriptStatus, setTranscriptStatus] = useState<string | null>(null);
+  const [segmentLines, setSegmentLines] = useState("demo-line-1\ndemo-line-2");
+  const [audioCaptureStatus, setAudioCaptureStatus] = useState<string | null>(null);
 
   const micGateOpen = !isTest && !consentOpen && !consentDeclined && !!consentRecord;
 
@@ -117,6 +123,65 @@ function App() {
       );
     } catch (error) {
       setCpHealth(`Request failed: ${String(error)}`);
+    }
+  }
+
+  async function runRefreshKillSwitch() {
+    const t = tenantId.trim();
+    const k = internalKey.trim();
+    const u = cpBase.trim();
+    if (!t || !k || !u) {
+      setKillStatus("Set control plane URL, tenant id, and internal API key first.");
+      return;
+    }
+    try {
+      const j = await invoke<{ revoked: boolean; httpStatus?: number; note?: string }>(
+        "edge_agent_refresh_kill_switch_from_control_plane",
+        { baseUrl: u, tenantId: t, internalApiKey: k },
+      );
+      setKillStatus(
+        j.revoked
+          ? "Device is revoked on the control plane — transcript signing will be blocked."
+          : `Not revoked (HTTP ${j.httpStatus ?? "?"})${j.note ? ` — ${j.note}` : ""}`,
+      );
+    } catch (error) {
+      setKillStatus(`Kill-switch refresh failed: ${String(error)}`);
+    }
+  }
+
+  async function runWriteTranscriptBundle() {
+    if (isTest) {
+      setTranscriptStatus("Skipped in test mode.");
+      return;
+    }
+    const lines = segmentLines
+      .split("\n")
+      .map((s) => s.trimEnd())
+      .filter((s) => s.length > 0);
+    if (lines.length === 0) {
+      setTranscriptStatus("Add at least one non-empty segment line.");
+      return;
+    }
+    const consentJson = consentRecord ? JSON.stringify(consentRecord) : null;
+    try {
+      const out = await invoke<{ bundleDir?: string }>("edge_agent_write_transcript_bundle", {
+        segments: lines,
+        attachRfc3161: false,
+        consentJson,
+        transcriptFormat: "v2",
+      });
+      setTranscriptStatus(`Wrote transcript v2 bundle: ${out.bundleDir ?? "(path unknown)"}`);
+    } catch (error) {
+      setTranscriptStatus(`Write bundle failed: ${String(error)}`);
+    }
+  }
+
+  async function runAudioCaptureStatus() {
+    try {
+      const s = await invoke<string>("edge_agent_audio_capture_status");
+      setAudioCaptureStatus(s);
+    } catch (error) {
+      setAudioCaptureStatus(`Status failed: ${String(error)}`);
     }
   }
 
@@ -197,6 +262,62 @@ function App() {
           Check /health
         </button>
         {cpHealth ? <p className="cp-out">{cpHealth}</p> : null}
+        <label>
+          Tenant id (UUID)
+          <input
+            className="cp-input"
+            value={tenantId}
+            onChange={(e) => setTenantId(e.target.value)}
+            placeholder="00000000-0000-0000-0000-000000000000"
+            spellCheck={false}
+          />
+        </label>
+        <label>
+          Internal API key
+          <input
+            className="cp-input"
+            value={internalKey}
+            onChange={(e) => setInternalKey(e.target.value)}
+            placeholder="X-DeployAI-Internal-Key value"
+            spellCheck={false}
+            type="password"
+            autoComplete="off"
+          />
+        </label>
+        <button type="button" onClick={() => void runRefreshKillSwitch()}>
+          Refresh kill-switch (by-device)
+        </button>
+        {killStatus ? <p className="cp-out">{killStatus}</p> : null}
+      </section>
+      {!isTest ? (
+        <section className="panel">
+          <h2>Transcript bundle (Story 11.4 / 11.7)</h2>
+          <p>
+            Writes <code>deployai.edge.transcript.v2</code> under app data. Consent JSON from
+            localStorage is hashed into the signed manifest when present.
+          </p>
+          <label>
+            Segment lines (one string per line)
+            <textarea
+              className="cp-input"
+              value={segmentLines}
+              onChange={(e) => setSegmentLines(e.target.value)}
+              rows={4}
+              spellCheck={false}
+            />
+          </label>
+          <button type="button" onClick={() => void runWriteTranscriptBundle()}>
+            Write signed transcript bundle (v2)
+          </button>
+          {transcriptStatus ? <p className="cp-out">{transcriptStatus}</p> : null}
+        </section>
+      ) : null}
+      <section className="panel">
+        <h2>Local audio capture (spike)</h2>
+        <button type="button" onClick={() => void runAudioCaptureStatus()}>
+          CoreAudio / local capture status
+        </button>
+        {audioCaptureStatus ? <p>{audioCaptureStatus}</p> : null}
       </section>
       <section className="panel">
         <h2>Keychain Round-trip</h2>

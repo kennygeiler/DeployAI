@@ -18,6 +18,9 @@ import (
 // Edge bundle format (Story 11.3 / 12.1). See docs/foia/bundle-format.md.
 const EdgeTranscriptFormat = "deployai.edge.transcript.v1"
 
+// EdgeTranscriptFormatV2 adds consent attestation hash to the signed payload (Story 11.4).
+const EdgeTranscriptFormatV2 = "deployai.edge.transcript.v2"
+
 // EdgeTranscriptManifest is manifest.json for an edge transcript bundle.
 type EdgeTranscriptManifest struct {
 	Format              string `json:"format"`
@@ -26,6 +29,8 @@ type EdgeTranscriptManifest struct {
 	MerkleRootHex       string `json:"merkleRootHex"`
 	TranscriptSHA256Hex string `json:"transcriptSha256Hex"`
 	SegmentsFile        string `json:"segmentsFile"`
+	CreatedAtUnixMs     int64  `json:"createdAtUnixMs"`
+	ConsentSHA256Hex    string `json:"consentSha256Hex,omitempty"`
 	RFC3161             *struct {
 		TsaURL         string `json:"tsaUrl"`
 		TokenDerBase64 string `json:"tokenDerBase64"`
@@ -48,6 +53,25 @@ func EdgeTranscriptSigningPayload(deviceID string, merkleRoot32, transcriptSHA25
 	return []byte(b.String())
 }
 
+// EdgeTranscriptSigningPayloadV2 matches the edge-agent v2 payload (UTF-8, trailing newline on last line).
+func EdgeTranscriptSigningPayloadV2(deviceID string, merkleRoot32, transcriptSHA256_32, consentSHA256_32 []byte) []byte {
+	var b strings.Builder
+	b.WriteString("DEPLOYAI_EDGE_TRANSCRIPT_V2\n")
+	b.WriteString("device_id:")
+	b.WriteString(deviceID)
+	b.WriteByte('\n')
+	b.WriteString("merkle_root:")
+	b.WriteString(hex.EncodeToString(merkleRoot32))
+	b.WriteByte('\n')
+	b.WriteString("transcript_sha256:")
+	b.WriteString(hex.EncodeToString(transcriptSHA256_32))
+	b.WriteByte('\n')
+	b.WriteString("consent_sha256:")
+	b.WriteString(hex.EncodeToString(consentSHA256_32))
+	b.WriteByte('\n')
+	return []byte(b.String())
+}
+
 // MerkleRootChain mirrors the edge-agent sequential chain (32 zero seed).
 func MerkleRootChain(segments []string) [32]byte {
 	var acc [32]byte
@@ -61,7 +85,9 @@ func MerkleRootChain(segments []string) [32]byte {
 }
 
 // VerifyEdgeTranscriptBundleDir checks Ed25519 signature, segment hash, and Merkle chain. Optional RFC3161 when present.
-func VerifyEdgeTranscriptBundleDir(bundleDir string, publicKeyB64 string, skipTSA bool) error {
+// If edgeRevocationPath is non-empty, loads a sidecar JSON list of device revocations and fails when the bundle
+// createdAtUnixMs is at or after revokedAtUnixMs for the manifest deviceId (Story 11.7).
+func VerifyEdgeTranscriptBundleDir(bundleDir string, publicKeyB64 string, skipTSA bool, edgeRevocationPath string) error {
 	manifestPath := filepath.Join(bundleDir, "manifest.json")
 	manifestBytes, err := os.ReadFile(manifestPath)
 	if err != nil {
@@ -71,8 +97,8 @@ func VerifyEdgeTranscriptBundleDir(bundleDir string, publicKeyB64 string, skipTS
 	if err := json.Unmarshal(manifestBytes, &mf); err != nil {
 		return fmt.Errorf("manifest json: %w", err)
 	}
-	if mf.Format != EdgeTranscriptFormat {
-		return fmt.Errorf("unsupported format %q (want %s)", mf.Format, EdgeTranscriptFormat)
+	if mf.Format != EdgeTranscriptFormat && mf.Format != EdgeTranscriptFormatV2 {
+		return fmt.Errorf("unsupported format %q (want %s or %s)", mf.Format, EdgeTranscriptFormat, EdgeTranscriptFormatV2)
 	}
 	segName := mf.SegmentsFile
 	if segName == "" {
@@ -129,9 +155,31 @@ func VerifyEdgeTranscriptBundleDir(bundleDir string, publicKeyB64 string, skipTS
 		return errors.New("transcript.sig must be base64-encoded 64-byte Ed25519 signature")
 	}
 
-	payload := EdgeTranscriptSigningPayload(mf.DeviceID, mrh, tsh)
+	var payload []byte
+	switch mf.Format {
+	case EdgeTranscriptFormat:
+		payload = EdgeTranscriptSigningPayload(mf.DeviceID, mrh, tsh)
+	case EdgeTranscriptFormatV2:
+		ch, err := decodeConsentSHA256Hex(mf.ConsentSHA256Hex)
+		if err != nil {
+			return err
+		}
+		payload = EdgeTranscriptSigningPayloadV2(mf.DeviceID, mrh, tsh, ch)
+	default:
+		return fmt.Errorf("unsupported format %q", mf.Format)
+	}
 	if !ed25519.Verify(pkb, payload, sig) {
 		return errors.New("Ed25519 signature verification failed (payload or key does not match bundle)")
+	}
+
+	if edgeRevocationPath != "" {
+		rev, err := loadEdgeRevocationFile(edgeRevocationPath)
+		if err != nil {
+			return fmt.Errorf("edge revocation list: %w", err)
+		}
+		if err := checkEdgeRevocation(mf.DeviceID, mf.CreatedAtUnixMs, rev); err != nil {
+			return err
+		}
 	}
 
 	if mf.RFC3161 != nil && mf.RFC3161.TokenDerBase64 != "" && !skipTSA {
@@ -149,6 +197,18 @@ func VerifyEdgeTranscriptBundleDir(bundleDir string, publicKeyB64 string, skipTS
 	}
 
 	return nil
+}
+
+func decodeConsentSHA256Hex(s string) ([]byte, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return make([]byte, 32), nil
+	}
+	b, err := hex.DecodeString(s)
+	if err != nil || len(b) != 32 {
+		return nil, errors.New("consentSha256Hex must be 64 hex chars (32 bytes) or omitted for all-zero")
+	}
+	return b, nil
 }
 
 func bytesEq(a, b []byte) bool {
