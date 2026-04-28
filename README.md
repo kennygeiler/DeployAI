@@ -23,22 +23,14 @@ You plan in **BMAD** (`_bmad-output/`, `.cursor/skills/`). You ship in **`apps/w
 
 ---
 
-## What’s new
+## What’s new (recent highlights)
 
 | Area | Change |
 |------|--------|
-| **Edge agent (Epic 11)** | **Story 11.5 — Sparkle-style updates:** Rust parses `appcast.xml`, verifies `sparkle:edSignature` (Ed25519 over the raw archive). Tauri commands `edge_agent_sparkle_fetch_latest_item` / `edge_agent_sparkle_verify_local_archive`; release helper `sign-sparkle-archive` + `apps/edge-agent/scripts/render-appcast.sh`. CI: Linux `cargo test updater`, macOS optional DMG sign + `dist/appcast.xml`, optional S3 upload. See [docs/edge-agent/sparkle-updates.md](./docs/edge-agent/sparkle-updates.md). |
-| **Tracking** | [sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml) — **11.5 done**; Epic 11 still open for **11.4** (capture/consent depth) and **11.7** (kill-switch) until those stories land on `main`. |
-| **Ops** | New runbook links all the **manual / secret** steps operators need (Apple, Sparkle seed, AWS appcast, CP integration tests, etc.). |
-
----
-
-## What’s new
-
-| Area | Change |
-|------|--------|
-| **FOIA CLI** | **`foia verify`** supports **v1 + v2** transcript manifests, **`--edge-revocation`** sidecar JSON (for edge kill enforcement once CP/agent ship), and **`foia export --out --account`** (Story 12.2 skeleton). See [docs/foia/bundle-format.md](./docs/foia/bundle-format.md). |
-| **Ops** | [docs/human-ops-runbook.md](./docs/human-ops-runbook.md) — FOIA flags, integration tests, Sparkle pointer. |
+| **Tracking** | [_bmad-output/implementation-artifacts/sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml) — Epics **1–11**, **15**, and **16** are **done** on `main` for their scoped stories; **Epic 12** is **in progress** (**12.2** in review; rest mostly backlog). See [whats-actually-here.md](./whats-actually-here.md) for fixture vs durable APIs. |
+| **Edge agent (Epic 11)** | Stories **11.1–11.7** closed in sprint-status: capabilities, Ed25519 identity, **v1/v2** transcript bundles, consent UX + Web Audio path (CoreAudio depth still documented in capabilities), **`foia verify`** alignment + revocation sidecar, **Sparkle** fetch/verify/update tooling ([sparkle-updates.md](./docs/edge-agent/sparkle-updates.md)), CP **kill-switch**. Local dev: Tauri **`beforeDevCommand`** runs **`pnpm vite:dev`** (Vite on **:1420**); **`Cargo.toml`** sets **`default-run = "deployai-edge-agent"`** because two binaries exist. |
+| **FOIA / compliance (Epic 12)** | **`foia verify`** — v1 + v2 manifests, **`--edge-revocation`**, **`foia export`** skeleton — see [docs/foia/bundle-format.md](./docs/foia/bundle-format.md). |
+| **Ops** | [docs/human-ops-runbook.md](./docs/human-ops-runbook.md) — secrets, CI, Sparkle, FOIA, CP integration tests. |
 
 ---
 
@@ -171,7 +163,7 @@ DeployAI/
 | [`_bmad-output/implementation-artifacts/development-board.yaml`](./_bmad-output/implementation-artifacts/development-board.yaml) | Board, MVP tracks, risks |
 | [`_bmad-output/planning-artifacts/mvp-operating-plan-2026.md`](./_bmad-output/planning-artifacts/mvp-operating-plan-2026.md) | MVP phasing |
 
-**Status (high level):** Epics **1–8** are largely **done** on `main` for the walking skeleton. **Epic 9** is **in progress** — vertical slice merged (presence stub, queues BFF, surfaces, E2E). **Story 9.1** adds configurable **≤ 30 s** activity poll, documents CP meeting-presence + stub env, and a **single-sample ≤ 8 s** Playwright gate for the active alert card after a BFF `inMeeting` signal; **100-run p95**, Graph calendar wiring, and lazy-evidence timing remain vs `epics.md`. **Epic 11** (edge agent): per-device signing, tamper-evident transcript, FOIA verify path, and **Sparkle-compatible updater verification (11.5)** are in motion on `main` / open PRs; remaining stories include **11.4** (CoreAudio/consent depth) and **11.7** (kill-switch) per sprint status. **Epic 12** (FOIA export / compliance) is mostly backlog beyond the Go verifier. **Epic 7 VPAT evidence pipeline** remains staged. Hardening notes: [`epic-8-implementation-status.md`](./_bmad-output/implementation-artifacts/epic-8-implementation-status.md).
+**Status (high level):** On `main`, **Epics 1–11**, **15**, and **16** are **story-complete** per [sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml). **Epic 9** shipped the scoped strategist reactive slice (in-meeting alert, queues, BFF mocks, E2E); **CP-backed durable queues** and **100-run p95** hardening for the alert card remain future depth vs `epics.md`. **Epic 11** (edge agent) includes signing, transcripts, Sparkle verification path, kill-switch, and consent/transcript **v2** — continuous **CoreAudio** production capture is still called out as follow-up in [docs/edge-agent/capabilities.md](./docs/edge-agent/capabilities.md). **Epic 12** (FOIA export / compliance / operability) is **active**: **12.1** done, **12.2** in **review**, others backlog. **Epic 13–14** remain largely backlog. Strategist **truth vs demo** posture: [whats-actually-here.md](./whats-actually-here.md). Hardening notes: [`epic-8-implementation-status.md`](./_bmad-output/implementation-artifacts/epic-8-implementation-status.md).
 
 ---
 
@@ -184,7 +176,7 @@ DeployAI/
 
 ## Strategist web (`apps/web`) — shipped highlights
 
-- **Routes:** `/digest`, `/in-meeting`, `/phase-tracking`, `/evening`, `/evidence/[nodeId]`, `/action-queue`, `/validation-queue`, `/solidification-review`, placeholders (overrides, audit).
+- **Routes:** `/digest`, `/in-meeting`, `/phase-tracking`, `/evening`, `/evidence/[nodeId]`, `/action-queue`, `/validation-queue`, `/solidification-review`, `/overrides`, `/audit/personal`.
 - **Remote fixtures (optional):** env URLs for digest / phase / evening JSON (see README history in git for variable names); failures are explicit when a URL is set.
 - **FR41 / Story 8.4:** `CitationChip` + `EvidencePanel`, “Navigate to source” → `/evidence/:nodeId`. Playwright: [`strategist-command-palette.spec.ts`](./apps/web/tests/e2e/strategist-command-palette.spec.ts), [`mvp-golden-path.spec.ts`](./apps/web/tests/e2e/mvp-golden-path.spec.ts).
 - **FR46 / FR47 / Story 8.7:** [`loadStrategistActivityForActor`](./apps/web/src/lib/internal/load-strategist-activity.ts) + [`StrategistShell.client.tsx`](./apps/web/src/app/(strategist)/StrategistShell.client.tsx) — demo query merges (`?agentError=1`, `?ingest=1`, `?inMeeting=1`, …).

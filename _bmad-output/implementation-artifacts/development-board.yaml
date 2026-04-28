@@ -8,8 +8,8 @@
 
 meta:
   plan: _bmad-output/planning-artifacts/mvp-operating-plan-2026.md
-  last_updated: "2026-04-27"
-  note: "Track D on main. Track E: golden-path Playwright spec (`tests/e2e/mvp-golden-path.spec.ts`); BFF / dead-flag cleanup still open."
+  last_updated: "2026-04-28"
+  note: "sprint-status.yaml — Epics 1–11, 15–16 done; Epic 12 active (12.2 review). MVP Tracks A–D done; Track E (golden-path E2E + mock cleanup) still open. See whats-actually-here.md for fixture vs durable APIs."
 
 risk_mitigations:
   - id: R1-planning-drift

@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "identifier": "app.deployai.edge-agent",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "pnpm vite:dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"

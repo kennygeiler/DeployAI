@@ -4,6 +4,7 @@ version = "0.0.0"
 description = "DeployAI edge-capture agent (FR13, NFR20). Scaffold - no capture logic yet."
 authors = ["DeployAI"]
 edition = "2021"
+default-run = "deployai-edge-agent"
 
 [lib]
 name = "edge_agent_lib"

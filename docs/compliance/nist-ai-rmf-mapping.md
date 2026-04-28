@@ -38,7 +38,7 @@ Legend: **Shipped** (in-repo behavior/tests), **Partial** (plumbing or demo-boun
 | Evaluation / testing | Golden fixtures, replay-parity harness (Epic 4); rule + LLM judges | Partial |
 | Human oversight / QA surfaces | Validation & solidification queues (Epic 9); adjudication surfaces | Partial |
 | Monitoring | Epic `12.10` SLOs + Grafana + OnCall — backlog | Planned |
-| FOIA / evidence export | Go FOIA CLI offline verify (`12.1` done); export skeleton (`12.2` in progress per sprint-status) | Partial |
+| FOIA / evidence export | Go FOIA CLI offline verify (`12.1` done); export skeleton (`12.2` in **review** per sprint-status) | Partial |
 
 **Replay-parity gate report** (Epic 4 Story 4.8) ties **measurement** of agent outputs to quarterly compliance reporting (`12.6` planned).
 

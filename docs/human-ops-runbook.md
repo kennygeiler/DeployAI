@@ -35,10 +35,12 @@ Steps a **person** must take that are not fully automated in-repo: secrets, clou
 | Who | Action |
 |-----|--------|
 | Engineer | `pnpm install` at repo root. |
-| Engineer | `pnpm --filter @deployai/edge-agent dev` or `tauri dev` from app (see package scripts). |
+| Engineer | `pnpm --filter @deployai/edge-agent dev` or `cd apps/edge-agent && pnpm dev` (runs **`tauri dev`**; Vite serves **`http://localhost:1420`** via **`pnpm vite:dev`** from `tauri.conf.json`). |
 | Engineer | On macOS, grant **microphone** when prompted; consent flow uses browser `localStorage`. |
 
 **No secrets required** for local dev of UI + Rust commands.
+
+**If dev hangs on “Waiting for frontend on :1420”** or Vite says **port in use**, see [dev-environment.md §5](./dev-environment.md#5-run-each-workspace) — wrong `beforeDevCommand`, stale Vite, or missing **`default-run`** in `Cargo.toml`.
 
 ---
 

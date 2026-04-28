@@ -18,7 +18,7 @@ The root `pnpm-workspace.yaml` declares five workspace roots. Every future top-l
 | `infra/*` | Terraform + Terragrunt IaC (`infra/terraform/`), docker-compose reference dev env (`infra/compose/`), deferred Helm chart (`infra/helm/`) | Authored directly |
 | `tests/*` | Cross-workspace test harnesses: `11th-call/`, `continuity-of-reference/`, `phase-retrieval-matrix/`, `tenant-isolation-fuzz/`, `e2e-user-journeys/` | Authored directly |
 
-> **Status (post-Story-1.4):** `apps/web`, `apps/edge-agent`, `apps/foia-cli`, `services/control-plane`, and `packages/design-tokens` are now initialized and green across `pnpm turbo run lint typecheck test build` (20 tasks). Remaining `services/*`, `packages/*`, `infra/*`, and `tests/*` remain empty. Story 1.5 initializes shadcn/ui on top of `@deployai/design-tokens`; Story 1.7 lands `infra/compose/`; Story 1.10 lands `tests/tenant-isolation-fuzz/`; and so on.
+> **Current scope (2026-04):** The monorepo is populated across **`apps/*`**, multiple **`services/*`** (control-plane, ingest, cartographer, oracle, master_strategist, …), **`packages/*`** (design-tokens, contracts, shared-ui, authz, …), **`infra/compose`**, and **`tests/**`. Epic/story completion is tracked in [**`_bmad-output/implementation-artifacts/sprint-status.yaml`**](../_bmad-output/implementation-artifacts/sprint-status.yaml); **fixture vs live APIs** for strategists is summarized in [**`whats-actually-here.md`**](../whats-actually-here.md). The row below labeled **Story 1.3 shipped** is a historical snapshot of first bootstrap — not an exhaustive list of today’s modules.
 
 ## Root-level configuration
 
@@ -29,7 +29,7 @@ The root `pnpm-workspace.yaml` declares five workspace roots. Every future top-l
 | `pnpm-lock.yaml` | Lockfile (always committed). |
 | `turbo.json` | Pipeline topology: `build`, `lint`, `test`, `typecheck`, `dev`, `clean`. |
 | `tsconfig.base.json` | Shared strict TypeScript compiler settings. Each TS workspace extends this. |
-| `eslint.config.mjs` | ESLint **flat config** (ESLint 10+ default; no legacy `.eslintrc*`). |
+| `eslint.config.mjs` | ESLint **flat config** (ESLint **9.x** in-repo for Next.js ecosystem compat; no legacy `.eslintrc*`). |
 | `.prettierrc.json` / `.prettierignore` | Prettier rules + ignores. |
 | `.editorconfig` | Editor-level consistency (UTF-8, LF, 2-space default, 4-space Python, tab Go). |
 | `.npmrc` | pnpm config — turns on `engine-strict=true` (hard-fails non-conforming Node/pnpm) and `frozen-lockfile=true`. |
@@ -91,7 +91,7 @@ Source: architecture.md §Code Naming.
 | Workspace | Stack | Entry point | Wrapper scripts |
 |---|---|---|---|
 | `apps/web` | Next.js 16.2 + React 19.2 + Tailwind v4 + Turbopack + Vitest | `src/app/page.tsx` ("DeployAI — initializing") | `dev`, `build`, `start`, `lint`, `typecheck`, `test`, `docker:build` |
-| `apps/edge-agent` | Tauri 2.10 + Rust 1.95 + React 19 frontend + capability-locked (`core:default` only) | `src-tauri/src/lib.rs` (empty modules for `transcription`, `signing`, `kill_switch`, `updater`) | `dev`, `build`, `tauri`, `cargo:check`, `lint`, `typecheck`, `test`, `docker:build` |
+| `apps/edge-agent` | Tauri 2.10 + Rust 1.95 + React 19 + capability sets per [`docs/edge-agent/capabilities.md`](./edge-agent/capabilities.md) | `src-tauri/src/lib.rs` (edge commands; updater/signing/transcript/kill-switch modules) | `dev` (**`tauri dev`** + Vite **:1420** via **`vite:dev`**), `vite:dev`, `build`, `tauri`, `cargo:check`, `lint`, `typecheck`, `test`, `docker:build` |
 | `apps/foia-cli` | Go 1.26 + static `CGO_ENABLED=0` binary, stripped (`-s -w`) | `cmd/foia/main.go` prints version + `verify.Description()` | `build`, `lint` (gofmt + go vet), `test`, `typecheck`, `docker:build` |
 | `services/control-plane` | FastAPI 0.136 + Pydantic v2 + SQLAlchemy 2.x async + Alembic (empty async template) + uv 0.11 | `src/control_plane/main.py` with `GET /healthz` → `{"status": "ok"}` | `dev`, `build` (uv sync), `lint` (ruff + ruff format), `typecheck` (mypy strict), `test` (pytest-asyncio), `docker:build` |
 
@@ -210,21 +210,10 @@ Seed fixtures (Story 1.7) still live in the separate `fixtures.*` schema — Sto
 | `docs/contracts/` | Field semantics (FR27) | `docs/contracts/citation-envelope.md` |
 | `.github/workflows/ci.yml` | `pnpm turbo run contract:check` on the main smoke job | `ci.yml` (smoke job) |
 
-## What this repo does NOT yet contain (by design, as of Story 1.11)
+## Rolling gaps and deferred systems
 
-- No additional `services/*` beyond `control-plane` — authored per story as features land (`canonical-memory` in 1.8, `api-gateway` in 1.9, `ingest`/`oracle`/`master-strategist` in later epics).
-- No `packages/shared-ui/` workspace yet — the first DeployAI-specific composite (CitationChip) creates it in Epic 7.
-- No Grafana / Prometheus / Loki / Tempo observability stack in compose — Story 12.10.
-- No continuity-of-reference contract suite in `tests/*` — Story 1.12.
-- No dark-mode token set — deferred; the variable layer already supports it.
-- No mobile-viewport a11y runs (Chromium-desktop only at V1) — covered by Story 7.13.
-- No screen-reader automation (NVDA / VoiceOver / JAWS) — manual verification remains required for release candidates.
-- No AWS-KMS-backed DEK provider — `KMSEnvelopeDEKProvider` lands Story 3.x when AWS infra is provisioned. Story 1.9 ships the protocol + `InMemoryDEKProvider` for dev/test.
-- No `deployai_app` role swap as the control-plane default connection user — Story 2.4 flips it. Story 1.9 creates the role + grants; all current connections still go through the superuser, so RLS only applies to code paths that explicitly `SET SESSION AUTHORIZATION` (integration tests do this; Story 1.10's fuzz harness will attack both paths).
-- No encrypted columns on canonical tables (`private_annotation`, `raw_transcript_content`) — the envelope-encryption mechanism ships in 1.9, but actual column migrations land per-feature in Epic 10 and Epic 11.
-- No RFC 3161 signing wired into tombstones (`tombstones.tsa_timestamp` remains nullable) — Story 1.13.
-- No schema-proposal review surface — Story 1.17.
-- No real CLI commands in `apps/foia-cli` — Story 1.12+.
-- No real Tauri capture / signing / kill-switch logic — later Epic 1 + Epic 6 stories.
+The old **“Story 1.11 gap list”** has been **removed** — it falsely claimed `services/*` beyond control-plane, missing `shared-ui`, missing FOIA CLI, missing edge signing, etc., all of which **exist on `main`** now.
 
-Each future story adds exactly its deliverable; Stories 1.1–1.6 establish only the foundation on which they build.
+**Authoritative tracking:** [sprint-status.yaml](../_bmad-output/implementation-artifacts/sprint-status.yaml) · **Honest UX/API posture:** [whats-actually-here.md](../whats-actually-here.md) · **Deferred follow-ups:** [deferred-work.md](../_bmad-output/implementation-artifacts/deferred-work.md).
+
+Examples that remain **open or partial** at the platform level (not exhaustive): **Epic 12** compliance/operability stories (SLOs, chaos, immutable audit bucket, …), **Epic 13** usability/VPAT program, **full Grafana-style observability stack** in compose (see Epic **12.10**), **AWS-KMS DEK** vs dev providers where not yet wired, **screen-reader automation** for releases, **mobile viewport** tooling depth vs desktop-first gates.

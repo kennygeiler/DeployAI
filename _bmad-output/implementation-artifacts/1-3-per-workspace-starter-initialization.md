@@ -496,7 +496,7 @@ RUN cd src-tauri && cargo check
 
 ```jsonc
 {
-  "build": { "beforeDevCommand": "pnpm dev", "beforeBuildCommand": "pnpm build", "devUrl": "http://localhost:1420", "frontendDist": "../dist" },
+  "build": { "beforeDevCommand": "pnpm vite:dev", "beforeBuildCommand": "pnpm build", "devUrl": "http://localhost:1420", "frontendDist": "../dist" },
   "app": {
     "withGlobalTauri": false,
     "security": {

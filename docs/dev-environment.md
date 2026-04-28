@@ -142,6 +142,14 @@ pnpm --filter @deployai/control-plane dev     # FastAPI on :8000 (uvicorn --relo
 pnpm --filter @deployai/foia-cli build && apps/foia-cli/bin/foia
 ```
 
+**Edge agent (`apps/edge-agent`) — how dev starts**
+
+- **`pnpm --filter @deployai/edge-agent dev`** runs **`tauri dev`**. Tauri’s **`beforeDevCommand`** is **`pnpm vite:dev`**, which runs **Vite only** on **`http://localhost:1420`** (see `apps/edge-agent/vite.config.ts` and `src-tauri/tauri.conf.json`). The **`dev`** script must **not** be used as `beforeDevCommand` — it would recurse into `tauri dev` and never bind **:1420**.
+- **`pnpm vite:dev`** (or **`pnpm --filter @deployai/edge-agent vite:dev`**) runs **frontend only** — useful for UI work without the Rust shell.
+- The Rust crate defines **two** binaries (`deployai-edge-agent`, `sign-sparkle-archive`). **`Cargo.toml`** sets **`default-run = "deployai-edge-agent"`** so **`cargo run`** / **`tauri dev`** targets the app binary.
+- If you see **“Port 1420 is already in use”**, stop the other process (often a stray Vite): `lsof -ti :1420 | xargs kill -9` on macOS/Linux.
+
+
 ## 6. Docker sanity check (per-workspace)
 
 ```bash
@@ -218,3 +226,5 @@ docker compose --env-file infra/compose/.env -f infra/compose/docker-compose.yml
 | `tsc` fails with `exactOptionalPropertyTypes` errors on `vitest.config.ts` | Already excluded in each workspace `tsconfig.json`. If reintroduced, add to the `exclude` array. |
 | `uv run pytest` can't find `control_plane` | Run from `services/control-plane/` (or `cd` there first). `pyproject.toml` sets `pythonpath = ["src"]`. |
 | `cargo check` wants webkit libs on Linux | `sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev pkg-config`. |
+| Tauri waits forever on **`http://localhost:1420`** / **`beforeDevCommand` fails** | Ensure **`beforeDevCommand`** runs **`pnpm vite:dev`** (not **`pnpm dev`**). Free port **1420** if occupied (see §5 edge-agent notes). |
+| **`cargo run` could not determine which binary`** (exit **101**) | Normal when multiple `[[bin]]` targets exist — **`default-run`** should be set in `apps/edge-agent/src-tauri/Cargo.toml`; use **`cargo run --bin deployai-edge-agent`** if invoking Cargo directly. |
