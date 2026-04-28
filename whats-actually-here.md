@@ -181,6 +181,7 @@ Use this to run a **credible demo** without claiming full production.
 - [_bmad-output/implementation-artifacts/sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml) — story-level done/in-progress.
 - [docs/diagrams/deployai-bmad-and-runtime-flow.mjs](./docs/diagrams/deployai-bmad-and-runtime-flow.mjs) — BMAD + runtime export (Mermaid JS).
 - **Epic retros (7–9):** [_bmad-output/implementation-artifacts/epic-7-retrospective-2026-04-26.md](./_bmad-output/implementation-artifacts/epic-7-retrospective-2026-04-26.md), [_bmad-output/implementation-artifacts/epic-8-retrospective-2026-04-26.md](./_bmad-output/implementation-artifacts/epic-8-retrospective-2026-04-26.md), [_bmad-output/implementation-artifacts/epic-9-retrospective-2026-04-28.md](./_bmad-output/implementation-artifacts/epic-9-retrospective-2026-04-28.md).
+- **Customer pilot (BMAD):** [_bmad-output/planning-artifacts/epics.md](./_bmad-output/planning-artifacts/epics.md) — **Epic 15** (prerequisites) → **Epic 16** (onboarding + integrations + CP loaders); see §10 below.
 
 ---
 
@@ -212,5 +213,6 @@ Use this when a **real Forward Deployed Engineer** (or customer strategist) shou
 | 2026-04-26 | §0 maintenance workflow; §2 pointer to `.env.example` strategist vars; Epic 7/9 story-complete note. Story **9.8**: header **context menu** “Reset position to default” (`InMeetingAlertCard`). Story **7.15**: VPAT aggregator + `vpat-evidence.yml` tracked as done in sprint-status. |
 | 2026-04-27 | §7: explicit **9.8** caveat—in-meeting alert **position is `localStorage` only** (not cross-device / server-backed). |
 | 2026-04-28 | §10 **FDE pilot** checklist; Epics **7–9** retrospectives closed in sprint-status; `strategist-queues-store` deploy note (multi-instance). |
+| 2026-04-28 | **Epics 15–16** added to `epics.md` + `sprint-status.yaml` — pilot prerequisites vs design partner phasing. |
 
 ---
