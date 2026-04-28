@@ -58,7 +58,7 @@ Rough mapping (see [_bmad-output/implementation-artifacts/sprint-status.yaml](./
 | **Epic 10** | **Durable** learning overrides, private annotation crypto, citation supersession plumbing, **`/overrides`** + **`/audit/personal`** via BFF → CP |
 | **Epic 11** | **Edge agent** (`apps/edge-agent`): capability model, Ed25519 identity, **v1/v2** transcript bundles, **`foia verify`** compatibility + revocation sidecar, Sparkle **fetch/verify** tooling, CP **kill-switch** poll — **parallel** to Epic **12** (FOIA/export) and Epic **14** (post-V1 platform); see [`docs/edge-agent/capabilities.md`](./docs/edge-agent/capabilities.md) |
 
-**Not the same as:** “Strategist opens app → live model continuously updates every surface with production data.” That’s **deeper integration** (queues, live feeds, agent-driven updates) beyond what shipped in Epics 7–10.
+**Not the same as:** “Strategist opens app → live model continuously updates every surface with production data.” That’s **deeper integration** (queues, live feeds, agent-driven updates) beyond what shipped in Epics **7–11** for the browser strategist surfaces (Epic **11** is the macOS edge agent, not live agent streaming into web).
 
 ---
 
@@ -218,7 +218,7 @@ Use this when a **real Forward Deployed Engineer** (or customer strategist) shou
 | 2026-04-27 | §7: explicit **9.8** caveat—in-meeting alert **position is `localStorage` only** (not cross-device / server-backed). |
 | 2026-04-28 | §10 **FDE pilot** checklist; Epics **7–9** retrospectives closed in sprint-status; `strategist-queues-store` deploy note (multi-instance). |
 | 2026-04-28 | **Epics 15–16** in `epics.md` + sprint grid; **docs/pilot/** operator pack; **`DEPLOYAI_STRATEGIST_REQUIRE_TENANT`** middleware; Epic **15** stories closed for pilot prerequisites. |
-| 2026-04-28 | **Epic 10** on `main` (PR #58): CP-backed overrides + personal audit surfaces (`/overrides`, `/audit/personal`), citation envelope / oracle supersession alignment, private-scope annotations. **Epic 11.1** (PR #59): edge-agent Tauri **capability scaffold** + CI capability audit + `docs/edge-agent/capabilities.md` — not production capture yet. **§2** / **§3** updated for pilot catalog accuracy. |
-| 2026-04-26 | **Epic 11** marked done in sprint-status (edge capture agent V1 scope); retros recorded for **Epics 1, 6, 10, 11, 15, 16**; §3 adds Epic **11** row + parallel Epic **12**/**14** note; §9 links expanded. |
+| 2026-04-28 | **Epic 10** on `main` (PR #58): CP-backed overrides + personal audit surfaces (`/overrides`, `/audit/personal`), citation envelope / oracle supersession alignment, private-scope annotations. **Epic 11.1** (PR #59): edge-agent Tauri **capability scaffold** + CI capability audit + `docs/edge-agent/capabilities.md`. **Epic 11** later marked **done** in sprint-status (full V1 agent scope); retros for **Epics 1, 6, 10, 11, 15, 16**. **§2** / **§3** updated for pilot catalog accuracy. |
+| 2026-04-28 | **Documentation sweep:** README **What’s new** + status blurb aligned with [sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml); [docs/repo-layout.md](./docs/repo-layout.md) retired obsolete Story **1.11** “not yet” bullets; [docs/dev-environment.md](./docs/dev-environment.md) documents edge-agent **Vite :1420** + **`default-run`** dev workflow; [apps/edge-agent/README.md](./apps/edge-agent/README.md) replaces generic Tauri template text. |
 
 ---

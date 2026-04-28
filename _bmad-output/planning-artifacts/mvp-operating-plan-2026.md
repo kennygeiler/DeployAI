@@ -4,6 +4,8 @@ This document turns the **current product risks** into **concrete mitigations**,
 
 **Related:** file-backed board [`../implementation-artifacts/development-board.yaml`](../implementation-artifacts/development-board.yaml) · sprint tracking [`../implementation-artifacts/sprint-status.yaml`](../implementation-artifacts/sprint-status.yaml).
 
+**Sequencing note (2026-04):** This plan originally emphasized a **web-first MVP** and deferred heavy **Epic 10–12** work. Implementation on `main` has **since landed** much of **Epics 10–11** (overrides/audit surfaces; edge agent signing, transcripts, Sparkle, kill-switch) and started **Epic 12** (FOIA CLI + export path). **Treat [`sprint-status.yaml`](../implementation-artifacts/sprint-status.yaml) + [`whats-actually-here.md`](../../whats-actually-here.md) as the authority** on what shipped; use §2–3 below as **historical MVP intent**, not a blocker list.
+
 ---
 
 ## 1. Risks and how we address them
