@@ -11,6 +11,8 @@ import {
 
 import { OverrideComposer, type OverrideEvidenceOption } from "@deployai/shared-ui";
 
+import { Button } from "@/components/ui/button";
+
 type Row = {
   override_event_id: string;
   occurred_at: string;
@@ -30,8 +32,9 @@ export function OverrideHistorySurface() {
   const [loadErr, setLoadErr] = React.useState<string | null>(null);
   const [evidenceOptions, setEvidenceOptions] = React.useState<OverrideEvidenceOption[]>([]);
 
-  const load = React.useCallback(async () => {
-    setLoadErr(null);
+  const fetchOverrides = React.useCallback(async (): Promise<
+    { ok: true; rows: Row[] } | { ok: false; err: string }
+  > => {
     const sp = new URLSearchParams();
     if (mineOnly) {
       sp.set("mineOnly", "1");
@@ -44,16 +47,28 @@ export function OverrideHistorySurface() {
     }
     const r = await fetch(`/api/bff/overrides?${sp.toString()}`, { cache: "no-store" });
     if (!r.ok) {
-      setLoadErr(await r.text());
-      return;
+      return { ok: false, err: await r.text() };
     }
     const j = (await r.json()) as { items: Row[] };
-    setRows(j.items ?? []);
+    return { ok: true, rows: j.items ?? [] };
   }, [mineOnly, from, to]);
 
   React.useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    (async () => {
+      const result = await fetchOverrides();
+      if (cancelled) return;
+      if (!result.ok) {
+        setLoadErr(result.err);
+        return;
+      }
+      setLoadErr(null);
+      setRows(result.rows);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchOverrides]);
 
   React.useEffect(() => {
     void fetch("/api/bff/strategist-memory-search?q=.")
@@ -115,6 +130,8 @@ export function OverrideHistorySurface() {
     [col],
   );
 
+  // TanStack Table: eslint react-hooks/incompatible-library — table API returns unstable function refs.
+  // eslint-disable-next-line react-hooks/incompatible-library -- useReactTable is the supported integration
   const table = useReactTable({
     data: rows,
     columns,
@@ -153,7 +170,12 @@ export function OverrideHistorySurface() {
             if (!r.ok) {
               throw new Error(await r.text());
             }
-            await load();
+            const result = await fetchOverrides();
+            if (!result.ok) {
+              throw new Error(result.err);
+            }
+            setLoadErr(null);
+            setRows(result.rows);
           }}
         />
       </section>
@@ -196,13 +218,24 @@ export function OverrideHistorySurface() {
             />
             Mine only
           </label>
-          <button
+          <Button
             type="button"
-            className="rounded-md border border-border bg-paper-100 px-3 py-1.5 text-sm font-medium hover:bg-paper-200"
-            onClick={() => void load()}
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              void (async () => {
+                const result = await fetchOverrides();
+                if (!result.ok) {
+                  setLoadErr(result.err);
+                  return;
+                }
+                setLoadErr(null);
+                setRows(result.rows);
+              })();
+            }}
           >
             Apply filters
-          </button>
+          </Button>
         </div>
         {loadErr ? (
           <p className="text-sm text-rose-700" role="alert">

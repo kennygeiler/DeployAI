@@ -3,6 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 
+import { Button } from "@/components/ui/button";
+
 type Item = {
   id: string;
   category: string;
@@ -12,29 +14,54 @@ type Item = {
   created_at: string;
 };
 
+async function fetchPersonalAudit(categoryFilter: string): Promise<
+  { ok: true; items: Item[] } | { ok: false; error: string }
+> {
+  const sp = new URLSearchParams();
+  if (categoryFilter.trim()) {
+    sp.set("category", categoryFilter.trim());
+  }
+  const r = await fetch(`/api/bff/personal-audit?${sp.toString()}`, { cache: "no-store" });
+  if (!r.ok) {
+    return { ok: false, error: await r.text() };
+  }
+  const j = (await r.json()) as { items: Item[] };
+  return { ok: true, items: j.items ?? [] };
+}
+
 export function PersonalAuditSurface() {
   const [items, setItems] = React.useState<Item[]>([]);
   const [categoryFilter, setCategoryFilter] = React.useState("");
   const [err, setErr] = React.useState<string | null>(null);
 
-  const load = React.useCallback(async () => {
-    setErr(null);
-    const sp = new URLSearchParams();
-    if (categoryFilter.trim()) {
-      sp.set("category", categoryFilter.trim());
-    }
-    const r = await fetch(`/api/bff/personal-audit?${sp.toString()}`, { cache: "no-store" });
-    if (!r.ok) {
-      setErr(await r.text());
-      return;
-    }
-    const j = (await r.json()) as { items: Item[] };
-    setItems(j.items ?? []);
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const result = await fetchPersonalAudit(categoryFilter);
+      if (cancelled) return;
+      if (!result.ok) {
+        setErr(result.error);
+        return;
+      }
+      setErr(null);
+      setItems(result.items);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [categoryFilter]);
 
-  React.useEffect(() => {
-    void load();
-  }, [load]);
+  const refresh = React.useCallback(() => {
+    void (async () => {
+      const result = await fetchPersonalAudit(categoryFilter);
+      if (!result.ok) {
+        setErr(result.error);
+        return;
+      }
+      setErr(null);
+      setItems(result.items);
+    })();
+  }, [categoryFilter]);
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -57,13 +84,9 @@ export function PersonalAuditSurface() {
             placeholder="override_submitted"
           />
         </label>
-        <button
-          type="button"
-          className="rounded-md border border-border bg-paper-100 px-3 py-1 text-sm font-medium hover:bg-paper-200"
-          onClick={() => void load()}
-        >
+        <Button type="button" variant="secondary" size="sm" onClick={refresh}>
           Refresh
-        </button>
+        </Button>
       </div>
       {err ? (
         <p className="text-sm text-rose-700" role="alert">
