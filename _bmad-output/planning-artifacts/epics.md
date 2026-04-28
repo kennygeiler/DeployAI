@@ -548,6 +548,21 @@ Explicitly post-Anchor-ship. Activate the V1.5 capabilities whose data model shi
 **FRs covered:** FR40, FR67, FR74, FR75, FR77
 **NFRs covered:** NFR13, NFR30 (SOC 2 Type II observation window), NFR49 (post-StateRAMP scale), NFR68 (Helm)
 
+### Epic 15: Customer Pilot Prerequisites — Identity, Durability & Runbooks
+Close the **engineering and operational gaps** that block a **hosted** strategist test with a real company: replace dev-only header auth with **session-bound tenant + role** for `apps/web`, ensure **tenant provisioning** is repeatable, decide and implement **queue durability** (CP/DB-backed strategist queues vs a **signed** single-replica ops contract), make **meeting-presence** claims honest (stub-only pilot vs Graph-backed read path), and ship **observability + pilot runbook** so field issues are diagnosable. Depends on Epic 2 (SSO/session direction), Epic 3 (integrations exist in CP), Epic 8/9 (surfaces consume loaders). **Complete this epic (or explicitly waive items with written risk acceptance) before Epic 16 Phase 1 with an external design partner.**
+**Epic goal:** A DeployAI engineer can stand up a tenant in a **production-shaped** environment without manual `x-deployai-*` browser hacks; horizontal scale and calendar truth do not surprise the customer.
+**FRs covered:** FR9–FR11 (readiness for real data paths), FR17 (kill-switch awareness in pilot), FR70, FR71 (tenant-scoped access patterns)
+**NFRs covered:** NFR17, NFR21, NFR22, NFR57, NFR58 (pilot observability), NFR76 (tenant isolation in hosted path)
+**Related:** [`whats-actually-here.md`](../../whats-actually-here.md) §10 (FDE field evaluation), [`epic-9-retrospective-2026-04-28.md`](../implementation-artifacts/epic-9-retrospective-2026-04-28.md).
+
+### Epic 16: Design Partner Pilot — Onboarding, Integrations UX & CP-Backed Loaders
+Deliver the **product path** for a design partner: **onboarding** (first login, visible tenant context), **integrations UX** in `apps/web` (connect M365 / view status / recover from errors — delegating OAuth token lifecycle to CP per Epic 3), and **wire strategist loaders** from mocks/`STRATEGIST_*` URLs to **tenant-scoped CP or canonical-memory reads** (vertical slices: digest + evidence minimum; phase/evening/queues as prioritized). Includes **Phase 0 internal dry-run** gate and **Phase 1** external session playbook. Sequenced **after** Epic 15 waivers or completions.
+**Epic goal:** A strategist at a real company uses **their** tenant, connects **their** integration, and sees **their** materialized data on at least one primary surface without engineer-in-the-loop header injection.
+**FRs covered:** FR9, FR10, FR11 (UX to activate), FR21 (read path to Oracle/digest materialization — as implemented for pilot), FR34 (digest surface fed by real read), FR41, FR42 (evidence resolution), FR47 (activity truth), FR53 (queues — when CP-backed)
+**NFRs covered:** NFR1 partial (pilot SLOs), NFR2, NFR4 (as scoped), NFR40 (critical paths a11y regression), NFR76
+**UX-DRs covered:** UX-DR13 (digest honesty), UX-DR19/20 (nav to settings/integration), new patterns for integration cards (document in UX spec when stories ship)
+**Related:** [`epic-8-implementation-status.md`](../implementation-artifacts/epic-8-implementation-status.md) (spec vs skeleton), [`mvp-operating-plan-2026.md`](./mvp-operating-plan-2026.md) (near-term focus).
+
 ---
 
 ## Dependency Flow Verification
@@ -568,6 +583,8 @@ Each epic is standalone (does not require any FUTURE epic to function):
 - **Epic 12** → uses Epics 1/2/6/7 (canonical memory + break-glass infra + Oracle output + SessionBanner)
 - **Epic 13** → uses Epics 7/8/9/10 (study validates the composed surfaces); runs in parallel w18–23
 - **Epic 14** → explicitly post-V1; uses all preceding epics
+- **Epic 15** → uses Epics 1/2/3/8/9 (hosted auth, CP, surfaces); **gates** Epic 16 external pilot
+- **Epic 16** → uses Epics 2/3/8/9/15 (SSO + integrations + surfaces + prerequisites); optional reads from canonical memory / Oracle materializations as available
 
 ## Build-Sequence Alignment with Architecture §Decision Impact Analysis
 
@@ -586,6 +603,7 @@ Each epic is standalone (does not require any FUTURE epic to function):
 - **Weeks 20–22:** Epic 10 Override + Trust Repair + Personal Audit
 - **Weeks 17–23:** Epic 12 FOIA + Compliance + Operability (parallel; SLOs/paging continuous from w4)
 - **Post-V1:** Epic 14
+- **Customer pilot track (parallel or after MVP hardening):** Epic 15 (prerequisites) → Epic 16 (design partner onboarding + integrations + loaders) — see Epic List entries; not a substitute for full Oracle/NFR gates in `epics.md` Stories 8.x/9.x.
 
 **First defining-experience demo:** end of Epic 8 (Morning Digest walking-skeleton + dev-triggered In-Meeting Alert with identical `CitationChip`), approximately **week 18** — ~5 weeks earlier than original Epic 6/7 serial path. Full defining-loop completeness at **end of Epic 9 (~week 22)**.
 
@@ -2670,7 +2688,179 @@ So that FR78 + NFR18 + NFR68 are satisfied at V1.5.
 
 ---
 
+## Epic 15: Customer Pilot Prerequisites — Identity, Durability & Runbooks
+
+Engineering and operational gates so a **hosted** strategist pilot does not fail for avoidable reasons (auth, tenant boundary, queue durability, honest meeting signal, supportability).
+
+### Story 15.1: Hosted strategist session — tenant + role without dev header injection
+
+As a **Deployment Strategist**,
+I want to sign in through the normal IdP/session path and have `apps/web` derive **role** and **tenant_id** for every strategist route and BFF call,
+So that pilot users never depend on `x-deployai-role` / `x-deployai-tenant` manually (Epic 2 intent).
+
+**Acceptance Criteria:**
+
+**Given** a non-development deployment (`NODE_ENV=production` or equivalent)
+**When** I open `/digest` after SSO
+**Then** middleware and server components receive **authenticated** actor context with `deployment_strategist` (or allowed role) and a **UUID tenant_id** consistent with CP
+**And** `getActorFromHeaders` (or successor) is documented as reading session/JWT claims, not only raw headers
+**And** `DEPLOYAI_DISABLE_DEV_STRATEGIST` behavior is documented; dev auto-inject is impossible in pilot config
+**And** integration test or E2E: login fixture → strategist surface → BFF sees same tenant scope
+
+### Story 15.2: Repeatable tenant provisioning for pilot
+
+As a **Platform Admin**,
+I want a documented, repeatable way to create a pilot tenant and bind strategist users,
+So that every design partner onboarding starts from the same baseline.
+
+**Acceptance Criteria:**
+
+**Given** control plane is deployed
+**When** I follow `docs/pilot/tenant-provisioning.md` (or equivalent)
+**Then** I can create tenant UUID, assign user↔tenant↔role, and verify with an authenticated API call
+**And** SCIM/OIDC alignment with Epic 2 is referenced; gaps are explicitly listed if manual steps remain
+**And** checklist item: internal API key rotation procedure noted for pilot
+
+### Story 15.3: Strategist queue durability — CP-backed MVP or single-replica contract
+
+As a **platform engineer**,
+I want either **durable** action/validation/solidification queue persistence in CP/DB **or** a **written and monitored** single-replica contract,
+So that design partners do not lose queue state silently across deploys or replicas.
+
+**Acceptance Criteria:**
+
+**Given** Epic 9 BFF in-memory store today
+**When** pilot architecture is chosen
+**Then** Option A: CP internal APIs + persistence back the existing UI contracts **or** Option B: runbook mandates single replica, documents data loss on restart, and metrics alert on replica count ≠ 1
+**And** `whats-actually-here.md` §2/§10 updated to reflect the chosen mode
+**And** `strategist-queues-store` header comment references the decision doc
+
+### Story 15.4: Meeting-presence pilot truth — scope gate or Graph cache
+
+As a **product owner**,
+I want an explicit decision and implementation boundary for `/internal/v1/strategist/meeting-presence`,
+So that we do not promise live calendar meetings when the stack is stub-only.
+
+**Acceptance Criteria:**
+
+**Given** CP route today (`detection_source` stub / `DEPLOYAI_STUB_IN_MEETING_TENANT_IDS`)
+**When** the pilot brief is signed
+**Then** either (1) **Phase 1 scope excludes** in-meeting realism and customer brief states stub/query flags **or** (2) a minimal **graph_cache** (or live poll) path returns `detection_source` ≠ `off` for pilot tenants with integration data
+**And** `loadStrategistActivityForActor` behavior documented for each mode
+**And** Playwright or integration test covers chosen mode
+
+### Story 15.5: Pilot observability and support runbook
+
+As an **on-call engineer**,
+I want structured logs, correlation, and a short runbook for strategist pilot incidents,
+So that we can distinguish integration failure, auth failure, and empty canonical data during a customer session.
+
+**Acceptance Criteria:**
+
+**Given** hosted web + CP
+**When** digest is empty, queues 500, or OAuth fails
+**Then** runbook steps identify likely root cause buckets (auth, CP unreachable, ingestion not run, wrong tenant)
+**And** request correlation id propagates web → BFF → CP on internal calls where feasible
+**And** `docs/pilot/support-runbook.md` (or section in dev-environment) is linked from `whats-actually-here.md`
+
+---
+
+## Epic 16: Design Partner Pilot — Onboarding, Integrations UX & CP-Backed Loaders
+
+Product-facing work to **phase in** a company test after Epic 15 gates.
+
+### Story 16.1: Strategist onboarding shell — first session and tenant context
+
+As a **Deployment Strategist**,
+I want a clear first-login experience that shows **which organization** I am in and what to do next,
+So that I am not dropped on `/digest` with no context.
+
+**Acceptance Criteria:**
+
+**Given** successful SSO
+**When** I land in the strategist shell
+**Then** I see **tenant name or id** (policy-defined) and a **primary CTA** (“Connect integrations” or “Open digest”) appropriate to integration state
+**And** empty/error states distinguish “no data yet” vs “integration required” vs “permission denied”
+**And** a11y: landmarks and headings pass existing gates for new copy
+
+### Story 16.2: Integrations UX — start M365 connection from web
+
+As a **Deployment Strategist** (or **Customer Admin**, if policy requires),
+I want to start **Microsoft 365** OAuth from `apps/web` and complete the loop with CP-stored tokens,
+So that Epic 3 ingestion can run for my tenant without curl or engineering-only tools.
+
+**Acceptance Criteria:**
+
+**Given** CP OAuth routes exist for M365 (calendar/email/teams as scoped for pilot)
+**When** I click “Connect Microsoft 365” on `/settings/integrations` (path may vary)
+**Then** I am redirected through provider consent and return to a **success or error** state with **actionable** messaging
+**And** tenant scope is enforced; tokens are never logged
+**And** E2E smoke against mocked IdP or staging app registration
+
+### Story 16.3: Integrations UX — status, reconnect, disconnect
+
+As a **Deployment Strategist**,
+I want to see **connection status**, last sync/error, and **disconnect**,
+So that I can recover when consent expires.
+
+**Acceptance Criteria:**
+
+**Given** an integration record in CP
+**When** I open integrations settings
+**Then** I see connected scopes, status, and **Reconnect** / **Disconnect** (or kill-switch per FR17 policy)
+**And** errors surface provider message codes where safe
+**And** audit event or CP log line on connect/disconnect (reference Epic 2/3 patterns)
+
+### Story 16.4: Loader vertical slice — Morning Digest from CP / canonical memory
+
+As a **Deployment Strategist**,
+I want `/digest` **top items** loaded from a **tenant-scoped** CP read (materialized digest or canonical query), not static `MORNING_DIGEST_TOP`, when pilot config is on,
+So that I see data tied to my org’s ingestion.
+
+**Acceptance Criteria:**
+
+**Given** pilot feature flag or env `DEPLOYAI_DIGEST_SOURCE=cp` (exact mechanism in story implementation)
+**When** I open `/digest` with ingestion having run for my tenant
+**Then** items match CP response schema compatible with existing `DigestTopItem` validation
+**And** fallback behavior documented when CP returns empty (banner, not silent mock confusion)
+**And** `loadMorningDigestTopItemsResult` (or successor) documents provenance in response for UI banner
+
+### Story 16.5: Loader vertical slice — Evidence deep-link tenant resolution
+
+As a **Deployment Strategist**,
+I want `/evidence/[nodeId]` to resolve **only** nodes visible to my tenant,
+So that deep links from digest reflect real canonical memory.
+
+**Acceptance Criteria:**
+
+**Given** a valid `node_id` for tenant A
+**When** user of tenant A opens the evidence URL
+**Then** evidence panel loads from CP/canonical read
+**When** user of tenant B opens the same id
+**Then** 404 or forbidden — **no** cross-tenant leakage
+**And** test covers isolation
+
+### Story 16.6: Phase 0 internal dry-run gate + Phase 1 design partner playbook
+
+As a **program lead**,
+I want a **checklist sign-off** before external visitors and a **Phase 1** script for the design partner day,
+So that we execute the pilot deliberately.
+
+**Acceptance Criteria:**
+
+**Given** Epics 15–16 stories in flight or done
+**When** Phase 0 checklist is run internally (hosted env, SSO, integration, digest slice, evidence slice, queue mode, runbook)
+**Then** sign-off is recorded (doc or ticket template)
+**And** Phase 1 playbook covers: success criteria, rollback, data handling, who to call, known limitations (`whats-actually-here.md`)
+**And** retrospective template captures findings for backlog
+
+---
+
 ## Final Validation Report
+
+### Pilot track (supplemental — Epics 15–16)
+
+**Epics 15–16** (customer pilot prerequisites + design partner onboarding/integrations/loaders) were added **after** the original PRD→epic mapping. They **do not replace** full Story 8.x/9.x Oracle/NFR acceptance in `epics.md`; they add an explicit **go-to-customer** path documented in [`whats-actually-here.md`](../../whats-actually-here.md) §10. FR coverage rows for pilot work overlap existing FRs (e.g. FR9–FR11, FR34) and are cited in the Epic 15–16 list entries above.
 
 ### FR Coverage: 79/79 ✅
 
