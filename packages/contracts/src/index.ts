@@ -9,3 +9,9 @@ export {
   retrievalPhaseSchema,
   type RetrievalPhase,
 } from "./citation-envelope.js";
+export {
+  edgeAgentRegisterRequestSchema,
+  edgeAgentRegisterResponseSchema,
+  type EdgeAgentRegisterRequest,
+  type EdgeAgentRegisterResponse,
+} from "./edge-agent.js";

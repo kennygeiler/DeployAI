@@ -25,12 +25,12 @@ This document maps each declared capability in `apps/edge-agent/src-tauri/tauri.
 ## `keychain:read-write`
 
 - **Purpose:** Store per-device keys and secrets in the macOS Keychain (Epic 11 signing stories).
-- **Scope:** Rust-only via the `keyring` crate and allowlisted Tauri commands (e.g. `keychain_roundtrip` today). The frontend does not receive a generic “keychain plugin” ACL.
+- **Scope:** Rust-only via the `keyring` crate and allowlisted Tauri commands. **Story 11.2:** `edge_agent_signing_identity` / `edge_agent_register_with_control_plane` persist a **32-byte Ed25519 signing seed** (Base64) under service `app.deployai.edge-agent` / account `ed25519-signing-key-v1`. **NFR20 note:** today this uses the `keyring` default accessibility; tightening to `kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly` is a documented hardening follow-up. Spike command `keychain_roundtrip` remains for diagnostics.
 
 ## `http:api-only`
 
-- **Purpose:** Reach the DeployAI control plane for health checks and (later) registration.
-- **Scope:** Rust-only `reqwest` usage (e.g. `control_plane_health`); no `tauri-plugin-http` exposure to the UI. Call sites should be tightened to an explicit URL allowlist in a follow-on story.
+- **Purpose:** Reach the DeployAI control plane for health checks and **device registration**.
+- **Scope:** Rust-only `reqwest` (`control_plane_health`, `edge_agent_register_with_control_plane` → `POST /internal/v1/edge-agents/register` with `X-DeployAI-Internal-Key`). No `tauri-plugin-http` exposure to the UI. URL allowlist hardening is still recommended before production.
 
 ## CI audit
 
