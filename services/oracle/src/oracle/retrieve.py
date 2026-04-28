@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from deployai_citation.citation import CitationEnvelopeV01
+from deployai_citation.citation import CitationEnvelopeV01, CitationSupersessionOverriddenV01
 from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.schema import NodeWithScore, QueryBundle, TextNode
 
@@ -77,8 +77,18 @@ def _envelope(nws: NodeWithScore) -> CitationEnvelopeV01:
         msg = "citation_envelope missing (use CitationValidatingRetriever upstream)"
         raise ValueError(msg)
     if isinstance(raw, CitationEnvelopeV01):
-        return raw
-    return CitationEnvelopeV01.model_validate(raw)
+        env = raw
+    else:
+        env = CitationEnvelopeV01.model_validate(raw)
+    ss_raw = meta.get("citation_supersession")
+    if ss_raw is None:
+        return env
+    ss = (
+        ss_raw
+        if isinstance(ss_raw, CitationSupersessionOverriddenV01)
+        else CitationSupersessionOverriddenV01.model_validate(ss_raw)
+    )
+    return env.model_copy(update={"supersession": ss})
 
 
 def _tenant_ok(meta: dict[str, object], tenant_id: str) -> bool:

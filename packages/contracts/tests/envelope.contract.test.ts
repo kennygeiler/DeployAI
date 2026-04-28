@@ -41,4 +41,16 @@ describe("CitationEnvelopeSchema (v0.1.0)", () => {
     const r = CitationEnvelopeSchema.safeParse({ ...valid, retrieval_phase: "nope" });
     expect(r.success).toBe(false);
   });
+
+  it("accepts optional supersession (Epic 10.3)", () => {
+    const r = CitationEnvelopeSchema.safeParse({
+      ...valid,
+      supersession: {
+        type: "overridden" as const,
+        override_event_id: "550e8400-e29b-41d4-a716-446655440001",
+        overriding_evidence_event_ids: ["550e8400-e29b-41d4-a716-446655440002"],
+      },
+    });
+    expect(r.success).toBe(true);
+  });
 });

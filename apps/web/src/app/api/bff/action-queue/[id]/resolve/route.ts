@@ -6,7 +6,8 @@ import {
   pushActionQueueAudit,
   type ActionQueueStatus,
 } from "@/lib/bff/strategist-queues-store";
-import { getActorFromHeaders } from "@/lib/internal/actor";
+import { getActorFromHeaders, getActorIdFromHeaders } from "@/lib/internal/actor";
+import { postStrategistActivityToCp } from "@/lib/internal/strategist-cp-activity";
 
 type ResolveBody = {
   state: "resolved" | "deferred" | "rejected_with_reason";
@@ -68,5 +69,17 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
     reason: body.reason?.trim() ?? null,
     evidence_event_ids: evidenceIds ?? null,
   });
+  const tid = actor.tenantId?.trim();
+  const aid = await getActorIdFromHeaders();
+  if (tid && aid) {
+    void postStrategistActivityToCp({
+      tenantId: tid,
+      actorId: aid,
+      category: "action_queue_resolved",
+      summary: `Action queue ${body.state}: ${id.slice(0, 8)}…`,
+      detail: { item_id: id, state: body.state },
+      refId: null,
+    });
+  }
   return NextResponse.json({ item: next }, { status: 200 });
 }

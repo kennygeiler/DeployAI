@@ -73,8 +73,23 @@ class SolidifiedLearning(Base):
         nullable=False,
         server_default=text("'candidate'"),
     )
+    supersession_override_event_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("canonical_memory_events.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    superseding_evidence_event_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
+        ARRAY(UUID(as_uuid=True)),
+        nullable=True,
+    )
 
-    __table_args__ = (Index("idx_solidified_learnings_tenant_id", "tenant_id"),)
+    __table_args__ = (
+        Index("idx_solidified_learnings_tenant_id", "tenant_id"),
+        Index(
+            "idx_solidified_learnings_supersession_override",
+            "supersession_override_event_id",
+        ),
+    )
 
 
 class LearningLifecycleState(Base):

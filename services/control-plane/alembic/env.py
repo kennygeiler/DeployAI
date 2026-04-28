@@ -31,6 +31,7 @@ from control_plane.domain import app_identity as _app_identity  # noqa: F401
 from control_plane.domain import break_glass as _break_glass  # noqa: F401
 from control_plane.domain import canonical_memory as _canonical_memory  # noqa: F401
 from control_plane.domain import integrations as _integrations  # noqa: F401
+from control_plane.domain import strategist_personal as _strategist_personal  # noqa: F401
 from control_plane.domain import tenant_phase as _tenant_phase  # noqa: F401
 from control_plane.domain.base import Base
 

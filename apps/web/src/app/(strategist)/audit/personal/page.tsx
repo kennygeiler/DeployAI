@@ -1,18 +1,14 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 
-export default function PersonalAuditPage() {
-  return (
-    <div className="max-w-2xl space-y-4">
-      <h1 className="text-display text-ink-950 font-semibold tracking-tight">Personal audit</h1>
-      <p className="text-body text-ink-600">
-        Private annotations and personal audit (Epic 10). Placeholder route for strategist chrome.
-      </p>
-      <Link
-        href="/digest"
-        className="text-evidence-800 text-sm font-medium underline-offset-2 hover:underline"
-      >
-        Back to Morning digest
-      </Link>
-    </div>
-  );
+import { PersonalAuditSurface } from "@/components/epic10/PersonalAuditSurface.client";
+import { requireCanonicalRead } from "@/lib/internal/strategist-surface";
+
+export const metadata: Metadata = {
+  title: "Personal audit",
+  description: "Epic 10.7 — your strategist actions (scoped, not admin audit).",
+};
+
+export default async function PersonalAuditPage() {
+  await requireCanonicalRead();
+  return <PersonalAuditSurface />;
 }

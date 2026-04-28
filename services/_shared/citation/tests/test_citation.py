@@ -23,6 +23,22 @@ def test_round_trip() -> None:
     assert m2 == m
 
 
+def test_optional_supersession_round_trip() -> None:
+    oid = str(uuid.uuid4())
+    eid = str(uuid.uuid4())
+    d = {
+        **_VALID,
+        "supersession": {
+            "type": "overridden",
+            "override_event_id": oid,
+            "overriding_evidence_event_ids": [eid],
+        },
+    }
+    m = CitationEnvelopeV01.model_validate(d)
+    assert m.supersession is not None
+    assert str(m.supersession.override_event_id) == oid
+
+
 def test_rejects_bad_phase() -> None:
     bad = deepcopy(_VALID)
     bad["retrieval_phase"] = "nope"

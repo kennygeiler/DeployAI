@@ -52,6 +52,8 @@ def _clean_tenant_rows(postgres_engine: Engine) -> Generator[None]:
 
 _TEARDOWN_ORDER: tuple[str, ...] = (
     "solidification_review_queue",
+    "private_override_annotations",
+    "strategist_activity_events",
     "learning_lifecycle_states",
     "solidified_learnings",
     "identity_supersessions",
