@@ -20,7 +20,7 @@ This document maps each declared capability in `apps/edge-agent/src-tauri/tauri.
 ## `audio:capture`
 
 - **Purpose:** Microphone access for local capture after OS and in-app consent.
-- **Scope:** Implemented with WebView `getUserMedia` plus `NSMicrophoneUsageDescription` in `src-tauri/Info.plist`. This capability carries **no extra plugin permissions** so the trust boundary stays OS + web APIs; two-party consent UX is expanded in Story 11.4.
+- **Scope:** Implemented with WebView `getUserMedia` plus `NSMicrophoneUsageDescription` in `src-tauri/Info.plist`. This capability carries **no extra plugin permissions** so the trust boundary stays OS + web APIs. **Story 11.4 (partial):** `TwoPartyConsentDialog` gates the first-launch mic prompt; attestation JSON is stored in `localStorage` under `deployai.edgeAgent.twoPartyConsent.v1`. Cryptographic attestation binding to transcripts, CoreAudio path, and upload gating remain per epic follow-up.
 
 ## `keychain:read-write`
 
@@ -31,6 +31,11 @@ This document maps each declared capability in `apps/edge-agent/src-tauri/tauri.
 
 - **Purpose:** Reach the DeployAI control plane for health checks and **device registration**.
 - **Scope:** Rust-only `reqwest` (`control_plane_health`, `edge_agent_register_with_control_plane` → `POST /internal/v1/edge-agents/register` with `X-DeployAI-Internal-Key`). No `tauri-plugin-http` exposure to the UI. URL allowlist hardening is still recommended before production.
+
+## Offline verification (Story 11.6)
+
+- **Purpose:** Third parties verify edge transcript bundles without calling DeployAI APIs.
+- **Scope:** Use `foia verify` against a bundle directory; CI exercises committed fixtures under `apps/foia-cli/testdata/edge-transcript-v1-*` via `go test ./pkg/verify/...` (no network to CP).
 
 ## CI audit
 
