@@ -25,17 +25,17 @@ This document maps each declared capability in `apps/edge-agent/src-tauri/tauri.
 ## `keychain:read-write`
 
 - **Purpose:** Store per-device keys and secrets in the macOS Keychain (Epic 11 signing stories).
-- **Scope:** Rust-only via the `keyring` crate and allowlisted Tauri commands. **Story 11.2:** `edge_agent_signing_identity` / `edge_agent_register_with_control_plane` persist a **32-byte Ed25519 signing seed** (Base64) under service `app.deployai.edge-agent` / account `ed25519-signing-key-v1`. **Story 11.3:** `edge_agent_write_transcript_bundle` writes `deployai.edge.transcript.v1` under app-local `transcripts/<uuid>/` (`segments.json`, `manifest.json`, `transcript.sig`) with a SHA256 Merkle chain over segments, optional RFC3161 via `DEPLOYAI_EDGE_TSA_URL` (default `https://freetsa.org/tsr`). **NFR20 note:** today this uses the `keyring` default accessibility; tightening to `kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly` is a documented hardening follow-up. Spike command `keychain_roundtrip` remains for diagnostics.
+- **Scope:** Rust-only via the `keyring` crate and allowlisted Tauri commands. **Story 11.2:** `edge_agent_signing_identity` / `edge_agent_register_with_control_plane` persist a **32-byte Ed25519 signing seed** (Base64) under service `app.deployai.edge-agent` / account `ed25519-signing-key-v1`. **Story 11.3:** `edge_agent_write_transcript_bundle` writes `deployai.edge.transcript.v1` under app-local `transcripts/<uuid>/` (`segments.json`, `manifest.json`, `transcript.sig`) with a SHA256 Merkle chain over segments, optional RFC3161 via `DEPLOYAI_EDGE_TSA_URL` (default `https://freetsa.org/tsr`). **Story 11.7:** `edge_agent_refresh_kill_switch_from_control_plane` polls `GET /internal/v1/edge-agents/by-device`; when `revoked_at` is set, `edge_agent_write_transcript_bundle` returns an error until process restart. **`edge_agent_kill_switch_status`** returns `{ "revoked": bool }`. **NFR20 note:** today this uses the `keyring` default accessibility; tightening to `kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly` is a documented hardening follow-up. Spike command `keychain_roundtrip` remains for diagnostics.
 
 ## `http:api-only`
 
 - **Purpose:** Reach the DeployAI control plane for health checks and **device registration**.
-- **Scope:** Rust-only `reqwest` (`control_plane_health`, `edge_agent_register_with_control_plane` → `POST /internal/v1/edge-agents/register` with `X-DeployAI-Internal-Key`). No `tauri-plugin-http` exposure to the UI. URL allowlist hardening is still recommended before production.
+- **Scope:** Rust-only `reqwest` (`control_plane_health`, `edge_agent_register_with_control_plane`, `edge_agent_refresh_kill_switch_from_control_plane` with `X-DeployAI-Internal-Key`). No `tauri-plugin-http` exposure to the UI. URL allowlist hardening is still recommended before production.
 
 ## Offline verification (Story 11.6)
 
 - **Purpose:** Third parties verify edge transcript bundles without calling DeployAI APIs.
-- **Scope:** Use `foia verify` against a bundle directory; CI exercises committed fixtures under `apps/foia-cli/testdata/edge-transcript-v1-*` via `go test ./pkg/verify/...` (no network to CP).
+- **Scope:** Use `foia verify` against a bundle directory; optional `--edge-revocation` JSON for offline kill enforcement (Story 11.7). CI exercises committed fixtures under `apps/foia-cli/testdata/edge-transcript-v1-*` via `go test ./pkg/verify/...` (no network to CP).
 
 ## CI audit
 

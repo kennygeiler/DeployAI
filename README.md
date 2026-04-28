@@ -21,6 +21,16 @@ You plan in **BMAD** (`_bmad-output/`, `.cursor/skills/`). You ship in **`apps/w
 
 ---
 
+## What’s new
+
+| Area | Change |
+|------|--------|
+| **Edge agent (11.7)** | Internal **`POST /internal/v1/edge-agents/{id}/kill`** sets `revoked_at`. Agent polls **`GET …/by-device`** and **blocks** `edge_agent_write_transcript_bundle` when revoked (in-memory until restart). UI: tenant + internal key + refresh. |
+| **FOIA CLI** | **`foia verify`** supports **v1 + v2** transcript manifests, **`--edge-revocation`** sidecar JSON, and **`foia export --out --account`** (12.2 skeleton). See [docs/foia/bundle-format.md](./docs/foia/bundle-format.md). |
+| **Ops** | Operator checklist: [docs/human-ops-runbook.md](./docs/human-ops-runbook.md) (internal API key, integration tests, verify flags). |
+
+---
+
 ## Why DeployAI (vs generic PM tools)
 
 | Capability | DeployAI | Typical PM / chat |

@@ -47,6 +47,40 @@ Pass `--public-key-b64` to require a specific registered key (must match `public
 
 **Committed golden fixtures** (Story 11.6, no network): `apps/foia-cli/testdata/edge-transcript-v1-valid` and `…-tampered` are exercised by `go test ./pkg/verify/...`. Regenerate after format changes with `go run ./hack/gen-golden-edge-bundle` from `apps/foia-cli`.
 
-## Future: canonical-memory FOIA export (Epic 12)
+## `deployai.edge.transcript.v2`
 
-Story 12.2+ will add a larger bundle type (events, tombstones, CP signatures, RFC3161 on export). The CLI will select verifier logic by `format` in `manifest.json`; edge transcript v1 remains the first implemented kind.
+Same directory layout as v1. Additions:
+
+- **`format`:** `deployai.edge.transcript.v2`
+- **`consentSha256Hex`:** SHA-256 of the UTF-8 consent JSON string (64 hex chars), or omit / all zeros when absent.
+- **Signed payload** adds a line after v1 fields:
+
+```text
+DEPLOYAI_EDGE_TRANSCRIPT_V2
+device_id:…
+merkle_root:…
+transcript_sha256:…
+consent_sha256:…
+```
+
+## Offline edge revocation (Story 11.7)
+
+Sidecar JSON:
+
+```json
+{ "revocations": [ { "deviceId": "…", "revokedAtUnixMs": 1714147200000 } ] }
+```
+
+```bash
+foia verify --edge-revocation revocations.json path/to/bundle-dir
+```
+
+Fails (after crypto checks) when `manifest.createdAtUnixMs >= revokedAtUnixMs` for a matching `deviceId`.
+
+## `deployai.foia.export.v0` (Story 12.2 skeleton)
+
+```bash
+foia export --out ./export-dir --account <id> [--from unix-ms] [--to unix-ms]
+```
+
+Writes `manifest.json` + placeholder `events.jsonl`. Full canonical-memory export replaces this in later stories.

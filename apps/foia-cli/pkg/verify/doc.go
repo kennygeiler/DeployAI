@@ -5,5 +5,5 @@ package verify
 
 // Description returns a human-readable banner for the CLI.
 func Description() string {
-	return "subcommands: verify <bundle-dir> (edge transcript v1), export (planned)"
+	return "subcommands: verify <bundle-dir> (edge transcript v1/v2, optional --edge-revocation), export --out --account (Story 12.2 skeleton)"
 }
