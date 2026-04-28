@@ -173,7 +173,7 @@ Use this to run a **credible demo** without claiming full production.
 | Stage | Meaning |
 |-------|---------|
 | **Demo** | Above checklist; stakeholders see **intent and UX**. |
-| **Pilot** | Queues + audits + digest/synthesis **durable per tenant**; meeting from **real calendar**; ingestion **feeds** evidence graph. |
+| **Pilot** | Queues + audits + digest/synthesis **durable per tenant**; meeting from **real calendar**; ingestion **feeds** evidence graph. **`/overrides`** + **`/audit/personal`** (Epic 10) are only as credible as **tenant/session boundaries** — align with real SSO (Epic 2 path), not dev-only headers alone (Epic 10 retrospective). |
 | **Production** | SSO/session as deployed; **agent events** or batch jobs **drive** updates; **Epic 10** trust/override **durable**; no dev-only role injection. |
 
 ---
