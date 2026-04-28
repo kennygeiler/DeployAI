@@ -36,13 +36,22 @@ def upgrade() -> None:
         sa.Column("claimed_by", sa.Text(), nullable=True),
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), nullable=False),
         sa.Column("source", sa.Text(), nullable=True),
-        sa.Column("evidence_node_ids", postgresql.ARRAY(sa.Text()), nullable=False, server_default=sa.text("'{}'::text[]")),
+        sa.Column(
+            "evidence_node_ids",
+            postgresql.ARRAY(sa.Text()),
+            nullable=False,
+            server_default=sa.text("'{}'::text[]"),
+        ),
         sa.Column("resolution_reason", sa.Text(), nullable=True),
         sa.Column("evidence_event_ids", postgresql.JSONB(), nullable=True),
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     )
     op.create_index("idx_strategist_action_queue_tenant", "strategist_action_queue_items", ["tenant_id"])
-    op.create_index("idx_strategist_action_queue_tenant_status", "strategist_action_queue_items", ["tenant_id", "status"])
+    op.create_index(
+        "idx_strategist_action_queue_tenant_status",
+        "strategist_action_queue_items",
+        ["tenant_id", "status"],
+    )
 
     op.create_table(
         "strategist_validation_queue_items",
@@ -59,8 +68,16 @@ def upgrade() -> None:
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     )
-    op.create_index("idx_strategist_validation_queue_tenant", "strategist_validation_queue_items", ["tenant_id"])
-    op.create_index("idx_strategist_validation_queue_tenant_state", "strategist_validation_queue_items", ["tenant_id", "state"])
+    op.create_index(
+        "idx_strategist_validation_queue_tenant",
+        "strategist_validation_queue_items",
+        ["tenant_id"],
+    )
+    op.create_index(
+        "idx_strategist_validation_queue_tenant_state",
+        "strategist_validation_queue_items",
+        ["tenant_id", "state"],
+    )
 
     op.create_table(
         "strategist_solidification_queue_items",
@@ -77,7 +94,11 @@ def upgrade() -> None:
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     )
-    op.create_index("idx_strategist_solidification_queue_tenant", "strategist_solidification_queue_items", ["tenant_id"])
+    op.create_index(
+        "idx_strategist_solidification_queue_tenant",
+        "strategist_solidification_queue_items",
+        ["tenant_id"],
+    )
     op.create_index(
         "idx_strategist_solidification_queue_tenant_state",
         "strategist_solidification_queue_items",
@@ -86,8 +107,14 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("idx_strategist_solidification_queue_tenant_state", table_name="strategist_solidification_queue_items")
-    op.drop_index("idx_strategist_solidification_queue_tenant", table_name="strategist_solidification_queue_items")
+    op.drop_index(
+        "idx_strategist_solidification_queue_tenant_state",
+        table_name="strategist_solidification_queue_items",
+    )
+    op.drop_index(
+        "idx_strategist_solidification_queue_tenant",
+        table_name="strategist_solidification_queue_items",
+    )
     op.drop_table("strategist_solidification_queue_items")
 
     op.drop_index("idx_strategist_validation_queue_tenant_state", table_name="strategist_validation_queue_items")

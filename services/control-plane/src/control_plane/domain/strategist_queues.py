@@ -30,7 +30,11 @@ class StrategistActionQueueItem(Base):
     claimed_by: Mapped[str | None] = mapped_column(Text(), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     source: Mapped[str | None] = mapped_column(Text(), nullable=True)
-    evidence_node_ids: Mapped[list[str]] = mapped_column(ARRAY(Text()), nullable=False, server_default=text("'{}'::text[]"))
+    evidence_node_ids: Mapped[list[str]] = mapped_column(
+        ARRAY(Text()),
+        nullable=False,
+        server_default=text("'{}'::text[]"),
+    )
     resolution_reason: Mapped[str | None] = mapped_column(Text(), nullable=True)
     evidence_event_ids: Mapped[Any | None] = mapped_column(JSONB(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))
