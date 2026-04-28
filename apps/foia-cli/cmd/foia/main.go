@@ -5,7 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 
+	"github.com/kennygeiler/deployai/foia-cli/pkg/export"
 	"github.com/kennygeiler/deployai/foia-cli/pkg/verify"
 )
 
@@ -17,10 +19,11 @@ func usage() {
 
 Usage:
   foia verify [flags] <bundle-dir>
-  foia export   (not yet implemented — Story 12.2+)
+  foia export [flags]
 
-Verify checks deployai.edge.transcript.v1 bundles (Story 11.3) offline: Ed25519 detached
-signature, sequential SHA256 Merkle chain over segments, and optional RFC3161 token.
+Verify checks deployai.edge.transcript.v1/v2 bundles offline: Ed25519 detached signature,
+sequential SHA256 Merkle chain, optional consent attestation hash (v2), optional RFC3161 token,
+and optional --edge-revocation sidecar (Story 11.7).
 
 `, Version)
 }
@@ -40,8 +43,11 @@ func main() {
 		}
 		fmt.Println("verify: OK")
 	case "export":
-		fmt.Fprintf(os.Stderr, "export: not implemented (Story 12.2+)\n")
-		os.Exit(2)
+		if err := runExport(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "export: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("export: OK")
 	case "-h", "--help", "help":
 		usage()
 	default:
@@ -55,6 +61,7 @@ func runVerify(args []string) error {
 	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
 	pub := fs.String("public-key-b64", "", "Ed25519 public key (std base64); must match manifest if both set")
 	skipTSA := fs.Bool("skip-tsa", false, "Skip RFC3161 checks even if token is present")
+	edgeRev := fs.String("edge-revocation", "", "JSON sidecar listing deviceId + revokedAtUnixMs (Story 11.7)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -62,5 +69,31 @@ func runVerify(args []string) error {
 	if len(rest) != 1 {
 		return fmt.Errorf("expected exactly one bundle directory argument")
 	}
-	return verify.VerifyEdgeTranscriptBundleDir(rest[0], *pub, *skipTSA)
+	return verify.VerifyEdgeTranscriptBundleDir(rest[0], *pub, *skipTSA, *edgeRev)
+}
+
+func runExport(args []string) error {
+	fs := flag.NewFlagSet("export", flag.ContinueOnError)
+	out := fs.String("out", "", "output directory (required)")
+	acct := fs.String("account", "", "account identifier label (required)")
+	from := fs.String("from", "0", "export window start (unix ms, optional)")
+	to := fs.String("to", "0", "export window end (unix ms, optional)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 {
+		return fmt.Errorf("unexpected arguments: %v", fs.Args())
+	}
+	if *out == "" || *acct == "" {
+		return fmt.Errorf("--out and --account are required")
+	}
+	fromMs, err := strconv.ParseInt(*from, 10, 64)
+	if err != nil {
+		return fmt.Errorf("--from: %w", err)
+	}
+	toMs, err := strconv.ParseInt(*to, 10, 64)
+	if err != nil {
+		return fmt.Errorf("--to: %w", err)
+	}
+	return export.RunExport(*out, *acct, fromMs, toMs)
 }

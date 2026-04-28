@@ -48,7 +48,9 @@ fn attr_value(open_tag_slice: &str, attr: &str) -> Option<String> {
 
 /// Parse the first `<enclosure .../>` in an item block (attributes may appear in any order).
 fn parse_enclosure_in_item(item_xml: &str) -> Result<(String, String, u64), String> {
-    let enc_rel = item_xml.find("<enclosure").ok_or_else(|| "item missing <enclosure".to_string())?;
+    let enc_rel = item_xml
+        .find("<enclosure")
+        .ok_or_else(|| "item missing <enclosure".to_string())?;
     let from_enc = &item_xml[enc_rel..];
     let tag_end = if let Some(i) = from_enc.find("/>") {
         i
@@ -62,7 +64,9 @@ fn parse_enclosure_in_item(item_xml: &str) -> Result<(String, String, u64), Stri
     let sig = attr_value(open, "sparkle:edSignature")
         .ok_or_else(|| "enclosure missing sparkle:edSignature".to_string())?;
     let len_s = attr_value(open, "length").ok_or_else(|| "enclosure missing length".to_string())?;
-    let length: u64 = len_s.parse().map_err(|_| "enclosure length must be integer".to_string())?;
+    let length: u64 = len_s
+        .parse()
+        .map_err(|_| "enclosure length must be integer".to_string())?;
     Ok((url, sig, length))
 }
 
@@ -116,12 +120,15 @@ pub fn verify_sparkle_archive_ed25519(
         .try_into()
         .map_err(|_| "bad public key length".to_string())?;
     let vk = VerifyingKey::from_bytes(&pk_arr).map_err(|e| e.to_string())?;
-    vk.verify(archive_bytes, &sig)
-        .map_err(|_| "Ed25519 verify failed (archive does not match sparkle:edSignature / wrong key)".to_string())
+    vk.verify(archive_bytes, &sig).map_err(|_| {
+        "Ed25519 verify failed (archive does not match sparkle:edSignature / wrong key)".to_string()
+    })
 }
 
 #[tauri::command]
-pub async fn edge_agent_sparkle_fetch_latest_item(appcast_url: String) -> Result<serde_json::Value, String> {
+pub async fn edge_agent_sparkle_fetch_latest_item(
+    appcast_url: String,
+) -> Result<serde_json::Value, String> {
     let url = appcast_url.trim().to_string();
     if url.is_empty() {
         return Err("appcast_url required".into());
@@ -151,8 +158,7 @@ pub fn edge_agent_sparkle_verify_local_archive(
     public_key_ed25519_b64: String,
     expected_length: u64,
 ) -> Result<serde_json::Value, String> {
-    let bytes =
-        std::fs::read(archive_path.trim()).map_err(|e| format!("read archive: {e}"))?;
+    let bytes = std::fs::read(archive_path.trim()).map_err(|e| format!("read archive: {e}"))?;
     verify_sparkle_archive_ed25519(
         &bytes,
         &ed_signature_b64,
