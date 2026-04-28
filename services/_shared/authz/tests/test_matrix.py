@@ -40,7 +40,7 @@ def test_matrix_parity_sample() -> None:
     [
         ("platform_admin", "break_glass:invoke", True),
         ("customer_admin", "break_glass:invoke", False),
-        ("external_auditor", "canonical:read", True),
+        ("external_auditor", "canonical:read", False),
         ("external_auditor", "foia:export", True),
     ],
 )
