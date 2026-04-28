@@ -46,7 +46,7 @@ fn keyring_entry() -> Result<keyring::Entry, String> {
     keyring::Entry::new(KEYRING_SERVICE, KEYRING_ACCOUNT).map_err(|e| format!("keyring entry: {e}"))
 }
 
-fn load_or_create_signing_key() -> Result<SigningKey, String> {
+pub(crate) fn load_or_create_signing_key() -> Result<SigningKey, String> {
     let entry = keyring_entry()?;
     if let Ok(s) = entry.get_password() {
         let bytes = base64::engine::general_purpose::STANDARD

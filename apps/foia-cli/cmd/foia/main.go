@@ -1,12 +1,10 @@
 // Package main is the DeployAI FOIA verification CLI entry point (FR60, FR61, NFR29).
-//
-// Story 1.3 ships only the scaffold binary. Signature + chain-of-custody
-// verification, envelope parsing, and export-bundle handling land in
-// later Epic 1 stories (1.12+).
 package main
 
 import (
+	"flag"
 	"fmt"
+	"os"
 
 	"github.com/kennygeiler/deployai/foia-cli/pkg/verify"
 )
@@ -14,7 +12,55 @@ import (
 // Version is the CLI version; populated at build time via -ldflags, defaults to "0.0.0-scaffold".
 var Version = "0.0.0-scaffold"
 
+func usage() {
+	fmt.Fprintf(os.Stderr, `DeployAI FOIA CLI v%s
+
+Usage:
+  foia verify [flags] <bundle-dir>
+  foia export   (not yet implemented — Story 12.2+)
+
+Verify checks deployai.edge.transcript.v1 bundles (Story 11.3) offline: Ed25519 detached
+signature, sequential SHA256 Merkle chain over segments, and optional RFC3161 token.
+
+`, Version)
+}
+
 func main() {
-	fmt.Printf("DeployAI FOIA CLI v%s\n", Version)
-	fmt.Println(verify.Description())
+	if len(os.Args) < 2 {
+		fmt.Printf("DeployAI FOIA CLI v%s\n", Version)
+		fmt.Println(verify.Description())
+		os.Exit(0)
+	}
+
+	switch os.Args[1] {
+	case "verify":
+		if err := runVerify(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "verify: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("verify: OK")
+	case "export":
+		fmt.Fprintf(os.Stderr, "export: not implemented (Story 12.2+)\n")
+		os.Exit(2)
+	case "-h", "--help", "help":
+		usage()
+	default:
+		fmt.Fprintf(os.Stderr, "unknown command %q\n", os.Args[1])
+		usage()
+		os.Exit(2)
+	}
+}
+
+func runVerify(args []string) error {
+	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
+	pub := fs.String("public-key-b64", "", "Ed25519 public key (std base64); must match manifest if both set")
+	skipTSA := fs.Bool("skip-tsa", false, "Skip RFC3161 checks even if token is present")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	rest := fs.Args()
+	if len(rest) != 1 {
+		return fmt.Errorf("expected exactly one bundle directory argument")
+	}
+	return verify.VerifyEdgeTranscriptBundleDir(rest[0], *pub, *skipTSA)
 }
