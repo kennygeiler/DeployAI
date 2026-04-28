@@ -2,11 +2,15 @@ import { decideSync } from "@deployai/authz";
 import { type NextRequest, NextResponse } from "next/server";
 
 import {
+  type ActionQueueItem,
   mutateActionQueueItem,
   pushActionQueueAudit,
   type ActionQueueStatus,
 } from "@/lib/bff/strategist-queues-store";
 import { getActorFromHeaders, getActorIdFromHeaders } from "@/lib/internal/actor";
+import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
+import { strategistQueuesUseControlPlane } from "@/lib/internal/strategist-queues-backend";
+import { cpPatchActionQueueItem } from "@/lib/internal/strategist-queues-cp";
 import { postStrategistActivityToCp } from "@/lib/internal/strategist-cp-activity";
 
 type ResolveBody = {
@@ -54,22 +58,44 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
   const evidenceIds = Array.isArray(body.evidence_event_ids)
     ? body.evidence_event_ids.filter((x): x is string => typeof x === "string" && x.length > 0)
     : undefined;
-  const next = mutateActionQueueItem(actor.tenantId ?? null, id, {
-    status: body.state as ActionQueueStatus,
-    claimed_by: who,
-    resolution_reason: body.reason?.trim() || null,
-    evidence_event_ids: evidenceIds && evidenceIds.length > 0 ? evidenceIds : null,
-  });
+  const tid = actor.tenantId?.trim();
+  const useCp =
+    strategistQueuesUseControlPlane() &&
+    tid &&
+    getControlPlaneBaseUrl() &&
+    getControlPlaneInternalKey();
+
+  let next: ActionQueueItem | null = null;
+  if (useCp) {
+    try {
+      next = await cpPatchActionQueueItem(tid!, id, {
+        status: body.state,
+        claimed_by: who,
+        resolution_reason: body.reason?.trim() || null,
+        evidence_event_ids: evidenceIds && evidenceIds.length > 0 ? evidenceIds : null,
+      });
+    } catch {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+  } else {
+    next = mutateActionQueueItem(actor.tenantId ?? null, id, {
+      status: body.state as ActionQueueStatus,
+      claimed_by: who,
+      resolution_reason: body.reason?.trim() || null,
+      evidence_event_ids: evidenceIds && evidenceIds.length > 0 ? evidenceIds : null,
+    });
+  }
   if (!next) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
-  pushActionQueueAudit(actor.tenantId ?? null, "action_queue.resolved", {
-    itemId: id,
-    state: body.state,
-    reason: body.reason?.trim() ?? null,
-    evidence_event_ids: evidenceIds ?? null,
-  });
-  const tid = actor.tenantId?.trim();
+  if (!useCp) {
+    pushActionQueueAudit(actor.tenantId ?? null, "action_queue.resolved", {
+      itemId: id,
+      state: body.state,
+      reason: body.reason?.trim() ?? null,
+      evidence_event_ids: evidenceIds ?? null,
+    });
+  }
   const aid = await getActorIdFromHeaders();
   if (tid && aid) {
     void postStrategistActivityToCp({
@@ -81,5 +107,5 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
       refId: null,
     });
   }
-  return NextResponse.json({ item: next }, { status: 200 });
+  return NextResponse.json({ item: next, source: useCp ? "cp" : "memory" }, { status: 200 });
 }
