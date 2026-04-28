@@ -51,9 +51,12 @@ export async function GET() {
       return NextResponse.json({ error: msg, source: "cp_error" }, { status: 502 });
     }
   }
-  return NextResponse.json({ items: listActionQueue(actor.tenantId ?? null), source: "memory" }, {
-    status: 200,
-  });
+  return NextResponse.json(
+    { items: listActionQueue(actor.tenantId ?? null), source: "memory" },
+    {
+      status: 200,
+    },
+  );
 }
 
 export async function POST(request: NextRequest) {

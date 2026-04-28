@@ -10,7 +10,10 @@ import {
 import { getActorFromHeaders } from "@/lib/internal/actor";
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
 import { strategistQueuesUseControlPlane } from "@/lib/internal/strategist-queues-backend";
-import { cpListValidationQueue, cpPatchValidationQueueItem } from "@/lib/internal/strategist-queues-cp";
+import {
+  cpListValidationQueue,
+  cpPatchValidationQueueItem,
+} from "@/lib/internal/strategist-queues-cp";
 
 type PostBody =
   | { op: "confirm"; id: string }
@@ -47,9 +50,12 @@ export async function GET() {
       return NextResponse.json({ error: msg, source: "cp_error" }, { status: 502 });
     }
   }
-  return NextResponse.json({ items: listValidationQueue(actor.tenantId ?? null), source: "memory" }, {
-    status: 200,
-  });
+  return NextResponse.json(
+    { items: listValidationQueue(actor.tenantId ?? null), source: "memory" },
+    {
+      status: 200,
+    },
+  );
 }
 
 export async function POST(request: NextRequest) {

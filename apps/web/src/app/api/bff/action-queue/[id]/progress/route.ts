@@ -27,7 +27,10 @@ export async function POST(_request: NextRequest, ctx: { params: Promise<{ id: s
     getControlPlaneInternalKey()
   ) {
     try {
-      const next = await cpPatchActionQueueItem(tid, id, { status: "in_progress", claimed_by: who });
+      const next = await cpPatchActionQueueItem(tid, id, {
+        status: "in_progress",
+        claimed_by: who,
+      });
       return NextResponse.json({ item: next, source: "cp" }, { status: 200 });
     } catch {
       return NextResponse.json({ error: "not found" }, { status: 404 });

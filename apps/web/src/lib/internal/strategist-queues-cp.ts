@@ -116,7 +116,9 @@ export async function cpPatchValidationQueueItem(
   return (await r.json()) as ValidationQueueRow;
 }
 
-export async function cpListSolidificationQueue(tenantId: string): Promise<SolidificationQueueRow[]> {
+export async function cpListSolidificationQueue(
+  tenantId: string,
+): Promise<SolidificationQueueRow[]> {
   const url = `${cpBase()}/internal/v1/strategist/solidification-queue-items?tenant_id=${encodeURIComponent(tenantId)}`;
   const r = await fetch(url, { method: "GET", headers: cpHeaders(), cache: "no-store" });
   if (!r.ok) {
