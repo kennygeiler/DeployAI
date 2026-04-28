@@ -82,9 +82,7 @@ function App() {
     import.meta.env.VITE_CONTROL_PLANE_URL?.trim() || "http://127.0.0.1:8000",
   );
   const [cpHealth, setCpHealth] = useState<string | null>(null);
-  const [appcastUrl, setAppcastUrl] = useState(
-    import.meta.env.VITE_APPCAST_URL?.trim() || "",
-  );
+  const [appcastUrl, setAppcastUrl] = useState(import.meta.env.VITE_APPCAST_URL?.trim() || "");
   const [sparkleFetchOut, setSparkleFetchOut] = useState<string | null>(null);
   const [verifyPath, setVerifyPath] = useState("");
   const [verifySig, setVerifySig] = useState("");
@@ -254,8 +252,8 @@ function App() {
         <section className="panel">
           <h2>Updates — Sparkle appcast (Story 11.5)</h2>
           <p>
-            Fetch parses the first <code>&lt;item&gt;</code>. Verify checks a downloaded DMG/ZIP against{" "}
-            <code>sparkle:edSignature</code> (Ed25519 over raw bytes).
+            Fetch parses the first <code>&lt;item&gt;</code>. Verify checks a downloaded DMG/ZIP
+            against <code>sparkle:edSignature</code> (Ed25519 over raw bytes).
           </p>
           <label>
             Appcast URL (HTTPS)
