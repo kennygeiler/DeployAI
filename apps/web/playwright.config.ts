@@ -1,4 +1,13 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { defineConfig, devices } from "@playwright/test";
+
+// `pnpm test:e2e` runs with cwd `apps/web` (see package.json).
+const pilotJwtPublicPem = readFileSync(
+  join(process.cwd(), "tests/e2e/fixtures/pilot-access-e2e-public.pem"),
+  "utf8",
+);
 
 /**
  * Story 1.6 AC4: Playwright E2E + @axe-core/playwright.
@@ -43,5 +52,11 @@ export default defineConfig({
     timeout: 120_000,
     stdout: "pipe",
     stderr: "pipe",
+    env: {
+      ...process.env,
+      // Story 15.1: CI-spawned `next start` verifies CP-shaped access JWTs (E2E fixture key).
+      DEPLOYAI_WEB_TRUST_JWT: "1",
+      DEPLOYAI_WEB_JWT_PUBLIC_KEY_PEM: pilotJwtPublicPem,
+    },
   },
 });

@@ -2,6 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { canAccess, type Action, type Resource, type V1Role } from "@deployai/authz";
 
+import {
+  accessTokenCookieNameFromEnv,
+  applyDeployaiAccessJwtToHeaders,
+} from "@/lib/internal/deployai-access-jwt";
+
 const isAdmin = (p: string) =>
   p === "/admin/runs" || p === "/admin/adjudication" || p.startsWith("/admin/schema-proposals");
 
@@ -64,8 +69,17 @@ function resourceForPath(pathname: string): Resource {
   return { kind: "global" };
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
+  const cookieName = accessTokenCookieNameFromEnv();
+  const jwtGate = await applyDeployaiAccessJwtToHeaders(
+    request.headers.get("authorization"),
+    request.cookies.get(cookieName)?.value ?? null,
+    requestHeaders,
+  );
+  if (jwtGate?.invalidToken) {
+    return new NextResponse("Unauthorized: invalid or expired access token", { status: 401 });
+  }
   if (
     process.env.NODE_ENV === "development" &&
     process.env.DEPLOYAI_DISABLE_DEV_STRATEGIST !== "1" &&

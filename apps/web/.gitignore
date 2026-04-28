@@ -23,6 +23,8 @@
 # misc
 .DS_Store
 *.pem
+!tests/e2e/fixtures/pilot-access-e2e-public.pem
+!tests/e2e/fixtures/pilot-access-e2e-private.pem
 
 # debug
 npm-debug.log*
