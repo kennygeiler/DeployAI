@@ -59,7 +59,9 @@ function auditPermission(id, source) {
   }
   for (const re of FORBIDDEN_REGEXES) {
     if (re.test(id)) {
-      console.error(`audit-capabilities: forbidden permission pattern ${re} matched "${id}" in ${source}`);
+      console.error(
+        `audit-capabilities: forbidden permission pattern ${re} matched "${id}" in ${source}`,
+      );
       process.exit(1);
     }
   }
@@ -93,7 +95,9 @@ function main() {
   for (const id of enabled) {
     const file = idToFile.get(id);
     if (!file) {
-      console.error(`audit-capabilities: enabled capability "${id}" has no capabilities/*.json file`);
+      console.error(
+        `audit-capabilities: enabled capability "${id}" has no capabilities/*.json file`,
+      );
       process.exit(1);
     }
     const cap = readJson(path.join(CAP_DIR, file));
