@@ -103,6 +103,15 @@ export async function middleware(request: NextRequest) {
   const r = resourceForPath(pathname);
   const d = canAccess({ role }, a, r, { skipAudit: true });
   if (!d.allow) {
+    if (
+      role === "external_auditor" &&
+      (isStrategistSurface(pathname) || isStrategistApi(pathname))
+    ) {
+      return new NextResponse(
+        "Forbidden: external_auditor cannot access strategist / canonical-memory surfaces (Epic 12 Story 12.3). Use provisioned FOIA export flows — not digest, evidence, or BFF routes.",
+        { status: 403 },
+      );
+    }
     return new NextResponse("Forbidden: role cannot access this surface in V1.", {
       status: 403,
     });

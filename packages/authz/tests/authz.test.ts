@@ -60,6 +60,7 @@ describe("canAccess + matrix (Epic 2.1)", () => {
     ["customer_records_officer", "scim:manage", false],
     ["successor_strategist", "override:submit", true],
     ["external_auditor", "foia:export", true],
+    ["external_auditor", "canonical:read", false],
     ["external_auditor", "ingest:view_runs", false],
     ["deployment_strategist", "eval:view_adjudication", true],
     ["external_auditor", "eval:view_adjudication", false],

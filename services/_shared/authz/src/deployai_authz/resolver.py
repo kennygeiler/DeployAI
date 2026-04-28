@@ -103,7 +103,6 @@ _ALLOWED: Final[frozenset[tuple[str, str]]] = frozenset(
         ("customer_records_officer", "ingest:view_runs"),
         ("customer_records_officer", "canonical:read"),
         ("external_auditor", "foia:export"),
-        ("external_auditor", "canonical:read"),
         ("deployment_strategist", "ingest:view_runs"),
         ("deployment_strategist", "ingest:sync"),
         ("deployment_strategist", "integration:kill_switch"),
