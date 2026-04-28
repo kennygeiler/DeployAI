@@ -21,12 +21,15 @@ describe("OverrideComposer", () => {
     expect(onSubmit).not.toHaveBeenCalled();
 
     await user.type(screen.getByRole("textbox", { name: /what changed/i }), "Updated owner");
-    await user.type(screen.getByRole("textbox", { name: /justification/i }), "Policy change");
+    await user.type(
+      screen.getByRole("textbox", { name: /justification/i }),
+      "Policy change with enough detail.",
+    );
     await user.click(screen.getByLabelText("Node A"));
     await user.click(screen.getByRole("button", { name: /submit override/i }));
     expect(onSubmit).toHaveBeenCalledWith({
       whatChanged: "Updated owner",
-      why: "Policy change",
+      why: "Policy change with enough detail.",
       evidenceNodeIds: ["a"],
     });
   });

@@ -22,6 +22,8 @@ _APP_USER = "deployai_app"
 _APP_PASSWORD = os.environ.get("FUZZ_APP_PASSWORD") or "deployai-fuzz-test"
 
 _CANONICAL_TABLES: tuple[str, ...] = (
+    "private_override_annotations",
+    "strategist_activity_events",
     "learning_lifecycle_states",
     "solidified_learnings",
     "identity_supersessions",

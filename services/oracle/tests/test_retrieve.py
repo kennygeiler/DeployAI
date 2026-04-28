@@ -219,6 +219,43 @@ def test_corpus_confidence_marker_low() -> None:
     assert out.corpus_confidence_marker == "low"
 
 
+def test_merges_citation_supersession_from_metadata() -> None:
+    env = _envelope()
+    oid = str(uuid.uuid4())
+    eid = str(uuid.uuid4())
+    nws = NodeWithScore(
+        node=TextNode(
+            text="sup",
+            metadata={
+                "citation_envelope": env,
+                "citation_supersession": {
+                    "type": "overridden",
+                    "override_event_id": oid,
+                    "overriding_evidence_event_ids": [eid],
+                },
+                "tenant_id": "t1",
+                "deployment_phase": "P5_pilot",
+            },
+        ),
+        score=0.9,
+    )
+    inner = _MockRetriever([nws])
+    r = _wrapped(inner)
+    out = oracle_retrieve(
+        r,
+        OracleRetrievalRequest(
+            tenant_id="t1",
+            target_deployment_phase="P5_pilot",
+            query_text="q",
+        ),
+    )
+    assert len(out.items) == 1
+    ss = out.items[0].citation_envelope.supersession
+    assert ss is not None
+    assert str(ss.override_event_id) == oid
+    assert [str(x) for x in ss.overriding_evidence_event_ids] == [eid]
+
+
 def test_drops_node_without_deployment_phase() -> None:
     env = _envelope()
     bad_meta = {"citation_envelope": env, "tenant_id": "t1"}

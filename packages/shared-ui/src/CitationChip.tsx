@@ -70,17 +70,46 @@ export type CitationChipProps = {
   id?: string;
   /** If true, primary toggle does not fire (e.g. fully inert chip — rare). */
   disableExpand?: boolean;
+  /** Epic 10.3 — deep-link to override / evidence surface (badge becomes navigable). */
+  overrideEvidenceHref?: string;
+  onOverrideEvidenceNavigate?: () => void;
+  /** Epic 10.4 / UX-DR28 — trust earn-back micro-label (parent applies ~30d TTL). */
+  trustRecoveryVisible?: boolean;
 };
 
-function statusBadge(visual: CitationVisualState) {
+function statusBadge(
+  visual: CitationVisualState,
+  overrideLink?: { href: string; onNavigate?: () => void },
+) {
   if (visual === "overridden") {
-    return (
-      <span
-        className="inline-flex shrink-0 items-center gap-0.5 rounded border border-border bg-paper-100 px-1 py-0 text-[0.65rem] font-sans font-normal text-ink-800 no-underline"
-        data-citation-state-badge="overridden"
-      >
+    const cls =
+      "inline-flex shrink-0 items-center gap-0.5 rounded border border-border bg-paper-100 px-1 py-0 text-[0.65rem] font-sans font-normal text-ink-800";
+    const inner = (
+      <>
         <Pencil className="size-2.5 shrink-0" aria-hidden />
         Override
+      </>
+    );
+    if (overrideLink?.href) {
+      return (
+        <a
+          href={overrideLink.href}
+          className={cn(cls, "no-underline hover:bg-paper-200")}
+          data-citation-state-badge="overridden"
+          data-citation-override-link="true"
+          aria-label="View override evidence"
+          onClick={(e) => {
+            e.stopPropagation();
+            overrideLink.onNavigate?.();
+          }}
+        >
+          {inner}
+        </a>
+      );
+    }
+    return (
+      <span className={cls} data-citation-state-badge="overridden">
+        {inner}
       </span>
     );
   }
@@ -117,6 +146,9 @@ export function CitationChip({
   className,
   id,
   disableExpand = false,
+  overrideEvidenceHref,
+  onOverrideEvidenceNavigate,
+  trustRecoveryVisible = false,
 }: CitationChipProps) {
   const visual =
     visualState === "overridden"
@@ -175,7 +207,20 @@ export function CitationChip({
                 <Sparkles className="size-3 shrink-0 text-evidence-600 opacity-80" aria-hidden />
               ) : null}
               <span className="min-w-0 truncate">{label}</span>
-              {statusBadge(visualState)}
+              {statusBadge(
+                visualState,
+                overrideEvidenceHref
+                  ? { href: overrideEvidenceHref, onNavigate: onOverrideEvidenceNavigate }
+                  : undefined,
+              )}
+              {trustRecoveryVisible ? (
+                <span
+                  className="ml-0.5 inline-flex shrink-0 items-center rounded border border-evidence-700/25 bg-evidence-100/90 px-1 py-0 text-[0.65rem] font-sans font-normal uppercase tracking-wide text-evidence-800"
+                  data-trust-earn-back="true"
+                >
+                  Recovered
+                </span>
+              ) : null}
             </button>
           </HoverCardTrigger>
         </ContextMenuTrigger>

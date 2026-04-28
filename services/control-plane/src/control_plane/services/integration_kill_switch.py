@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.domain.integrations.models import Integration
+from control_plane.services.strategist_activity import append_strategist_activity
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,8 @@ def _delete_secrets_stub(tenant_id: uuid.UUID, integration_id: uuid.UUID) -> Non
 async def disable_integration(
     session: AsyncSession,
     integration_id: uuid.UUID,
+    *,
+    actor_id: uuid.UUID | None = None,
 ) -> dict[str, Any]:
     r = await session.execute(select(Integration).where(Integration.id == integration_id).limit(1))
     row = r.scalar_one_or_none()
@@ -57,6 +60,16 @@ async def disable_integration(
     row.state = "disabled"
     row.disabled_at = now
     row.updated_at = now
+    if actor_id is not None:
+        await append_strategist_activity(
+            session,
+            tenant_id=row.tenant_id,
+            actor_id=actor_id,
+            category="integration_kill_switch",
+            summary=f"Integration kill-switch: {row.provider}",
+            detail={"integration_id": str(row.id), "provider": row.provider},
+            ref_id=row.id,
+        )
     await session.commit()
     await session.refresh(row)
 

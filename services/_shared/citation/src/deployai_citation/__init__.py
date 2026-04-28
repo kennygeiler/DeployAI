@@ -3,6 +3,7 @@
 from deployai_citation.citation import (
     CITATION_ENVELOPE_SCHEMA_VERSION,
     CitationEnvelopeV01,
+    CitationSupersessionOverriddenV01,
     EvidenceSpanV01,
     RetrievalPhaseV01,
 )
@@ -10,6 +11,7 @@ from deployai_citation.citation import (
 __all__ = [
     "CITATION_ENVELOPE_SCHEMA_VERSION",
     "CitationEnvelopeV01",
+    "CitationSupersessionOverriddenV01",
     "EvidenceSpanV01",
     "RetrievalPhaseV01",
 ]
