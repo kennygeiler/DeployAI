@@ -35,6 +35,8 @@
 | `/validation-queue` | **Auto-seeded** 10 rows on first tenant touch (BFF) | Replace with CP-backed queue |
 | `/solidification-review` | **Auto-seeded** 20 rows on first tenant touch | Replace with CP-backed queue |
 | `/evidence/[nodeId]` | Works for fixture IDs linked from digest | Needs canonical graph backing same IDs |
+| `/overrides` | Override history + composer; BFF → CP **durable** overrides API | CP migrated + tenant-scoped actor; evidence search for composer |
+| `/audit/personal` | Personal activity rows; BFF → CP strategist activity | Same CP coupling as other strategist routes |
 | Activity / degrade banners | `GET /api/internal/strategist-activity` → CP + ingest + optional Oracle **health** URL | `DEPLOYAI_ORACLE_HEALTH_URL` (liveness, not inference) |
 
 All `STRATEGIST_*`, `DEPLOYAI_ORACLE_HEALTH_URL`, `NEXT_PUBLIC_DEPLOYAI_STRATEGIST_ACTIVITY_POLL_MS`, and CP URL/key pairs for web are **documented as comments** in [.env.example](./.env.example).
@@ -43,7 +45,7 @@ All `STRATEGIST_*`, `DEPLOYAI_ORACLE_HEALTH_URL`, `NEXT_PUBLIC_DEPLOYAI_STRATEGI
 
 ## 3. What nine epics of work *did* accomplish (framing)
 
-Rough mapping (see [_bmad-output/implementation-artifacts/sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml) for story-level truth). **Epic 7** and **Epic 9** are story-complete on `main` (design system through VPAT evidence pipeline stub + in-meeting alert persistence UX); **Epic 10+** still own durable overrides and CP-backed queues.
+Rough mapping (see [_bmad-output/implementation-artifacts/sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml) for story-level truth). **Epic 7**, **Epic 9**, and **Epic 10** are story-complete on `main` for their scoped stories; **CP-backed queues** (action / validation / solidification) remain future work—the BFF **in-memory** store still applies there.
 
 | Area | What you got |
 |------|----------------|
@@ -53,8 +55,9 @@ Rough mapping (see [_bmad-output/implementation-artifacts/sprint-status.yaml](./
 | **Epic 7** | **shared-ui** primitives (citation, evidence, alert, validation card, …) — reusable, tested components |
 | **Epic 8** | Strategist **shell**: digest, phase, evening, Cmd+K, evidence deep links, degraded states |
 | **Epic 9** | In-meeting **UX**, carryover, action-queue **lifecycle APIs**, validation/solidification **surfaces** (BFF mock store) |
+| **Epic 10** | **Durable** learning overrides, private annotation crypto, citation supersession plumbing, **`/overrides`** + **`/audit/personal`** via BFF → CP |
 
-**Not the same as:** “Strategist opens app → live model continuously updates every surface with production data.” That’s **integration + Epic 10+** territory.
+**Not the same as:** “Strategist opens app → live model continuously updates every surface with production data.” That’s **deeper integration** (queues, live feeds, agent-driven updates) beyond what shipped in Epics 7–10.
 
 ---
 
@@ -143,7 +146,7 @@ flowchart LR
     Poll[Activity poll is not agent stream]
   end
   real --> stub
-  stub --> Future["Pilot: DB-backed queues\nlive feeds\nEpic 10 overrides"]
+  stub --> Future["Pilot: DB-backed queues\nlive feeds\n(full graph + meeting truth)"]
 ```
 
 ---
@@ -214,5 +217,6 @@ Use this when a **real Forward Deployed Engineer** (or customer strategist) shou
 | 2026-04-27 | §7: explicit **9.8** caveat—in-meeting alert **position is `localStorage` only** (not cross-device / server-backed). |
 | 2026-04-28 | §10 **FDE pilot** checklist; Epics **7–9** retrospectives closed in sprint-status; `strategist-queues-store` deploy note (multi-instance). |
 | 2026-04-28 | **Epics 15–16** in `epics.md` + sprint grid; **docs/pilot/** operator pack; **`DEPLOYAI_STRATEGIST_REQUIRE_TENANT`** middleware; Epic **15.2–15.5** done, **15.1** in progress. |
+| 2026-04-28 | **Epic 10** on `main` (PR #58): CP-backed overrides + personal audit surfaces (`/overrides`, `/audit/personal`), citation envelope / oracle supersession alignment, private-scope annotations. **Epic 11.1** (PR #59): edge-agent Tauri **capability scaffold** + CI capability audit + `docs/edge-agent/capabilities.md` — not production capture yet. **§2** / **§3** updated for pilot catalog accuracy. |
 
 ---
