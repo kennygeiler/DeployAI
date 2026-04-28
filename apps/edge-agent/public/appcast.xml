@@ -2,7 +2,7 @@
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
     <title>DeployAI Edge Agent Updates</title>
-    <description>Story 1.15 Sparkle feed stub for signed desktop update flow.</description>
+    <description>Story 1.15 / 11.5 Sparkle feed stub — CI writes dist/appcast.xml when SPARKLE_PRIVATE_KEY_SEED_B64 is set.</description>
     <language>en</language>
     <item>
       <title>DeployAI Edge Agent 0.0.0</title>

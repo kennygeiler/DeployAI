@@ -62,7 +62,9 @@ pub(crate) fn load_or_create_signing_key() -> Result<SigningKey, String> {
     }
     let sk = SigningKey::generate(&mut OsRng);
     let enc = base64::engine::general_purpose::STANDARD.encode(sk.to_bytes());
-    entry.set_password(&enc).map_err(|e| format!("store signing key: {e}"))?;
+    entry
+        .set_password(&enc)
+        .map_err(|e| format!("store signing key: {e}"))?;
     Ok(sk)
 }
 

@@ -22,7 +22,8 @@ Usage:
   foia export [flags]
 
 Verify checks deployai.edge.transcript.v1/v2 bundles offline: Ed25519 detached signature,
-Merkle chain, optional consent hash (v2), optional RFC3161 token, optional --edge-revocation (Story 11.7).
+sequential SHA256 Merkle chain, optional consent attestation hash (v2), optional RFC3161 token,
+and optional --edge-revocation sidecar (Story 11.7).
 
 `, Version)
 }
@@ -60,7 +61,7 @@ func runVerify(args []string) error {
 	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
 	pub := fs.String("public-key-b64", "", "Ed25519 public key (std base64); must match manifest if both set")
 	skipTSA := fs.Bool("skip-tsa", false, "Skip RFC3161 checks even if token is present")
-	edgeRev := fs.String("edge-revocation", "", "JSON sidecar: revocations[].deviceId + revokedAtUnixMs (Story 11.7)")
+	edgeRev := fs.String("edge-revocation", "", "JSON sidecar listing deviceId + revokedAtUnixMs (Story 11.7)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -75,8 +76,8 @@ func runExport(args []string) error {
 	fs := flag.NewFlagSet("export", flag.ContinueOnError)
 	out := fs.String("out", "", "output directory (required)")
 	acct := fs.String("account", "", "account identifier label (required)")
-	from := fs.String("from", "0", "export window start (unix ms)")
-	to := fs.String("to", "0", "export window end (unix ms)")
+	from := fs.String("from", "0", "export window start (unix ms, optional)")
+	to := fs.String("to", "0", "export window end (unix ms, optional)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

@@ -33,7 +33,7 @@ The spike proves that the Tauri shell can:
 
 ## Risks / follow-ups for Epic 11
 
-- Replace placeholder `appcast.xml` enclosure URL + signature with release automation.
+- **Story 11.5:** Rust verification of `sparkle:edSignature`, CI signing + `dist/appcast.xml`, optional S3 upload — see [sparkle-updates.md](./sparkle-updates.md). Replace placeholder `public/appcast.xml` values in production feeds.
 - Promote signing/notarization from optional to required in CI once secrets are provisioned.
 - Add explicit macOS entitlements/usage strings checks in CI.
 - Add Windows code-signing parity + update feed validation for WinSparkle path.

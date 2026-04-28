@@ -47,40 +47,49 @@ Pass `--public-key-b64` to require a specific registered key (must match `public
 
 **Committed golden fixtures** (Story 11.6, no network): `apps/foia-cli/testdata/edge-transcript-v1-valid` and `…-tampered` are exercised by `go test ./pkg/verify/...`. Regenerate after format changes with `go run ./hack/gen-golden-edge-bundle` from `apps/foia-cli`.
 
-## `deployai.edge.transcript.v2`
+## `deployai.edge.transcript.v2` (Story 11.4)
 
-Same directory layout as v1. Additions:
+Same on-disk layout as v1 (`segments.json`, `transcript.sig`, `manifest.json`). Differences:
 
 - **`format`:** `deployai.edge.transcript.v2`
-- **`consentSha256Hex`:** SHA-256 of the UTF-8 consent JSON string (64 hex chars), or omit / all zeros when absent.
-- **Signed payload** adds a line after v1 fields:
+- **`consentSha256Hex`:** lowercase hex encoding of **32 bytes** — SHA-256 of the **exact UTF-8 bytes** of the consent JSON string bound at bundle creation (for example the `localStorage` payload). Omit or use 64 `0` digits when no consent JSON was provided (matches an all-zero hash).
+- **Signed payload (UTF-8)** — newline-terminated lines:
 
 ```text
 DEPLOYAI_EDGE_TRANSCRIPT_V2
-device_id:…
-merkle_root:…
-transcript_sha256:…
-consent_sha256:…
+device_id:<uuid-or-stable-id>
+merkle_root:<64 lowercase hex chars>
+transcript_sha256:<64 lowercase hex chars>
+consent_sha256:<64 lowercase hex chars>
 ```
 
-## Offline edge revocation (Story 11.7)
+`foia verify` accepts both v1 and v2; golden fixtures remain v1-only.
 
-Sidecar JSON:
+### Offline revocation list (Story 11.7)
+
+When an edge agent is **killed** on the control plane, verifiers with only a disk bundle can still reject bundles **created at or after** revocation if they have a sidecar JSON file:
 
 ```json
-{ "revocations": [ { "deviceId": "…", "revokedAtUnixMs": 1714147200000 } ] }
+{
+  "revocations": [
+    { "deviceId": "<manifest deviceId>", "revokedAtUnixMs": 1714147200000 }
+  ]
+}
 ```
 
 ```bash
-foia verify --edge-revocation revocations.json path/to/bundle-dir
+foia verify --edge-revocation path/to/revocations.json path/to/bundle-dir
 ```
 
-Fails (after crypto checks) when `manifest.createdAtUnixMs >= revokedAtUnixMs` for a matching `deviceId`.
+If `manifest.createdAtUnixMs` is greater than or equal to `revokedAtUnixMs` for a matching `deviceId`, verification fails after cryptographic checks succeed.
 
-## `deployai.foia.export.v0` (Story 12.2 skeleton)
+## `deployai.foia.export.v0` — export skeleton (Story 12.2)
 
-```bash
-foia export --out ./export-dir --account <id> [--from unix-ms] [--to unix-ms]
-```
+Not yet a full canonical-memory export. `foia export --out <dir> --account <id> [--from unix-ms] [--to unix-ms]` writes:
 
-Writes `manifest.json` + placeholder `events.jsonl`. Full canonical-memory export replaces this in later stories.
+| File | Purpose |
+|------|---------|
+| `manifest.json` | `format`, `accountId`, window, `createdAtUnixMs`, placeholder note |
+| `events.jsonl` | Comment-only placeholder line |
+
+Full event schemas, tombstones, and CP-signed manifests will replace this layout in later stories.

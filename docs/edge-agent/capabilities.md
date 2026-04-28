@@ -20,17 +20,22 @@ This document maps each declared capability in `apps/edge-agent/src-tauri/tauri.
 ## `audio:capture`
 
 - **Purpose:** Microphone access for local capture after OS and in-app consent.
-- **Scope:** Implemented with WebView `getUserMedia` plus `NSMicrophoneUsageDescription` in `src-tauri/Info.plist`. This capability carries **no extra plugin permissions** so the trust boundary stays OS + web APIs. **Story 11.4 (partial):** `TwoPartyConsentDialog` gates the first-launch mic prompt; attestation JSON is stored in `localStorage` under `deployai.edgeAgent.twoPartyConsent.v1`. Cryptographic attestation binding to transcripts, CoreAudio path, and upload gating remain per epic follow-up.
+- **Scope:** Implemented with WebView `getUserMedia` plus `NSMicrophoneUsageDescription` in `src-tauri/Info.plist`. This capability carries **no extra plugin permissions** so the trust boundary stays OS + web APIs. **Story 11.4:** `TwoPartyConsentDialog` gates the first-launch mic prompt; attestation JSON is stored in `localStorage` under `deployai.edgeAgent.twoPartyConsent.v1` and may be hashed into **`deployai.edge.transcript.v2`** via `edge_agent_write_transcript_bundle` (`consentJson` + `transcriptFormat: "v2"`). **`edge_agent_audio_capture_status`** returns a stub string until CoreAudio capture is wired.
 
 ## `keychain:read-write`
 
 - **Purpose:** Store per-device keys and secrets in the macOS Keychain (Epic 11 signing stories).
-- **Scope:** Rust-only via the `keyring` crate and allowlisted Tauri commands. **Story 11.2:** `edge_agent_signing_identity` / `edge_agent_register_with_control_plane` persist a **32-byte Ed25519 signing seed** (Base64) under service `app.deployai.edge-agent` / account `ed25519-signing-key-v1`. **Story 11.3:** `edge_agent_write_transcript_bundle` writes `deployai.edge.transcript.v1` under app-local `transcripts/<uuid>/` (`segments.json`, `manifest.json`, `transcript.sig`) with a SHA256 Merkle chain over segments, optional RFC3161 via `DEPLOYAI_EDGE_TSA_URL` (default `https://freetsa.org/tsr`). **NFR20 note:** today this uses the `keyring` default accessibility; tightening to `kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly` is a documented hardening follow-up. Spike command `keychain_roundtrip` remains for diagnostics.
+- **Scope:** Rust-only via the `keyring` crate and allowlisted Tauri commands. **Story 11.2:** `edge_agent_signing_identity` / `edge_agent_register_with_control_plane` persist a **32-byte Ed25519 signing seed** (Base64) under service `app.deployai.edge-agent` / account `ed25519-signing-key-v1`. **Story 11.3 / 11.4:** `edge_agent_write_transcript_bundle` writes `deployai.edge.transcript.v1` (default when `transcriptFormat` omitted or `v1`) or **`deployai.edge.transcript.v2`** (when `transcriptFormat` is `v2`) under app-local `transcripts/<uuid>/` (`segments.json`, `manifest.json`, `transcript.sig`) with a SHA256 Merkle chain over segments, optional RFC3161 via `DEPLOYAI_EDGE_TSA_URL` (default `https://freetsa.org/tsr`). **Story 11.7:** `edge_agent_refresh_kill_switch_from_control_plane` polls `GET /internal/v1/edge-agents/by-device`; when `revoked_at` is present, `edge_agent_write_transcript_bundle` refuses with an error until process restart (in-memory flag). **`edge_agent_kill_switch_status`** returns `{ "revoked": bool }`. **NFR20 note:** today this uses the `keyring` default accessibility; tightening to `kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly` is a documented hardening follow-up. Spike command `keychain_roundtrip` remains for diagnostics.
 
 ## `http:api-only`
 
-- **Purpose:** Reach the DeployAI control plane for health checks and **device registration**.
-- **Scope:** Rust-only `reqwest` (`control_plane_health`, `edge_agent_register_with_control_plane` → `POST /internal/v1/edge-agents/register` with `X-DeployAI-Internal-Key`). No `tauri-plugin-http` exposure to the UI. URL allowlist hardening is still recommended before production.
+- **Purpose:** Reach the DeployAI control plane for health checks, **device registration**, **kill-switch refresh**, and **HTTPS appcast** URLs for Sparkle-compatible updates.
+- **Scope:** Rust-only `reqwest` (`control_plane_health`, `edge_agent_register_with_control_plane` → `POST /internal/v1/edge-agents/register`, `edge_agent_refresh_kill_switch_from_control_plane` → `GET /internal/v1/edge-agents/by-device`, both with `X-DeployAI-Internal-Key`; **Story 11.5:** `edge_agent_sparkle_fetch_latest_item` for `appcast.xml`). No `tauri-plugin-http` exposure to the UI. URL allowlist hardening is still recommended before production.
+
+## Updater verification (Story 11.5)
+
+- **Purpose:** Ensure update archives match `sparkle:edSignature` before any install/replace step.
+- **Scope:** `edge_agent_sparkle_verify_local_archive` (Ed25519 over raw archive bytes, length check). Release signing uses the `sign-sparkle-archive` binary + `scripts/render-appcast.sh`; see [sparkle-updates.md](./sparkle-updates.md).
 
 ## Offline verification (Story 11.6)
 

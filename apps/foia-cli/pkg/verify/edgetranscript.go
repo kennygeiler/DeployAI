@@ -18,7 +18,7 @@ import (
 // Edge bundle format (Story 11.3 / 12.1). See docs/foia/bundle-format.md.
 const EdgeTranscriptFormat = "deployai.edge.transcript.v1"
 
-// EdgeTranscriptFormatV2 adds consent attestation hash to the signed payload (Story 11.4+).
+// EdgeTranscriptFormatV2 adds consent attestation hash to the signed payload (Story 11.4).
 const EdgeTranscriptFormatV2 = "deployai.edge.transcript.v2"
 
 // EdgeTranscriptManifest is manifest.json for an edge transcript bundle.
@@ -53,7 +53,7 @@ func EdgeTranscriptSigningPayload(deviceID string, merkleRoot32, transcriptSHA25
 	return []byte(b.String())
 }
 
-// EdgeTranscriptSigningPayloadV2 matches the edge-agent v2 payload.
+// EdgeTranscriptSigningPayloadV2 matches the edge-agent v2 payload (UTF-8, trailing newline on last line).
 func EdgeTranscriptSigningPayloadV2(deviceID string, merkleRoot32, transcriptSHA256_32, consentSHA256_32 []byte) []byte {
 	var b strings.Builder
 	b.WriteString("DEPLOYAI_EDGE_TRANSCRIPT_V2\n")
@@ -85,8 +85,8 @@ func MerkleRootChain(segments []string) [32]byte {
 }
 
 // VerifyEdgeTranscriptBundleDir checks Ed25519 signature, segment hash, and Merkle chain. Optional RFC3161 when present.
-// If edgeRevocationPath is non-empty, loads a sidecar JSON listing device revocations and fails when createdAtUnixMs
-// is at or after revokedAtUnixMs for the manifest deviceId (Story 11.7).
+// If edgeRevocationPath is non-empty, loads a sidecar JSON list of device revocations and fails when the bundle
+// createdAtUnixMs is at or after revokedAtUnixMs for the manifest deviceId (Story 11.7).
 func VerifyEdgeTranscriptBundleDir(bundleDir string, publicKeyB64 string, skipTSA bool, edgeRevocationPath string) error {
 	manifestPath := filepath.Join(bundleDir, "manifest.json")
 	manifestBytes, err := os.ReadFile(manifestPath)
