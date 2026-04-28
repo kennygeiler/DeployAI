@@ -181,7 +181,7 @@ Use this to run a **credible demo** without claiming full production.
 - [_bmad-output/implementation-artifacts/sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml) — story-level done/in-progress.
 - [docs/diagrams/deployai-bmad-and-runtime-flow.mjs](./docs/diagrams/deployai-bmad-and-runtime-flow.mjs) — BMAD + runtime export (Mermaid JS).
 - **Epic retros (7–9):** [_bmad-output/implementation-artifacts/epic-7-retrospective-2026-04-26.md](./_bmad-output/implementation-artifacts/epic-7-retrospective-2026-04-26.md), [_bmad-output/implementation-artifacts/epic-8-retrospective-2026-04-26.md](./_bmad-output/implementation-artifacts/epic-8-retrospective-2026-04-26.md), [_bmad-output/implementation-artifacts/epic-9-retrospective-2026-04-28.md](./_bmad-output/implementation-artifacts/epic-9-retrospective-2026-04-28.md).
-- **Customer pilot (BMAD):** [_bmad-output/planning-artifacts/epics.md](./_bmad-output/planning-artifacts/epics.md) — **Epic 15** (prerequisites) → **Epic 16** (onboarding + integrations + CP loaders); **operator docs:** [docs/pilot/README.md](./docs/pilot/README.md); see §10 below.
+- **Customer pilot (BMAD):** [_bmad-output/planning-artifacts/epics.md](./_bmad-output/planning-artifacts/epics.md) — **Epic 15** (prerequisites) → **Epic 16** (onboarding + integrations + CP loaders); **operator docs:** [docs/pilot/README.md](./docs/pilot/README.md) and [docs/pilot/hosted-environment.md](./docs/pilot/hosted-environment.md); see §10 below.
 
 ---
 

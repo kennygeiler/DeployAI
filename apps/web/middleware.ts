@@ -20,7 +20,8 @@ const isStrategistSurface = (p: string) =>
   p === "/validation-queue" ||
   p === "/solidification-review" ||
   p === "/overrides" ||
-  p.startsWith("/audit/");
+  p.startsWith("/audit/") ||
+  p === "/settings/integrations";
 
 /** BFF + internal routes the strategist shell polls; need the same actor as pages. */
 const isStrategistApi = (p: string) =>
@@ -131,6 +132,7 @@ export const config = {
     "/solidification-review",
     "/overrides",
     "/audit/:path*",
+    "/settings/integrations",
     "/api/bff/:path*",
     "/api/internal/strategist-activity",
     "/admin/runs",

@@ -33,6 +33,8 @@ export type AppShellProps = {
   currentPhaseId?: DeploymentPhaseId;
   /** Break-glass / external-auditor strip (Story 8.5) — from server env or future auth. */
   sessionBanner?: StrategistSessionBannerPayload | null;
+  /** Epic 16.1 — onboarding / tenant context (server-rendered). */
+  belowTopBar?: React.ReactNode;
 };
 
 export function AppShell({
@@ -41,6 +43,7 @@ export function AppShell({
   freshnessSurface: freshnessProp,
   currentPhaseId = "P5_pilot",
   sessionBanner = null,
+  belowTopBar = null,
 }: AppShellProps) {
   const pathname = usePathname();
   const { agentDegraded } = useStrategistSurface();
@@ -102,6 +105,7 @@ export function AppShell({
               setCommandOpen(true);
             }}
           />
+          {belowTopBar}
           <div className="mx-auto w-full min-w-0 max-w-[1600px] flex-1 px-4 py-6 md:px-6">
             {children}
           </div>

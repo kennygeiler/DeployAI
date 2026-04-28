@@ -41,14 +41,21 @@ export function MorningDigestClient({
           </p>
         ) : null}
       </div>
-      <div
-        className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
-        data-testid="morning-digest-top"
-      >
-        {topItems.map((item) => (
-          <DigestEvidenceCard key={item.id} item={item} headingLevel="h2" />
-        ))}
-      </div>
+      {topItems.length === 0 ? (
+        <p className="text-ink-700 mt-4 max-w-2xl text-sm" role="status">
+          No digest rows for your organization yet. Connect integrations and run ingestion, or
+          verify pilot digest configuration on the control plane.
+        </p>
+      ) : (
+        <div
+          className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+          data-testid="morning-digest-top"
+        >
+          {topItems.map((item) => (
+            <DigestEvidenceCard key={item.id} item={item} headingLevel="h2" />
+          ))}
+        </div>
+      )}
       {!agentDegraded ? (
         <footer className="border-border rounded-lg border border-dashed p-4">
           <h2 className="text-foreground text-sm font-semibold">What I ranked out</h2>
