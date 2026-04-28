@@ -2,12 +2,16 @@ import type { CitationPreview } from "@deployai/shared-ui";
 import type { EvidencePanelMetadata, EvidencePanelState } from "@deployai/shared-ui";
 import type { EvidenceSpan } from "@deployai/contracts";
 
+import type { AuthActor } from "@deployai/authz";
+
 import type { ActionQueueRow, DigestTopItem, EveningPatternRow } from "@/lib/epic8/mock-digest";
 import {
   buildPhaseTrackingRows,
   EVENING_CANDIDATES,
   MORNING_DIGEST_TOP,
+  getStrategistEvidenceByNodeId,
 } from "@/lib/epic8/mock-digest";
+import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
 
 const STRATEGIST_REMOTE_FETCH_TIMEOUT_MS = 8000;
 
@@ -139,6 +143,14 @@ export function parseDigestTopItemsPayload(json: unknown): readonly DigestTopIte
   return out;
 }
 
+/** Single-object `DigestTopItem` (e.g. CP evidence-node payload). */
+export function parseDigestTopItemSingle(json: unknown): DigestTopItem | null {
+  if (!isDigestTopItem(json)) {
+    return null;
+  }
+  return json;
+}
+
 /**
  * Remote evening payload: digest-shaped candidate cards + cross-account pattern rows.
  * `candidates` must be a non-empty array of valid `DigestTopItem` rows.
@@ -186,7 +198,10 @@ export type MorningDigestDegradedReason =
   | "fetch_error"
   | "http_error"
   | "invalid_payload"
-  | "empty_array";
+  | "empty_array"
+  | "tenant_required"
+  | "cp_not_configured"
+  | "cp_unconfigured";
 
 export type MorningDigestLoadResult = {
   readonly items: readonly DigestTopItem[];
@@ -195,6 +210,75 @@ export type MorningDigestLoadResult = {
   /** HTTP status when `degradedReason` is `http_error`. */
   readonly httpStatus?: number;
 };
+
+/**
+ * Epic 16.4 — when `DEPLOYAI_DIGEST_SOURCE=cp`, loads from CP pilot surface; otherwise delegates to
+ * `loadMorningDigestTopItemsResult` (URL or mock).
+ */
+export async function loadMorningDigestTopItemsResultForActor(
+  actor: AuthActor | null,
+): Promise<MorningDigestLoadResult> {
+  if (process.env.DEPLOYAI_DIGEST_SOURCE?.trim() === "cp") {
+    return loadMorningDigestFromControlPlane(actor);
+  }
+  return loadMorningDigestTopItemsResult();
+}
+
+async function loadMorningDigestFromControlPlane(
+  actor: AuthActor | null,
+): Promise<MorningDigestLoadResult> {
+  const tid = actor?.tenantId?.trim();
+  if (!tid) {
+    return {
+      items: MORNING_DIGEST_TOP,
+      source: "degraded",
+      degradedReason: "tenant_required",
+    };
+  }
+  const base = getControlPlaneBaseUrl();
+  const key = getControlPlaneInternalKey();
+  if (!base || !key) {
+    return {
+      items: MORNING_DIGEST_TOP,
+      source: "degraded",
+      degradedReason: "cp_unconfigured",
+    };
+  }
+  const u = `${base.replace(/\/$/, "")}/internal/v1/strategist/pilot-surfaces/morning-digest-top?tenant_id=${encodeURIComponent(tid)}`;
+  try {
+    const r = await fetch(u, {
+      headers: { "X-DeployAI-Internal-Key": key },
+      cache: "no-store",
+      signal: AbortSignal.timeout(STRATEGIST_REMOTE_FETCH_TIMEOUT_MS),
+    });
+    if (r.status === 404) {
+      return { items: [], source: "degraded", degradedReason: "cp_not_configured" };
+    }
+    if (!r.ok) {
+      return {
+        items: MORNING_DIGEST_TOP,
+        source: "degraded",
+        degradedReason: "http_error",
+        httpStatus: r.status,
+      };
+    }
+    const body = (await r.json()) as { items?: unknown };
+    const rawItems = body.items;
+    if (!Array.isArray(rawItems)) {
+      return { items: MORNING_DIGEST_TOP, source: "degraded", degradedReason: "invalid_payload" };
+    }
+    if (rawItems.length === 0) {
+      return { items: [], source: "live" };
+    }
+    const parsed = parseDigestTopItemsPayload(rawItems);
+    if (!parsed) {
+      return { items: MORNING_DIGEST_TOP, source: "degraded", degradedReason: "invalid_payload" };
+    }
+    return { items: parsed, source: "live" };
+  } catch {
+    return { items: MORNING_DIGEST_TOP, source: "degraded", degradedReason: "fetch_error" };
+  }
+}
 
 /**
  * Optional remote source for the Morning Digest list (JSON array of `DigestTopItem` rows).
@@ -258,8 +342,50 @@ export function morningDigestBannerMessage(result: MorningDigestLoadResult): str
       return "Digest feed returned data we could not validate as digest rows. Showing seeded demo items.";
     case "empty_array":
       return "Digest feed returned no rows. Showing seeded demo items.";
+    case "tenant_required":
+      return "Control-plane digest mode requires a tenant id (JWT tid or x-deployai-tenant). Showing seeded demo items.";
+    case "cp_unconfigured":
+      return "Control plane URL or internal API key is not configured for digest loading. Showing seeded demo items.";
+    case "cp_not_configured":
+      return "No pilot digest data for this tenant in the control plane yet (see DEPLOYAI_PILOT_SURFACE_DATA_PATH).";
     default:
       return "Digest feed is unavailable. Showing seeded demo items.";
+  }
+}
+
+/**
+ * Epic 16.5 — evidence deep-link: `DEPLOYAI_EVIDENCE_SOURCE=cp` loads from CP pilot surface; otherwise mock bridge.
+ */
+export async function loadStrategistEvidenceItemForActor(
+  actor: AuthActor,
+  nodeId: string,
+): Promise<DigestTopItem | null> {
+  if (process.env.DEPLOYAI_EVIDENCE_SOURCE?.trim() !== "cp") {
+    return getStrategistEvidenceByNodeId(nodeId);
+  }
+  const tid = actor.tenantId?.trim();
+  if (!tid) {
+    return null;
+  }
+  const base = getControlPlaneBaseUrl();
+  const key = getControlPlaneInternalKey();
+  if (!base || !key) {
+    return null;
+  }
+  const u = `${base.replace(/\/$/, "")}/internal/v1/strategist/pilot-surfaces/evidence-node/${encodeURIComponent(nodeId)}?tenant_id=${encodeURIComponent(tid)}`;
+  try {
+    const r = await fetch(u, {
+      headers: { "X-DeployAI-Internal-Key": key },
+      cache: "no-store",
+      signal: AbortSignal.timeout(STRATEGIST_REMOTE_FETCH_TIMEOUT_MS),
+    });
+    if (!r.ok) {
+      return null;
+    }
+    const body: unknown = await r.json();
+    return parseDigestTopItemSingle(body);
+  } catch {
+    return null;
   }
 }
 

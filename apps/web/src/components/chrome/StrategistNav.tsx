@@ -9,6 +9,7 @@ import {
   FileWarning,
   ListChecks,
   ListTodo,
+  Settings,
   Sun,
   UserRound,
   Video,
@@ -28,6 +29,7 @@ const primary: readonly NavItem[] = [
 ];
 
 const secondary: readonly NavItem[] = [
+  { href: "/settings/integrations", label: "Integrations", icon: Settings },
   { href: "/overrides", label: "Override history", icon: FileWarning },
   { href: "/audit/personal", label: "Personal audit", icon: UserRound },
 ];

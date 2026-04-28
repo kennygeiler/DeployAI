@@ -18,6 +18,8 @@ type Props = {
   lastSyncedAt: number;
   initialActivity: StrategistActivitySnapshot;
   sessionBanner: StrategistSessionBannerPayload | null;
+  /** Epic 16.1 — server-rendered pilot onboarding (tenant + CTAs). */
+  pilotBelowTopBar?: React.ReactNode;
 };
 
 function toSurfaceValue(s: StrategistActivitySnapshot): StrategistSurfaceValue {
@@ -83,7 +85,13 @@ function getServerDemoSearchSnapshot(): string {
  * `getStrategistActivityPollIntervalMs()` (default 30 s, max 30 s; override via
  * `NEXT_PUBLIC_DEPLOYAI_STRATEGIST_ACTIVITY_POLL_MS` in dev builds).
  */
-export function StrategistShell({ children, lastSyncedAt, initialActivity, sessionBanner }: Props) {
+export function StrategistShell({
+  children,
+  lastSyncedAt,
+  initialActivity,
+  sessionBanner,
+  pilotBelowTopBar = null,
+}: Props) {
   const [activity, setActivity] = React.useState<StrategistActivitySnapshot>(initialActivity);
   const requestId = React.useRef(0);
   const pollIntervalMs = React.useMemo(() => getStrategistActivityPollIntervalMs(), []);
@@ -143,7 +151,11 @@ export function StrategistShell({ children, lastSyncedAt, initialActivity, sessi
   return (
     <StrategistSurfaceProvider value={surface}>
       <StrategistToaster />
-      <AppShell lastSyncedAt={lastSyncedAt} sessionBanner={sessionBanner}>
+      <AppShell
+        lastSyncedAt={lastSyncedAt}
+        sessionBanner={sessionBanner}
+        belowTopBar={pilotBelowTopBar}
+      >
         {children}
       </AppShell>
     </StrategistSurfaceProvider>

@@ -8,12 +8,15 @@ import {
   PHASE_TRACKING_ROWS,
 } from "@/lib/epic8/mock-digest";
 
+import type { AuthActor } from "@deployai/authz";
+
 import {
   eveningSynthesisBannerMessage,
   loadEveningSynthesis,
   loadEveningSynthesisResult,
   loadMorningDigestTopItems,
   loadMorningDigestTopItemsResult,
+  loadMorningDigestTopItemsResultForActor,
   loadPhaseTrackingRows,
   loadPhaseTrackingRowsResult,
   morningDigestBannerMessage,
@@ -85,6 +88,78 @@ describe("morningDigestBannerMessage", () => {
         degradedReason: "empty_array",
       }),
     ).toContain("no rows");
+    expect(
+      morningDigestBannerMessage({
+        items: MORNING_DIGEST_TOP,
+        source: "degraded",
+        degradedReason: "tenant_required",
+      }),
+    ).toContain("tenant id");
+    expect(
+      morningDigestBannerMessage({
+        items: MORNING_DIGEST_TOP,
+        source: "degraded",
+        degradedReason: "cp_unconfigured",
+      }),
+    ).toContain("internal API key");
+    expect(
+      morningDigestBannerMessage({
+        items: [],
+        source: "degraded",
+        degradedReason: "cp_not_configured",
+      }),
+    ).toContain("pilot digest");
+  });
+});
+
+describe("loadMorningDigestTopItemsResultForActor", () => {
+  const originalFetch = globalThis.fetch;
+  const originalDigestSource = process.env.DEPLOYAI_DIGEST_SOURCE;
+  const originalCp = process.env.DEPLOYAI_CONTROL_PLANE_URL;
+  const originalKey = process.env.DEPLOYAI_INTERNAL_API_KEY;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    if (originalDigestSource === undefined) {
+      delete process.env.DEPLOYAI_DIGEST_SOURCE;
+    } else {
+      process.env.DEPLOYAI_DIGEST_SOURCE = originalDigestSource;
+    }
+    if (originalCp === undefined) {
+      delete process.env.DEPLOYAI_CONTROL_PLANE_URL;
+    } else {
+      process.env.DEPLOYAI_CONTROL_PLANE_URL = originalCp;
+    }
+    if (originalKey === undefined) {
+      delete process.env.DEPLOYAI_INTERNAL_API_KEY;
+    } else {
+      process.env.DEPLOYAI_INTERNAL_API_KEY = originalKey;
+    }
+  });
+
+  it("loads from control plane when DEPLOYAI_DIGEST_SOURCE=cp", async () => {
+    process.env.DEPLOYAI_DIGEST_SOURCE = "cp";
+    process.env.DEPLOYAI_CONTROL_PLANE_URL = "http://cp.test";
+    process.env.DEPLOYAI_INTERNAL_API_KEY = "secret";
+    const one = structuredClone(MORNING_DIGEST_TOP)[0]!;
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: [one] }),
+    });
+    globalThis.fetch = fetchMock as typeof fetch;
+    const actor: AuthActor = {
+      role: "deployment_strategist",
+      tenantId: "11111111-1111-4111-8111-111111111111",
+    };
+    const r = await loadMorningDigestTopItemsResultForActor(actor);
+    expect(r.source).toBe("live");
+    expect(r.items).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://cp.test/internal/v1/strategist/pilot-surfaces/morning-digest-top?tenant_id=11111111-1111-4111-8111-111111111111",
+      expect.objectContaining({
+        headers: { "X-DeployAI-Internal-Key": "secret" },
+      }),
+    );
   });
 });
 
