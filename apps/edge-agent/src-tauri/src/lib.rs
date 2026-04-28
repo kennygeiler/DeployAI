@@ -23,6 +23,8 @@ pub fn run() {
             device_identity::edge_agent_signing_identity,
             device_identity::edge_agent_register_with_control_plane,
             transcript::edge_agent_write_transcript_bundle,
+            updater::edge_agent_sparkle_fetch_latest_item,
+            updater::edge_agent_sparkle_verify_local_archive,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

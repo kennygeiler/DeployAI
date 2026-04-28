@@ -38,7 +38,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-21
-last_updated: 2026-04-26
+last_updated: 2026-04-28
 project: DeployAI
 project_key: NOKEY
 tracking_system: file-system
@@ -206,7 +206,7 @@ development_status:
   11-2-per-device-hardware-backed-signing-key: done
   11-3-tamper-evident-local-transcript: done
   11-4-audio-capture-and-two-party-consent-ux: in-progress
-  11-5-sparkle-auto-updater-with-signed-appcast: backlog
+  11-5-sparkle-auto-updater-with-signed-appcast: done
   11-6-offline-verification-via-foia-cli-integration: done
   11-7-edge-agent-kill-switch: backlog
   epic-11-retrospective: optional

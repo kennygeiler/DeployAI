@@ -29,8 +29,13 @@ This document maps each declared capability in `apps/edge-agent/src-tauri/tauri.
 
 ## `http:api-only`
 
-- **Purpose:** Reach the DeployAI control plane for health checks and **device registration**.
-- **Scope:** Rust-only `reqwest` (`control_plane_health`, `edge_agent_register_with_control_plane` → `POST /internal/v1/edge-agents/register` with `X-DeployAI-Internal-Key`). No `tauri-plugin-http` exposure to the UI. URL allowlist hardening is still recommended before production.
+- **Purpose:** Reach the DeployAI control plane for health checks and **device registration**, and **HTTPS appcast** URLs for Sparkle-compatible updates.
+- **Scope:** Rust-only `reqwest` (`control_plane_health`, `edge_agent_register_with_control_plane` → `POST /internal/v1/edge-agents/register` with `X-DeployAI-Internal-Key`; **Story 11.5:** `edge_agent_sparkle_fetch_latest_item` for `appcast.xml`). No `tauri-plugin-http` exposure to the UI. URL allowlist hardening is still recommended before production.
+
+## Updater verification (Story 11.5)
+
+- **Purpose:** Ensure update archives match `sparkle:edSignature` before any install/replace step.
+- **Scope:** `edge_agent_sparkle_verify_local_archive` (Ed25519 over raw archive bytes, length check). Release signing uses the `sign-sparkle-archive` binary + `scripts/render-appcast.sh`; see [sparkle-updates.md](./sparkle-updates.md).
 
 ## Offline verification (Story 11.6)
 
