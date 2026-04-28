@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>DeployAI Edge Agent Updates</title>
+    <description>Story 1.15 Sparkle feed stub for signed desktop update flow.</description>
+    <language>en</language>
+    <item>
+      <title>DeployAI Edge Agent 0.0.0</title>
+      <pubDate>Thu, 23 Apr 2026 00:00:00 +0000</pubDate>
+      <sparkle:version>0.0.0</sparkle:version>
+      <sparkle:shortVersionString>0.0.0</sparkle:shortVersionString>
+      <enclosure
+        url="https://example.invalid/deployai-edge-agent-0.0.0.dmg"
+        sparkle:version="0.0.0"
+        sparkle:shortVersionString="0.0.0"
+        sparkle:edSignature="REPLACE_WITH_REAL_ED25519_SIGNATURE"
+        length="0"
+        type="application/octet-stream" />
+    </item>
+  </channel>
+</rss>

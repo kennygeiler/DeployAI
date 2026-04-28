@@ -45,6 +45,9 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Audit Tauri capabilities (Story 11.1)
+        run: node apps/edge-agent/scripts/audit-capabilities.mjs
+
       - name: Build Tauri app bundle
         run: pnpm --filter @deployai/edge-agent tauri build
 

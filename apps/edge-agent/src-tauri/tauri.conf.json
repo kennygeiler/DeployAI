@@ -21,12 +21,20 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; connect-src 'self' https:; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+      "csp": "default-src 'self'; script-src 'self'; connect-src 'self' https:; img-src 'self' data:; style-src 'self' 'unsafe-inline'",
+      "capabilities": [
+        "default",
+        "fs:local-only",
+        "dialog:file-select",
+        "audio:capture",
+        "keychain:read-write",
+        "http:api-only"
+      ]
     }
   },
   "bundle": {
     "active": true,
-    "category": "ProductivityApplication",
+    "category": "Productivity",
     "targets": "all"
   },
   "plugins": {}

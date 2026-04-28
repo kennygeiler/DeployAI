@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "http:api-only",
+  "description": "Outbound HTTP is Rust-only (reqwest) for control-plane health checks; no tauri-plugin-http exposure to the frontend. Harden to URL allowlist in follow-on stories.",
+  "windows": ["main"],
+  "permissions": []
+}
