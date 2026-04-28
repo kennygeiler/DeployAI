@@ -19,6 +19,18 @@ You plan in **BMAD** (`_bmad-output/`, `.cursor/skills/`). You ship in **`apps/w
 
 **Reality check for demos and stakeholder conversations:** [whats-actually-here.md](./whats-actually-here.md) — what is fixture vs live, demo checklist, and mermaid flows (living doc; update when surfaces change).
 
+**Human-run steps (secrets, CI, edge releases, FOIA):** [docs/human-ops-runbook.md](./docs/human-ops-runbook.md)
+
+---
+
+## What’s new
+
+| Area | Change |
+|------|--------|
+| **Edge agent (Epic 11)** | **Story 11.5 — Sparkle-style updates:** Rust parses `appcast.xml`, verifies `sparkle:edSignature` (Ed25519 over the raw archive). Tauri commands `edge_agent_sparkle_fetch_latest_item` / `edge_agent_sparkle_verify_local_archive`; release helper `sign-sparkle-archive` + `apps/edge-agent/scripts/render-appcast.sh`. CI: Linux `cargo test updater`, macOS optional DMG sign + `dist/appcast.xml`, optional S3 upload. See [docs/edge-agent/sparkle-updates.md](./docs/edge-agent/sparkle-updates.md). |
+| **Tracking** | [sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml) — **11.5 done**; Epic 11 still open for **11.4** (capture/consent depth) and **11.7** (kill-switch) until those stories land on `main`. |
+| **Ops** | New runbook links all the **manual / secret** steps operators need (Apple, Sparkle seed, AWS appcast, CP integration tests, etc.). |
+
 ---
 
 ## Why DeployAI (vs generic PM tools)
@@ -150,7 +162,7 @@ DeployAI/
 | [`_bmad-output/implementation-artifacts/development-board.yaml`](./_bmad-output/implementation-artifacts/development-board.yaml) | Board, MVP tracks, risks |
 | [`_bmad-output/planning-artifacts/mvp-operating-plan-2026.md`](./_bmad-output/planning-artifacts/mvp-operating-plan-2026.md) | MVP phasing |
 
-**Status (high level):** Epics **1–8** are largely **done** on `main` for the walking skeleton. **Epic 9** is **in progress** — vertical slice merged (presence stub, queues BFF, surfaces, E2E). **Story 9.1** adds configurable **≤ 30 s** activity poll, documents CP meeting-presence + stub env, and a **single-sample ≤ 8 s** Playwright gate for the active alert card after a BFF `inMeeting` signal; **100-run p95**, Graph calendar wiring, and lazy-evidence timing remain vs `epics.md`. **Epic 7-15** (VPAT evidence pipeline) is backlog. Hardening notes: [`epic-8-implementation-status.md`](./_bmad-output/implementation-artifacts/epic-8-implementation-status.md).
+**Status (high level):** Epics **1–8** are largely **done** on `main` for the walking skeleton. **Epic 9** is **in progress** — vertical slice merged (presence stub, queues BFF, surfaces, E2E). **Story 9.1** adds configurable **≤ 30 s** activity poll, documents CP meeting-presence + stub env, and a **single-sample ≤ 8 s** Playwright gate for the active alert card after a BFF `inMeeting` signal; **100-run p95**, Graph calendar wiring, and lazy-evidence timing remain vs `epics.md`. **Epic 11** (edge agent): per-device signing, tamper-evident transcript, FOIA verify path, and **Sparkle-compatible updater verification (11.5)** are in motion on `main` / open PRs; remaining stories include **11.4** (CoreAudio/consent depth) and **11.7** (kill-switch) per sprint status. **Epic 12** (FOIA export / compliance) is mostly backlog beyond the Go verifier. **Epic 7 VPAT evidence pipeline** remains staged. Hardening notes: [`epic-8-implementation-status.md`](./_bmad-output/implementation-artifacts/epic-8-implementation-status.md).
 
 ---
 

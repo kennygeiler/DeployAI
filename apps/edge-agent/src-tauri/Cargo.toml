@@ -9,6 +9,10 @@ edition = "2021"
 name = "edge_agent_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[[bin]]
+name = "sign-sparkle-archive"
+path = "src/tools/sign_sparkle_archive.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

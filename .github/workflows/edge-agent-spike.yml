@@ -17,6 +17,20 @@ defaults:
     shell: bash
 
 jobs:
+  edge-agent-sparkle-linux:
+    name: Edge agent Sparkle (Linux Rust tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Rust stable
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cargo test (updater module)
+        run: cd apps/edge-agent/src-tauri && cargo test updater
+
   macos-spike-build:
     name: macOS Tauri build (Story 1.15)
     runs-on: macos-14
@@ -50,6 +64,46 @@ jobs:
 
       - name: Build Tauri app bundle
         run: pnpm --filter @deployai/edge-agent tauri build
+
+      - name: Story 11.5 — sign DMG + render Sparkle appcast (optional)
+        env:
+          SPARKLE_PRIVATE_KEY_SEED_B64: ${{ secrets.SPARKLE_PRIVATE_KEY_SEED_B64 }}
+          APPCAST_DOWNLOAD_BASE_URL: ${{ vars.APPCAST_DOWNLOAD_BASE_URL }}
+        run: |
+          set -euo pipefail
+          VERSION="$(jq -r .version apps/edge-agent/src-tauri/tauri.conf.json)"
+          DMG="$(find apps/edge-agent/src-tauri/target/release/bundle -name '*.dmg' | head -n1 || true)"
+          mkdir -p apps/edge-agent/dist
+          if [[ -z "${SPARKLE_PRIVATE_KEY_SEED_B64:-}" || -z "${DMG:-}" ]]; then
+            echo "No SPARKLE_PRIVATE_KEY_SEED_B64 and/or no DMG — copying stub appcast to dist."
+            cp -f apps/edge-agent/public/appcast.xml apps/edge-agent/dist/appcast.xml
+            exit 0
+          fi
+          (cd apps/edge-agent/src-tauri && cargo build --release --bin sign-sparkle-archive)
+          ABS_DMG="$GITHUB_WORKSPACE/$DMG"
+          FRAG="$(cd apps/edge-agent/src-tauri && SPARKLE_PRIVATE_KEY_SEED_B64="$SPARKLE_PRIVATE_KEY_SEED_B64" ./target/release/sign-sparkle-archive "$ABS_DMG")"
+          FRAG_ONE_LINE="$(echo "$FRAG" | tr -d '\n')"
+          BN="$(basename "$DMG")"
+          BASE="${APPCAST_DOWNLOAD_BASE_URL:-https://example.invalid/deployai-edge-agent}"
+          URL="${BASE%/}/$BN"
+          bash "$GITHUB_WORKSPACE/apps/edge-agent/scripts/render-appcast.sh" "$VERSION" "$URL" "$FRAG_ONE_LINE" "$GITHUB_WORKSPACE/apps/edge-agent/dist/appcast.xml"
+
+      - name: Story 11.5 — upload appcast + DMG to S3 (optional)
+        if: ${{ secrets.APPCAST_S3_BUCKET != '' && secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+        run: |
+          set -euo pipefail
+          brew install awscli
+          BUCKET="${{ secrets.APPCAST_S3_BUCKET }}"
+          export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
+          aws s3 cp apps/edge-agent/dist/appcast.xml "s3://$BUCKET/appcast.xml"
+          DMG="$(find apps/edge-agent/src-tauri/target/release/bundle -name '*.dmg' | head -n1 || true)"
+          if [[ -n "${DMG:-}" ]]; then
+            aws s3 cp "$DMG" "s3://$BUCKET/$(basename "$DMG")"
+          fi
 
       - name: Optional ad-hoc signing/notary (requires secrets)
         if: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' }}

@@ -88,6 +88,13 @@ function App() {
   const [transcriptStatus, setTranscriptStatus] = useState<string | null>(null);
   const [segmentLines, setSegmentLines] = useState("demo-line-1\ndemo-line-2");
   const [audioCaptureStatus, setAudioCaptureStatus] = useState<string | null>(null);
+  const [appcastUrl, setAppcastUrl] = useState(import.meta.env.VITE_APPCAST_URL?.trim() || "");
+  const [sparkleFetchOut, setSparkleFetchOut] = useState<string | null>(null);
+  const [verifyPath, setVerifyPath] = useState("");
+  const [verifySig, setVerifySig] = useState("");
+  const [verifyLen, setVerifyLen] = useState("");
+  const [verifyPk, setVerifyPk] = useState("");
+  const [sparkleVerifyOut, setSparkleVerifyOut] = useState<string | null>(null);
 
   const micGateOpen = !isTest && !consentOpen && !consentDeclined && !!consentRecord;
 
@@ -123,6 +130,49 @@ function App() {
       );
     } catch (error) {
       setCpHealth(`Request failed: ${String(error)}`);
+    }
+  }
+
+  async function runSparkleFetchLatest() {
+    const u = appcastUrl.trim();
+    if (!u) {
+      setSparkleFetchOut("Set appcast HTTPS URL (or VITE_APPCAST_URL).");
+      return;
+    }
+    try {
+      const j = await invoke<Record<string, unknown>>("edge_agent_sparkle_fetch_latest_item", {
+        appcastUrl: u,
+      });
+      setSparkleFetchOut(JSON.stringify(j, null, 2));
+    } catch (error) {
+      setSparkleFetchOut(`Fetch/parse failed: ${String(error)}`);
+    }
+  }
+
+  async function runSparkleVerifyLocal() {
+    const path = verifyPath.trim();
+    const sig = verifySig.trim();
+    const pk = verifyPk.trim();
+    const len = verifyLen.trim();
+    if (!path || !sig || !pk || !len) {
+      setSparkleVerifyOut("Path, edSignature, public key (std base64), and length are required.");
+      return;
+    }
+    const expectedLength = Number(len);
+    if (!Number.isFinite(expectedLength) || expectedLength < 0) {
+      setSparkleVerifyOut("Length must be a non-negative number (appcast enclosure).");
+      return;
+    }
+    try {
+      await invoke("edge_agent_sparkle_verify_local_archive", {
+        archivePath: path,
+        edSignatureB64: sig,
+        publicKeyEd25519B64: pk,
+        expectedLength,
+      });
+      setSparkleVerifyOut("Verify OK — archive matches signature and length.");
+    } catch (error) {
+      setSparkleVerifyOut(`Verify failed: ${String(error)}`);
     }
   }
 
@@ -319,6 +369,71 @@ function App() {
         </button>
         {audioCaptureStatus ? <p>{audioCaptureStatus}</p> : null}
       </section>
+      {!isTest ? (
+        <section className="panel">
+          <h2>Updates — Sparkle appcast (Story 11.5)</h2>
+          <p>
+            Fetch parses the first <code>&lt;item&gt;</code>. Verify checks a downloaded DMG/ZIP
+            against <code>sparkle:edSignature</code> (Ed25519 over raw bytes).
+          </p>
+          <label>
+            Appcast URL (HTTPS)
+            <input
+              className="cp-input"
+              value={appcastUrl}
+              onChange={(e) => setAppcastUrl(e.target.value)}
+              type="url"
+              placeholder="https://…/appcast.xml"
+              spellCheck={false}
+            />
+          </label>
+          <button type="button" onClick={() => void runSparkleFetchLatest()}>
+            Fetch latest enclosure
+          </button>
+          {sparkleFetchOut ? <pre className="cp-out">{sparkleFetchOut}</pre> : null}
+          <hr />
+          <label>
+            Local archive path
+            <input
+              className="cp-input"
+              value={verifyPath}
+              onChange={(e) => setVerifyPath(e.target.value)}
+              spellCheck={false}
+            />
+          </label>
+          <label>
+            sparkle:edSignature (std base64)
+            <input
+              className="cp-input"
+              value={verifySig}
+              onChange={(e) => setVerifySig(e.target.value)}
+              spellCheck={false}
+            />
+          </label>
+          <label>
+            Public key (std base64, 32-byte Ed25519)
+            <input
+              className="cp-input"
+              value={verifyPk}
+              onChange={(e) => setVerifyPk(e.target.value)}
+              spellCheck={false}
+            />
+          </label>
+          <label>
+            Length (bytes, from appcast)
+            <input
+              className="cp-input"
+              value={verifyLen}
+              onChange={(e) => setVerifyLen(e.target.value)}
+              inputMode="numeric"
+            />
+          </label>
+          <button type="button" onClick={() => void runSparkleVerifyLocal()}>
+            Verify local archive
+          </button>
+          {sparkleVerifyOut ? <p className="cp-out">{sparkleVerifyOut}</p> : null}
+        </section>
+      ) : null}
       <section className="panel">
         <h2>Keychain Round-trip</h2>
         <button type="button" onClick={() => void runKeychainRoundtrip()}>

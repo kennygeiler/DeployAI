@@ -6,8 +6,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use base64::Engine;
 use ed25519_dalek::Signer;
 use serde::Serialize;
-use tauri::Manager;
 use sha2::{Digest, Sha256};
+use tauri::Manager;
 use tsp_ltv::crypto::algorithm::DigestAlgorithm;
 use tsp_ltv::tsp::TsaClient;
 
@@ -186,7 +186,9 @@ pub async fn edge_agent_write_transcript_bundle(
     let rfc3161 = maybe_rfc3161(&merkle_root, attach_rfc3161).await?;
 
     let dir = app_data_dir(&app)?;
-    let bundle = dir.join("transcripts").join(uuid::Uuid::new_v4().to_string());
+    let bundle = dir
+        .join("transcripts")
+        .join(uuid::Uuid::new_v4().to_string());
     std::fs::create_dir_all(&bundle).map_err(|e| format!("create bundle dir: {e}"))?;
 
     std::fs::write(bundle.join("segments.json"), &segments_bytes)
@@ -200,10 +202,7 @@ pub async fn edge_agent_write_transcript_bundle(
         .as_millis() as i64;
 
     let (format, consent_hex) = if use_v2 {
-        (
-            FORMAT_V2.to_string(),
-            Some(hex::encode(consent_hash)),
-        )
+        (FORMAT_V2.to_string(), Some(hex::encode(consent_hash)))
     } else {
         (FORMAT.to_string(), None)
     };
