@@ -49,6 +49,7 @@ from control_plane.api.routes.strategist_integration_records import (
 from control_plane.api.routes.strategist_meeting_presence import (
     router as strategist_meeting_presence_internal_router,
 )
+from control_plane.api.routes.strategist_overrides import router as strategist_overrides_internal_router
 from control_plane.api.routes.strategist_pilot_surfaces import (
     router as strategist_pilot_surfaces_internal_router,
 )
@@ -92,6 +93,7 @@ app.include_router(internal_metrics_router, prefix="/internal/v1")
 app.include_router(internal_session_router, prefix="/internal/v1")
 app.include_router(strategist_meeting_presence_internal_router, prefix="/internal/v1")
 app.include_router(strategist_pilot_surfaces_internal_router, prefix="/internal/v1")
+app.include_router(strategist_overrides_internal_router, prefix="/internal/v1")
 app.include_router(strategist_integration_records_internal_router, prefix="/internal/v1")
 app.include_router(scim_users_router, prefix="/scim/v2")
 

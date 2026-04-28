@@ -4,7 +4,8 @@ import { decideSync } from "@deployai/authz";
 
 import { pushInMeetingAudit } from "@/lib/bff/strategist-queues-store";
 import { auditTypeForInMeetingAction } from "@/lib/epic9/in-meeting-alert-actions";
-import { getActorFromHeaders } from "@/lib/internal/actor";
+import { getActorFromHeaders, getActorIdFromHeaders } from "@/lib/internal/actor";
+import { postStrategistActivityToCp } from "@/lib/internal/strategist-cp-activity";
 
 type Body = {
   itemId: string;
@@ -37,5 +38,17 @@ export async function POST(request: NextRequest) {
   }
   const type = auditTypeForInMeetingAction(body.action);
   pushInMeetingAudit(actor.tenantId ?? null, { type, itemId: body.itemId });
+  const tid = actor.tenantId?.trim();
+  const aid = await getActorIdFromHeaders();
+  if (tid && aid) {
+    void postStrategistActivityToCp({
+      tenantId: tid,
+      actorId: aid,
+      category: "in_meeting_alert",
+      summary: `In-meeting ${body.action}: ${body.itemId}`,
+      detail: { item_id: body.itemId, action: body.action },
+      refId: null,
+    });
+  }
   return NextResponse.json({ ok: true, type }, { status: 200 });
 }

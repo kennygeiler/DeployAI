@@ -63,3 +63,34 @@ export async function getActorFromHeaders(): Promise<AuthActor | null> {
   }
   return { role, tenantId: tenant };
 }
+
+const DEV_ACTOR_FALLBACK = "00000000-0000-7000-8000-0000000000aa";
+
+/**
+ * Stable subject id for CP internal calls (JWT `sub`, header override, or dev fallback).
+ */
+export async function getActorIdFromHeaders(): Promise<string | null> {
+  const h = await headers();
+  const explicit = h.get("x-deployai-actor-id")?.trim();
+  if (explicit) {
+    return explicit;
+  }
+  if (process.env.DEPLOYAI_WEB_TRUST_JWT === "1") {
+    const c = await cookies();
+    const name = accessTokenCookieNameFromEnv();
+    const token = extractBearerToken(h.get("authorization")) ?? c.get(name)?.value ?? null;
+    if (token) {
+      const claims = await verifyDeployaiAccessJwt(token);
+      if (claims?.sub?.trim()) {
+        return claims.sub.trim();
+      }
+    }
+  }
+  if (
+    process.env.NODE_ENV === "development" &&
+    process.env.DEPLOYAI_DISABLE_DEV_STRATEGIST !== "1"
+  ) {
+    return process.env.DEPLOYAI_DEV_ACTOR_ID?.trim() || DEV_ACTOR_FALLBACK;
+  }
+  return null;
+}

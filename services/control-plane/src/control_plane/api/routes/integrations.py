@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 
 from control_plane.api.jwt_actor import bearer_auth_actor
+from control_plane.api.routes.auth import bearer_access_claims
 from control_plane.config.settings import get_settings
 from control_plane.db import AppDbSession
 from control_plane.domain.integrations.models import Integration
@@ -85,6 +86,7 @@ async def post_integration_disable(
     integration_id: uuid.UUID,
     session: AppDbSession,
     actor: Annotated[AuthActor, Depends(bearer_auth_actor)],
+    claims: Annotated[dict[str, object], Depends(bearer_access_claims)],
 ) -> dict[str, object]:
     r = await session.execute(select(Integration).where(Integration.id == integration_id).limit(1))
     it = r.scalar_one_or_none()
@@ -98,7 +100,14 @@ async def post_integration_disable(
     )
     if not d.allow:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=d.reason)
-    out = await disable_integration(session, integration_id)
+    sub_raw = claims.get("sub")
+    actor_uuid: uuid.UUID | None = None
+    if isinstance(sub_raw, str):
+        try:
+            actor_uuid = uuid.UUID(sub_raw)
+        except ValueError:
+            actor_uuid = None
+    out = await disable_integration(session, integration_id, actor_id=actor_uuid)
     if out.get("not_found") is True:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
     return {k: v for k, v in out.items() if k != "not_found"}

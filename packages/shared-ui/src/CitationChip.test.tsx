@@ -73,4 +73,40 @@ describe("CitationChip", () => {
     await user.click(btn);
     expect(onToggle).not.toHaveBeenCalled();
   });
+
+  it("shows trust earn-back label when trustRecoveryVisible", () => {
+    render(
+      <CitationChip
+        label="Cue"
+        expanded={false}
+        onToggleExpand={noop}
+        onViewEvidence={noop}
+        onOverride={noop}
+        onCopyLink={noop}
+        onCiteInOverride={noop}
+        preview={preview}
+        trustRecoveryVisible
+      />,
+    );
+    expect(screen.getByText("Recovered")).toHaveAttribute("data-trust-earn-back", "true");
+  });
+
+  it("renders override badge as link when overrideEvidenceHref is set", () => {
+    render(
+      <CitationChip
+        label="Ov"
+        expanded={false}
+        visualState="overridden"
+        onToggleExpand={noop}
+        onViewEvidence={noop}
+        onOverride={noop}
+        onCopyLink={noop}
+        onCiteInOverride={noop}
+        preview={preview}
+        overrideEvidenceHref="/evidence/test-node"
+      />,
+    );
+    const link = screen.getByRole("link", { name: /view override evidence/i });
+    expect(link).toHaveAttribute("href", "/evidence/test-node");
+  });
 });

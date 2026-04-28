@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Final, Literal
+from typing import Annotated, Final, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
@@ -24,6 +24,16 @@ def _is_rfc3339_utcish(s: str) -> bool:
             s,
         ),
     )
+
+
+class CitationSupersessionOverriddenV01(BaseModel):
+    """Epic 10.3 — learning was superseded by a strategist override."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    type: Literal["overridden"] = "overridden"
+    override_event_id: UUID
+    overriding_evidence_event_ids: Annotated[list[UUID], Field(min_length=1)]
 
 
 class EvidenceSpanV01(BaseModel):
@@ -53,6 +63,7 @@ class CitationEnvelopeV01(BaseModel):
     retrieval_phase: str
     confidence_score: float = Field(ge=0.0, le=1.0)
     signed_timestamp: str = Field(min_length=1)
+    supersession: CitationSupersessionOverriddenV01 | None = None
 
     @field_validator("retrieval_phase")
     @classmethod

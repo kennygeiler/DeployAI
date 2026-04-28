@@ -21,6 +21,15 @@ export const evidenceSpanSchema = z.object({
 
 export type EvidenceSpan = z.infer<typeof evidenceSpanSchema>;
 
+/** Epic 10.3 — cite of a learning that was strategist-overridden. */
+export const citationSupersessionOverriddenSchema = z.object({
+  type: z.literal("overridden"),
+  override_event_id: z.string().uuid(),
+  overriding_evidence_event_ids: z.array(z.string().uuid()).min(1),
+});
+
+export type CitationSupersessionOverridden = z.infer<typeof citationSupersessionOverriddenSchema>;
+
 /**
  * Mandatory envelope for any agent output that cites canonical memory (FR27).
  * Zod is the authoring source; JSON Schema is emitted to `schema/` for CI and Python.
@@ -35,6 +44,7 @@ export const CitationEnvelopeSchema = z
     confidence_score: z.number().min(0).max(1),
     /** ISO 8601 timestamp string (RFC 3339 profile). */
     signed_timestamp: z.string().min(1),
+    supersession: citationSupersessionOverriddenSchema.optional(),
   })
   .superRefine((val, ctx) => {
     if (val.evidence_span.end < val.evidence_span.start) {
