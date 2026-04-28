@@ -95,16 +95,13 @@ export function OverrideComposer({
         : undefined;
   const evErr =
     touched.evidence && selected.size === 0 ? "Select at least one evidence item." : undefined;
-  const uuidRe =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const lidErr =
     withLearningId && touched.learningId && !uuidRe.test(learningId.trim())
       ? "Enter the solidified learning UUID."
       : undefined;
   const privErr =
-    withPrivateAnnotation &&
-    touched.privateNote &&
-    privateNote.length > 8000
+    withPrivateAnnotation && touched.privateNote && privateNote.length > 8000
       ? "Private note must be 8000 characters or fewer."
       : undefined;
   const errorCount = [whatErr, whyErr, evErr, lidErr, privErr].filter(Boolean).length;
@@ -215,7 +212,8 @@ export function OverrideComposer({
           <div className="flex flex-wrap items-start justify-between gap-2">
             <p>
               <span className="font-medium text-evidence-800">Override recorded.</span> Propagation
-              preview is shown in the sidecar; this confirmation stays until you dismiss it (UX-DR24).
+              preview is shown in the sidecar; this confirmation stays until you dismiss it
+              (UX-DR24).
             </p>
             <button
               type="button"

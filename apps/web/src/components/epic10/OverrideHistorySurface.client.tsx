@@ -78,12 +78,20 @@ export function OverrideHistorySurface() {
         setEvidenceOptions(
           h.length > 0
             ? h.map((x) => ({ id: x.id, label: x.label }))
-            : [{ id: "00000000-0000-7000-8000-000000000001", label: "Demo evidence (configure digest)" }],
+            : [
+                {
+                  id: "00000000-0000-7000-8000-000000000001",
+                  label: "Demo evidence (configure digest)",
+                },
+              ],
         );
       })
       .catch(() => {
         setEvidenceOptions([
-          { id: "00000000-0000-7000-8000-000000000001", label: "Demo evidence (search unavailable)" },
+          {
+            id: "00000000-0000-7000-8000-000000000001",
+            label: "Demo evidence (search unavailable)",
+          },
         ]);
       });
   }, []);
@@ -143,7 +151,8 @@ export function OverrideHistorySurface() {
       <div>
         <h1 className="text-display text-ink-950 font-semibold tracking-tight">Override history</h1>
         <p className="text-body text-ink-600 mt-1">
-          Durable overrides from canonical memory (Epic 10). Filter by scope and open linked evidence.
+          Durable overrides from canonical memory (Epic 10). Filter by scope and open linked
+          evidence.
         </p>
       </div>
 
@@ -249,7 +258,9 @@ export function OverrideHistorySurface() {
                 <tr key={hg.id}>
                   {hg.headers.map((h) => (
                     <th key={h.id} className="px-3 py-2 font-medium">
-                      {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
+                      {h.isPlaceholder
+                        ? null
+                        : flexRender(h.column.columnDef.header, h.getContext())}
                     </th>
                   ))}
                 </tr>

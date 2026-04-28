@@ -10,7 +10,9 @@ export type StrategistActivityPayload = {
 };
 
 /** Best-effort CP append for personal audit (Epic 10.7); no throw when unconfigured. */
-export async function postStrategistActivityToCp(payload: StrategistActivityPayload): Promise<boolean> {
+export async function postStrategistActivityToCp(
+  payload: StrategistActivityPayload,
+): Promise<boolean> {
   const base = getControlPlaneBaseUrl()?.replace(/\/$/, "");
   const key = getControlPlaneInternalKey();
   if (!base?.trim() || !key?.trim()) {

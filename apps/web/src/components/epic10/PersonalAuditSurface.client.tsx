@@ -14,9 +14,9 @@ type Item = {
   created_at: string;
 };
 
-async function fetchPersonalAudit(categoryFilter: string): Promise<
-  { ok: true; items: Item[] } | { ok: false; error: string }
-> {
+async function fetchPersonalAudit(
+  categoryFilter: string,
+): Promise<{ ok: true; items: Item[] } | { ok: false; error: string }> {
   const sp = new URLSearchParams();
   if (categoryFilter.trim()) {
     sp.set("category", categoryFilter.trim());
