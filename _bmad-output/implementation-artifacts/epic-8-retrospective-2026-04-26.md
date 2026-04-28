@@ -1,6 +1,6 @@
-# Epic 8 retrospective — Strategist walking skeleton (partial epic)
+# Epic 8 retrospective — Strategist walking skeleton
 
-**Date:** 2026-04-26 · **Scope:** Stories 8.1–8.7 **as implemented on `main`** (not full `epics.md` AC compliance). See [`epic-8-implementation-status.md`](./epic-8-implementation-status.md).
+**Date:** 2026-04-26 (original) · **Updated:** 2026-04-28 · **Scope:** Stories **8-1–8-7** per sprint grid. **PRD fidelity:** not every `epics.md` AC is satisfied — see [`epic-8-implementation-status.md`](./epic-8-implementation-status.md) for the gap table (“V1 walking skeleton” vs full spec).
 
 ## Outcomes
 
@@ -17,8 +17,8 @@
 
 ## Learnings and risks
 
+- **Two meanings of “done”:** **Sprint grid:** all 8-x stories **done** — composable shell shipped. **PRD letter:** Oracle schedules, NFR2/NFR4, global palette search, SessionBanner slot, etc. — **hardening** / follow-on. Use `epic-8-implementation-status.md` + `whats-actually-here.md` when talking to FDEs or buyers.
 - **Spec vs velocity:** The written epic assumes Oracle-scheduled digests, NFR2/NFR4 measurement, and top-5 SR journeys — a **hardening** track, not a single PR.
-- **“Epic 8 done” must be defined:** Use this doc + `epic-8-implementation-status.md` to avoid calling the epic closed before agreed gates (e.g. Oracle wire-up + perf E2E) are met.
 - **SessionBanner + breadcrumbs:** Still open for break-glass / nested evidence UX (ties Epic 2 + 12).
 
 ## Forward
@@ -31,3 +31,8 @@
 ## Sentiment (brief)
 
 The skeleton delivers **Journey 1** *demonstrability*; production-grade **FR34/FR35/FR39** need agent and schedule integration beyond UI-only mocks.
+
+## Retrospective closure (BMAD — 2026-04-28)
+
+- **Sprint status:** `epic-8-retrospective` marked **done**; this doc remains the **honest** record that **PRD AC ≠ sprint checkbox** for every line in `epics.md`.
+- **Neighbor:** [Epic 9 retrospective — 2026-04-28](./epic-9-retrospective-2026-04-28.md) (queues, in-meeting, BFF limits).

@@ -16,4 +16,4 @@ This document records what is **in `main` today** against Stories **8.1–8.7**.
 
 **Conclusion for planning:** Epic 8 is **not** “complete” in the sense of every **Given/When/Then** in `epics.md`. It **is** ready as a **composable base** for hardening (data wiring, performance tests, a11y journey scripts, nav completeness) and for **Epic 9** queue/in-meeting work in parallel where dependencies allow.
 
-**Related:** [Epic 8 retrospective (2026-04-26)](./epic-8-retrospective-2026-04-26.md).
+**Related:** [Epic 8 retrospective (2026-04-26, updated 2026-04-28)](./epic-8-retrospective-2026-04-26.md) · [Epic 9 retrospective (2026-04-28)](./epic-9-retrospective-2026-04-28.md) · [FDE pilot — `whats-actually-here.md` §10](../../whats-actually-here.md#10-fde-field-evaluation-pilot).
