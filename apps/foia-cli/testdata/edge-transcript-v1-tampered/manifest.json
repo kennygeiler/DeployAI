@@ -1,0 +1,9 @@
+{
+  "createdAtUnixMs": 0,
+  "deviceId": "golden-device",
+  "format": "deployai.edge.transcript.v1",
+  "merkleRootHex": "dda688296cb058a561c685a7686aa7e0a137e2252d33fee9add9feb4470e501c",
+  "publicKeyEd25519B64": "6EIT8ZA3M0gjYgsIfAnHGEs6bEcCDRe2tipA5130zno=",
+  "segmentsFile": "segments.json",
+  "transcriptSha256Hex": "8be5e978a87c3e93a573ab92fd7f66b0748dc3cf01606ed1d21819bd64361f17"
+}

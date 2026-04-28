@@ -61,3 +61,29 @@ func TestVerifyEdgeTranscriptBundleDir_roundTrip(t *testing.T) {
 		t.Fatal("expected error after tamper")
 	}
 }
+
+func testdataDir(t *testing.T, name string) string {
+	t.Helper()
+	dir, err := filepath.Abs(filepath.Join("..", "..", "testdata", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// Story 11.6: air-gapped verification uses only on-disk bundle + stdlib/crypto (no DeployAI RPC).
+func TestVerifyGoldenCommittedBundle_valid(t *testing.T) {
+	t.Parallel()
+	dir := testdataDir(t, "edge-transcript-v1-valid")
+	if err := VerifyEdgeTranscriptBundleDir(dir, "", false); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestVerifyGoldenCommittedBundle_tampered(t *testing.T) {
+	t.Parallel()
+	dir := testdataDir(t, "edge-transcript-v1-tampered")
+	if err := VerifyEdgeTranscriptBundleDir(dir, "", false); err == nil {
+		t.Fatal("expected verify failure for tampered segments with original signature")
+	}
+}

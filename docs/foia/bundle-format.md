@@ -45,6 +45,8 @@ foia verify path/to/bundle-dir
 
 Pass `--public-key-b64` to require a specific registered key (must match `publicKeyEd25519B64` in the manifest). Use `--skip-tsa` to validate only the device signature and Merkle chain when a token is present but trust-store validation is not desired.
 
+**Committed golden fixtures** (Story 11.6, no network): `apps/foia-cli/testdata/edge-transcript-v1-valid` and `…-tampered` are exercised by `go test ./pkg/verify/...`. Regenerate after format changes with `go run ./hack/gen-golden-edge-bundle` from `apps/foia-cli`.
+
 ## Future: canonical-memory FOIA export (Epic 12)
 
 Story 12.2+ will add a larger bundle type (events, tombstones, CP signatures, RFC3161 on export). The CLI will select verifier logic by `format` in `manifest.json`; edge transcript v1 remains the first implemented kind.

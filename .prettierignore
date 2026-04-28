@@ -15,6 +15,8 @@ _bmad-output/
 apps/edge-agent/src-tauri/gen/
 apps/edge-agent/src-tauri/target/
 apps/foia-cli/bin/
+# Golden FOIA fixtures — byte-exact JSON for SHA256 / signatures (Story 11.6)
+apps/foia-cli/testdata/
 services/control-plane/.venv/
 services/control-plane/alembic/README
 services/control-plane/alembic/versions/

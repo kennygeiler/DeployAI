@@ -1,8 +1,59 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import "./App.css";
+import { TwoPartyConsentDialog } from "./TwoPartyConsentDialog";
 
 const MIC_PROMPT_FLAG = "deployai.edgeAgent.micPrompted.v1";
+const CONSENT_KEY = "deployai.edgeAgent.twoPartyConsent.v1";
+
+type ConsentRecord = {
+  version: 1;
+  jurisdiction: string;
+  acceptedAt: string;
+};
+
+function readConsent(): ConsentRecord | null {
+  try {
+    const raw = localStorage.getItem(CONSENT_KEY);
+    if (!raw) {
+      return null;
+    }
+    const v = JSON.parse(raw) as ConsentRecord;
+    if (
+      v?.version !== 1 ||
+      typeof v.jurisdiction !== "string" ||
+      typeof v.acceptedAt !== "string"
+    ) {
+      return null;
+    }
+    return v;
+  } catch {
+    return null;
+  }
+}
+
+function writeConsent(jurisdiction: string): ConsentRecord {
+  const rec: ConsentRecord = {
+    version: 1,
+    jurisdiction,
+    acceptedAt: new Date().toISOString(),
+  };
+  localStorage.setItem(CONSENT_KEY, JSON.stringify(rec));
+  return rec;
+}
+
+function initialMicMessage(isTest: boolean): string {
+  if (isTest) {
+    return "Microphone permission check skipped in tests.";
+  }
+  if (!readConsent()) {
+    return "Waiting for recording consent…";
+  }
+  if (localStorage.getItem(MIC_PROMPT_FLAG)) {
+    return "Microphone permission prompt already shown on this machine.";
+  }
+  return "Requesting microphone access…";
+}
 
 async function promptMicAccess(): Promise<string> {
   if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
@@ -19,19 +70,23 @@ async function promptMicAccess(): Promise<string> {
 }
 
 function App() {
-  const [micStatus, setMicStatus] = useState(() =>
-    import.meta.env.MODE === "test"
-      ? "Microphone permission check skipped in tests."
-      : "Checking first-launch permissions...",
+  const isTest = import.meta.env.MODE === "test";
+  const [consentRecord, setConsentRecord] = useState<ConsentRecord | null>(() =>
+    isTest ? null : readConsent(),
   );
+  const [consentOpen, setConsentOpen] = useState(() => (isTest ? false : !readConsent()));
+  const [consentDeclined, setConsentDeclined] = useState(false);
+  const [micStatus, setMicStatus] = useState(() => initialMicMessage(isTest));
   const [keychainStatus, setKeychainStatus] = useState<string | null>(null);
   const [cpBase, setCpBase] = useState(
     import.meta.env.VITE_CONTROL_PLANE_URL?.trim() || "http://127.0.0.1:8000",
   );
   const [cpHealth, setCpHealth] = useState<string | null>(null);
 
+  const micGateOpen = !isTest && !consentOpen && !consentDeclined && !!consentRecord;
+
   useEffect(() => {
-    if (import.meta.env.MODE === "test") {
+    if (isTest || !micGateOpen) {
       return;
     }
     const prompted = localStorage.getItem(MIC_PROMPT_FLAG);
@@ -43,7 +98,7 @@ function App() {
       setMicStatus(msg);
       localStorage.setItem(MIC_PROMPT_FLAG, "1");
     });
-  }, []);
+  }, [isTest, micGateOpen]);
 
   async function runControlPlaneHealth() {
     const u = cpBase.trim();
@@ -81,11 +136,49 @@ function App() {
     <main className="container">
       <h1>DeployAI Edge Agent</h1>
       <p>
-        Edge capture shell: first-launch mic check, keychain test, and control-plane reachability.
+        Edge capture shell: two-party consent gate, first-launch mic check, keychain test, and
+        control-plane reachability.
       </p>
+      {!isTest ? (
+        <TwoPartyConsentDialog
+          open={consentOpen}
+          onDecline={() => {
+            setConsentOpen(false);
+            setConsentDeclined(true);
+            setMicStatus("Recording disabled — consent was declined. Clear site data to reset.");
+          }}
+          onAccept={(jurisdiction) => {
+            const rec = writeConsent(jurisdiction);
+            setConsentRecord(rec);
+            setConsentOpen(false);
+            setMicStatus("Consent recorded. Requesting microphone access…");
+          }}
+        />
+      ) : null}
       <section className="panel">
-        <h2>Audio Permission (first launch)</h2>
-        <p>{micStatus}</p>
+        <h2>Recording consent (Story 11.4)</h2>
+        {isTest ? (
+          <p>Consent dialog skipped in test mode.</p>
+        ) : consentDeclined ? (
+          <p>{micStatus}</p>
+        ) : consentRecord ? (
+          <p>
+            On-device attestation stored (jurisdiction:{" "}
+            <strong>{consentRecord.jurisdiction}</strong>, accepted {consentRecord.acceptedAt}).
+          </p>
+        ) : consentOpen ? (
+          <p>Complete the dialog above to enable capture.</p>
+        ) : (
+          <p>Waiting for consent…</p>
+        )}
+      </section>
+      <section className="panel">
+        <h2>Audio permission (after consent)</h2>
+        {isTest || consentDeclined ? <p>{micStatus}</p> : null}
+        {!isTest && !consentDeclined && micGateOpen ? <p>{micStatus}</p> : null}
+        {!isTest && !consentDeclined && consentOpen ? (
+          <p>Microphone prompt runs after you accept.</p>
+        ) : null}
       </section>
       <section className="panel">
         <h2>Control plane</h2>
