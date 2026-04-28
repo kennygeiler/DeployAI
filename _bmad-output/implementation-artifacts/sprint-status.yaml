@@ -38,7 +38,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-21
-last_updated: 2026-04-26
+last_updated: 2026-04-28
 project: DeployAI
 project_key: NOKEY
 tracking_system: file-system
@@ -205,18 +205,18 @@ development_status:
   11-1-tauri-capability-based-permissions-scaffold: done
   11-2-per-device-hardware-backed-signing-key: done
   11-3-tamper-evident-local-transcript: done
-  11-4-audio-capture-and-two-party-consent-ux: in-progress
-  11-5-sparkle-auto-updater-with-signed-appcast: backlog
+  11-4-audio-capture-and-two-party-consent-ux: review
+  11-5-sparkle-auto-updater-with-signed-appcast: done
   11-6-offline-verification-via-foia-cli-integration: done
-  11-7-edge-agent-kill-switch: backlog
+  11-7-edge-agent-kill-switch: review
   epic-11-retrospective: optional
 
   # ======================================================================
   # Epic 12: FOIA Export, Compliance, Operability & External Auditor (w17–23)
   # ======================================================================
-  epic-12: backlog
+  epic-12: in-progress
   12-1-go-foia-cli-signed-binary-offline-verifier: done
-  12-2-foia-bundle-construction-four-hour-ten-gb: backlog
+  12-2-foia-bundle-construction-four-hour-ten-gb: review
   12-3-external-auditor-jit-read-only-shell: backlog
   12-4-break-glass-end-to-end-operability: backlog
   12-5-immutable-audit-log-with-s3-object-lock: backlog

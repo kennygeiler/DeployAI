@@ -85,6 +85,16 @@ function App() {
   const [tenantId, setTenantId] = useState("");
   const [internalKey, setInternalKey] = useState("");
   const [killStatus, setKillStatus] = useState<string | null>(null);
+  const [transcriptStatus, setTranscriptStatus] = useState<string | null>(null);
+  const [segmentLines, setSegmentLines] = useState("demo-line-1\ndemo-line-2");
+  const [audioCaptureStatus, setAudioCaptureStatus] = useState<string | null>(null);
+  const [appcastUrl, setAppcastUrl] = useState(import.meta.env.VITE_APPCAST_URL?.trim() || "");
+  const [sparkleFetchOut, setSparkleFetchOut] = useState<string | null>(null);
+  const [verifyPath, setVerifyPath] = useState("");
+  const [verifySig, setVerifySig] = useState("");
+  const [verifyLen, setVerifyLen] = useState("");
+  const [verifyPk, setVerifyPk] = useState("");
+  const [sparkleVerifyOut, setSparkleVerifyOut] = useState<string | null>(null);
 
   const micGateOpen = !isTest && !consentOpen && !consentDeclined && !!consentRecord;
 
@@ -123,12 +133,55 @@ function App() {
     }
   }
 
+  async function runSparkleFetchLatest() {
+    const u = appcastUrl.trim();
+    if (!u) {
+      setSparkleFetchOut("Set appcast HTTPS URL (or VITE_APPCAST_URL).");
+      return;
+    }
+    try {
+      const j = await invoke<Record<string, unknown>>("edge_agent_sparkle_fetch_latest_item", {
+        appcastUrl: u,
+      });
+      setSparkleFetchOut(JSON.stringify(j, null, 2));
+    } catch (error) {
+      setSparkleFetchOut(`Fetch/parse failed: ${String(error)}`);
+    }
+  }
+
+  async function runSparkleVerifyLocal() {
+    const path = verifyPath.trim();
+    const sig = verifySig.trim();
+    const pk = verifyPk.trim();
+    const len = verifyLen.trim();
+    if (!path || !sig || !pk || !len) {
+      setSparkleVerifyOut("Path, edSignature, public key (std base64), and length are required.");
+      return;
+    }
+    const expectedLength = Number(len);
+    if (!Number.isFinite(expectedLength) || expectedLength < 0) {
+      setSparkleVerifyOut("Length must be a non-negative number (appcast enclosure).");
+      return;
+    }
+    try {
+      await invoke("edge_agent_sparkle_verify_local_archive", {
+        archivePath: path,
+        edSignatureB64: sig,
+        publicKeyEd25519B64: pk,
+        expectedLength,
+      });
+      setSparkleVerifyOut("Verify OK — archive matches signature and length.");
+    } catch (error) {
+      setSparkleVerifyOut(`Verify failed: ${String(error)}`);
+    }
+  }
+
   async function runRefreshKillSwitch() {
     const t = tenantId.trim();
     const k = internalKey.trim();
     const u = cpBase.trim();
     if (!t || !k || !u) {
-      setKillStatus("Set control plane URL, tenant id, and internal API key.");
+      setKillStatus("Set control plane URL, tenant id, and internal API key first.");
       return;
     }
     try {
@@ -138,11 +191,47 @@ function App() {
       );
       setKillStatus(
         j.revoked
-          ? "Revoked on control plane — transcript signing is blocked until app restart."
+          ? "Device is revoked on the control plane — transcript signing will be blocked."
           : `Not revoked (HTTP ${j.httpStatus ?? "?"})${j.note ? ` — ${j.note}` : ""}`,
       );
     } catch (error) {
-      setKillStatus(`Kill-switch poll failed: ${String(error)}`);
+      setKillStatus(`Kill-switch refresh failed: ${String(error)}`);
+    }
+  }
+
+  async function runWriteTranscriptBundle() {
+    if (isTest) {
+      setTranscriptStatus("Skipped in test mode.");
+      return;
+    }
+    const lines = segmentLines
+      .split("\n")
+      .map((s) => s.trimEnd())
+      .filter((s) => s.length > 0);
+    if (lines.length === 0) {
+      setTranscriptStatus("Add at least one non-empty segment line.");
+      return;
+    }
+    const consentJson = consentRecord ? JSON.stringify(consentRecord) : null;
+    try {
+      const out = await invoke<{ bundleDir?: string }>("edge_agent_write_transcript_bundle", {
+        segments: lines,
+        attachRfc3161: false,
+        consentJson,
+        transcriptFormat: "v2",
+      });
+      setTranscriptStatus(`Wrote transcript v2 bundle: ${out.bundleDir ?? "(path unknown)"}`);
+    } catch (error) {
+      setTranscriptStatus(`Write bundle failed: ${String(error)}`);
+    }
+  }
+
+  async function runAudioCaptureStatus() {
+    try {
+      const s = await invoke<string>("edge_agent_audio_capture_status");
+      setAudioCaptureStatus(s);
+    } catch (error) {
+      setAudioCaptureStatus(`Status failed: ${String(error)}`);
     }
   }
 
@@ -229,7 +318,7 @@ function App() {
             className="cp-input"
             value={tenantId}
             onChange={(e) => setTenantId(e.target.value)}
-            placeholder="tenant UUID"
+            placeholder="00000000-0000-0000-0000-000000000000"
             spellCheck={false}
           />
         </label>
@@ -239,16 +328,112 @@ function App() {
             className="cp-input"
             value={internalKey}
             onChange={(e) => setInternalKey(e.target.value)}
+            placeholder="X-DeployAI-Internal-Key value"
+            spellCheck={false}
             type="password"
             autoComplete="off"
-            spellCheck={false}
           />
         </label>
         <button type="button" onClick={() => void runRefreshKillSwitch()}>
-          Refresh kill-switch (GET by-device)
+          Refresh kill-switch (by-device)
         </button>
         {killStatus ? <p className="cp-out">{killStatus}</p> : null}
       </section>
+      {!isTest ? (
+        <section className="panel">
+          <h2>Transcript bundle (Story 11.4 / 11.7)</h2>
+          <p>
+            Writes <code>deployai.edge.transcript.v2</code> under app data. Consent JSON from
+            localStorage is hashed into the signed manifest when present.
+          </p>
+          <label>
+            Segment lines (one string per line)
+            <textarea
+              className="cp-input"
+              value={segmentLines}
+              onChange={(e) => setSegmentLines(e.target.value)}
+              rows={4}
+              spellCheck={false}
+            />
+          </label>
+          <button type="button" onClick={() => void runWriteTranscriptBundle()}>
+            Write signed transcript bundle (v2)
+          </button>
+          {transcriptStatus ? <p className="cp-out">{transcriptStatus}</p> : null}
+        </section>
+      ) : null}
+      <section className="panel">
+        <h2>Local audio capture (spike)</h2>
+        <button type="button" onClick={() => void runAudioCaptureStatus()}>
+          CoreAudio / local capture status
+        </button>
+        {audioCaptureStatus ? <p>{audioCaptureStatus}</p> : null}
+      </section>
+      {!isTest ? (
+        <section className="panel">
+          <h2>Updates — Sparkle appcast (Story 11.5)</h2>
+          <p>
+            Fetch parses the first <code>&lt;item&gt;</code>. Verify checks a downloaded DMG/ZIP
+            against <code>sparkle:edSignature</code> (Ed25519 over raw bytes).
+          </p>
+          <label>
+            Appcast URL (HTTPS)
+            <input
+              className="cp-input"
+              value={appcastUrl}
+              onChange={(e) => setAppcastUrl(e.target.value)}
+              type="url"
+              placeholder="https://…/appcast.xml"
+              spellCheck={false}
+            />
+          </label>
+          <button type="button" onClick={() => void runSparkleFetchLatest()}>
+            Fetch latest enclosure
+          </button>
+          {sparkleFetchOut ? <pre className="cp-out">{sparkleFetchOut}</pre> : null}
+          <hr />
+          <label>
+            Local archive path
+            <input
+              className="cp-input"
+              value={verifyPath}
+              onChange={(e) => setVerifyPath(e.target.value)}
+              spellCheck={false}
+            />
+          </label>
+          <label>
+            sparkle:edSignature (std base64)
+            <input
+              className="cp-input"
+              value={verifySig}
+              onChange={(e) => setVerifySig(e.target.value)}
+              spellCheck={false}
+            />
+          </label>
+          <label>
+            Public key (std base64, 32-byte Ed25519)
+            <input
+              className="cp-input"
+              value={verifyPk}
+              onChange={(e) => setVerifyPk(e.target.value)}
+              spellCheck={false}
+            />
+          </label>
+          <label>
+            Length (bytes, from appcast)
+            <input
+              className="cp-input"
+              value={verifyLen}
+              onChange={(e) => setVerifyLen(e.target.value)}
+              inputMode="numeric"
+            />
+          </label>
+          <button type="button" onClick={() => void runSparkleVerifyLocal()}>
+            Verify local archive
+          </button>
+          {sparkleVerifyOut ? <p className="cp-out">{sparkleVerifyOut}</p> : null}
+        </section>
+      ) : null}
       <section className="panel">
         <h2>Keychain Round-trip</h2>
         <button type="button" onClick={() => void runKeychainRoundtrip()}>

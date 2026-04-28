@@ -13,6 +13,7 @@ struct ByDeviceResponse {
     revoked_at: Option<serde_json::Value>,
 }
 
+/// Whether the last successful refresh indicated this device is revoked on the control plane.
 pub fn is_revoked() -> bool {
     REVOKED.load(Ordering::SeqCst)
 }
@@ -27,6 +28,7 @@ pub fn edge_agent_kill_switch_status() -> serde_json::Value {
     serde_json::json!({ "revoked": is_revoked() })
 }
 
+/// GET `/internal/v1/edge-agents/by-device` and set local revoked flag from `revoked_at`.
 #[tauri::command]
 pub async fn edge_agent_refresh_kill_switch_from_control_plane(
     app: tauri::AppHandle,
