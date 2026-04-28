@@ -15,4 +15,5 @@ COPY apps/edge-agent/src-tauri/ ./src-tauri/
 WORKDIR /src/src-tauri
 RUN cargo fetch
 RUN cargo check --locked || cargo check
+RUN cargo test --lib --locked || cargo test --lib
 CMD ["echo", "cargo check ok"]

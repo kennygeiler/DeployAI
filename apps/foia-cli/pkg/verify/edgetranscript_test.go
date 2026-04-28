@@ -1,0 +1,63 @@
+package verify
+
+import (
+	"crypto/ed25519"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestVerifyEdgeTranscriptBundleDir_roundTrip(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	pub, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	segs := []string{"alpha", "beta"}
+	segBytes, err := json.Marshal(segs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "segments.json"), segBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	th := sha256.Sum256(segBytes)
+	mr := MerkleRootChain(segs)
+	payload := EdgeTranscriptSigningPayload("device-1", mr[:], th[:])
+	sig := ed25519.Sign(priv, payload)
+	sigB64 := base64.StdEncoding.EncodeToString(sig)
+	if err := os.WriteFile(filepath.Join(dir, "transcript.sig"), []byte(sigB64), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	mf := map[string]any{
+		"format":              EdgeTranscriptFormat,
+		"deviceId":            "device-1",
+		"publicKeyEd25519B64": base64.StdEncoding.EncodeToString(pub),
+		"merkleRootHex":       hex.EncodeToString(mr[:]),
+		"transcriptSha256Hex": hex.EncodeToString(th[:]),
+		"segmentsFile":        "segments.json",
+		"createdAtUnixMs":     int64(0),
+	}
+	mb, err := json.MarshalIndent(mf, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), mb, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyEdgeTranscriptBundleDir(dir, "", false); err != nil {
+		t.Fatal(err)
+	}
+	// Tamper segments → fail
+	if err := os.WriteFile(filepath.Join(dir, "segments.json"), []byte(`["alpha","gamma"]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyEdgeTranscriptBundleDir(dir, "", false); err == nil {
+		t.Fatal("expected error after tamper")
+	}
+}

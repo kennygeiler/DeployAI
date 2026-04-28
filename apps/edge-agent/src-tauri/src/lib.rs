@@ -10,6 +10,7 @@ mod transcription;
 mod updater;
 mod crypto;
 mod device_identity;
+mod transcript;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -21,6 +22,7 @@ pub fn run() {
             net::control_plane_health,
             device_identity::edge_agent_signing_identity,
             device_identity::edge_agent_register_with_control_plane,
+            transcript::edge_agent_write_transcript_bundle,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

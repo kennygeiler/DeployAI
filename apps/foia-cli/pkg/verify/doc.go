@@ -4,9 +4,6 @@
 package verify
 
 // Description returns a human-readable banner for the CLI.
-//
-// Once the package is implemented, this will be replaced with actual verification
-// entry points.
 func Description() string {
-	return "scaffold - verification logic populates in Story 1.12+"
+	return "subcommands: verify <bundle-dir> (edge transcript v1), export (planned)"
 }

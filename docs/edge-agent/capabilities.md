@@ -25,7 +25,7 @@ This document maps each declared capability in `apps/edge-agent/src-tauri/tauri.
 ## `keychain:read-write`
 
 - **Purpose:** Store per-device keys and secrets in the macOS Keychain (Epic 11 signing stories).
-- **Scope:** Rust-only via the `keyring` crate and allowlisted Tauri commands. **Story 11.2:** `edge_agent_signing_identity` / `edge_agent_register_with_control_plane` persist a **32-byte Ed25519 signing seed** (Base64) under service `app.deployai.edge-agent` / account `ed25519-signing-key-v1`. **NFR20 note:** today this uses the `keyring` default accessibility; tightening to `kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly` is a documented hardening follow-up. Spike command `keychain_roundtrip` remains for diagnostics.
+- **Scope:** Rust-only via the `keyring` crate and allowlisted Tauri commands. **Story 11.2:** `edge_agent_signing_identity` / `edge_agent_register_with_control_plane` persist a **32-byte Ed25519 signing seed** (Base64) under service `app.deployai.edge-agent` / account `ed25519-signing-key-v1`. **Story 11.3:** `edge_agent_write_transcript_bundle` writes `deployai.edge.transcript.v1` under app-local `transcripts/<uuid>/` (`segments.json`, `manifest.json`, `transcript.sig`) with a SHA256 Merkle chain over segments, optional RFC3161 via `DEPLOYAI_EDGE_TSA_URL` (default `https://freetsa.org/tsr`). **NFR20 note:** today this uses the `keyring` default accessibility; tightening to `kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly` is a documented hardening follow-up. Spike command `keychain_roundtrip` remains for diagnostics.
 
 ## `http:api-only`
 
