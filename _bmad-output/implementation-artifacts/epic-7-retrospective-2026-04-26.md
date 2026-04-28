@@ -48,3 +48,10 @@
 - **`turbo.json`:** `test` task `outputs` cleared to `[]` to remove recurring Turbo warnings when packages do not emit `coverage/`.
 - **Docs:** `docs/design-system/governance.md` (CI / path-filtered required checks) and `packages/shared-ui/README.md` (button policy: package vs `apps/web`).
 - **Cross-link:** `epic-7-design-system-completion.md` points to this retrospective.
+
+## Retrospective closure (BMAD — 2026-04-28)
+
+- **Sprint status:** `epic-7-retrospective` set to **done** alongside Epics 8–9 closures in the same housekeeping pass.
+- **Action-item verification:** `turbo.json` uses `test.outputs: []` (no spurious Turbo cache warnings); `docs/design-system/governance.md` documents path-gated CI + Storybook; `packages/shared-ui/README.md` states the **app vs package** `<button>` policy.
+- **Still org-owned (unchanged):** Chromatic token, VPAT S3 upload — tracked for Epic 13 / infra.
+- **See also:** [Epic 9 retrospective — 2026-04-28](./epic-9-retrospective-2026-04-28.md); [FDE / field pilot checklist](../../whats-actually-here.md#10-fde-field-evaluation-pilot).

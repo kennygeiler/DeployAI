@@ -1,6 +1,9 @@
 /**
  * Epic 9 — in-process strategist queue fixtures for `next dev` / demo BFF routes.
  * Replaced by control-plane tables + internal APIs when those stories harden.
+ *
+ * **Deploy / FDE note:** state is per Node process only — horizontal scaling or rolling restarts
+ * drop or split queue data unless you pin to one replica or move persistence to CP/DB.
  */
 
 export type ActionQueueStatus =

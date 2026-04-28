@@ -4,11 +4,11 @@
 
 ## 0. How to keep this document honest
 
-1. **A PR changes strategist data** (loaders, `apps/web/src/app/api/bff/*`, CP routes feeding activity or digest): edit the **§2 table** and add a **§10 changelog** row (date + one line).
+1. **A PR changes strategist data** (loaders, `apps/web/src/app/api/bff/*`, CP routes feeding activity or digest): edit the **§2 table** and add a **§11 changelog** row (date + one line).
 2. **A PR changes “how demo-able we are”** (new env var, new fallback): update **§7** and/or **[.env.example](./.env.example)**; mention the var here if strategists need it for demos.
 3. **An epic’s *truth* changes** (e.g. queues move off in-memory store): refresh **§3**, **§6**, or **§8** so “pilot” language stays accurate.
 
-| Quick rule | If it affects what appears on `/digest`, `/evening`, `/in-meeting`, or `/api/internal/strategist-activity`, touch **§2** + **§10**. |
+| Quick rule | If it affects what appears on `/digest`, `/evening`, `/in-meeting`, or `/api/internal/strategist-activity`, touch **§2** + **§11**. |
 |------------|-------------------------------------------------------------------------------------------------------------------------------------|
 
 **Env template:** strategist-facing variables are commented in [.env.example](./.env.example) under **apps/web — strategist surfaces**.
@@ -180,13 +180,37 @@ Use this to run a **credible demo** without claiming full production.
 - [.env.example](./.env.example) — CP, OIDC, ingestion placeholders.
 - [_bmad-output/implementation-artifacts/sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml) — story-level done/in-progress.
 - [docs/diagrams/deployai-bmad-and-runtime-flow.mjs](./docs/diagrams/deployai-bmad-and-runtime-flow.mjs) — BMAD + runtime export (Mermaid JS).
+- **Epic retros (7–9):** [_bmad-output/implementation-artifacts/epic-7-retrospective-2026-04-26.md](./_bmad-output/implementation-artifacts/epic-7-retrospective-2026-04-26.md), [_bmad-output/implementation-artifacts/epic-8-retrospective-2026-04-26.md](./_bmad-output/implementation-artifacts/epic-8-retrospective-2026-04-26.md), [_bmad-output/implementation-artifacts/epic-9-retrospective-2026-04-28.md](./_bmad-output/implementation-artifacts/epic-9-retrospective-2026-04-28.md).
 
 ---
 
-## 10. Changelog (high signal)
+## 10. FDE field evaluation pilot
+
+Use this when a **real Forward Deployed Engineer** (or customer strategist) should **try the product** on a shared URL—not just a developer laptop.
+
+**Minimum credible build** (UX walkthrough, single region, honest limits):
+
+1. **Hosted `apps/web`** — production `next build` + `next start` (or platform equivalent); HTTPS; secrets from a vault—not committed `.env`.
+2. **Strategist auth** — replace **dev-only role injection** with real **tenant SSO / session** (see Epic 2: Entra OIDC/SAML path) and a role equivalent to **deployment strategist** so `/digest`, `/in-meeting`, queues are allowed.
+3. **Control plane** — deployed `services/control-plane` (or your chosen host), reachable URL; **`DEPLOYAI_CONTROL_PLANE_URL`** + **`DEPLOYAI_INTERNAL_API_KEY`** (and browser **`NEXT_PUBLIC_CONTROL_PLANE_URL`** if used) set consistently; DB migrated.
+4. **Strategist activity truth** — CP endpoints behind `loadStrategistActivityForActor` return coherent **meeting-presence**, **ingestion**, and optional **Oracle health** for that tenant—so banners and `/in-meeting` are not fiction.
+5. **Digest / evening (pick one)** — either **`STRATEGIST_DIGEST_SOURCE_URL` / `STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL`** pointing at **your** JSON feeds, or a short-term **seed job** that writes fixture-shaped data—operators must know which.
+6. **Evidence IDs** — citations deep-linking to **`/evidence/:nodeId`** need **IDs that exist** in your canonical graph (or scoped demo dataset).
+7. **Queues / BFF (critical)** — today’s **`strategist-queues-store` is in-process**. For FDE testing with **more than one web replica** or **restart-heavy** deploys, either run **a single replica** and accept data loss on deploy, or **build CP/DB-backed queue APIs** first—otherwise action/validation/solidification state will **surprise** testers.
+
+**Stronger pilot** (closer to §8 “Pilot” stage): durable queues + audits, real calendar-driven meeting signal, ingestion feeding the evidence graph, no reliance on query-string demo flags.
+
+**Support:** error logs, known limitations doc (this file + retros), and a named internal contact for “is this a bug or expected mock?”
+
+---
+
+## 11. Changelog (high signal)
 
 | Date | Change |
 |------|--------|
 | 2026-04-26 | Initial catalog: surfaces table, epic framing, mermaid flows, demo checklist, distance-to-pilot. |
 | 2026-04-26 | §0 maintenance workflow; §2 pointer to `.env.example` strategist vars; Epic 7/9 story-complete note. Story **9.8**: header **context menu** “Reset position to default” (`InMeetingAlertCard`). Story **7.15**: VPAT aggregator + `vpat-evidence.yml` tracked as done in sprint-status. |
 | 2026-04-27 | §7: explicit **9.8** caveat—in-meeting alert **position is `localStorage` only** (not cross-device / server-backed). |
+| 2026-04-28 | §10 **FDE pilot** checklist; Epics **7–9** retrospectives closed in sprint-status; `strategist-queues-store` deploy note (multi-instance). |
+
+---
