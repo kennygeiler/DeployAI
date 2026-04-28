@@ -43,9 +43,9 @@ All `STRATEGIST_*`, `DEPLOYAI_ORACLE_HEALTH_URL`, `NEXT_PUBLIC_DEPLOYAI_STRATEGI
 
 ---
 
-## 3. What nine epics of work *did* accomplish (framing)
+## 3. What shipped across core epics (framing)
 
-Rough mapping (see [_bmad-output/implementation-artifacts/sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml) for story-level truth). **Epic 7**, **Epic 9**, and **Epic 10** are story-complete on `main` for their scoped stories; **CP-backed queues** (action / validation / solidification) remain future work—the BFF **in-memory** store still applies there.
+Rough mapping (see [_bmad-output/implementation-artifacts/sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml) for story-level truth). **Epic 7**, **Epic 9**, and **Epic 10** are story-complete on `main` for their scoped stories; **CP-backed queues** (action / validation / solidification) remain future work—the BFF **in-memory** store still applies there. **Epic 11** (macOS edge capture agent) is story-complete for scoped **Tauri** work — transcripts, FOIA verifier alignment, Sparkle verify path, CP kill-switch — not full continuous CoreAudio production capture until follow-up.
 
 | Area | What you got |
 |------|----------------|
@@ -56,6 +56,7 @@ Rough mapping (see [_bmad-output/implementation-artifacts/sprint-status.yaml](./
 | **Epic 8** | Strategist **shell**: digest, phase, evening, Cmd+K, evidence deep links, degraded states |
 | **Epic 9** | In-meeting **UX**, carryover, action-queue **lifecycle APIs**, validation/solidification **surfaces** (BFF mock store) |
 | **Epic 10** | **Durable** learning overrides, private annotation crypto, citation supersession plumbing, **`/overrides`** + **`/audit/personal`** via BFF → CP |
+| **Epic 11** | **Edge agent** (`apps/edge-agent`): capability model, Ed25519 identity, **v1/v2** transcript bundles, **`foia verify`** compatibility + revocation sidecar, Sparkle **fetch/verify** tooling, CP **kill-switch** poll — **parallel** to Epic **12** (FOIA/export) and Epic **14** (post-V1 platform); see [`docs/edge-agent/capabilities.md`](./docs/edge-agent/capabilities.md) |
 
 **Not the same as:** “Strategist opens app → live model continuously updates every surface with production data.” That’s **deeper integration** (queues, live feeds, agent-driven updates) beyond what shipped in Epics 7–10.
 
@@ -183,7 +184,7 @@ Use this to run a **credible demo** without claiming full production.
 - [.env.example](./.env.example) — CP, OIDC, ingestion placeholders.
 - [_bmad-output/implementation-artifacts/sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml) — story-level done/in-progress.
 - [docs/diagrams/deployai-bmad-and-runtime-flow.mjs](./docs/diagrams/deployai-bmad-and-runtime-flow.mjs) — BMAD + runtime export (Mermaid JS).
-- **Epic retros (7–9):** [_bmad-output/implementation-artifacts/epic-7-retrospective-2026-04-26.md](./_bmad-output/implementation-artifacts/epic-7-retrospective-2026-04-26.md), [_bmad-output/implementation-artifacts/epic-8-retrospective-2026-04-26.md](./_bmad-output/implementation-artifacts/epic-8-retrospective-2026-04-26.md), [_bmad-output/implementation-artifacts/epic-9-retrospective-2026-04-28.md](./_bmad-output/implementation-artifacts/epic-9-retrospective-2026-04-28.md).
+- **Epic retros:** [Epic 1](./_bmad-output/implementation-artifacts/epic-1-retrospective-2026-04-26.md), [Epic 6](./_bmad-output/implementation-artifacts/epic-6-retrospective-2026-04-26.md), [Epic 7](./_bmad-output/implementation-artifacts/epic-7-retrospective-2026-04-26.md), [Epic 8](./_bmad-output/implementation-artifacts/epic-8-retrospective-2026-04-26.md), [Epic 9](./_bmad-output/implementation-artifacts/epic-9-retrospective-2026-04-28.md), [Epic 10](./_bmad-output/implementation-artifacts/epic-10-retrospective-2026-04-26.md), [Epic 11](./_bmad-output/implementation-artifacts/epic-11-retrospective-2026-04-26.md), [Epic 15](./_bmad-output/implementation-artifacts/epic-15-retrospective-2026-04-26.md), [Epic 16](./_bmad-output/implementation-artifacts/epic-16-retrospective-2026-04-26.md).
 - **Customer pilot (BMAD):** [_bmad-output/planning-artifacts/epics.md](./_bmad-output/planning-artifacts/epics.md) — **Epic 15** (prerequisites) → **Epic 16** (onboarding + integrations + CP loaders); **operator docs:** [docs/pilot/README.md](./docs/pilot/README.md) and [docs/pilot/hosted-environment.md](./docs/pilot/hosted-environment.md); see §10 below.
 
 ---
@@ -216,7 +217,8 @@ Use this when a **real Forward Deployed Engineer** (or customer strategist) shou
 | 2026-04-26 | §0 maintenance workflow; §2 pointer to `.env.example` strategist vars; Epic 7/9 story-complete note. Story **9.8**: header **context menu** “Reset position to default” (`InMeetingAlertCard`). Story **7.15**: VPAT aggregator + `vpat-evidence.yml` tracked as done in sprint-status. |
 | 2026-04-27 | §7: explicit **9.8** caveat—in-meeting alert **position is `localStorage` only** (not cross-device / server-backed). |
 | 2026-04-28 | §10 **FDE pilot** checklist; Epics **7–9** retrospectives closed in sprint-status; `strategist-queues-store` deploy note (multi-instance). |
-| 2026-04-28 | **Epics 15–16** in `epics.md` + sprint grid; **docs/pilot/** operator pack; **`DEPLOYAI_STRATEGIST_REQUIRE_TENANT`** middleware; Epic **15.2–15.5** done, **15.1** in progress. |
+| 2026-04-28 | **Epics 15–16** in `epics.md` + sprint grid; **docs/pilot/** operator pack; **`DEPLOYAI_STRATEGIST_REQUIRE_TENANT`** middleware; Epic **15** stories closed for pilot prerequisites. |
 | 2026-04-28 | **Epic 10** on `main` (PR #58): CP-backed overrides + personal audit surfaces (`/overrides`, `/audit/personal`), citation envelope / oracle supersession alignment, private-scope annotations. **Epic 11.1** (PR #59): edge-agent Tauri **capability scaffold** + CI capability audit + `docs/edge-agent/capabilities.md` — not production capture yet. **§2** / **§3** updated for pilot catalog accuracy. |
+| 2026-04-26 | **Epic 11** marked done in sprint-status (edge capture agent V1 scope); retros recorded for **Epics 1, 6, 10, 11, 15, 16**; §3 adds Epic **11** row + parallel Epic **12**/**14** note; §9 links expanded. |
 
 ---
