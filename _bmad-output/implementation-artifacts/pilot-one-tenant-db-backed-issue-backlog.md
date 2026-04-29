@@ -80,6 +80,8 @@
 
 **Goal:** `/evidence/[nodeId]` resolves for IDs emitted by digest/alerts for **that** tenant.
 
+**Implementation (in-repo):** `resolveStrategistEvidenceForActor` loads via tenant-scoped CP pilot surface when CP evidence mode applies; validates payload `id` matches the requested `nodeId`; maps CP **404** and mismatches to **not found** (SSR `not_found()`). Mock fixture bridge remains for dev without tenant isolation — documented in mock helper + pilot docs.
+
 **Acceptance criteria:**
 
 - [ ] Loader (`Epic 16.5` direction) resolves tenant + authorization before returning evidence payload.
