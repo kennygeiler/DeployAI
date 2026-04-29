@@ -229,7 +229,10 @@ export async function loadStrategistActivityForActor(
         controlPlane: "error",
         agentServiceHealth: agentHealth,
         ...meetingPart,
-        pilotMeetingPresenceAwaitingGraph: computePilotMeetingPresenceAwaitingGraph(actor, meetingPart.meetingDetectionSource),
+        pilotMeetingPresenceAwaitingGraph: computePilotMeetingPresenceAwaitingGraph(
+          actor,
+          meetingPart.meetingDetectionSource,
+        ),
       });
     }
     const runs = (await r.json()) as CpIngestionRun[];
@@ -240,7 +243,10 @@ export async function loadStrategistActivityForActor(
         controlPlane: "error",
         agentServiceHealth: agentHealth,
         ...meetingPart,
-        pilotMeetingPresenceAwaitingGraph: computePilotMeetingPresenceAwaitingGraph(actor, meetingPart.meetingDetectionSource),
+        pilotMeetingPresenceAwaitingGraph: computePilotMeetingPresenceAwaitingGraph(
+          actor,
+          meetingPart.meetingDetectionSource,
+        ),
       });
     }
     const scoped = tid ? runs.filter((x) => x.tenant_id === tid) : [];
@@ -251,7 +257,10 @@ export async function loadStrategistActivityForActor(
       controlPlane: "ok",
       agentServiceHealth: agentHealth,
       ...meetingPart,
-      pilotMeetingPresenceAwaitingGraph: computePilotMeetingPresenceAwaitingGraph(actor, meetingPart.meetingDetectionSource),
+      pilotMeetingPresenceAwaitingGraph: computePilotMeetingPresenceAwaitingGraph(
+        actor,
+        meetingPart.meetingDetectionSource,
+      ),
     });
   } catch {
     return snapshot(day, {

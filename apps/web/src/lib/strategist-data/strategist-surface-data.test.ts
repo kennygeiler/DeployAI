@@ -602,7 +602,9 @@ describe("resolveStrategistEvidenceForActor", () => {
     process.env.DEPLOYAI_EVIDENCE_SOURCE = "cp";
     process.env.DEPLOYAI_CONTROL_PLANE_URL = "http://cp.test";
     process.env.DEPLOYAI_INTERNAL_API_KEY = "secret";
-    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 404 }) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 404 }) as unknown as typeof fetch;
     const actor: AuthActor = {
       role: "deployment_strategist",
       tenantId: "11111111-1111-4111-8111-111111111111",
@@ -625,7 +627,10 @@ describe("resolveStrategistEvidenceForActor", () => {
       role: "deployment_strategist",
       tenantId: "11111111-1111-4111-8111-111111111111",
     };
-    const r = await resolveStrategistEvidenceForActor(actor, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    const r = await resolveStrategistEvidenceForActor(
+      actor,
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    );
     expect(r.status).toBe("not_found");
   });
 
