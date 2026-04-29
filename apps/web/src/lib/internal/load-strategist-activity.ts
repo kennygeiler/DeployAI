@@ -5,6 +5,7 @@ import {
   fetchOptionalOracleServiceHealth,
 } from "./control-plane-fetch";
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "./control-plane";
+import { actorIsDeployAiPilotTenant } from "./strategist-pilot-tenant";
 import { getStrategistLocalDateForServer } from "./strategist-local-date";
 
 /**
@@ -47,6 +48,11 @@ export type StrategistActivitySnapshot = {
   meetingDetectionSource: string | null;
   /** CP-suggested poll cadence for calendar/presence (seconds, 5–30). */
   calendarPollIntervalSeconds: number | null;
+  /**
+   * P6 — Design-partner tenant (`DEPLOYAI_PILOT_TENANT_ID`) while CP reports meeting-presence
+   * `detection_source: off` (Microsoft Graph calendar connector not deployed yet).
+   */
+  pilotMeetingPresenceAwaitingGraph: boolean;
 };
 
 type ActivityWithoutDate = Omit<StrategistActivitySnapshot, "strategistLocalDate">;
@@ -59,7 +65,23 @@ function snapshot(
       "agentDegraded" | "ingestionInProgress" | "controlPlane" | "agentServiceHealth"
     >,
 ): StrategistActivitySnapshot {
-  return { strategistLocalDate: day, ...IDLE_MEETING, ...partial };
+  return {
+    strategistLocalDate: day,
+    ...IDLE_MEETING,
+    pilotMeetingPresenceAwaitingGraph: false,
+    ...partial,
+  };
+}
+
+function computePilotMeetingPresenceAwaitingGraph(
+  actor: AuthActor,
+  meetingDetectionSource: string | null,
+): boolean {
+  const tid = actor.tenantId?.trim();
+  if (!tid || !actorIsDeployAiPilotTenant(tid)) {
+    return false;
+  }
+  return meetingDetectionSource === "off";
 }
 
 function clampPollSeconds(n: unknown): number | null {
@@ -207,6 +229,10 @@ export async function loadStrategistActivityForActor(
         controlPlane: "error",
         agentServiceHealth: agentHealth,
         ...meetingPart,
+        pilotMeetingPresenceAwaitingGraph: computePilotMeetingPresenceAwaitingGraph(
+          actor,
+          meetingPart.meetingDetectionSource,
+        ),
       });
     }
     const runs = (await r.json()) as CpIngestionRun[];
@@ -217,6 +243,10 @@ export async function loadStrategistActivityForActor(
         controlPlane: "error",
         agentServiceHealth: agentHealth,
         ...meetingPart,
+        pilotMeetingPresenceAwaitingGraph: computePilotMeetingPresenceAwaitingGraph(
+          actor,
+          meetingPart.meetingDetectionSource,
+        ),
       });
     }
     const scoped = tid ? runs.filter((x) => x.tenant_id === tid) : [];
@@ -227,6 +257,10 @@ export async function loadStrategistActivityForActor(
       controlPlane: "ok",
       agentServiceHealth: agentHealth,
       ...meetingPart,
+      pilotMeetingPresenceAwaitingGraph: computePilotMeetingPresenceAwaitingGraph(
+        actor,
+        meetingPart.meetingDetectionSource,
+      ),
     });
   } catch {
     return snapshot(day, {

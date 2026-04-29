@@ -31,6 +31,7 @@ export function mergeStrategistSurfaceFromDemoQuery(
     strategistLocalDate: base.strategistLocalDate,
     agentDegraded: base.agentDegraded || q.agentDegraded,
     ingestionInProgress: base.ingestionInProgress || q.ingestionInProgress,
+    pilotMeetingPresenceAwaitingGraph: base.pilotMeetingPresenceAwaitingGraph,
     inMeeting,
     meetingId: inMeeting ? (q.meetingId ?? base.meetingId) : base.meetingId,
     meetingTitle: inMeeting ? (q.meetingTitle ?? base.meetingTitle) : base.meetingTitle,
@@ -65,6 +66,7 @@ export function parseStrategistSurfaceQuery(
     agentDegraded:
       p.get("agentError") === "1" || p.get("agentDegraded") === "1" || p.get("degraded") === "1",
     ingestionInProgress: p.get("ingest") === "1" || p.get("ingesting") === "1",
+    pilotMeetingPresenceAwaitingGraph: false,
     /** Query override does not model calendar; URL-driven demos use a fixed stub. */
     strategistLocalDate: "1970-01-01",
     ...(inMeeting

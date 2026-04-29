@@ -6,6 +6,7 @@ import {
 } from "./strategist-surface-flags";
 
 const idleMeeting = {
+  pilotMeetingPresenceAwaitingGraph: false,
   inMeeting: false,
   meetingId: null,
   meetingTitle: null,
@@ -109,5 +110,13 @@ describe("mergeStrategistSurfaceFromDemoQuery", () => {
     expect(merged.meetingTitle).toBeTruthy();
     expect(merged.meetingDetectionSource).toBe("url_demo");
     expect(merged.calendarPollIntervalSeconds).toBe(30);
+  });
+
+  it("preserves pilot meeting-presence awaiting flag from server snapshot", () => {
+    const awaiting = { ...baseHealthy, pilotMeetingPresenceAwaitingGraph: true };
+    expect(mergeStrategistSurfaceFromDemoQuery(awaiting, "?agentError=1")).toMatchObject({
+      pilotMeetingPresenceAwaitingGraph: true,
+      agentDegraded: true,
+    });
   });
 });

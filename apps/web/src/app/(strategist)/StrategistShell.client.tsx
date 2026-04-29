@@ -33,6 +33,7 @@ function toSurfaceValue(s: StrategistActivitySnapshot): StrategistSurfaceValue {
     oracleInMeetingAlertAt: s.oracleInMeetingAlertAt,
     meetingDetectionSource: s.meetingDetectionSource,
     calendarPollIntervalSeconds: s.calendarPollIntervalSeconds,
+    pilotMeetingPresenceAwaitingGraph: s.pilotMeetingPresenceAwaitingGraph,
   };
 }
 

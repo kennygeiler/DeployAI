@@ -72,6 +72,15 @@ function resourceForPath(pathname: string): Resource {
 
 export async function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
+  /** Hosted SSO hardening: strip forged inbound headers before JWT replaces actor (see docs/pilot/session-and-headers.md). */
+  if (
+    process.env.DEPLOYAI_WEB_CLEAR_STRATEGIST_HEADERS_BEFORE_JWT === "1" &&
+    process.env.DEPLOYAI_WEB_TRUST_JWT === "1" &&
+    process.env.DEPLOYAI_WEB_JWT_PUBLIC_KEY_PEM?.trim()
+  ) {
+    requestHeaders.delete("x-deployai-role");
+    requestHeaders.delete("x-deployai-tenant");
+  }
   const cookieName = accessTokenCookieNameFromEnv();
   const jwtGate = await applyDeployaiAccessJwtToHeaders(
     request.headers.get("authorization"),

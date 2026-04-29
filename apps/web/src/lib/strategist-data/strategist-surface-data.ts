@@ -360,41 +360,88 @@ export function morningDigestBannerMessage(result: MorningDigestLoadResult): str
   }
 }
 
-/**
- * Epic 16.5 — evidence deep-link: `DEPLOYAI_EVIDENCE_SOURCE=cp` or pilot tenant → CP pilot surface;
- * otherwise mock bridge.
- */
-export async function loadStrategistEvidenceItemForActor(
-  actor: AuthActor,
-  nodeId: string,
-): Promise<DigestTopItem | null> {
-  if (!evidenceSurfacesUseControlPlane(actor)) {
-    return getStrategistEvidenceByNodeId(nodeId);
+/** P5 — `/evidence/[nodeId]` resolution against tenant-scoped pilot surface (Epic 16.5). */
+export type StrategistEvidenceLoadResult =
+  | { readonly status: "ok"; readonly item: DigestTopItem }
+  | { readonly status: "not_found" }
+  /** CP evidence requested but URL/key missing — treated like missing page in SSR today. */
+  | { readonly status: "cp_unconfigured" };
+
+function evidenceNodeIdsMatch(requestedNodeId: string, payloadNodeId: string): boolean {
+  const a = requestedNodeId.trim();
+  const b = payloadNodeId.trim();
+  if (a === b) {
+    return true;
   }
-  const tid = actor.tenantId?.trim();
-  if (!tid) {
-    return null;
-  }
+  /* UUIDs may differ only by case from proxies / legacy fixtures */
+  return a.toLowerCase() === b.toLowerCase();
+}
+
+async function fetchEvidenceDigestTopFromPilotSurface(
+  tenantId: string,
+  requestedNodeId: string,
+): Promise<StrategistEvidenceLoadResult> {
   const base = getControlPlaneBaseUrl();
   const key = getControlPlaneInternalKey();
   if (!base || !key) {
-    return null;
+    return { status: "cp_unconfigured" };
   }
-  const u = `${base.replace(/\/$/, "")}/internal/v1/strategist/pilot-surfaces/evidence-node/${encodeURIComponent(nodeId)}?tenant_id=${encodeURIComponent(tid)}`;
+  const u = `${base.replace(/\/$/, "")}/internal/v1/strategist/pilot-surfaces/evidence-node/${encodeURIComponent(requestedNodeId)}?tenant_id=${encodeURIComponent(tenantId)}`;
   try {
     const r = await fetch(u, {
       headers: { "X-DeployAI-Internal-Key": key },
       cache: "no-store",
       signal: AbortSignal.timeout(STRATEGIST_REMOTE_FETCH_TIMEOUT_MS),
     });
+    if (r.status === 404) {
+      return { status: "not_found" };
+    }
     if (!r.ok) {
-      return null;
+      return { status: "not_found" };
     }
     const body: unknown = await r.json();
-    return parseDigestTopItemSingle(body);
+    const parsed = parseDigestTopItemSingle(body);
+    if (!parsed || !evidenceNodeIdsMatch(requestedNodeId, parsed.id)) {
+      return { status: "not_found" };
+    }
+    return { status: "ok", item: parsed };
   } catch {
-    return null;
+    return { status: "not_found" };
   }
+}
+
+/**
+ * Epic 16.5 / P5 — tenant + `canonical:read` must be enforced by the page (`requireCanonicalRead`) before calling.
+ * CP path uses tenant-scoped pilot surface; missing node or wrong tenant → `not_found` (matches CP 404).
+ */
+export async function resolveStrategistEvidenceForActor(
+  actor: AuthActor,
+  nodeId: string,
+): Promise<StrategistEvidenceLoadResult> {
+  if (!evidenceSurfacesUseControlPlane(actor)) {
+    const item = getStrategistEvidenceByNodeId(nodeId);
+    return item ? { status: "ok", item } : { status: "not_found" };
+  }
+  const tid = actor.tenantId?.trim();
+  if (!tid) {
+    return { status: "not_found" };
+  }
+  return fetchEvidenceDigestTopFromPilotSurface(tid, nodeId);
+}
+
+/**
+ * Epic 16.5 — evidence deep-link: `DEPLOYAI_EVIDENCE_SOURCE=cp` or pilot tenant → CP pilot surface;
+ * otherwise mock bridge (not tenant-partitioned — pilot hosts should use CP evidence).
+ */
+export async function loadStrategistEvidenceItemForActor(
+  actor: AuthActor,
+  nodeId: string,
+): Promise<DigestTopItem | null> {
+  const r = await resolveStrategistEvidenceForActor(actor, nodeId);
+  if (r.status === "ok") {
+    return r.item;
+  }
+  return null;
 }
 
 export type PhaseTrackingLoadSource = MorningDigestLoadSource;
