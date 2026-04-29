@@ -264,6 +264,7 @@ export const PHASE_TRACKING_ROWS: readonly ActionQueueRow[] = Object.freeze(
 /**
  * Story 8.4 — resolve digest or action-queue rows for `/evidence/[nodeId]`.
  * Production will query canonical memory by `node_id`; this bridges mocks.
+ * Not tenant-partitioned — hosted pilots should use CP evidence (`DEPLOYAI_EVIDENCE_SOURCE=cp`, pilot tenant, or `DEPLOYAI_PILOT_TENANT_ID`) so `/evidence/*` resolves via tenant-scoped pilot surface only.
  */
 export function getStrategistEvidenceByNodeId(nodeId: string): DigestTopItem | null {
   const d = MORNING_DIGEST_TOP.find((x) => x.id === nodeId);

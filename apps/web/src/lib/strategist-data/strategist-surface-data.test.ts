@@ -24,6 +24,7 @@ import {
   parseEveningSynthesisPayload,
   parsePhaseTrackingRowsPayload,
   phaseTrackingBannerMessage,
+  resolveStrategistEvidenceForActor,
 } from "./strategist-surface-data";
 
 describe("parseDigestTopItemsPayload", () => {
@@ -548,5 +549,116 @@ describe("loadEveningSynthesisResult", () => {
     const r = await loadEveningSynthesis();
     expect(r.candidates).toEqual(MORNING_DIGEST_TOP.slice(0, 2));
     expect(r.patterns).toEqual(EVENING_CANDIDATES);
+  });
+});
+
+describe("resolveStrategistEvidenceForActor", () => {
+  const originalFetch = globalThis.fetch;
+  const originalEvidence = process.env.DEPLOYAI_EVIDENCE_SOURCE;
+  const originalPilotTenant = process.env.DEPLOYAI_PILOT_TENANT_ID;
+  const originalCp = process.env.DEPLOYAI_CONTROL_PLANE_URL;
+  const originalKey = process.env.DEPLOYAI_INTERNAL_API_KEY;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    if (originalEvidence === undefined) {
+      delete process.env.DEPLOYAI_EVIDENCE_SOURCE;
+    } else {
+      process.env.DEPLOYAI_EVIDENCE_SOURCE = originalEvidence;
+    }
+    if (originalPilotTenant === undefined) {
+      delete process.env.DEPLOYAI_PILOT_TENANT_ID;
+    } else {
+      process.env.DEPLOYAI_PILOT_TENANT_ID = originalPilotTenant;
+    }
+    if (originalCp === undefined) {
+      delete process.env.DEPLOYAI_CONTROL_PLANE_URL;
+    } else {
+      process.env.DEPLOYAI_CONTROL_PLANE_URL = originalCp;
+    }
+    if (originalKey === undefined) {
+      delete process.env.DEPLOYAI_INTERNAL_API_KEY;
+    } else {
+      process.env.DEPLOYAI_INTERNAL_API_KEY = originalKey;
+    }
+  });
+
+  it("returns ok from mock fixtures when CP evidence mode is off", async () => {
+    delete process.env.DEPLOYAI_EVIDENCE_SOURCE;
+    delete process.env.DEPLOYAI_PILOT_TENANT_ID;
+    const actor: AuthActor = {
+      role: "deployment_strategist",
+      tenantId: undefined,
+    };
+    const id = MORNING_DIGEST_TOP[0]!.id;
+    const r = await resolveStrategistEvidenceForActor(actor, id);
+    expect(r.status).toBe("ok");
+    if (r.status === "ok") {
+      expect(r.item.id).toBe(id);
+    }
+  });
+
+  it("returns not_found when CP responds 404", async () => {
+    process.env.DEPLOYAI_EVIDENCE_SOURCE = "cp";
+    process.env.DEPLOYAI_CONTROL_PLANE_URL = "http://cp.test";
+    process.env.DEPLOYAI_INTERNAL_API_KEY = "secret";
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 404 }) as unknown as typeof fetch;
+    const actor: AuthActor = {
+      role: "deployment_strategist",
+      tenantId: "11111111-1111-4111-8111-111111111111",
+    };
+    const r = await resolveStrategistEvidenceForActor(actor, "any-node-id");
+    expect(r.status).toBe("not_found");
+  });
+
+  it("returns not_found when payload id does not match requested node id", async () => {
+    process.env.DEPLOYAI_EVIDENCE_SOURCE = "cp";
+    process.env.DEPLOYAI_CONTROL_PLANE_URL = "http://cp.test";
+    process.env.DEPLOYAI_INTERNAL_API_KEY = "secret";
+    const payload = structuredClone(MORNING_DIGEST_TOP)[0]!;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => payload,
+    }) as unknown as typeof fetch;
+    const actor: AuthActor = {
+      role: "deployment_strategist",
+      tenantId: "11111111-1111-4111-8111-111111111111",
+    };
+    const r = await resolveStrategistEvidenceForActor(actor, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    expect(r.status).toBe("not_found");
+  });
+
+  it("returns ok when CP returns a body whose id matches the requested node id", async () => {
+    process.env.DEPLOYAI_EVIDENCE_SOURCE = "cp";
+    process.env.DEPLOYAI_CONTROL_PLANE_URL = "http://cp.test";
+    process.env.DEPLOYAI_INTERNAL_API_KEY = "secret";
+    const payload = structuredClone(MORNING_DIGEST_TOP)[0]!;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => payload,
+    }) as unknown as typeof fetch;
+    const actor: AuthActor = {
+      role: "deployment_strategist",
+      tenantId: "11111111-1111-4111-8111-111111111111",
+    };
+    const r = await resolveStrategistEvidenceForActor(actor, payload.id);
+    expect(r.status).toBe("ok");
+    if (r.status === "ok") {
+      expect(r.item.id).toBe(payload.id);
+    }
+  });
+
+  it("returns cp_unconfigured when CP evidence mode is on but control plane URL is missing", async () => {
+    process.env.DEPLOYAI_EVIDENCE_SOURCE = "cp";
+    delete process.env.DEPLOYAI_CONTROL_PLANE_URL;
+    process.env.DEPLOYAI_INTERNAL_API_KEY = "secret";
+    const actor: AuthActor = {
+      role: "deployment_strategist",
+      tenantId: "11111111-1111-4111-8111-111111111111",
+    };
+    const r = await resolveStrategistEvidenceForActor(actor, MORNING_DIGEST_TOP[0]!.id);
+    expect(r.status).toBe("cp_unconfigured");
   });
 });
