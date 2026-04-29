@@ -1,15 +1,18 @@
 import type { ReactNode } from "react";
 
+import type { AuthActor } from "@deployai/authz";
+
 import { PilotSessionOnboarding } from "@/components/pilot/PilotSessionOnboarding";
 import { getActorFromHeaders } from "@/lib/internal/actor";
 import { loadStrategistIntegrationRecords } from "@/lib/internal/load-strategist-integration-records";
 import { loadStrategistActivityForActor } from "@/lib/internal/load-strategist-activity";
 import { getStrategistLastSyncedAtMs } from "@/lib/internal/strategist-last-synced";
 import { getStrategistSessionBannerForEnv } from "@/lib/internal/strategist-demo-session";
+import { digestSurfacesUseControlPlane } from "@/lib/internal/strategist-pilot-tenant";
 import { StrategistShell } from "./StrategistShell.client";
 
-function digestModeLabel(): "mock" | "url" | "cp" {
-  if (process.env.DEPLOYAI_DIGEST_SOURCE?.trim() === "cp") {
+function digestModeLabel(actor: AuthActor | null): "mock" | "url" | "cp" {
+  if (digestSurfacesUseControlPlane(actor)) {
     return "cp";
   }
   if (process.env.STRATEGIST_DIGEST_SOURCE_URL?.trim()) {
@@ -28,7 +31,7 @@ export default async function StrategistLayout({ children }: { children: ReactNo
     <PilotSessionOnboarding
       tenantId={actor?.tenantId}
       integrations={integrations}
-      digestMode={digestModeLabel()}
+      digestMode={digestModeLabel(actor)}
     />
   );
   return (

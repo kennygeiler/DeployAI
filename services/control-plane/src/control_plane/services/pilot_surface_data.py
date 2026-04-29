@@ -17,24 +17,30 @@ def clear_pilot_surface_cache() -> None:
 def _pilot_surface_document() -> dict[str, Any]:
     raw = os.environ.get("DEPLOYAI_PILOT_SURFACE_DATA_PATH", "").strip()
     if not raw:
-        return {"digests": {}, "evidence": {}}
+        return {"digests": {}, "evidence": {}, "phase_tracking": {}, "evening_synthesis": {}}
     p = Path(raw)
     if not p.is_file():
-        return {"digests": {}, "evidence": {}}
+        return {"digests": {}, "evidence": {}, "phase_tracking": {}, "evening_synthesis": {}}
     try:
         with p.open("r", encoding="utf-8") as f:
             doc = json.load(f)
     except (OSError, json.JSONDecodeError):
-        return {"digests": {}, "evidence": {}}
+        return {"digests": {}, "evidence": {}, "phase_tracking": {}, "evening_synthesis": {}}
     if not isinstance(doc, dict):
-        return {"digests": {}, "evidence": {}}
+        return {"digests": {}, "evidence": {}, "phase_tracking": {}, "evening_synthesis": {}}
     dig = doc.get("digests")
     ev = doc.get("evidence")
+    pt = doc.get("phase_tracking")
+    es = doc.get("evening_synthesis")
     if not isinstance(dig, dict):
         dig = {}
     if not isinstance(ev, dict):
         ev = {}
-    return {"digests": dig, "evidence": ev}
+    if not isinstance(pt, dict):
+        pt = {}
+    if not isinstance(es, dict):
+        es = {}
+    return {"digests": dig, "evidence": ev, "phase_tracking": pt, "evening_synthesis": es}
 
 
 def pilot_digest_items_for_tenant(tenant_id: str) -> list[Any] | None:
@@ -59,3 +65,27 @@ def pilot_evidence_item_for_tenant(tenant_id: str, node_id: str) -> dict[str, An
     if not isinstance(item, dict):
         return None
     return item
+
+
+def pilot_phase_tracking_rows_for_tenant(tenant_id: str) -> list[Any] | None:
+    """Return phase-tracking rows for tenant, or None if unconfigured."""
+    doc = _pilot_surface_document()
+    pt = doc["phase_tracking"]
+    if tenant_id not in pt:
+        return None
+    raw = pt[tenant_id]
+    if not isinstance(raw, list):
+        return None
+    return raw
+
+
+def pilot_evening_synthesis_payload_for_tenant(tenant_id: str) -> dict[str, Any] | None:
+    """Return `{ candidates, patterns }` for tenant, or None if unconfigured."""
+    doc = _pilot_surface_document()
+    es = doc["evening_synthesis"]
+    raw = es.get(tenant_id)
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        return None
+    return raw

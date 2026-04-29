@@ -5,7 +5,7 @@ import { listSolidificationQueue } from "@/lib/bff/strategist-queues-store";
 import { requireCanonicalRead } from "@/lib/internal/strategist-surface";
 import {
   eveningSynthesisBannerMessage,
-  loadEveningSynthesisResult,
+  loadEveningSynthesisResultForActor,
 } from "@/lib/strategist-data/strategist-surface-data";
 
 export const metadata: Metadata = {
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 export default async function EveningPage() {
   const actor = await requireCanonicalRead();
-  const eveningLoad = await loadEveningSynthesisResult();
+  const eveningLoad = await loadEveningSynthesisResultForActor(actor);
   const eveningBanner = eveningSynthesisBannerMessage(eveningLoad);
   const solidificationPending = listSolidificationQueue(actor.tenantId ?? null).length;
   return (

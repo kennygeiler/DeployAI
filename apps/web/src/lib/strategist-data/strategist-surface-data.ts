@@ -12,6 +12,12 @@ import {
   getStrategistEvidenceByNodeId,
 } from "@/lib/epic8/mock-digest";
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
+import {
+  digestSurfacesUseControlPlane,
+  eveningSynthesisSurfacesUseControlPlane,
+  evidenceSurfacesUseControlPlane,
+  phaseTrackingSurfacesUseControlPlane,
+} from "@/lib/internal/strategist-pilot-tenant";
 
 const STRATEGIST_REMOTE_FETCH_TIMEOUT_MS = 8000;
 
@@ -212,13 +218,14 @@ export type MorningDigestLoadResult = {
 };
 
 /**
- * Epic 16.4 — when `DEPLOYAI_DIGEST_SOURCE=cp`, loads from CP pilot surface; otherwise delegates to
+ * Epic 16.4 — when `DEPLOYAI_DIGEST_SOURCE=cp` or the signed-in tenant matches
+ * `DEPLOYAI_PILOT_TENANT_ID`, loads from CP pilot surface; otherwise delegates to
  * `loadMorningDigestTopItemsResult` (URL or mock).
  */
 export async function loadMorningDigestTopItemsResultForActor(
   actor: AuthActor | null,
 ): Promise<MorningDigestLoadResult> {
-  if (process.env.DEPLOYAI_DIGEST_SOURCE?.trim() === "cp") {
+  if (digestSurfacesUseControlPlane(actor)) {
     return loadMorningDigestFromControlPlane(actor);
   }
   return loadMorningDigestTopItemsResult();
@@ -354,13 +361,14 @@ export function morningDigestBannerMessage(result: MorningDigestLoadResult): str
 }
 
 /**
- * Epic 16.5 — evidence deep-link: `DEPLOYAI_EVIDENCE_SOURCE=cp` loads from CP pilot surface; otherwise mock bridge.
+ * Epic 16.5 — evidence deep-link: `DEPLOYAI_EVIDENCE_SOURCE=cp` or pilot tenant → CP pilot surface;
+ * otherwise mock bridge.
  */
 export async function loadStrategistEvidenceItemForActor(
   actor: AuthActor,
   nodeId: string,
 ): Promise<DigestTopItem | null> {
-  if (process.env.DEPLOYAI_EVIDENCE_SOURCE?.trim() !== "cp") {
+  if (!evidenceSurfacesUseControlPlane(actor)) {
     return getStrategistEvidenceByNodeId(nodeId);
   }
   const tid = actor.tenantId?.trim();
@@ -402,6 +410,77 @@ export type PhaseTrackingLoadResult = {
 
 function phaseTrackingFallbackRows(today: string): readonly ActionQueueRow[] {
   return buildPhaseTrackingRows(today);
+}
+
+async function loadPhaseTrackingFromControlPlane(
+  actor: AuthActor | null,
+  today: string,
+): Promise<PhaseTrackingLoadResult> {
+  const fallback = phaseTrackingFallbackRows(today);
+  const tid = actor?.tenantId?.trim();
+  if (!tid) {
+    return {
+      items: fallback,
+      source: "degraded",
+      degradedReason: "tenant_required",
+    };
+  }
+  const base = getControlPlaneBaseUrl();
+  const key = getControlPlaneInternalKey();
+  if (!base || !key) {
+    return {
+      items: fallback,
+      source: "degraded",
+      degradedReason: "cp_unconfigured",
+    };
+  }
+  const u = `${base.replace(/\/$/, "")}/internal/v1/strategist/pilot-surfaces/phase-tracking?tenant_id=${encodeURIComponent(tid)}`;
+  try {
+    const r = await fetch(u, {
+      headers: { "X-DeployAI-Internal-Key": key },
+      cache: "no-store",
+      signal: AbortSignal.timeout(STRATEGIST_REMOTE_FETCH_TIMEOUT_MS),
+    });
+    if (r.status === 404) {
+      return { items: [], source: "degraded", degradedReason: "cp_not_configured" };
+    }
+    if (!r.ok) {
+      return {
+        items: fallback,
+        source: "degraded",
+        degradedReason: "http_error",
+        httpStatus: r.status,
+      };
+    }
+    const body = (await r.json()) as { items?: unknown };
+    const rawItems = body.items;
+    if (!Array.isArray(rawItems)) {
+      return { items: fallback, source: "degraded", degradedReason: "invalid_payload" };
+    }
+    if (rawItems.length === 0) {
+      return { items: [], source: "live" };
+    }
+    const parsed = parsePhaseTrackingRowsPayload(rawItems);
+    if (!parsed) {
+      return { items: fallback, source: "degraded", degradedReason: "invalid_payload" };
+    }
+    return { items: parsed, source: "live" };
+  } catch {
+    return { items: fallback, source: "degraded", degradedReason: "fetch_error" };
+  }
+}
+
+/**
+ * Pilot tenant (`DEPLOYAI_PILOT_TENANT_ID`) or `DEPLOYAI_PHASE_TRACKING_SOURCE=cp` → CP pilot surface file.
+ */
+export async function loadPhaseTrackingRowsResultForActor(
+  actor: AuthActor | null,
+  today: string,
+): Promise<PhaseTrackingLoadResult> {
+  if (phaseTrackingSurfacesUseControlPlane(actor)) {
+    return loadPhaseTrackingFromControlPlane(actor, today);
+  }
+  return loadPhaseTrackingRowsResult(today);
 }
 
 /**
@@ -447,7 +526,7 @@ export async function loadPhaseTrackingRowsResult(today: string): Promise<PhaseT
 }
 
 export async function loadPhaseTrackingRows(today: string): Promise<readonly ActionQueueRow[]> {
-  const r = await loadPhaseTrackingRowsResult(today);
+  const r = await loadPhaseTrackingRowsResultForActor(null, today);
   return r.items;
 }
 
@@ -464,6 +543,12 @@ export function phaseTrackingBannerMessage(result: PhaseTrackingLoadResult): str
       return "Phase-tracking feed returned data we could not validate as action-queue rows. Showing seeded demo rows.";
     case "empty_array":
       return "Phase-tracking feed returned no rows. Showing seeded demo rows.";
+    case "tenant_required":
+      return "Control-plane phase tracking requires a tenant id (JWT tid or x-deployai-tenant). Showing seeded demo rows.";
+    case "cp_unconfigured":
+      return "Control plane URL or internal API key is not configured for phase-tracking loading. Showing seeded demo rows.";
+    case "cp_not_configured":
+      return "No pilot phase-tracking data for this tenant in the control plane yet (see DEPLOYAI_PILOT_SURFACE_DATA_PATH).";
     default:
       return "Phase-tracking feed is unavailable. Showing seeded demo rows.";
   }
@@ -489,6 +574,69 @@ function eveningSynthesisFallback(): {
     candidates: MORNING_DIGEST_TOP.slice(0, 2),
     patterns: EVENING_CANDIDATES,
   };
+}
+
+async function loadEveningSynthesisFromControlPlane(
+  actor: AuthActor | null,
+): Promise<EveningSynthesisLoadResult> {
+  const fallback = eveningSynthesisFallback();
+  const tid = actor?.tenantId?.trim();
+  if (!tid) {
+    return {
+      ...fallback,
+      source: "degraded",
+      degradedReason: "tenant_required",
+    };
+  }
+  const base = getControlPlaneBaseUrl();
+  const key = getControlPlaneInternalKey();
+  if (!base || !key) {
+    return {
+      ...fallback,
+      source: "degraded",
+      degradedReason: "cp_unconfigured",
+    };
+  }
+  const u = `${base.replace(/\/$/, "")}/internal/v1/strategist/pilot-surfaces/evening-synthesis?tenant_id=${encodeURIComponent(tid)}`;
+  try {
+    const r = await fetch(u, {
+      headers: { "X-DeployAI-Internal-Key": key },
+      cache: "no-store",
+      signal: AbortSignal.timeout(STRATEGIST_REMOTE_FETCH_TIMEOUT_MS),
+    });
+    if (r.status === 404) {
+      return {
+        candidates: [],
+        patterns: [],
+        source: "degraded",
+        degradedReason: "cp_not_configured",
+      };
+    }
+    if (!r.ok) {
+      return {
+        ...fallback,
+        source: "degraded",
+        degradedReason: "http_error",
+        httpStatus: r.status,
+      };
+    }
+    let body: unknown;
+    try {
+      body = await r.json();
+    } catch {
+      return { ...fallback, source: "degraded", degradedReason: "invalid_payload" };
+    }
+    if (!isRecord(body)) {
+      return { ...fallback, source: "degraded", degradedReason: "invalid_payload" };
+    }
+    const parsed = parseEveningSynthesisPayload(body);
+    if (!parsed) {
+      return { ...fallback, source: "degraded", degradedReason: "invalid_payload" };
+    }
+    return { ...parsed, source: "live" };
+  } catch {
+    return { ...fallback, source: "degraded", degradedReason: "fetch_error" };
+  }
 }
 
 /**
@@ -533,6 +681,16 @@ export async function loadEveningSynthesisResult(): Promise<EveningSynthesisLoad
   }
 }
 
+/** Pilot tenant (`DEPLOYAI_PILOT_TENANT_ID`) or `DEPLOYAI_EVENING_SYNTHESIS_SOURCE=cp` → CP pilot surface file. */
+export async function loadEveningSynthesisResultForActor(
+  actor: AuthActor | null,
+): Promise<EveningSynthesisLoadResult> {
+  if (eveningSynthesisSurfacesUseControlPlane(actor)) {
+    return loadEveningSynthesisFromControlPlane(actor);
+  }
+  return loadEveningSynthesisResult();
+}
+
 export async function loadEveningSynthesis(): Promise<{
   candidates: readonly DigestTopItem[];
   patterns: readonly EveningPatternRow[];
@@ -554,6 +712,12 @@ export function eveningSynthesisBannerMessage(result: EveningSynthesisLoadResult
       return "Evening synthesis feed returned data we could not validate. Showing seeded demo content.";
     case "empty_array":
       return "Evening synthesis feed returned no usable payload. Showing seeded demo content.";
+    case "tenant_required":
+      return "Control-plane evening synthesis requires a tenant id (JWT tid or x-deployai-tenant). Showing seeded demo content.";
+    case "cp_unconfigured":
+      return "Control plane URL or internal API key is not configured for evening synthesis loading. Showing seeded demo content.";
+    case "cp_not_configured":
+      return "No pilot evening synthesis data for this tenant in the control plane yet (see DEPLOYAI_PILOT_SURFACE_DATA_PATH).";
     default:
       return "Evening synthesis feed is unavailable. Showing seeded demo content.";
   }

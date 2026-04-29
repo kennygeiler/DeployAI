@@ -56,5 +56,71 @@
         }
       }
     }
+  },
+  "phase_tracking": {
+    "00000000-0000-4000-8000-000000000001": [
+      {
+        "id": "aq-pilot-1",
+        "title": "Confirm pilot exit criteria with sponsor",
+        "phase": "P5 Pilot",
+        "status": "in_progress",
+        "assignee": "You",
+        "due": "2026-04-25",
+        "priority": 1,
+        "summary": "Sponsor sign-off on success metrics before go-live date.",
+        "retrievalPhase": "oracle",
+        "metadata": {
+          "sourceType": "Action Queue",
+          "timestamp": "2026-04-22T16:00:00.000Z",
+          "phase": "P5 Pilot",
+          "confidence": "—",
+          "supersession": "current"
+        },
+        "bodyText": "Exit criteria: 95% task completion, zero sev-1 in two consecutive weeks.",
+        "evidenceSpan": {
+          "start": 15,
+          "end": 35,
+          "source_ref": "urn:deployai:evidence:action-aq-pilot-1#ex1"
+        }
+      }
+    ]
+  },
+  "evening_synthesis": {
+    "00000000-0000-4000-8000-000000000001": {
+      "candidates": [
+        {
+          "id": "2d4437ee-9336-441e-ab57-121b81ee57a4",
+          "label": "07:00 — Program risks (DOT comms)",
+          "preview": {
+            "citationId": "2d4437ee-9336-441e-ab57-121b81ee57a4",
+            "retrievalPhase": "P3 — Ecosystem map",
+            "confidence": "0.94 (high agreement)",
+            "signedTimestamp": "2026-04-23T12:00:00.000Z"
+          },
+          "retrievalPhase": "oracle",
+          "metadata": {
+            "sourceType": "M365 / Teams",
+            "timestamp": "2026-04-23T12:00:00.000Z",
+            "phase": "P3 Ecosystem",
+            "confidence": "0.94",
+            "supersession": "current"
+          },
+          "state": "loaded",
+          "bodyText": "Stated blockers: dependencies on the legacy billing API before pilot sign-off.",
+          "evidenceSpan": {
+            "start": 18,
+            "end": 58,
+            "source_ref": "urn:deployai:evidence:dot-standup-0423#p1"
+          }
+        }
+      ],
+      "patterns": [
+        {
+          "id": "ep1",
+          "title": "Cross-program dependency pattern",
+          "note": "Pilot evening synthesis pattern row"
+        }
+      ]
+    }
   }
 }

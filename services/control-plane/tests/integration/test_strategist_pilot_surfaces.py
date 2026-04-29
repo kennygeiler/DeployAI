@@ -82,6 +82,34 @@ async def test_evidence_node_tenant_isolation(pilot_client: AsyncClient) -> None
 
 
 @pytest.mark.asyncio
+async def test_phase_tracking_for_configured_tenant(pilot_client: AsyncClient) -> None:
+    tid = "00000000-0000-4000-8000-000000000001"
+    r = await pilot_client.get(
+        "/internal/v1/strategist/pilot-surfaces/phase-tracking",
+        params={"tenant_id": tid},
+    )
+    assert r.status_code == 200
+    j = r.json()
+    assert j["provenance"] == "pilot_surface_file"
+    assert len(j["items"]) == 1
+    assert j["items"][0]["id"] == "aq-pilot-1"
+
+
+@pytest.mark.asyncio
+async def test_evening_synthesis_for_configured_tenant(pilot_client: AsyncClient) -> None:
+    tid = "00000000-0000-4000-8000-000000000001"
+    r = await pilot_client.get(
+        "/internal/v1/strategist/pilot-surfaces/evening-synthesis",
+        params={"tenant_id": tid},
+    )
+    assert r.status_code == 200
+    j = r.json()
+    assert j["provenance"] == "pilot_surface_file"
+    assert len(j["candidates"]) == 1
+    assert len(j["patterns"]) == 1
+
+
+@pytest.mark.asyncio
 async def test_integration_records_empty(pilot_client: AsyncClient) -> None:
     r = await pilot_client.get(
         "/internal/v1/strategist/integration-records",
