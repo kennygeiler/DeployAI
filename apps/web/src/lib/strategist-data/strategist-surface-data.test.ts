@@ -118,6 +118,8 @@ describe("loadMorningDigestTopItemsResultForActor", () => {
   const originalCp = process.env.DEPLOYAI_CONTROL_PLANE_URL;
   const originalKey = process.env.DEPLOYAI_INTERNAL_API_KEY;
 
+  const originalPilotTenant = process.env.DEPLOYAI_PILOT_TENANT_ID;
+
   afterEach(() => {
     globalThis.fetch = originalFetch;
     if (originalDigestSource === undefined) {
@@ -134,6 +136,11 @@ describe("loadMorningDigestTopItemsResultForActor", () => {
       delete process.env.DEPLOYAI_INTERNAL_API_KEY;
     } else {
       process.env.DEPLOYAI_INTERNAL_API_KEY = originalKey;
+    }
+    if (originalPilotTenant === undefined) {
+      delete process.env.DEPLOYAI_PILOT_TENANT_ID;
+    } else {
+      process.env.DEPLOYAI_PILOT_TENANT_ID = originalPilotTenant;
     }
   });
 
@@ -156,6 +163,31 @@ describe("loadMorningDigestTopItemsResultForActor", () => {
     expect(r.items).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledWith(
       "http://cp.test/internal/v1/strategist/pilot-surfaces/morning-digest-top?tenant_id=11111111-1111-4111-8111-111111111111",
+      expect.objectContaining({
+        headers: { "X-DeployAI-Internal-Key": "secret" },
+      }),
+    );
+  });
+
+  it("loads from control plane when DEPLOYAI_PILOT_TENANT_ID matches actor tenant", async () => {
+    delete process.env.DEPLOYAI_DIGEST_SOURCE;
+    process.env.DEPLOYAI_PILOT_TENANT_ID = "22222222-2222-4222-8222-222222222222";
+    process.env.DEPLOYAI_CONTROL_PLANE_URL = "http://cp.test";
+    process.env.DEPLOYAI_INTERNAL_API_KEY = "secret";
+    const one = structuredClone(MORNING_DIGEST_TOP)[0]!;
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: [one] }),
+    });
+    globalThis.fetch = fetchMock as typeof fetch;
+    const actor: AuthActor = {
+      role: "deployment_strategist",
+      tenantId: "22222222-2222-4222-8222-222222222222",
+    };
+    const r = await loadMorningDigestTopItemsResultForActor(actor);
+    expect(r.source).toBe("live");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://cp.test/internal/v1/strategist/pilot-surfaces/morning-digest-top?tenant_id=22222222-2222-4222-8222-222222222222",
       expect.objectContaining({
         headers: { "X-DeployAI-Internal-Key": "secret" },
       }),
@@ -320,6 +352,13 @@ describe("phaseTrackingBannerMessage", () => {
         degradedReason: "empty_array",
       }),
     ).toContain("no rows");
+    expect(
+      phaseTrackingBannerMessage({
+        items: [],
+        source: "degraded",
+        degradedReason: "cp_not_configured",
+      }),
+    ).toContain("phase-tracking");
   });
 });
 
@@ -444,6 +483,16 @@ describe("eveningSynthesisBannerMessage", () => {
         httpStatus: 418,
       }),
     ).toContain("418");
+  });
+
+  it("maps pilot CP unconfigured reasons", () => {
+    expect(
+      eveningSynthesisBannerMessage({
+        ...fb,
+        source: "degraded",
+        degradedReason: "cp_not_configured",
+      }),
+    ).toContain("evening synthesis");
   });
 });
 

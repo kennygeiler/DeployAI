@@ -64,6 +64,8 @@
 
 **Goal:** Morning digest / phase tracking / evening synthesis materialized from **tenant graph** + Oracle materializations — **`STRATEGIST_*_SOURCE_URL`** unset for pilot.
 
+**Implementation (in-repo):** Set `DEPLOYAI_PILOT_TENANT_ID` to the design-partner UUID. When the signed-in tenant matches, digest / evidence / phase / evening load from control-plane `pilot-surfaces` (file path `DEPLOYAI_PILOT_SURFACE_DATA_PATH` on CP) without `DEPLOYAI_DIGEST_SOURCE=cp` etc. Non-pilot tenants can still opt in per-surface with `DEPLOYAI_*_SOURCE=cp` or `STRATEGIST_*_SOURCE_URL`.
+
 **Acceptance criteria:**
 
 - [ ] Identify pilot tenant by config (`DEPLOYAI_PILOT_TENANT_ID` or CP flag).
