@@ -21,6 +21,7 @@ describe("loadStrategistActivityForActor", () => {
   const originalBase = process.env.DEPLOYAI_CONTROL_PLANE_URL;
   const originalKey = process.env.DEPLOYAI_INTERNAL_API_KEY;
   const originalOracle = process.env.DEPLOYAI_ORACLE_HEALTH_URL;
+  const originalPilotTenant = process.env.DEPLOYAI_PILOT_TENANT_ID;
 
   beforeEach(() => {
     process.env.DEPLOYAI_CONTROL_PLANE_URL = "https://cp.test";
@@ -44,6 +45,11 @@ describe("loadStrategistActivityForActor", () => {
       delete process.env.DEPLOYAI_ORACLE_HEALTH_URL;
     } else {
       process.env.DEPLOYAI_ORACLE_HEALTH_URL = originalOracle;
+    }
+    if (originalPilotTenant === undefined) {
+      delete process.env.DEPLOYAI_PILOT_TENANT_ID;
+    } else {
+      process.env.DEPLOYAI_PILOT_TENANT_ID = originalPilotTenant;
     }
     vi.restoreAllMocks();
   });
@@ -83,7 +89,52 @@ describe("loadStrategistActivityForActor", () => {
       inMeeting: false,
       meetingDetectionSource: "off",
       calendarPollIntervalSeconds: null,
+      pilotMeetingPresenceAwaitingGraph: false,
     });
+  });
+
+  it("pilot tenant + detection_source off sets pilotMeetingPresenceAwaitingGraph", async () => {
+    process.env.DEPLOYAI_PILOT_TENANT_ID = "pilot-tenant";
+    globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo) => {
+      const u = typeof input === "string" ? input : String(input);
+      if (u.includes("/healthz")) {
+        return Promise.resolve(new Response(JSON.stringify({ status: "ok" }), { status: 200 }));
+      }
+      if (u.includes("meeting-presence")) {
+        return Promise.resolve(meetingOffResponse());
+      }
+      if (u.includes("ingestion-runs")) {
+        return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    }) as unknown as typeof fetch;
+    const r = await loadStrategistActivityForActor({
+      role: "deployment_strategist",
+      tenantId: "pilot-tenant",
+    });
+    expect(r.pilotMeetingPresenceAwaitingGraph).toBe(true);
+  });
+
+  it("non-pilot tenant keeps pilotMeetingPresenceAwaitingGraph false even when detection_source is off", async () => {
+    process.env.DEPLOYAI_PILOT_TENANT_ID = "pilot-tenant";
+    globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo) => {
+      const u = typeof input === "string" ? input : String(input);
+      if (u.includes("/healthz")) {
+        return Promise.resolve(new Response(JSON.stringify({ status: "ok" }), { status: 200 }));
+      }
+      if (u.includes("meeting-presence")) {
+        return Promise.resolve(meetingOffResponse());
+      }
+      if (u.includes("ingestion-runs")) {
+        return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    }) as unknown as typeof fetch;
+    const r = await loadStrategistActivityForActor({
+      role: "deployment_strategist",
+      tenantId: "other-tenant",
+    });
+    expect(r.pilotMeetingPresenceAwaitingGraph).toBe(false);
   });
 
   it("ingestion off when no running for tenant", async () => {

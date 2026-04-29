@@ -16,6 +16,8 @@ export type StrategistSurfaceValue = {
   oracleInMeetingAlertAt: string | null;
   meetingDetectionSource: string | null;
   calendarPollIntervalSeconds: number | null;
+  /** P6 — pilot tenant while Graph meeting connector not live (`detection_source: off`). */
+  pilotMeetingPresenceAwaitingGraph: boolean;
 };
 
 const defaultValue: StrategistSurfaceValue = {
@@ -28,6 +30,7 @@ const defaultValue: StrategistSurfaceValue = {
   oracleInMeetingAlertAt: null,
   meetingDetectionSource: "off",
   calendarPollIntervalSeconds: null,
+  pilotMeetingPresenceAwaitingGraph: false,
 };
 
 const StrategistSurfaceContext = React.createContext<StrategistSurfaceValue | null>(null);

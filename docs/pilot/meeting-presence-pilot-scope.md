@@ -19,3 +19,5 @@ Choose **one** for the design partner brief:
 ## Web dependency
 
 `loadStrategistActivityForActor` passes **`x-deployai-tenant`** to CP; without it, meeting-presence and ingestion scoping may not match the customer tenant.
+
+When **`DEPLOYAI_PILOT_TENANT_ID`** matches the actor and CP reports **`detection_source: off`**, the strategist shell shows an informational banner (calendar / Graph connector pending). URL demo flags (`?inMeeting=1`) do **not** flip that banner — they remain QA-only overlays via [`strategist-surface-flags`](../../apps/web/src/lib/epic8/strategist-surface-flags.ts).

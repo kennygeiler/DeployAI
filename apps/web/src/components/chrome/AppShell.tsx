@@ -46,7 +46,7 @@ export function AppShell({
   belowTopBar = null,
 }: AppShellProps) {
   const pathname = usePathname();
-  const { agentDegraded } = useStrategistSurface();
+  const { agentDegraded, pilotMeetingPresenceAwaitingGraph } = useStrategistSurface();
   const [commandOpen, setCommandOpen] = React.useState(false);
   const freshnessSurface = freshnessProp ?? freshnessForPath(pathname);
 
@@ -79,6 +79,14 @@ export function AppShell({
               variant={sessionBanner.variant}
               expiresAt={sessionBanner.expiresAt}
             />
+          </div>
+        </div>
+      ) : null}
+      {pilotMeetingPresenceAwaitingGraph ? (
+        <div className="border-b border-blue-600/15 bg-blue-50/85 dark:border-blue-800/40 dark:bg-blue-950/35">
+          <div className="mx-auto w-full max-w-[1600px] px-4 py-2 text-sm leading-snug text-blue-950 md:px-6 dark:text-blue-50">
+            Pilot: calendar-linked meeting presence is not active yet—the Microsoft Graph connector is
+            still pending for this tenant. Stub or demo flows remain available where configured.
           </div>
         </div>
       ) : null}
