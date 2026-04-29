@@ -26,6 +26,7 @@ First-party login and refresh flows own session cookies; the access JWT shape an
 
 ## See also
 
+- [`phase-0-checklist.md`](./phase-0-checklist.md) — hosted verification gate before external pilot visitors (JWT, tenant, CP loaders, queues, runbook)
 - [`oracle-and-digest-pilot.md`](./oracle-and-digest-pilot.md) — Oracle health URL + CP-backed digest/evidence for pilots
 - [`tenant-provisioning.md`](./tenant-provisioning.md) — internal session mint for tests
 - [`../dev-environment.md`](../dev-environment.md) — strategist dev defaults

@@ -12,7 +12,7 @@ Operational docs for **hosted** strategist pilots. Planning source: [`_bmad-outp
 | [queue-durability-modes.md](./queue-durability-modes.md) | 15.3 | Single-replica vs CP-backed queues |
 | [meeting-presence-pilot-scope.md](./meeting-presence-pilot-scope.md) | 15.4 | Stub vs Graph truth for `/in-meeting` |
 | [support-runbook.md](./support-runbook.md) | 15.5 | Triage during a pilot session |
-| [phase-0-checklist.md](./phase-0-checklist.md) | 16.6 | Internal dry-run gate before visitors |
+| [phase-0-checklist.md](./phase-0-checklist.md) | 16.6 | **Hosted verification** gate — JWT/tenant/CP loaders/queues/runbook (before visitors) |
 | [design-partner-day-playbook.md](./design-partner-day-playbook.md) | 16.6 | Day-of script + retro prompt |
 | [examples/pilot-surface.example.json](./examples/pilot-surface.example.json) | 16.4–16.5 | Sample `DEPLOYAI_PILOT_SURFACE_DATA_PATH` payload |
 
