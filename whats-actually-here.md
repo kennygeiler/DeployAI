@@ -180,6 +180,7 @@ Use this to run a **credible demo** without claiming full production.
 
 ## 9. Related docs
 
+- [docs/pilot/phase-0-checklist.md](./docs/pilot/phase-0-checklist.md) — **hosted internal verification** before external pilot visitors (JWT, tenant requirement, CP loaders, queues mode, runbook link).
 - [docs/dev-environment.md](./docs/dev-environment.md) — local run, headers, poll interval, CP vars.
 - [.env.example](./.env.example) — CP, OIDC, ingestion placeholders.
 - [_bmad-output/implementation-artifacts/sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml) — story-level done/in-progress.
@@ -220,5 +221,6 @@ Use this when a **real Forward Deployed Engineer** (or customer strategist) shou
 | 2026-04-28 | **Epics 15–16** in `epics.md` + sprint grid; **docs/pilot/** operator pack; **`DEPLOYAI_STRATEGIST_REQUIRE_TENANT`** middleware; Epic **15** stories closed for pilot prerequisites. |
 | 2026-04-28 | **Epic 10** on `main` (PR #58): CP-backed overrides + personal audit surfaces (`/overrides`, `/audit/personal`), citation envelope / oracle supersession alignment, private-scope annotations. **Epic 11.1** (PR #59): edge-agent Tauri **capability scaffold** + CI capability audit + `docs/edge-agent/capabilities.md` (continuous CoreAudio capture depth still follow-up per capabilities doc). **Epic 11** marked **done** in sprint-status for scoped V1 agent stories; retros **1, 6, 10, 11, 15, 16**. **§2** / **§3** updated. |
 | 2026-04-28 | **Documentation sweep:** README **What’s new** + status blurb aligned with [sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml); [docs/repo-layout.md](./docs/repo-layout.md) retired obsolete Story **1.11** “not yet” bullets; [docs/dev-environment.md](./docs/dev-environment.md) documents edge-agent **Vite :1420** + **`default-run`** dev workflow; [apps/edge-agent/README.md](./apps/edge-agent/README.md) replaces generic Tauri template text. |
+| 2026-04-29 | [docs/pilot/phase-0-checklist.md](./docs/pilot/phase-0-checklist.md) expanded into a **hosted verification** runbook (JWT + `DEPLOYAI_STRATEGIST_REQUIRE_TENANT`, optional `DEPLOYAI_WEB_CLEAR_STRATEGIST_HEADERS_BEFORE_JWT`, CP digest/evidence/pilot surface, queues mode, runbook link); §9 cross-link. |
 
 ---
