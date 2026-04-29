@@ -18,7 +18,7 @@ Use this when moving from **local dev** to a **hosted** strategist pilot (Epic 1
 ## Pilot data loaders (Epic 16)
 
 1. **`DEPLOYAI_DIGEST_SOURCE=cp`** — `/digest` loads top items from `GET /internal/v1/strategist/pilot-surfaces/morning-digest-top` (tenant query param). Populate **`DEPLOYAI_PILOT_SURFACE_DATA_PATH`** on the control plane with JSON (see [`examples/pilot-surface.example.json`](./examples/pilot-surface.example.json)) until canonical query APIs replace it.
-2. **`DEPLOYAI_EVIDENCE_SOURCE=cp`** — `/evidence/[nodeId]` loads from `GET /internal/v1/strategist/pilot-surfaces/evidence-node/{node_id}`; wrong tenant → 404 (no cross-tenant body).
+2. **`DEPLOYAI_EVIDENCE_SOURCE=cp`** or **`DEPLOYAI_PILOT_TENANT_ID`** matching JWT `tid` (see Epic 16 pilot loaders) — `/evidence/[nodeId]` loads from `GET /internal/v1/strategist/pilot-surfaces/evidence-node/{node_id}?tenant_id=…`. Wrong tenant or unknown node → HTTP **404** from CP; the web app rejects payloads whose `id` does not match the requested path segment (defense in depth). Mock fixtures remain dev-only and are not tenant-isolated.
 
 ## Observability and support
 
