@@ -138,6 +138,15 @@ export const PHASE_TRACKING_MOCK_TODAY = "2026-04-24" as const;
 
 export type DueDateWindow = "all" | "today" | "next7" | "overdue";
 
+const ISO_LOCAL_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+function clampStrategistLocalDayForWindow(today: string | undefined): string {
+  if (today !== undefined && today !== "" && ISO_LOCAL_DAY.test(today)) {
+    return today;
+  }
+  return PHASE_TRACKING_MOCK_TODAY;
+}
+
 function addDaysToIsoDate(isoDate: string, days: number): string {
   const t = new Date(`${isoDate}T12:00:00.000Z`);
   t.setUTCDate(t.getUTCDate() + days);
@@ -153,17 +162,18 @@ export function actionQueueRowMatchesDueWindow(
   window: DueDateWindow,
   today: string = PHASE_TRACKING_MOCK_TODAY,
 ): boolean {
+  const day = clampStrategistLocalDayForWindow(today);
   if (window === "all") {
     return true;
   }
   if (window === "today") {
-    return due === today;
+    return due === day;
   }
   if (window === "overdue") {
-    return due < today;
+    return due < day;
   }
-  const end = addDaysToIsoDate(today, 6);
-  return due >= today && due <= end;
+  const end = addDaysToIsoDate(day, 6);
+  return due >= day && due <= end;
 }
 
 /**
@@ -171,6 +181,7 @@ export function actionQueueRowMatchesDueWindow(
  * (tomorrow, today, +2, −4) so date-window chips always have a non-empty walkthrough.
  */
 export function buildPhaseTrackingRows(today: string): ActionQueueRow[] {
+  const day = clampStrategistLocalDayForWindow(today);
   return [
     {
       id: "aq-1",
@@ -178,7 +189,7 @@ export function buildPhaseTrackingRows(today: string): ActionQueueRow[] {
       phase: "P5 Pilot",
       status: "in_progress",
       assignee: "You",
-      due: addDaysToIsoDate(today, 1),
+      due: addDaysToIsoDate(day, 1),
       priority: 1,
       summary: "Sponsor sign-off on success metrics before go-live date.",
       retrievalPhase: "oracle",
@@ -199,7 +210,7 @@ export function buildPhaseTrackingRows(today: string): ActionQueueRow[] {
       phase: "P4 Design",
       status: "blocked",
       assignee: "Unassigned",
-      due: today,
+      due: day,
       priority: 2,
       summary: "Same evidence as top digest item — block program office alignment.",
       retrievalPhase: "master_strategist",
@@ -219,7 +230,7 @@ export function buildPhaseTrackingRows(today: string): ActionQueueRow[] {
       phase: "P5 Pilot",
       status: "open",
       assignee: "Field lead",
-      due: addDaysToIsoDate(today, 2),
+      due: addDaysToIsoDate(day, 2),
       priority: 3,
       summary: "One session; capture network and room layout issues.",
       retrievalPhase: "cartographer",
@@ -239,7 +250,7 @@ export function buildPhaseTrackingRows(today: string): ActionQueueRow[] {
       phase: "P4 Design",
       status: "open",
       assignee: "Security",
-      due: addDaysToIsoDate(today, -4),
+      due: addDaysToIsoDate(day, -4),
       priority: 4,
       summary: "Blocker for pilot contract — due last week; escalate if no answer.",
       retrievalPhase: "master_strategist",

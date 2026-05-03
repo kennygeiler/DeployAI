@@ -10,6 +10,7 @@ const meetingIdleFields = {
   oracleInMeetingAlertAt: null,
   meetingDetectionSource: "off",
   calendarPollIntervalSeconds: null,
+  pilotMeetingPresenceAwaitingGraph: false,
 } as const;
 
 /** Client `AppShell` must be hydrated so the ⌃K listener is attached (domcontentloaded alone is not enough). */

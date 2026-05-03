@@ -121,7 +121,9 @@ export function StrategistShell({
         return;
       }
       const j = (await r.json()) as StrategistActivitySnapshot;
+      /** Merge so partial JSON (proxies, stale mocks) cannot strip snapshot keys — was breaking `/phase-tracking` date chips via invalid `strategistLocalDate`. */
       setActivity((prev) => ({
+        ...prev,
         ...j,
         strategistLocalDate: j.strategistLocalDate ?? prev.strategistLocalDate,
         agentServiceHealth: j.agentServiceHealth ?? prev.agentServiceHealth,
