@@ -25,4 +25,11 @@ describe("actionQueueRowMatchesDueWindow", () => {
     expect(actionQueueRowMatchesDueWindow("2026-05-01", "next7", today)).toBe(false);
     expect(actionQueueRowMatchesDueWindow("2026-04-19", "next7", today)).toBe(false);
   });
+
+  it("falls back to PHASE_TRACKING_MOCK_TODAY when reference day is undefined or non-ISO (no Invalid Date)", () => {
+    expect(
+      actionQueueRowMatchesDueWindow("2026-04-30", "next7", undefined as unknown as string),
+    ).toBe(true);
+    expect(actionQueueRowMatchesDueWindow("2026-04-30", "next7", "not-a-date")).toBe(true);
+  });
 });
