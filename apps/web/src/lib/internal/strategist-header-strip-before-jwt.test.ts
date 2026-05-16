@@ -15,10 +15,16 @@ describe("stripInboundStrategistHeadersBeforeJwt", () => {
 
   it("is inactive when CLEAR flag is unset", () => {
     vi.stubEnv("DEPLOYAI_WEB_TRUST_JWT", "1");
-    vi.stubEnv("DEPLOYAI_WEB_JWT_PUBLIC_KEY_PEM", "-----BEGIN PUBLIC KEY-----\nfake\n-----END PUBLIC KEY-----");
+    vi.stubEnv(
+      "DEPLOYAI_WEB_JWT_PUBLIC_KEY_PEM",
+      "-----BEGIN PUBLIC KEY-----\nfake\n-----END PUBLIC KEY-----",
+    );
     expect(shouldStripInboundStrategistHeadersBeforeJwt()).toBe(false);
 
-    const h = new Headers({ "x-deployai-role": "deployment_strategist", "x-deployai-tenant": "t1" });
+    const h = new Headers({
+      "x-deployai-role": "deployment_strategist",
+      "x-deployai-tenant": "t1",
+    });
     stripInboundStrategistHeadersBeforeJwt(h);
     expect(h.get("x-deployai-role")).toBe("deployment_strategist");
   });
@@ -33,7 +39,10 @@ describe("stripInboundStrategistHeadersBeforeJwt", () => {
   it("when active, clears role and tenant headers", () => {
     vi.stubEnv("DEPLOYAI_WEB_CLEAR_STRATEGIST_HEADERS_BEFORE_JWT", "1");
     vi.stubEnv("DEPLOYAI_WEB_TRUST_JWT", "1");
-    vi.stubEnv("DEPLOYAI_WEB_JWT_PUBLIC_KEY_PEM", "-----BEGIN PUBLIC KEY-----\nfake\n-----END PUBLIC KEY-----");
+    vi.stubEnv(
+      "DEPLOYAI_WEB_JWT_PUBLIC_KEY_PEM",
+      "-----BEGIN PUBLIC KEY-----\nfake\n-----END PUBLIC KEY-----",
+    );
 
     expect(shouldStripInboundStrategistHeadersBeforeJwt()).toBe(true);
 
