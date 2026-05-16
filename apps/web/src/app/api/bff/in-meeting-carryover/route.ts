@@ -6,7 +6,9 @@ import { appendActionQueueItems } from "@/lib/bff/strategist-queues-store";
 import { buildInMeetingCarryoverRows } from "@/lib/epic9/in-meeting-carryover-build";
 import { getActorFromHeaders } from "@/lib/internal/actor";
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
+import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
 import { strategistQueuesUseControlPlane } from "@/lib/internal/strategist-queues-backend";
+import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strategist-queues-route-guard";
 import { cpBulkAppendActionQueue } from "@/lib/internal/strategist-queues-cp";
 
 type Body = {
@@ -25,6 +27,8 @@ export async function POST(request: NextRequest) {
   if (!d.allow) {
     return new NextResponse("Forbidden", { status: 403 });
   }
+  const cpMisconfigured = strategistQueueBffCpMisconfiguredResponse(actor.tenantId);
+  if (cpMisconfigured) return cpMisconfigured;
   let body: Body;
   try {
     body = (await request.json()) as Body;
@@ -47,8 +51,7 @@ export async function POST(request: NextRequest) {
       await cpBulkAppendActionQueue(tid, rows);
       return NextResponse.json({ ok: true, inserted: rows.length, source: "cp" }, { status: 200 });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      return NextResponse.json({ error: msg, source: "cp_error" }, { status: 502 });
+      return nextResponseFromStrategistCpFetchError(e);
     }
   }
   appendActionQueueItems(actor.tenantId ?? null, rows);

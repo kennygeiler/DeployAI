@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { ActionQueueItem } from "@/lib/bff/strategist-queues-store";
+import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 
 const columnHelper = createColumnHelper<ActionQueueItem>();
 
@@ -39,7 +40,7 @@ export function ActionQueueTable() {
   const refresh = React.useCallback(async () => {
     const r = await fetch("/api/bff/action-queue", { cache: "no-store" });
     if (!r.ok) {
-      setErr(await r.text());
+      setErr(await readStrategistBffErrorDescription(r));
       return;
     }
     setErr(null);
@@ -58,7 +59,9 @@ export function ActionQueueTable() {
         method: "POST",
       });
       if (!r.ok) {
-        toast.error("Claim failed", { description: (await r.text()).slice(0, 240) });
+        toast.error("Claim failed", {
+          description: (await readStrategistBffErrorDescription(r)).slice(0, 240),
+        });
         return;
       }
       toast.success("Claimed");
@@ -74,7 +77,7 @@ export function ActionQueueTable() {
       });
       if (!r.ok) {
         toast.error("Progress update failed", {
-          description: (await r.text()).slice(0, 240),
+          description: (await readStrategistBffErrorDescription(r)).slice(0, 240),
         });
         return;
       }
@@ -114,7 +117,9 @@ export function ActionQueueTable() {
       }),
     });
     if (!r.ok) {
-      toast.error("Resolve failed", { description: (await r.text()).slice(0, 240) });
+      toast.error("Resolve failed", {
+        description: (await readStrategistBffErrorDescription(r)).slice(0, 240),
+      });
       return;
     }
     toast.success("Resolution recorded");

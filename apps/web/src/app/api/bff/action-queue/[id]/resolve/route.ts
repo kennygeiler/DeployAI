@@ -9,7 +9,9 @@ import {
 } from "@/lib/bff/strategist-queues-store";
 import { getActorFromHeaders, getActorIdFromHeaders } from "@/lib/internal/actor";
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
+import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
 import { strategistQueuesUseControlPlane } from "@/lib/internal/strategist-queues-backend";
+import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strategist-queues-route-guard";
 import { cpPatchActionQueueItem } from "@/lib/internal/strategist-queues-cp";
 import { postStrategistActivityToCp } from "@/lib/internal/strategist-cp-activity";
 
@@ -54,6 +56,9 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
       { status: 400 },
     );
   }
+  const cpMisconfigured = strategistQueueBffCpMisconfiguredResponse(actor.tenantId);
+  if (cpMisconfigured) return cpMisconfigured;
+
   const who = actor.role === "deployment_strategist" ? "you" : actor.role;
   const evidenceIds = Array.isArray(body.evidence_event_ids)
     ? body.evidence_event_ids.filter((x): x is string => typeof x === "string" && x.length > 0)
@@ -74,8 +79,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
         resolution_reason: body.reason?.trim() || null,
         evidence_event_ids: evidenceIds && evidenceIds.length > 0 ? evidenceIds : null,
       });
-    } catch {
-      return NextResponse.json({ error: "not found" }, { status: 404 });
+    } catch (e) {
+      return nextResponseFromStrategistCpFetchError(e);
     }
   } else {
     next = mutateActionQueueItem(actor.tenantId ?? null, id, {
