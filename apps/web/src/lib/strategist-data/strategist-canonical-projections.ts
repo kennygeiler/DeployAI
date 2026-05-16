@@ -19,9 +19,7 @@ export type CanonicalProjectionCursor = {
   readonly streamPosition: string;
 };
 
-export type CanonicalProjectionJobKind =
-  | "batch_emit"
-  | "stream_emit";
+export type CanonicalProjectionJobKind = "batch_emit" | "stream_emit";
 
 export type CanonicalProjectionWriteIntent = {
   readonly surface: StrategistCanonicalSurface;
