@@ -2,15 +2,8 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { decideSync } from "@deployai/authz";
 
-import {
-  listValidationQueue,
-  patchValidationRow,
-  pushValidationAudit,
-} from "@/lib/bff/strategist-queues-store";
 import { getActorFromHeaders } from "@/lib/internal/actor";
-import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
 import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
-import { strategistQueuesUseControlPlane } from "@/lib/internal/strategist-queues-backend";
 import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strategist-queues-route-guard";
 import {
   cpListValidationQueue,
@@ -27,7 +20,7 @@ function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === "object" && x !== null;
 }
 
-/** Epic 9.6 — User Validation Queue (BFF mock). */
+/** Epic 9.6 — validation queue via control-plane Postgres. */
 export async function GET() {
   const actor = await getActorFromHeaders();
   if (!actor) {
@@ -39,26 +32,13 @@ export async function GET() {
   }
   const cpMisconfigured = strategistQueueBffCpMisconfiguredResponse(actor.tenantId);
   if (cpMisconfigured) return cpMisconfigured;
-  const tid = actor.tenantId?.trim();
-  if (
-    strategistQueuesUseControlPlane() &&
-    tid &&
-    getControlPlaneBaseUrl() &&
-    getControlPlaneInternalKey()
-  ) {
-    try {
-      const items = await cpListValidationQueue(tid);
-      return NextResponse.json({ items, source: "cp" }, { status: 200 });
-    } catch (e) {
-      return nextResponseFromStrategistCpFetchError(e);
-    }
+  const tid = actor.tenantId!.trim();
+  try {
+    const items = await cpListValidationQueue(tid);
+    return NextResponse.json({ items, source: "cp" }, { status: 200 });
+  } catch (e) {
+    return nextResponseFromStrategistCpFetchError(e);
   }
-  return NextResponse.json(
-    { items: listValidationQueue(actor.tenantId ?? null), source: "memory" },
-    {
-      status: 200,
-    },
-  );
 }
 
 export async function POST(request: NextRequest) {
@@ -82,64 +62,34 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
-  const tid = actor.tenantId?.trim();
-  const useCp =
-    strategistQueuesUseControlPlane() &&
-    tid &&
-    getControlPlaneBaseUrl() &&
-    getControlPlaneInternalKey();
+  const tid = actor.tenantId!.trim();
 
   if (body.op === "confirm") {
-    if (useCp) {
-      try {
-        const row = await cpPatchValidationQueueItem(tid!, body.id, "resolved");
-        return NextResponse.json({ item: row, source: "cp" });
-      } catch (e) {
-        return nextResponseFromStrategistCpFetchError(e);
-      }
+    try {
+      const row = await cpPatchValidationQueueItem(tid, body.id, "resolved");
+      return NextResponse.json({ item: row, source: "cp" });
+    } catch (e) {
+      return nextResponseFromStrategistCpFetchError(e);
     }
-    pushValidationAudit(actor.tenantId ?? null, "validation.confirmed", { id: body.id });
-    const row = patchValidationRow(actor.tenantId ?? null, body.id, "resolved");
-    return row
-      ? NextResponse.json({ item: row, source: "memory" })
-      : NextResponse.json({ error: "not found" }, { status: 404 });
   }
   if (body.op === "defer") {
-    if (useCp) {
-      try {
-        const row = await cpPatchValidationQueueItem(tid!, body.id, "in-review");
-        return NextResponse.json({ item: row, source: "cp" });
-      } catch (e) {
-        return nextResponseFromStrategistCpFetchError(e);
-      }
+    try {
+      const row = await cpPatchValidationQueueItem(tid, body.id, "in-review");
+      return NextResponse.json({ item: row, source: "cp" });
+    } catch (e) {
+      return nextResponseFromStrategistCpFetchError(e);
     }
-    pushValidationAudit(actor.tenantId ?? null, "validation.deferred", { id: body.id });
-    const row = patchValidationRow(actor.tenantId ?? null, body.id, "in-review");
-    return row
-      ? NextResponse.json({ item: row, source: "memory" })
-      : NextResponse.json({ error: "not found" }, { status: 404 });
   }
   if (body.op === "modify" || body.op === "reject") {
     if (!body.reason?.trim()) {
       return NextResponse.json({ error: "reason required" }, { status: 400 });
     }
-    const kind = body.op === "modify" ? "validation.modified" : "validation.rejected";
-    if (useCp) {
-      try {
-        const row = await cpPatchValidationQueueItem(tid!, body.id, "resolved");
-        return NextResponse.json({ item: row, source: "cp" });
-      } catch (e) {
-        return nextResponseFromStrategistCpFetchError(e);
-      }
+    try {
+      const row = await cpPatchValidationQueueItem(tid, body.id, "resolved");
+      return NextResponse.json({ item: row, source: "cp" });
+    } catch (e) {
+      return nextResponseFromStrategistCpFetchError(e);
     }
-    pushValidationAudit(actor.tenantId ?? null, kind, {
-      id: body.id,
-      reason: body.reason.trim(),
-    });
-    const row = patchValidationRow(actor.tenantId ?? null, body.id, "resolved");
-    return row
-      ? NextResponse.json({ item: row, source: "memory" })
-      : NextResponse.json({ error: "not found" }, { status: 404 });
   }
   return NextResponse.json({ error: "unknown op" }, { status: 400 });
 }

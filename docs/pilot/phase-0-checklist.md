@@ -88,10 +88,10 @@ Complete at least one path from [`oauth-from-web.md`](./oauth-from-web.md) (conn
 - From **`/digest`**, open an evidence deeplink **`/evidence/{nodeId}`** that exists for the tenant.
 - Spot-check **wrong tenant / unknown node** → CP returns **404**; UI must not show another tenant’s payload (see hosted-environment digest/evidence bullets).
 
-### Gate 6 — Queue durability mode
+### Gate 6 — Queue durability (CP Postgres)
 
-- Record **Option A** (CP-backed / `DEPLOYAI_STRATEGIST_QUEUES_BACKEND=cp`) vs **Option B** (single replica + in-memory BFF store) per [`queue-durability-modes.md`](./queue-durability-modes.md).
-- If multi-replica web without CP-backed queues, note explicit risk — aligns with [`whats-actually-here.md`](../../whats-actually-here.md) §10 queue bullet.
+- Confirm **`DEPLOYAI_CONTROL_PLANE_URL`** + **`DEPLOYAI_INTERNAL_API_KEY`** on web + CP DB migrated per [`queue-durability-modes.md`](./queue-durability-modes.md).
+- Smoke: `/validation-queue` or `/action-queue` returns **200** with `source: "cp"` (not **503** `cp_misconfigured`).
 
 ### Gate 7 — Runbook spot-check
 

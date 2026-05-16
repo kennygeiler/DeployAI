@@ -1,5 +1,7 @@
 # What’s actually here
 
+**Canonical architecture + flag matrix:** [`docs/product/deployai-source-of-truth-spec.md`](./docs/product/deployai-source-of-truth-spec.md) — use for leadership / cross-team “what is real in code.” This file stays the **demo / pilot / fixture** catalog and maintenance checklist.
+
 **Living document.** Update this file when epics ship, env contracts change, or a surface moves from mock → live. Goal: one honest place to **catalog reality**, **demo the product**, and **talk to stakeholders** without conflating “CI green” with “operator’s daily driver.”
 
 ## 0. How to keep this document honest
@@ -18,7 +20,7 @@
 ## 1. TL;DR
 
 - **A lot of “hard work” is real:** monorepo gates, schemas, tenant-isolation tests, ingestion/control-plane direction, agent/eval **contracts and harnesses**, design system, strategist **screens and flows**.
-- **The strategist browser experience is often demo-shaped:** digest/evening/phase can use **fixtures or optional HTTP URLs**; queues use an **in-memory BFF store**; meeting presence uses **CP stub + URL flags**; **no live agent streaming** into the UI today.
+- **The strategist browser experience is often demo-shaped:** digest/evening/phase can use **fixtures or optional HTTP URLs**; **queues always hit CP Postgres** (503 if CP env missing/unreachable); meeting presence uses **CP stub + URL flags**; **no live agent streaming** into the UI today.
 - **“Demo usable”** = walk the workflow with fixtures + dev role headers + optional env URLs + CP where configured. **“Pilot usable”** = same surfaces backed by **durable APIs + tenant truth**. See **§7** (checklist) and **§8** (stages).
 
 ---
@@ -29,11 +31,11 @@
 |---------|----------------|-------------------|
 | `/digest` | `MORNING_DIGEST_TOP` in code | `STRATEGIST_DIGEST_SOURCE_URL` → validated JSON array |
 | `/phase-tracking` | Optional remote feed; else seeded fallback + banner | Wire feed; fix payload to schema |
-| `/evening` | Mock slice + patterns; solidification **nudge count** from in-memory store | `STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL` |
+| `/evening` | Mock slice + patterns; solidification **nudge count** from **CP** queue API | `STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL` |
 | `/in-meeting` | Meeting signal from activity poll + digest-aligned fixtures | CP `meeting-presence` + stub tenant env; or `?inMeeting=1` |
-| `/action-queue` | Empty until carryover or tests | In-meeting end → carryover POST; later CP rows |
-| `/validation-queue` | **Auto-seeded** 10 rows on first tenant touch (BFF) | Replace with CP-backed queue |
-| `/solidification-review` | **Auto-seeded** 20 rows on first tenant touch | Replace with CP-backed queue |
+| `/action-queue` | **Postgres** via CP internal APIs (empty until carryover / inserts) | **`DEPLOYAI_CONTROL_PLANE_URL`** + **`DEPLOYAI_INTERNAL_API_KEY`** + migrations; **503** if misconfigured or CP down |
+| `/validation-queue` | **CP** validation rows (auto-seeded in **DB** on first tenant touch) | Same as action-queue |
+| `/solidification-review` | **CP** solidification rows (auto-seeded in **DB** on first tenant touch) | Same as action-queue |
 | `/evidence/[nodeId]` | Works for fixture IDs linked from digest | Needs canonical graph backing same IDs |
 | `/overrides` | Override history + composer; BFF → CP **durable** overrides API | CP migrated + tenant-scoped actor; evidence search for composer |
 | `/audit/personal` | Personal activity rows; BFF → CP strategist activity | Same CP coupling as other strategist routes |
@@ -45,7 +47,7 @@ All `STRATEGIST_*`, `DEPLOYAI_ORACLE_HEALTH_URL`, `NEXT_PUBLIC_DEPLOYAI_STRATEGI
 
 ## 3. What shipped across core epics (framing)
 
-Rough mapping (see [_bmad-output/implementation-artifacts/sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml) for story-level truth). **Epic 7**, **Epic 9**, and **Epic 10** are story-complete on `main` for their scoped stories; **CP-backed queues** (action / validation / solidification) remain future work—the BFF **in-memory** store still applies there. **Epic 11** (macOS edge capture agent) is story-complete for scoped **Tauri** work — transcripts, FOIA verifier alignment, Sparkle verify path, CP kill-switch — not full continuous CoreAudio production capture until follow-up.
+Rough mapping (see [_bmad-output/implementation-artifacts/sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml) for story-level truth). **Epic 7**, **Epic 9**, and **Epic 10** are story-complete on `main` for their scoped stories; **BFF queue routes** always proxy to **Postgres-backed** control-plane internal APIs (**no** in-process queue store). **Epic 11** (macOS edge capture agent) is story-complete for scoped **Tauri** work — transcripts, FOIA verifier alignment, Sparkle verify path, CP kill-switch — not full continuous CoreAudio production capture until follow-up.
 
 | Area | What you got |
 |------|----------------|
@@ -54,7 +56,7 @@ Rough mapping (see [_bmad-output/implementation-artifacts/sprint-status.yaml](./
 | **Epics 4–6** | Agent runtime **contracts**, eval harness, providers, cartographer/oracle **design** — *lab + spec*, not full browser loop |
 | **Epic 7** | **shared-ui** primitives (citation, evidence, alert, validation card, …) — reusable, tested components |
 | **Epic 8** | Strategist **shell**: digest, phase, evening, Cmd+K, evidence deep links, degraded states |
-| **Epic 9** | In-meeting **UX**, carryover, action-queue **lifecycle APIs**, validation/solidification **surfaces** (BFF mock store) |
+| **Epic 9** | In-meeting **UX**, carryover, action-queue **lifecycle APIs**, validation/solidification **surfaces** (BFF ↔ **CP** queues) |
 | **Epic 10** | **Durable** learning overrides, private annotation crypto, citation supersession plumbing, **`/overrides`** + **`/audit/personal`** via BFF → CP |
 | **Epic 11** | **Edge agent** (`apps/edge-agent`): capability model, Ed25519 identity, **v1/v2** transcript bundles, **`foia verify`** compatibility + revocation sidecar, Sparkle **fetch/verify** tooling, CP **kill-switch** poll — **parallel** to Epic **12** (FOIA/export) and Epic **14** (post-V1 platform); see [`docs/edge-agent/capabilities.md`](./docs/edge-agent/capabilities.md) |
 
@@ -77,8 +79,8 @@ flowchart LR
   subgraph reactive["Reactive / queues"]
     M["/in-meeting\n?inMeeting=1 or CP presence"]
     A["/action-queue\ncarryover or empty"]
-    V["/validation-queue\nauto-seed ×10"]
-    S["/solidification-review\nauto-seed ×20"]
+    V["/validation-queue\nCP DB seed ×10"]
+    S["/solidification-review\nCP DB seed ×20"]
   end
   subgraph evidence["Evidence"]
     Ev["/evidence/nodeId\nfrom digest chips"]
@@ -125,7 +127,8 @@ flowchart TB
   Activity --> OracleH
   Loaders --> DigestURL
   Loaders --> EveningURL
-  BFF --> Mem[("In-memory queue store\ndemo / dev")]
+  BFF --> CPQs[("/internal/v1/strategist/*-queue\nPostgres-backed")]
+  CPQs --> cp
 ```
 
 ---
@@ -142,7 +145,7 @@ flowchart LR
     UI[shared-ui + routes]
   end
   subgraph stub["Product-stub / demo"]
-    MemQ[In-memory BFF queues]
+    MemQ[In-memory queues\nunless cp backend env]
     Fix[Digest fixtures]
     Poll[Activity poll is not agent stream]
   end
@@ -162,9 +165,9 @@ Use this to run a **credible demo** without claiming full production.
 - [ ] **Degraded story (optional):** `?agentError=1` / `?ingest=1` on surfaces to show banners (Epic 8.7).
 - [ ] **In-meeting:** `?inMeeting=1` **or** CP stub tenant for meeting-presence; end meeting → carryover toast → `/action-queue` shows rows.
 - [ ] **In-meeting alert position (Story 9.8):** Drag position + reset are **`localStorage` only** (per browser / profile). **No server or cross-device** layout sync yet—say that plainly in demos; a follow-up would persist coordinates (or a named preset) via CP or user preferences.
-- [ ] **Queues:** `/validation-queue` and `/solidification-review` show cards immediately (auto-seed).
+- [ ] **Queues:** `/validation-queue` and `/solidification-review` show cards after **CP seeds** them on first tenant touch (run **`services/control-plane`** + migrations).
 - [ ] **Optional realism:** Set `STRATEGIST_DIGEST_SOURCE_URL` / evening URL / `DEPLOYAI_CONTROL_PLANE_URL` + internal key per dev docs and [.env.example](./.env.example).
-- [ ] **Say honestly:** “Surfaces are production-shaped; much data is fixture or BFF mock until CP tables back these queues.”
+- [ ] **Say honestly:** “Surfaces are production-shaped; digest/evening may be fixtures or HTTP URLs; **queues are always CP Postgres**—you need **`DEPLOYAI_CONTROL_PLANE_URL`** + **`DEPLOYAI_INTERNAL_API_KEY`** + migrated DB.”
 
 ---
 
@@ -180,6 +183,7 @@ Use this to run a **credible demo** without claiming full production.
 
 ## 9. Related docs
 
+- [docs/product/deployai-source-of-truth-spec.md](./docs/product/deployai-source-of-truth-spec.md) — **canonical code + deployment flag matrix** (architecture, identity, queues, meeting, epics pointer).
 - [docs/pilot/phase-0-checklist.md](./docs/pilot/phase-0-checklist.md) — **hosted internal verification** before external pilot visitors (JWT, tenant requirement, CP loaders, queues mode, runbook link).
 - [docs/dev-environment.md](./docs/dev-environment.md) — local run, headers, poll interval, CP vars.
 - [.env.example](./.env.example) — CP, OIDC, ingestion placeholders.
@@ -202,9 +206,9 @@ Use this when a **real Forward Deployed Engineer** (or customer strategist) shou
 4. **Strategist activity truth** — CP endpoints behind `loadStrategistActivityForActor` return coherent **meeting-presence**, **ingestion**, and optional **Oracle health** for that tenant—so banners and `/in-meeting` are not fiction.
 5. **Digest / evening (pick one)** — either **`STRATEGIST_DIGEST_SOURCE_URL` / `STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL`** pointing at **your** JSON feeds, or a short-term **seed job** that writes fixture-shaped data—operators must know which.
 6. **Evidence IDs** — citations deep-linking to **`/evidence/:nodeId`** need **IDs that exist** in your canonical graph (or scoped demo dataset).
-7. **Queues / BFF (critical)** — today’s **`strategist-queues-store` is in-process**. For FDE testing with **more than one web replica** or **restart-heavy** deploys, either run **a single replica** and accept data loss on deploy, or **build CP/DB-backed queue APIs** first—otherwise action/validation/solidification state will **surprise** testers.
+7. **Queues / BFF (critical)** — strategist queue BFF routes **always** call **Postgres-backed** CP internal APIs. Without **`DEPLOYAI_CONTROL_PLANE_URL`** + **`DEPLOYAI_INTERNAL_API_KEY`** (and a migrated CP DB), queue pages return **503**—there is **no** in-memory fallback on the web tier.
 
-**Stronger pilot** (closer to §8 “Pilot” stage): durable queues + audits, real calendar-driven meeting signal, ingestion feeding the evidence graph, no reliance on query-string demo flags.
+**Stronger pilot** (closer to §8 “Pilot” stage): **`cp`** queues + audits, real calendar-driven meeting signal (beyond stub/`off`), ingestion feeding the evidence graph, minimal reliance on query-string demo flags.
 
 **Support:** error logs, [docs/pilot/support-runbook.md](./docs/pilot/support-runbook.md), known limitations (this file + retros), and a named internal contact for “is this a bug or expected mock?”
 
@@ -222,5 +226,6 @@ Use this when a **real Forward Deployed Engineer** (or customer strategist) shou
 | 2026-04-28 | **Epic 10** on `main` (PR #58): CP-backed overrides + personal audit surfaces (`/overrides`, `/audit/personal`), citation envelope / oracle supersession alignment, private-scope annotations. **Epic 11.1** (PR #59): edge-agent Tauri **capability scaffold** + CI capability audit + `docs/edge-agent/capabilities.md` (continuous CoreAudio capture depth still follow-up per capabilities doc). **Epic 11** marked **done** in sprint-status for scoped V1 agent stories; retros **1, 6, 10, 11, 15, 16**. **§2** / **§3** updated. |
 | 2026-04-28 | **Documentation sweep:** README **What’s new** + status blurb aligned with [sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml); [docs/repo-layout.md](./docs/repo-layout.md) retired obsolete Story **1.11** “not yet” bullets; [docs/dev-environment.md](./docs/dev-environment.md) documents edge-agent **Vite :1420** + **`default-run`** dev workflow; [apps/edge-agent/README.md](./apps/edge-agent/README.md) replaces generic Tauri template text. |
 | 2026-04-29 | [docs/pilot/phase-0-checklist.md](./docs/pilot/phase-0-checklist.md) expanded into a **hosted verification** runbook (JWT + `DEPLOYAI_STRATEGIST_REQUIRE_TENANT`, optional `DEPLOYAI_WEB_CLEAR_STRATEGIST_HEADERS_BEFORE_JWT`, CP digest/evidence/pilot surface, queues mode, runbook link); §9 cross-link. |
+| 2026-05-16 | **Strategist queues CP-only:** removed **`apps/web` in-memory `strategist-queues-store`**; BFF always proxies to CP; **`DEPLOYAI_STRATEGIST_QUEUES_BACKEND`** / memory fallback env removed. |
 
 ---

@@ -36,6 +36,7 @@ Logs + metrics + correlation IDs minimum bar ([correlation-ids-rollout.md](./cor
 
 | Doc | Role |
 | --- | --- |
+| [**deployai-source-of-truth-spec.md**](../product/deployai-source-of-truth-spec.md) | Canonical product + architecture + deployment flags (must match code) |
 | [phase-0-checklist.md](../pilot/phase-0-checklist.md) | Hosted gates |
 | [gate-1-dashboard-spec.md](./gate-1-dashboard-spec.md) | Gate 1 panels |
 | [ci-hosted-gate-1.md](./ci-hosted-gate-1.md) | Optional Actions probes |
