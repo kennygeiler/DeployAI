@@ -7,6 +7,7 @@ import {
   applyDeployaiAccessJwtToHeaders,
 } from "@/lib/internal/deployai-access-jwt";
 import { stripInboundStrategistHeadersBeforeJwt } from "@/lib/internal/strategist-header-strip-before-jwt";
+import { ensureRequestCorrelationHeader } from "@/lib/internal/correlation-id";
 
 const isAdmin = (p: string) =>
   p === "/admin/runs" || p === "/admin/adjudication" || p.startsWith("/admin/schema-proposals");
@@ -73,6 +74,7 @@ function resourceForPath(pathname: string): Resource {
 
 export async function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
+  ensureRequestCorrelationHeader(requestHeaders, request.headers);
   /** Hosted SSO hardening: strip forged inbound headers before JWT replaces actor (see docs/pilot/session-and-headers.md). */
   stripInboundStrategistHeadersBeforeJwt(requestHeaders);
   const cookieName = accessTokenCookieNameFromEnv();
