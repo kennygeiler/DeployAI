@@ -194,6 +194,32 @@ describe("loadMorningDigestTopItemsResultForActor", () => {
       }),
     );
   });
+
+  it("loads from control plane when pilot tenant id matches actor case-insensitively (JWT tid vs env)", async () => {
+    delete process.env.DEPLOYAI_DIGEST_SOURCE;
+    process.env.DEPLOYAI_PILOT_TENANT_ID = "22222222-2222-4222-8222-222222222222";
+    process.env.DEPLOYAI_CONTROL_PLANE_URL = "http://cp.test";
+    process.env.DEPLOYAI_INTERNAL_API_KEY = "secret";
+    const one = structuredClone(MORNING_DIGEST_TOP)[0]!;
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: [one] }),
+    });
+    globalThis.fetch = fetchMock as typeof fetch;
+    const actorTenantUpper = "22222222-2222-4222-8222-222222222222".toUpperCase();
+    const actor: AuthActor = {
+      role: "deployment_strategist",
+      tenantId: actorTenantUpper,
+    };
+    const r = await loadMorningDigestTopItemsResultForActor(actor);
+    expect(r.source).toBe("live");
+    expect(fetchMock).toHaveBeenCalledWith(
+      `http://cp.test/internal/v1/strategist/pilot-surfaces/morning-digest-top?tenant_id=${encodeURIComponent(actorTenantUpper)}`,
+      expect.objectContaining({
+        headers: { "X-DeployAI-Internal-Key": "secret" },
+      }),
+    );
+  });
 });
 
 describe("loadMorningDigestTopItemsResult", () => {

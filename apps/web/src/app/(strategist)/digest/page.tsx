@@ -9,7 +9,8 @@ import {
 
 export const metadata: Metadata = {
   title: "Morning digest",
-  description: "Oracle morning digest (Epic 8, FR34).",
+  description:
+    "Ranked deployment signals for the morning review (Epic 8, FR34). Feed provenance depends on environment—this page does not imply a live model retrieval run.",
 };
 
 export default async function DigestPage() {

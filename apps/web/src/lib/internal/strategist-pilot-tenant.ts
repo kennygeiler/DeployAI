@@ -11,12 +11,17 @@ export function getDeployAiPilotTenantId(): string | null {
   return v || null;
 }
 
+/** Normalizes tenant strings so CP `tid` / env pilot id stay aligned when UUID casing differs. */
+function normalizeTenantIdForPilotCompare(value: string): string {
+  return value.trim().toLowerCase();
+}
+
 export function actorIsDeployAiPilotTenant(tenantId: string | null | undefined): boolean {
   const pilot = getDeployAiPilotTenantId();
   if (!pilot || !tenantId?.trim()) {
     return false;
   }
-  return tenantId.trim() === pilot;
+  return normalizeTenantIdForPilotCompare(tenantId) === normalizeTenantIdForPilotCompare(pilot);
 }
 
 function actorTenant(actor: AuthActor | null): string | null | undefined {
