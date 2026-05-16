@@ -57,6 +57,8 @@ export default defineConfig({
       // Story 15.1: CI-spawned `next start` verifies CP-shaped access JWTs (E2E fixture key).
       DEPLOYAI_WEB_TRUST_JWT: "1",
       DEPLOYAI_WEB_JWT_PUBLIC_KEY_PEM: pilotJwtPublicPem,
+      // Lane M: production `next start` gates `?inMeeting=1` unless explicitly opted in.
+      NEXT_PUBLIC_DEPLOYAI_STRATEGIST_MEETING_URL_DEMO: "1",
     },
   },
 });

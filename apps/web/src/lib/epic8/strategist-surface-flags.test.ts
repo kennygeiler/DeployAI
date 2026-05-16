@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   mergeStrategistSurfaceFromDemoQuery,
@@ -118,5 +118,55 @@ describe("mergeStrategistSurfaceFromDemoQuery", () => {
       pilotMeetingPresenceAwaitingGraph: true,
       agentDegraded: true,
     });
+  });
+});
+
+describe("mergeStrategistSurfaceFromDemoQuery production URL demo policy", () => {
+  const originalFlag = process.env.NEXT_PUBLIC_DEPLOYAI_STRATEGIST_MEETING_URL_DEMO;
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    if (originalFlag === undefined) {
+      delete process.env.NEXT_PUBLIC_DEPLOYAI_STRATEGIST_MEETING_URL_DEMO;
+    } else {
+      process.env.NEXT_PUBLIC_DEPLOYAI_STRATEGIST_MEETING_URL_DEMO = originalFlag;
+    }
+  });
+
+  const baseHealthy = {
+    agentDegraded: false,
+    ingestionInProgress: false,
+    strategistLocalDate: "2026-04-28",
+    pilotMeetingPresenceAwaitingGraph: false,
+    inMeeting: false,
+    meetingId: null,
+    meetingTitle: null,
+    oracleInMeetingAlertAt: null,
+    meetingDetectionSource: "off",
+    calendarPollIntervalSeconds: null,
+  };
+
+  it("blocks meeting URL overlays in production without opt-in", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    delete process.env.NEXT_PUBLIC_DEPLOYAI_STRATEGIST_MEETING_URL_DEMO;
+    const merged = mergeStrategistSurfaceFromDemoQuery(baseHealthy, "?inMeeting=1");
+    expect(merged.inMeeting).toBe(false);
+    expect(merged.meetingDetectionSource).toBe("off");
+  });
+
+  it("still allows agent degradation overlays in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    delete process.env.NEXT_PUBLIC_DEPLOYAI_STRATEGIST_MEETING_URL_DEMO;
+    const merged = mergeStrategistSurfaceFromDemoQuery(baseHealthy, "?agentError=1&inMeeting=1");
+    expect(merged.agentDegraded).toBe(true);
+    expect(merged.inMeeting).toBe(false);
+  });
+
+  it("allows meeting overlays in production when opted in", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    process.env.NEXT_PUBLIC_DEPLOYAI_STRATEGIST_MEETING_URL_DEMO = "1";
+    const merged = mergeStrategistSurfaceFromDemoQuery(baseHealthy, "?inMeeting=1");
+    expect(merged.inMeeting).toBe(true);
+    expect(merged.meetingDetectionSource).toBe("url_demo");
   });
 });

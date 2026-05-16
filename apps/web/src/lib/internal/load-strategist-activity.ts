@@ -8,6 +8,11 @@ import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "./control-pl
 import { actorIsDeployAiPilotTenant } from "./strategist-pilot-tenant";
 import { getStrategistLocalDateForServer } from "./strategist-local-date";
 
+import {
+  getInboundCorrelationId,
+  resolveStrategistOutboundCorrelationId,
+} from "./request-correlation.server";
+
 /**
  * Ingestion run row from `GET /internal/v1/ingestion-runs` (control plane).
  * Shapes the Python `IngestionRunRead` / admin runs table.
@@ -123,6 +128,7 @@ async function fetchMeetingPresence(
   base: string,
   key: string,
   tenantId: string | null,
+  correlationId: string,
 ): Promise<
   Pick<
     StrategistActivitySnapshot,
@@ -140,7 +146,10 @@ async function fetchMeetingPresence(
   try {
     const u = `${base.replace(/\/$/, "")}/internal/v1/strategist/meeting-presence?tenant_id=${encodeURIComponent(tenantId)}`;
     const r = await fetch(u, {
-      headers: { "X-DeployAI-Internal-Key": key },
+      headers: {
+        "X-DeployAI-Internal-Key": key,
+        "X-DeployAI-Correlation-Id": correlationId,
+      },
       cache: "no-store",
     });
     if (!r.ok) {
@@ -163,6 +172,7 @@ async function fetchMeetingPresence(
  */
 export async function loadStrategistActivityForActor(
   actor: AuthActor | null,
+  options?: { inboundCorrelationId?: string | null },
 ): Promise<StrategistActivitySnapshot> {
   const day = getStrategistLocalDateForServer();
   if (!actor) {
@@ -215,12 +225,19 @@ export async function loadStrategistActivityForActor(
   const ingestUrl = `${base.replace(/\/$/, "")}/internal/v1/ingestion-runs?limit=200`;
 
   try {
+    const correlationId = resolveStrategistOutboundCorrelationId(
+      options?.inboundCorrelationId ?? (await getInboundCorrelationId()) ?? null,
+    );
+
     const [r, meetingPart] = await Promise.all([
       fetch(ingestUrl, {
-        headers: { "X-DeployAI-Internal-Key": key },
+        headers: {
+          "X-DeployAI-Internal-Key": key,
+          "X-DeployAI-Correlation-Id": correlationId,
+        },
         cache: "no-store",
       }),
-      fetchMeetingPresence(base, key, tid),
+      fetchMeetingPresence(base, key, tid, correlationId),
     ]);
     if (!r.ok) {
       return snapshot(day, {

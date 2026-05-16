@@ -225,12 +225,18 @@ export function InMeetingAlertDemo() {
 
   return (
     <div className="px-4 py-6 md:px-6">
-      <div
+      <aside
         className="border-border bg-paper-50 mb-6 max-w-2xl space-y-2 rounded-lg border p-4 text-sm"
+        aria-labelledby="in-meeting-alert-demo-heading"
         data-mvp-in-meeting-demo
         data-meeting-active={meetingActive ? "true" : "false"}
       >
-        <h1 className="text-ink-900 text-lg font-semibold tracking-tight">In-meeting alert</h1>
+        <h1
+          id="in-meeting-alert-demo-heading"
+          className="text-ink-900 text-lg font-semibold tracking-tight"
+        >
+          In-meeting alert
+        </h1>
         <p className="text-ink-700">
           <strong className="font-medium">Epic 9.1–9.4:</strong> meeting presence comes from{" "}
           <code className="text-ink-800 bg-paper-200 rounded px-1 py-0.5 font-mono text-xs">
@@ -254,7 +260,7 @@ export function InMeetingAlertDemo() {
           </code>{" "}
           on the control plane to mark your tenant “in meeting”.
         </p>
-      </div>
+      </aside>
       {meetingActive ? (
         <InMeetingAlertCard
           tenantId={DEMO_TENANT}

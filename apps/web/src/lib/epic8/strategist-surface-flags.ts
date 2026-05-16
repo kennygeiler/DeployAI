@@ -1,4 +1,5 @@
 import type { StrategistSurfaceValue } from "./strategist-surface-context";
+import { shouldAllowStrategistMeetingUrlDemo } from "./strategist-url-demo-policy";
 
 const meetingOff: Pick<
   StrategistSurfaceValue,
@@ -25,7 +26,13 @@ export function mergeStrategistSurfaceFromDemoQuery(
   base: StrategistSurfaceValue,
   query: string | Readonly<URLSearchParams> | URLSearchParams,
 ): StrategistSurfaceValue {
-  const q = parseStrategistSurfaceQuery(query);
+  const qParsed = parseStrategistSurfaceQuery(query);
+  const q = shouldAllowStrategistMeetingUrlDemo()
+    ? qParsed
+    : {
+        ...qParsed,
+        ...meetingOff,
+      };
   const inMeeting = base.inMeeting || q.inMeeting;
   return {
     strategistLocalDate: base.strategistLocalDate,

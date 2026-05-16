@@ -18,6 +18,10 @@ Choose **one** for the design partner brief:
 
 ## Web dependency
 
-`loadStrategistActivityForActor` passes **`x-deployai-tenant`** to CP; without it, meeting-presence and ingestion scoping may not match the customer tenant.
+`loadStrategistActivityForActor` calls CP with **`tenant_id=`** derived from the authenticated actor’s tenant UUID (`GET /internal/v1/strategist/meeting-presence?tenant_id=…`). Misaligned actor vs CP stub allowlists yield empty or misleading presence.
 
-When **`DEPLOYAI_PILOT_TENANT_ID`** matches the actor and CP reports **`detection_source: off`**, the strategist shell shows an informational banner (calendar / Graph connector pending). URL demo flags (`?inMeeting=1`) do **not** flip that banner — they remain QA-only overlays via [`strategist-surface-flags`](../../apps/web/src/lib/epic8/strategist-surface-flags.ts).
+When **`DEPLOYAI_PILOT_TENANT_ID`** matches the actor and CP reports **`detection_source: off`**, the strategist shell shows an informational banner (calendar / Graph connector pending). URL demo flags (`?inMeeting=1`) do **not** flip that banner; they only overlay **`inMeeting` UI state** via [`strategist-surface-flags`](../../apps/web/src/lib/epic8/strategist-surface-flags.ts). In **`NODE_ENV=production`** builds, meeting URL overlays are ignored unless **`NEXT_PUBLIC_DEPLOYAI_STRATEGIST_MEETING_URL_DEMO=1`** ([`strategist-url-demo-policy`](../../apps/web/src/lib/epic8/strategist-url-demo-policy.ts)).
+
+## Correlation identifiers (Lane M — meetings / strategist-activity)
+
+Web stamps **`X-DeployAI-Correlation-Id`** on internal CP calls from `loadStrategistActivityForActor`, preferring the inbound **`x-deployai-correlation-id`** request header when middleware provides one ([`correlation-id`](../../apps/web/src/lib/internal/correlation-id.ts)). See [`correlation-ids-rollout.md`](../production/correlation-ids-rollout.md).
