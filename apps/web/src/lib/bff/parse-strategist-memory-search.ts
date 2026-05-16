@@ -1,7 +1,7 @@
 import type { MemorySearchHit } from "./memory-search-mock";
 
 /**
- * Tolerate mock BFF, proxied services, and minor shape drift (`results` instead of `hits`).
+ * Tolerate local BFF in-process search, proxied services, and minor shape drift (`results` instead of `hits`).
  */
 export function parseStrategistMemorySearchResponse(data: unknown): {
   hits: MemorySearchHit[];

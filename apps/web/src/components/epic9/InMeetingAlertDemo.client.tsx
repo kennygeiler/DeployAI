@@ -10,7 +10,7 @@ import { CitationChip, EvidencePanel, InMeetingAlertCard } from "@deployai/share
 
 import { Button } from "@/components/ui/button";
 import { useStrategistSurface } from "@/lib/epic8/strategist-surface-context";
-import { MORNING_DIGEST_TOP, type DigestTopItem } from "@/lib/epic8/mock-digest";
+import type { DigestTopItem } from "@/lib/strategist-data/strategist-surface-types";
 import { splitPrimaryAndRankedOut } from "@/lib/epic9/three-item-budget";
 
 const DEMO_TENANT = "00000000-0000-4000-8000-000000000001";
@@ -162,16 +162,20 @@ function AlertDigestChip({
   );
 }
 
+export type InMeetingAlertDemoProps = {
+  initialDigestItems?: readonly DigestTopItem[];
+};
+
 /**
  * Epic 9 Stories 9.1–9.4 — meeting presence from activity poll + URL demo flags, three-item budget,
  * correction vs dismissal (FR37), carryover to Action Queue when meeting ends (FR38).
  */
-export function InMeetingAlertDemo() {
+export function InMeetingAlertDemo({ initialDigestItems = [] }: InMeetingAlertDemoProps) {
   const router = useRouter();
   const surface = useStrategistSurface();
   const { primary, rankedOut } = React.useMemo(
-    () => splitPrimaryAndRankedOut(MORNING_DIGEST_TOP, 3),
-    [],
+    () => splitPrimaryAndRankedOut(initialDigestItems, 3),
+    [initialDigestItems],
   );
   const [handled, setHandled] = React.useState<Set<string>>(() => new Set());
   const prevMeeting = React.useRef(surface.inMeeting);

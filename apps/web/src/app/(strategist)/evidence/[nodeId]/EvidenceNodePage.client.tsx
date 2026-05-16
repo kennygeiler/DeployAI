@@ -2,7 +2,7 @@
 
 import { DigestEvidenceCard } from "@/components/epic8/DigestEvidenceCard.client";
 import { StrategistBreadcrumb } from "@/components/chrome/StrategistBreadcrumb";
-import type { DigestTopItem } from "@/lib/epic8/mock-digest";
+import type { DigestTopItem } from "@/lib/strategist-data/strategist-surface-types";
 
 export function EvidenceNodePageClient({ item }: { item: DigestTopItem }) {
   const short = item.id.length > 12 ? `${item.id.slice(0, 8)}…` : item.id;

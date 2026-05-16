@@ -3,32 +3,35 @@
 import Link from "next/link";
 
 import { DigestEvidenceCard } from "./DigestEvidenceCard.client";
-import type { DigestTopItem, EveningPatternRow } from "@/lib/epic8/mock-digest";
-import { EVENING_CANDIDATES, MORNING_DIGEST_TOP } from "@/lib/epic8/mock-digest";
+import type {
+  DigestTopItem,
+  EveningPatternRow,
+} from "@/lib/strategist-data/strategist-surface-types";
 import { useStrategistSurface } from "@/lib/epic8/strategist-surface-context";
 
 export type EveningSynthesisClientProps = {
   initialCandidates?: readonly DigestTopItem[];
   initialPatterns?: readonly EveningPatternRow[];
   eveningBanner?: string | null;
-  /** Epic 9.7 — weekly Class B nudge count from BFF store (mock). */
+  dataTrusted?: boolean;
+  /** Epic 9.7 — weekly Class B nudge count from BFF store. */
   solidificationPendingCount?: number;
 };
 
 /**
  * Parallel to morning digest: candidate learnings + Class B entry (FR35, Story 8.3).
- * Server may pass remote-validated rows; when omitted, uses digest slice + `EVENING_CANDIDATES`.
+ * Server passes remote-validated rows; defaults are empty (no file-backed fixtures).
  */
 export function EveningSynthesisClient({
-  initialCandidates,
-  initialPatterns,
+  initialCandidates = [],
+  initialPatterns = [],
   eveningBanner,
+  dataTrusted = true,
   solidificationPendingCount = 0,
 }: EveningSynthesisClientProps) {
   const { agentDegraded } = useStrategistSurface();
-  const candidates = initialCandidates ?? MORNING_DIGEST_TOP.slice(0, 2);
-  const patterns = initialPatterns ?? EVENING_CANDIDATES;
-  const displayCandidates = candidates.slice(0, 2);
+  const displayCandidates = initialCandidates.slice(0, 2);
+  const patterns = initialPatterns;
 
   return (
     <div className="flex flex-col gap-8">
@@ -40,6 +43,15 @@ export function EveningSynthesisClient({
           End-of-day review: candidate learnings, cross-account patterns, and Class B follow-up
           (NFR3 by 19:00 local when the job is wired).
         </p>
+        {!dataTrusted ? (
+          <p
+            className="text-ink-800 mt-2 max-w-2xl rounded-md border border-amber-600/30 bg-amber-50/80 px-3 py-2 text-sm"
+            role="status"
+          >
+            Evening synthesis data is not trusted for this request (missing feed, control-plane
+            error, or validation failure).
+          </p>
+        ) : null}
         {eveningBanner ? (
           <p
             className="text-ink-800 mt-2 max-w-2xl rounded-md border border-amber-600/30 bg-amber-50/80 px-3 py-2 text-sm"
@@ -57,27 +69,40 @@ export function EveningSynthesisClient({
           </p>
         ) : null}
       </div>
-      <div
-        className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
-        data-testid="evening-candidates"
-      >
-        {displayCandidates.map((item) => (
-          <DigestEvidenceCard key={item.id} item={item} headingLevel="h2" />
-        ))}
-      </div>
+      {displayCandidates.length === 0 ? (
+        <p className="text-ink-700 max-w-2xl text-sm" role="status">
+          No evening candidate cards yet. Wire the evening synthesis feed or control-plane pilot
+          surface.
+        </p>
+      ) : (
+        <div
+          className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+          data-testid="evening-candidates"
+        >
+          {displayCandidates.map((item) => (
+            <DigestEvidenceCard key={item.id} item={item} headingLevel="h2" />
+          ))}
+        </div>
+      )}
       {!agentDegraded ? (
         <section className="border-border rounded-lg border p-4" aria-labelledby="evening-patterns">
           <h2 id="evening-patterns" className="text-foreground text-sm font-semibold">
             Cross-account patterns
           </h2>
-          <ul className="text-body text-ink-800 mt-2 space-y-2">
-            {patterns.map((c) => (
-              <li key={c.id} className="border-border/80 rounded border bg-paper-100 px-3 py-2">
-                <p className="font-medium text-ink-900">{c.title}</p>
-                <p className="text-ink-600 text-sm">{c.note}</p>
-              </li>
-            ))}
-          </ul>
+          {patterns.length === 0 ? (
+            <p className="text-ink-600 mt-2 text-sm" role="status">
+              No pattern rows returned for this tenant.
+            </p>
+          ) : (
+            <ul className="text-body text-ink-800 mt-2 space-y-2">
+              {patterns.map((c) => (
+                <li key={c.id} className="border-border/80 rounded border bg-paper-100 px-3 py-2">
+                  <p className="font-medium text-ink-900">{c.title}</p>
+                  <p className="text-ink-600 text-sm">{c.note}</p>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       ) : null}
       <section

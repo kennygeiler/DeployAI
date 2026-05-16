@@ -1,13 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  buildPhaseTrackingRows,
-  EVENING_CANDIDATES,
-  MORNING_DIGEST_TOP,
-  PHASE_TRACKING_MOCK_TODAY,
-  PHASE_TRACKING_ROWS,
-} from "@/lib/epic8/mock-digest";
-
 import type { AuthActor } from "@deployai/authz";
 
 import {
@@ -26,6 +18,12 @@ import {
   phaseTrackingBannerMessage,
   resolveStrategistEvidenceForActor,
 } from "./strategist-surface-data";
+import {
+  FIXTURE_DIGEST_TOP,
+  FIXTURE_EVENING_PATTERNS,
+  FIXTURE_PHASE_ROWS,
+  FIXTURE_PHASE_TODAY,
+} from "./surface-test-fixtures";
 
 describe("parseDigestTopItemsPayload", () => {
   it("returns null for non-array or empty array", () => {
@@ -34,27 +32,27 @@ describe("parseDigestTopItemsPayload", () => {
   });
 
   it("returns null when any row fails validation", () => {
-    const bad = structuredClone(MORNING_DIGEST_TOP);
+    const bad = structuredClone(FIXTURE_DIGEST_TOP);
     (bad[0] as { state?: string }).state = "not-a-state";
     expect(parseDigestTopItemsPayload(bad)).toBeNull();
   });
 
   it("accepts a valid digest array", () => {
-    const rows = structuredClone(MORNING_DIGEST_TOP);
+    const rows = structuredClone(FIXTURE_DIGEST_TOP);
     const parsed = parseDigestTopItemsPayload(rows);
     expect(parsed).not.toBeNull();
     expect(parsed!.length).toBe(3);
-    expect(parsed![0]!.id).toBe(MORNING_DIGEST_TOP[0]!.id);
+    expect(parsed![0]!.id).toBe(FIXTURE_DIGEST_TOP[0]!.id);
   });
 });
 
 describe("morningDigestBannerMessage", () => {
   it("returns null unless degraded", () => {
-    expect(morningDigestBannerMessage({ items: MORNING_DIGEST_TOP, source: "mock" })).toBeNull();
     expect(
       morningDigestBannerMessage({
-        items: MORNING_DIGEST_TOP,
+        items: FIXTURE_DIGEST_TOP,
         source: "live",
+        dataTrusted: true,
       }),
     ).toBeNull();
   });
@@ -62,44 +60,50 @@ describe("morningDigestBannerMessage", () => {
   it("maps degraded reasons to user-safe copy", () => {
     expect(
       morningDigestBannerMessage({
-        items: MORNING_DIGEST_TOP,
+        items: [],
         source: "degraded",
+        dataTrusted: false,
         degradedReason: "fetch_error",
       }),
     ).toContain("Could not reach");
     expect(
       morningDigestBannerMessage({
-        items: MORNING_DIGEST_TOP,
+        items: [],
         source: "degraded",
+        dataTrusted: false,
         degradedReason: "http_error",
         httpStatus: 503,
       }),
     ).toContain("503");
     expect(
       morningDigestBannerMessage({
-        items: MORNING_DIGEST_TOP,
+        items: [],
         source: "degraded",
+        dataTrusted: false,
         degradedReason: "invalid_payload",
       }),
     ).toContain("validate");
     expect(
       morningDigestBannerMessage({
-        items: MORNING_DIGEST_TOP,
+        items: [],
         source: "degraded",
+        dataTrusted: false,
         degradedReason: "empty_array",
       }),
     ).toContain("no rows");
     expect(
       morningDigestBannerMessage({
-        items: MORNING_DIGEST_TOP,
+        items: [],
         source: "degraded",
+        dataTrusted: false,
         degradedReason: "tenant_required",
       }),
     ).toContain("tenant id");
     expect(
       morningDigestBannerMessage({
-        items: MORNING_DIGEST_TOP,
+        items: [],
         source: "degraded",
+        dataTrusted: false,
         degradedReason: "cp_unconfigured",
       }),
     ).toContain("internal API key");
@@ -107,6 +111,7 @@ describe("morningDigestBannerMessage", () => {
       morningDigestBannerMessage({
         items: [],
         source: "degraded",
+        dataTrusted: false,
         degradedReason: "cp_not_configured",
       }),
     ).toContain("pilot digest");
@@ -149,7 +154,7 @@ describe("loadMorningDigestTopItemsResultForActor", () => {
     process.env.DEPLOYAI_DIGEST_SOURCE = "cp";
     process.env.DEPLOYAI_CONTROL_PLANE_URL = "http://cp.test";
     process.env.DEPLOYAI_INTERNAL_API_KEY = "secret";
-    const one = structuredClone(MORNING_DIGEST_TOP)[0]!;
+    const one = structuredClone(FIXTURE_DIGEST_TOP)[0]!;
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ items: [one] }),
@@ -161,6 +166,7 @@ describe("loadMorningDigestTopItemsResultForActor", () => {
     };
     const r = await loadMorningDigestTopItemsResultForActor(actor);
     expect(r.source).toBe("live");
+    expect(r.dataTrusted).toBe(true);
     expect(r.items).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledWith(
       "http://cp.test/internal/v1/strategist/pilot-surfaces/morning-digest-top?tenant_id=11111111-1111-4111-8111-111111111111",
@@ -175,7 +181,7 @@ describe("loadMorningDigestTopItemsResultForActor", () => {
     process.env.DEPLOYAI_PILOT_TENANT_ID = "22222222-2222-4222-8222-222222222222";
     process.env.DEPLOYAI_CONTROL_PLANE_URL = "http://cp.test";
     process.env.DEPLOYAI_INTERNAL_API_KEY = "secret";
-    const one = structuredClone(MORNING_DIGEST_TOP)[0]!;
+    const one = structuredClone(FIXTURE_DIGEST_TOP)[0]!;
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ items: [one] }),
@@ -200,7 +206,7 @@ describe("loadMorningDigestTopItemsResultForActor", () => {
     process.env.DEPLOYAI_PILOT_TENANT_ID = "22222222-2222-4222-8222-222222222222";
     process.env.DEPLOYAI_CONTROL_PLANE_URL = "http://cp.test";
     process.env.DEPLOYAI_INTERNAL_API_KEY = "secret";
-    const one = structuredClone(MORNING_DIGEST_TOP)[0]!;
+    const one = structuredClone(FIXTURE_DIGEST_TOP)[0]!;
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ items: [one] }),
@@ -239,17 +245,18 @@ describe("loadMorningDigestTopItemsResult", () => {
     }
   });
 
-  it("returns mock when digest URL is unset", async () => {
+  it("returns degraded empty when digest URL is unset", async () => {
     delete process.env.STRATEGIST_DIGEST_SOURCE_URL;
     const r = await loadMorningDigestTopItemsResult();
-    expect(r.source).toBe("mock");
-    expect(r.items).toEqual(MORNING_DIGEST_TOP);
-    expect(r.degradedReason).toBeUndefined();
+    expect(r.source).toBe("degraded");
+    expect(r.dataTrusted).toBe(false);
+    expect(r.degradedReason).toBe("no_configured_source");
+    expect(r.items).toEqual([]);
   });
 
   it("returns live when remote returns valid JSON array", async () => {
     process.env.STRATEGIST_DIGEST_SOURCE_URL = "https://digest.example/items.json";
-    const body = structuredClone(MORNING_DIGEST_TOP);
+    const body = structuredClone(FIXTURE_DIGEST_TOP);
     globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(body), {
         status: 200,
@@ -259,6 +266,7 @@ describe("loadMorningDigestTopItemsResult", () => {
 
     const r = await loadMorningDigestTopItemsResult();
     expect(r.source).toBe("live");
+    expect(r.dataTrusted).toBe(true);
     expect(r.items.length).toBe(3);
     expect(globalThis.fetch).toHaveBeenCalledWith(
       "https://digest.example/items.json",
@@ -266,7 +274,7 @@ describe("loadMorningDigestTopItemsResult", () => {
     );
   });
 
-  it("returns degraded on HTTP error with mock items", async () => {
+  it("returns degraded on HTTP error with empty items", async () => {
     process.env.STRATEGIST_DIGEST_SOURCE_URL = "https://digest.example/items.json";
     globalThis.fetch = vi
       .fn()
@@ -274,9 +282,10 @@ describe("loadMorningDigestTopItemsResult", () => {
 
     const r = await loadMorningDigestTopItemsResult();
     expect(r.source).toBe("degraded");
+    expect(r.dataTrusted).toBe(false);
     expect(r.degradedReason).toBe("http_error");
     expect(r.httpStatus).toBe(502);
-    expect(r.items).toEqual(MORNING_DIGEST_TOP);
+    expect(r.items).toEqual([]);
   });
 
   it("returns degraded on invalid JSON body", async () => {
@@ -288,7 +297,7 @@ describe("loadMorningDigestTopItemsResult", () => {
     const r = await loadMorningDigestTopItemsResult();
     expect(r.source).toBe("degraded");
     expect(r.degradedReason).toBe("invalid_payload");
-    expect(r.items).toEqual(MORNING_DIGEST_TOP);
+    expect(r.items).toEqual([]);
   });
 
   it("returns degraded on empty array", async () => {
@@ -316,7 +325,7 @@ describe("loadMorningDigestTopItemsResult", () => {
   it("loadMorningDigestTopItems returns items only", async () => {
     delete process.env.STRATEGIST_DIGEST_SOURCE_URL;
     const items = await loadMorningDigestTopItems();
-    expect(items).toEqual(MORNING_DIGEST_TOP);
+    expect(items).toEqual([]);
   });
 });
 
@@ -327,55 +336,60 @@ describe("parsePhaseTrackingRowsPayload", () => {
   });
 
   it("returns null when any row fails validation", () => {
-    const bad = structuredClone(PHASE_TRACKING_ROWS);
+    const bad = structuredClone(FIXTURE_PHASE_ROWS);
     (bad[0] as { status?: string }).status = "done";
     expect(parsePhaseTrackingRowsPayload(bad)).toBeNull();
   });
 
   it("accepts a valid action-queue array", () => {
-    const rows = structuredClone(PHASE_TRACKING_ROWS);
+    const rows = structuredClone(FIXTURE_PHASE_ROWS);
     const parsed = parsePhaseTrackingRowsPayload(rows);
     expect(parsed).not.toBeNull();
     expect(parsed!.length).toBe(4);
-    expect(parsed![0]!.id).toBe(PHASE_TRACKING_ROWS[0]!.id);
+    expect(parsed![0]!.id).toBe(FIXTURE_PHASE_ROWS[0]!.id);
   });
 });
 
 describe("phaseTrackingBannerMessage", () => {
-  const rows = PHASE_TRACKING_ROWS;
+  const rows = FIXTURE_PHASE_ROWS;
 
   it("returns null unless degraded", () => {
-    expect(phaseTrackingBannerMessage({ items: rows, source: "mock" })).toBeNull();
-    expect(phaseTrackingBannerMessage({ items: rows, source: "live" })).toBeNull();
+    expect(
+      phaseTrackingBannerMessage({ items: rows, source: "live", dataTrusted: true }),
+    ).toBeNull();
   });
 
   it("maps degraded reasons to user-safe copy", () => {
     expect(
       phaseTrackingBannerMessage({
-        items: rows,
+        items: [],
         source: "degraded",
+        dataTrusted: false,
         degradedReason: "fetch_error",
       }),
     ).toContain("Could not reach");
     expect(
       phaseTrackingBannerMessage({
-        items: rows,
+        items: [],
         source: "degraded",
+        dataTrusted: false,
         degradedReason: "http_error",
         httpStatus: 503,
       }),
     ).toContain("503");
     expect(
       phaseTrackingBannerMessage({
-        items: rows,
+        items: [],
         source: "degraded",
+        dataTrusted: false,
         degradedReason: "invalid_payload",
       }),
     ).toContain("validate");
     expect(
       phaseTrackingBannerMessage({
-        items: rows,
+        items: [],
         source: "degraded",
+        dataTrusted: false,
         degradedReason: "empty_array",
       }),
     ).toContain("no rows");
@@ -383,6 +397,7 @@ describe("phaseTrackingBannerMessage", () => {
       phaseTrackingBannerMessage({
         items: [],
         source: "degraded",
+        dataTrusted: false,
         degradedReason: "cp_not_configured",
       }),
     ).toContain("phase-tracking");
@@ -392,7 +407,7 @@ describe("phaseTrackingBannerMessage", () => {
 describe("loadPhaseTrackingRowsResult", () => {
   const originalFetch = globalThis.fetch;
   const originalUrl = process.env.STRATEGIST_PHASE_TRACKING_SOURCE_URL;
-  const today = PHASE_TRACKING_MOCK_TODAY;
+  const today = FIXTURE_PHASE_TODAY;
 
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -407,17 +422,18 @@ describe("loadPhaseTrackingRowsResult", () => {
     }
   });
 
-  it("returns mock when phase-tracking URL is unset", async () => {
+  it("returns degraded empty when phase-tracking URL is unset", async () => {
     delete process.env.STRATEGIST_PHASE_TRACKING_SOURCE_URL;
     const r = await loadPhaseTrackingRowsResult(today);
-    expect(r.source).toBe("mock");
-    expect(r.items).toEqual(buildPhaseTrackingRows(today));
-    expect(r.degradedReason).toBeUndefined();
+    expect(r.source).toBe("degraded");
+    expect(r.dataTrusted).toBe(false);
+    expect(r.degradedReason).toBe("no_configured_source");
+    expect(r.items).toEqual([]);
   });
 
   it("returns live when remote returns valid JSON array", async () => {
     process.env.STRATEGIST_PHASE_TRACKING_SOURCE_URL = "https://phase.example/rows.json";
-    const body = structuredClone(PHASE_TRACKING_ROWS);
+    const body = structuredClone(FIXTURE_PHASE_ROWS);
     globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(body), {
         status: 200,
@@ -427,6 +443,7 @@ describe("loadPhaseTrackingRowsResult", () => {
 
     const r = await loadPhaseTrackingRowsResult(today);
     expect(r.source).toBe("live");
+    expect(r.dataTrusted).toBe(true);
     expect(r.items.length).toBe(4);
     expect(globalThis.fetch).toHaveBeenCalledWith(
       "https://phase.example/rows.json",
@@ -434,7 +451,7 @@ describe("loadPhaseTrackingRowsResult", () => {
     );
   });
 
-  it("returns degraded on HTTP error with fallback rows", async () => {
+  it("returns degraded on HTTP error with empty items", async () => {
     process.env.STRATEGIST_PHASE_TRACKING_SOURCE_URL = "https://phase.example/rows.json";
     globalThis.fetch = vi
       .fn()
@@ -443,13 +460,13 @@ describe("loadPhaseTrackingRowsResult", () => {
     const r = await loadPhaseTrackingRowsResult(today);
     expect(r.source).toBe("degraded");
     expect(r.degradedReason).toBe("http_error");
-    expect(r.items).toEqual(buildPhaseTrackingRows(today));
+    expect(r.items).toEqual([]);
   });
 
   it("loadPhaseTrackingRows returns items only", async () => {
     delete process.env.STRATEGIST_PHASE_TRACKING_SOURCE_URL;
     const items = await loadPhaseTrackingRows(today);
-    expect(items).toEqual(buildPhaseTrackingRows(today));
+    expect(items).toEqual([]);
   });
 });
 
@@ -459,14 +476,23 @@ describe("parseEveningSynthesisPayload", () => {
     expect(parseEveningSynthesisPayload([])).toBeNull();
   });
 
-  it("returns null when candidates missing or invalid", () => {
-    expect(parseEveningSynthesisPayload({ patterns: EVENING_CANDIDATES })).toBeNull();
-    expect(parseEveningSynthesisPayload({ candidates: [] })).toBeNull();
+  it("returns null when candidates key missing", () => {
+    expect(parseEveningSynthesisPayload({ patterns: FIXTURE_EVENING_PATTERNS })).toBeNull();
+  });
+
+  it("accepts empty candidates with patterns only", () => {
+    const p = parseEveningSynthesisPayload({
+      candidates: [],
+      patterns: structuredClone(FIXTURE_EVENING_PATTERNS),
+    });
+    expect(p).not.toBeNull();
+    expect(p!.candidates).toEqual([]);
+    expect(p!.patterns).toHaveLength(2);
   });
 
   it("rejects invalid pattern rows", () => {
     const bad = {
-      candidates: structuredClone(MORNING_DIGEST_TOP),
+      candidates: structuredClone(FIXTURE_DIGEST_TOP),
       patterns: [{ id: "x", title: "t" }],
     };
     expect(parseEveningSynthesisPayload(bad)).toBeNull();
@@ -474,7 +500,7 @@ describe("parseEveningSynthesisPayload", () => {
 
   it("accepts candidates with optional patterns", () => {
     const p = parseEveningSynthesisPayload({
-      candidates: structuredClone(MORNING_DIGEST_TOP),
+      candidates: structuredClone(FIXTURE_DIGEST_TOP),
     });
     expect(p).not.toBeNull();
     expect(p!.candidates.length).toBe(3);
@@ -483,29 +509,31 @@ describe("parseEveningSynthesisPayload", () => {
 
   it("accepts candidates and patterns together", () => {
     const p = parseEveningSynthesisPayload({
-      candidates: structuredClone(MORNING_DIGEST_TOP),
-      patterns: structuredClone(EVENING_CANDIDATES),
+      candidates: structuredClone(FIXTURE_DIGEST_TOP),
+      patterns: structuredClone(FIXTURE_EVENING_PATTERNS),
     });
     expect(p!.patterns).toHaveLength(2);
   });
 });
 
 describe("eveningSynthesisBannerMessage", () => {
-  const fb = {
-    candidates: MORNING_DIGEST_TOP.slice(0, 2),
-    patterns: EVENING_CANDIDATES,
+  const live = {
+    candidates: FIXTURE_DIGEST_TOP.slice(0, 2),
+    patterns: FIXTURE_EVENING_PATTERNS,
+    source: "live" as const,
+    dataTrusted: true,
   };
 
   it("returns null unless degraded", () => {
-    expect(eveningSynthesisBannerMessage({ ...fb, source: "mock" })).toBeNull();
-    expect(eveningSynthesisBannerMessage({ ...fb, source: "live" })).toBeNull();
+    expect(eveningSynthesisBannerMessage(live)).toBeNull();
   });
 
   it("includes HTTP status when degraded", () => {
     expect(
       eveningSynthesisBannerMessage({
-        ...fb,
+        ...live,
         source: "degraded",
+        dataTrusted: false,
         degradedReason: "http_error",
         httpStatus: 418,
       }),
@@ -515,8 +543,9 @@ describe("eveningSynthesisBannerMessage", () => {
   it("maps pilot CP unconfigured reasons", () => {
     expect(
       eveningSynthesisBannerMessage({
-        ...fb,
+        ...live,
         source: "degraded",
+        dataTrusted: false,
         degradedReason: "cp_not_configured",
       }),
     ).toContain("evening synthesis");
@@ -540,19 +569,21 @@ describe("loadEveningSynthesisResult", () => {
     }
   });
 
-  it("returns mock when URL unset", async () => {
+  it("returns degraded empty when URL unset", async () => {
     delete process.env.STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL;
     const r = await loadEveningSynthesisResult();
-    expect(r.source).toBe("mock");
-    expect(r.candidates).toEqual(MORNING_DIGEST_TOP.slice(0, 2));
-    expect(r.patterns).toEqual(EVENING_CANDIDATES);
+    expect(r.source).toBe("degraded");
+    expect(r.dataTrusted).toBe(false);
+    expect(r.degradedReason).toBe("no_configured_source");
+    expect(r.candidates).toEqual([]);
+    expect(r.patterns).toEqual([]);
   });
 
   it("returns live on valid remote object", async () => {
     process.env.STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL = "https://evening.example/synthesis.json";
     const body = {
-      candidates: structuredClone(MORNING_DIGEST_TOP),
-      patterns: structuredClone(EVENING_CANDIDATES),
+      candidates: structuredClone(FIXTURE_DIGEST_TOP),
+      patterns: structuredClone(FIXTURE_EVENING_PATTERNS),
     };
     globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(body), {
@@ -563,6 +594,7 @@ describe("loadEveningSynthesisResult", () => {
 
     const r = await loadEveningSynthesisResult();
     expect(r.source).toBe("live");
+    expect(r.dataTrusted).toBe(true);
     expect(r.candidates.length).toBe(3);
     expect(globalThis.fetch).toHaveBeenCalledWith(
       "https://evening.example/synthesis.json",
@@ -573,8 +605,8 @@ describe("loadEveningSynthesisResult", () => {
   it("loadEveningSynthesis returns candidates and patterns only", async () => {
     delete process.env.STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL;
     const r = await loadEveningSynthesis();
-    expect(r.candidates).toEqual(MORNING_DIGEST_TOP.slice(0, 2));
-    expect(r.patterns).toEqual(EVENING_CANDIDATES);
+    expect(r.candidates).toEqual([]);
+    expect(r.patterns).toEqual([]);
   });
 });
 
@@ -584,6 +616,7 @@ describe("resolveStrategistEvidenceForActor", () => {
   const originalPilotTenant = process.env.DEPLOYAI_PILOT_TENANT_ID;
   const originalCp = process.env.DEPLOYAI_CONTROL_PLANE_URL;
   const originalKey = process.env.DEPLOYAI_INTERNAL_API_KEY;
+  const originalDigestUrl = process.env.STRATEGIST_DIGEST_SOURCE_URL;
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
@@ -607,20 +640,44 @@ describe("resolveStrategistEvidenceForActor", () => {
     } else {
       process.env.DEPLOYAI_INTERNAL_API_KEY = originalKey;
     }
+    if (originalDigestUrl === undefined) {
+      delete process.env.STRATEGIST_DIGEST_SOURCE_URL;
+    } else {
+      process.env.STRATEGIST_DIGEST_SOURCE_URL = originalDigestUrl;
+    }
   });
 
-  it("returns ok from mock fixtures when CP evidence mode is off", async () => {
+  it("returns not_found when CP evidence mode is off", async () => {
     delete process.env.DEPLOYAI_EVIDENCE_SOURCE;
     delete process.env.DEPLOYAI_PILOT_TENANT_ID;
+    delete process.env.STRATEGIST_DIGEST_SOURCE_URL;
     const actor: AuthActor = {
       role: "deployment_strategist",
       tenantId: undefined,
     };
-    const id = MORNING_DIGEST_TOP[0]!.id;
+    const id = FIXTURE_DIGEST_TOP[0]!.id;
     const r = await resolveStrategistEvidenceForActor(actor, id);
+    expect(r.status).toBe("not_found");
+  });
+
+  it("returns ok when STRATEGIST_DIGEST_SOURCE_URL resolves and node matches (no CP mode)", async () => {
+    delete process.env.DEPLOYAI_EVIDENCE_SOURCE;
+    delete process.env.DEPLOYAI_PILOT_TENANT_ID;
+    process.env.STRATEGIST_DIGEST_SOURCE_URL = "https://digest-fixture.example/items.json";
+    const payload = structuredClone(FIXTURE_DIGEST_TOP);
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => payload,
+    }) as unknown as typeof fetch;
+    const actor: AuthActor = {
+      role: "deployment_strategist",
+      tenantId: undefined,
+    };
+    const r = await resolveStrategistEvidenceForActor(actor, FIXTURE_DIGEST_TOP[0]!.id);
     expect(r.status).toBe("ok");
     if (r.status === "ok") {
-      expect(r.item.id).toBe(id);
+      expect(r.item.id).toBe(FIXTURE_DIGEST_TOP[0]!.id);
     }
   });
 
@@ -643,7 +700,7 @@ describe("resolveStrategistEvidenceForActor", () => {
     process.env.DEPLOYAI_EVIDENCE_SOURCE = "cp";
     process.env.DEPLOYAI_CONTROL_PLANE_URL = "http://cp.test";
     process.env.DEPLOYAI_INTERNAL_API_KEY = "secret";
-    const payload = structuredClone(MORNING_DIGEST_TOP)[0]!;
+    const payload = structuredClone(FIXTURE_DIGEST_TOP)[0]!;
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -664,7 +721,7 @@ describe("resolveStrategistEvidenceForActor", () => {
     process.env.DEPLOYAI_EVIDENCE_SOURCE = "cp";
     process.env.DEPLOYAI_CONTROL_PLANE_URL = "http://cp.test";
     process.env.DEPLOYAI_INTERNAL_API_KEY = "secret";
-    const payload = structuredClone(MORNING_DIGEST_TOP)[0]!;
+    const payload = structuredClone(FIXTURE_DIGEST_TOP)[0]!;
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -689,7 +746,7 @@ describe("resolveStrategistEvidenceForActor", () => {
       role: "deployment_strategist",
       tenantId: "11111111-1111-4111-8111-111111111111",
     };
-    const r = await resolveStrategistEvidenceForActor(actor, MORNING_DIGEST_TOP[0]!.id);
+    const r = await resolveStrategistEvidenceForActor(actor, FIXTURE_DIGEST_TOP[0]!.id);
     expect(r.status).toBe("cp_unconfigured");
   });
 });

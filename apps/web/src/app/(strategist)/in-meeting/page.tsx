@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { InMeetingAlertDemo } from "@/components/epic9/InMeetingAlertDemo.client";
 import { requireCanonicalRead } from "@/lib/internal/strategist-surface";
+import { loadMorningDigestTopItemsResultForActor } from "@/lib/strategist-data/strategist-surface-data";
 
 export const metadata: Metadata = {
   title: "In-meeting alert",
@@ -10,6 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function InMeetingPage() {
-  await requireCanonicalRead();
-  return <InMeetingAlertDemo />;
+  const actor = await requireCanonicalRead();
+  const digestLoad = await loadMorningDigestTopItemsResultForActor(actor);
+  return <InMeetingAlertDemo initialDigestItems={digestLoad.items} />;
 }

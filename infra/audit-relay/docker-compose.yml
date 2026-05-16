@@ -3,7 +3,7 @@
 
 services:
   postgres:
-    image: postgres:15
+    image: pgvector/pgvector:pg15
     container_name: deployai-audit-postgres
     ports:
       - "5432:5432"
@@ -14,6 +14,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/10-audit-log.sql:ro
+      - ./init-vector.sql:/docker-entrypoint-initdb.d/20-vector.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U n8n -d n8n"]
       interval: 5s

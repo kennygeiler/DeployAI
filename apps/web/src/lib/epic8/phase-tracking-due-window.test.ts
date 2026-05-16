@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { PHASE_TRACKING_MOCK_TODAY, actionQueueRowMatchesDueWindow } from "./mock-digest";
+import * as strategistLocalDate from "@/lib/internal/strategist-local-date";
+import { actionQueueRowMatchesDueWindow } from "./phase-tracking-due-window";
 
 describe("actionQueueRowMatchesDueWindow", () => {
-  const today = PHASE_TRACKING_MOCK_TODAY;
+  const today = "2026-04-24";
 
   it("all passes any due", () => {
     expect(actionQueueRowMatchesDueWindow("2026-01-01", "all", today)).toBe(true);
@@ -26,10 +27,12 @@ describe("actionQueueRowMatchesDueWindow", () => {
     expect(actionQueueRowMatchesDueWindow("2026-04-19", "next7", today)).toBe(false);
   });
 
-  it("falls back to PHASE_TRACKING_MOCK_TODAY when reference day is undefined or non-ISO (no Invalid Date)", () => {
+  it("falls back to strategist server local day when reference day is undefined or non-ISO", () => {
+    vi.spyOn(strategistLocalDate, "getStrategistLocalDateForServer").mockReturnValue(today);
     expect(
       actionQueueRowMatchesDueWindow("2026-04-30", "next7", undefined as unknown as string),
     ).toBe(true);
     expect(actionQueueRowMatchesDueWindow("2026-04-30", "next7", "not-a-date")).toBe(true);
+    vi.restoreAllMocks();
   });
 });

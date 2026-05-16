@@ -1,26 +1,35 @@
 "use client";
 
 import { DigestEvidenceCard } from "./DigestEvidenceCard.client";
-import type { DigestTopItem } from "@/lib/epic8/mock-digest";
-import { MORNING_DIGEST_RANKED_OUT, MORNING_DIGEST_TOP } from "@/lib/epic8/mock-digest";
+import type {
+  DigestRankedOutItem,
+  DigestTopItem,
+} from "@/lib/strategist-data/strategist-surface-types";
 import { useStrategistSurface } from "@/lib/epic8/strategist-surface-context";
 
 export type MorningDigestClientProps = {
-  /** When omitted, uses mock `MORNING_DIGEST_TOP` (Storybook, tests). */
   topItems?: readonly DigestTopItem[];
   /**
-   * Server-computed notice when the digest feed failed validation or HTTP and seeded demo items
-   * are shown instead (never silent fallback).
+   * Optional ranked-out lines from telemetry (e.g. control-plane pilot surface). When omitted, the
+   * subsection is hidden.
    */
+  rankedOutItems?: readonly DigestRankedOutItem[];
+  /**
+   * When false, digest rows (including empty) must not be interpreted as canonical materialized memory.
+   */
+  dataTrusted?: boolean;
+  /** Server-computed notice when the digest feed failed validation, HTTP, or configuration. */
   digestBanner?: string | null;
 };
 
 export function MorningDigestClient({
-  topItems: topItemsProp,
+  topItems = [],
+  rankedOutItems,
+  dataTrusted = true,
   digestBanner,
 }: MorningDigestClientProps) {
   const { agentDegraded } = useStrategistSurface();
-  const topItems = topItemsProp ?? MORNING_DIGEST_TOP;
+
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -29,6 +38,15 @@ export function MorningDigestClient({
           Phase-contextual priorities for today — three items (FR34). No loading shimmer on agent
           body text (UX-DR23).
         </p>
+        {!dataTrusted ? (
+          <p
+            className="text-ink-800 mt-2 max-w-2xl rounded-md border border-amber-600/30 bg-amber-50/80 px-3 py-2 text-sm"
+            role="status"
+          >
+            Digest data is not trusted for this request (missing feed, control-plane error, or
+            validation failure). Treat the surface as empty of canonical rows.
+          </p>
+        ) : null}
         {digestBanner ? (
           <p className="text-ink-800 mt-2 max-w-2xl rounded-md border border-amber-600/30 bg-amber-50/80 px-3 py-2 text-sm">
             {digestBanner}
@@ -56,11 +74,11 @@ export function MorningDigestClient({
           ))}
         </div>
       )}
-      {!agentDegraded ? (
+      {!agentDegraded && (rankedOutItems?.length ?? 0) > 0 ? (
         <footer className="border-border rounded-lg border border-dashed p-4">
           <h2 className="text-foreground text-sm font-semibold">What I ranked out</h2>
           <ul className="text-body text-ink-700 mt-2 list-inside list-disc space-y-1">
-            {MORNING_DIGEST_RANKED_OUT.map((o) => (
+            {rankedOutItems!.map((o) => (
               <li key={o.id}>
                 <span className="font-medium text-ink-900">{o.label}</span> — {o.reason}
               </li>

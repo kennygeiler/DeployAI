@@ -25,6 +25,7 @@ export default async function EveningPage() {
       initialCandidates={eveningLoad.candidates}
       initialPatterns={eveningLoad.patterns}
       eveningBanner={eveningBanner}
+      dataTrusted={eveningLoad.dataTrusted}
       solidificationPendingCount={solidificationPending}
     />
   );

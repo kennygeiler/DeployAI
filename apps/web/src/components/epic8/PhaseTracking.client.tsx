@@ -13,8 +13,8 @@ import {
 import { ChevronRight } from "lucide-react";
 
 import { EvidencePanel } from "@deployai/shared-ui";
-import type { ActionQueueRow, DueDateWindow } from "@/lib/epic8/mock-digest";
-import { buildPhaseTrackingRows, actionQueueRowMatchesDueWindow } from "@/lib/epic8/mock-digest";
+import type { ActionQueueRow, DueDateWindow } from "@/lib/strategist-data/strategist-surface-types";
+import { actionQueueRowMatchesDueWindow } from "@/lib/epic8/phase-tracking-due-window";
 import { useStrategistSurface } from "@/lib/epic8/strategist-surface-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,21 +64,19 @@ function statusSort(a: string, b: string): number {
 export type PhaseTrackingClientProps = {
   /** When set (normal `/phase-tracking` RSC path), table uses server-loaded rows. */
   initialPhaseTrackingRows?: readonly ActionQueueRow[];
-  /** Shown when remote feed failed but seeded demo rows are displayed. */
+  /** Shown when remote feed failed or configuration is missing. */
   phaseTrackingBanner?: string | null;
+  /** When false, rows must not be treated as canonical telemetry. */
+  dataTrusted?: boolean;
 };
 
 export function PhaseTrackingClient({
-  initialPhaseTrackingRows,
+  initialPhaseTrackingRows = [],
   phaseTrackingBanner,
+  dataTrusted = true,
 }: PhaseTrackingClientProps) {
   const { agentDegraded, strategistLocalDate } = useStrategistSurface();
-  const baseRows = React.useMemo(() => {
-    if (Array.isArray(initialPhaseTrackingRows)) {
-      return initialPhaseTrackingRows;
-    }
-    return buildPhaseTrackingRows(strategistLocalDate);
-  }, [initialPhaseTrackingRows, strategistLocalDate]);
+  const baseRows = initialPhaseTrackingRows;
   const assigneeOptions = React.useMemo(() => assigneeOptionsForRows(baseRows), [baseRows]);
   const [phaseFilter, setPhaseFilter] = React.useState<(typeof phaseOptions)[number]>("All");
   const [statusFilter, setStatusFilter] = React.useState<(typeof statusOptions)[number]>("All");
@@ -188,6 +186,15 @@ export function PhaseTrackingClient({
         <p className="text-body text-ink-600 mt-1 max-w-2xl">
           Action queue, blockers, and phase context (FR39). Default sort: priority, then due date.
         </p>
+        {!dataTrusted ? (
+          <p
+            className="text-ink-800 mt-2 max-w-2xl rounded-md border border-amber-600/30 bg-amber-50/80 px-3 py-2 text-sm"
+            role="status"
+          >
+            Phase-tracking data is not trusted for this request (missing feed, control-plane error,
+            or validation failure). Treat the table as empty of canonical rows.
+          </p>
+        ) : null}
         {phaseTrackingBanner ? (
           <p
             className="text-ink-800 mt-2 max-w-2xl rounded-md border border-amber-600/30 bg-amber-50/80 px-3 py-2 text-sm"

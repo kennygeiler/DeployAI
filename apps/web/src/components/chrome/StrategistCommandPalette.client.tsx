@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import type { CitationPreview } from "@deployai/shared-ui";
 import {
   BookOpen,
   ListChecks,
@@ -25,7 +24,6 @@ import {
 } from "@/components/ui/command";
 import { parseStrategistMemorySearchResponse } from "@/lib/bff/parse-strategist-memory-search";
 import type { MemorySearchHit } from "@/lib/bff/memory-search-mock";
-import { MORNING_DIGEST_TOP } from "@/lib/epic8/mock-digest";
 
 const navigateItems = [
   { href: "/digest", label: "Morning digest", value: "nav digest morning", Icon: Waypoints },
@@ -72,23 +70,6 @@ const actionItems = [
 ] as const;
 
 const DEBOUNCE_MS = 320;
-
-function CitationPreviewLine({ p }: { p: CitationPreview }) {
-  return (
-    <div
-      className="border-border bg-paper-100 text-evidence-800 inline-flex max-w-[min(12rem,32vw)] shrink-0 flex-col gap-0.5 rounded border px-2 py-1.5 text-left font-mono text-[0.7rem] leading-tight"
-      data-citation-preview="command"
-    >
-      <span className="text-ink-800 truncate" title={p.citationId}>
-        {p.citationId.slice(0, 8)}…
-      </span>
-      <span className="text-ink-600 truncate" title={p.retrievalPhase}>
-        {p.retrievalPhase}
-      </span>
-      <span className="text-ink-500 truncate">{p.confidence}</span>
-    </div>
-  );
-}
 
 function kindLabel(k: MemorySearchHit["kind"]): string {
   return k === "action_queue" ? "Action queue" : "Digest";
@@ -268,31 +249,14 @@ export function StrategistCommandPalette({ open, onOpenChange }: StrategistComma
               Searching memory…
             </div>
           ) : null}
-          {!showBff
-            ? MORNING_DIGEST_TOP.map((row) => (
-                <CommandItem
-                  key={row.id}
-                  value={`search-recent ${row.label} ${row.preview.citationId} ${row.preview.retrievalPhase} ${row.preview.confidence}`}
-                  onSelect={() => {
-                    run(`/evidence/${row.id}`);
-                  }}
-                >
-                  <div className="flex min-w-0 flex-1 items-start gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-foreground line-clamp-1 text-sm font-medium">
-                        {row.label}
-                      </p>
-                      <p className="text-muted-foreground text-xs">
-                        Open evidence (recent preview)
-                      </p>
-                    </div>
-                    <CitationPreviewLine p={row.preview} />
-                  </div>
-                  <CommandShortcut>↵</CommandShortcut>
-                </CommandItem>
-              ))
-            : bffHits.map((h) => {
-                const row = MORNING_DIGEST_TOP.find((d) => d.id === h.id);
+          {!showBff ? (
+            <p className="text-muted-foreground px-2 py-2 text-xs">
+              Type a query to search digest and phase-tracking rows via the BFF (no offline preview
+              list).
+            </p>
+          ) : null}
+          {showBff
+            ? bffHits.map((h) => {
                 return (
                   <CommandItem
                     key={`${h.kind}-${h.id}`}
@@ -312,12 +276,12 @@ export function StrategistCommandPalette({ open, onOpenChange }: StrategistComma
                           {source ? ` — ${source}` : ""}
                         </p>
                       </div>
-                      {row ? <CitationPreviewLine p={row.preview} /> : null}
                     </div>
                     <CommandShortcut>↵</CommandShortcut>
                   </CommandItem>
                 );
-              })}
+              })
+            : null}
           {!displayLoading && showBff && bffHits.length === 0 && !searchError ? (
             <p className="text-muted-foreground px-2 py-2 text-sm">
               No memory matches for that query.

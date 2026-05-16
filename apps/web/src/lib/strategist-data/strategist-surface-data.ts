@@ -4,13 +4,11 @@ import type { EvidenceSpan } from "@deployai/contracts";
 
 import type { AuthActor } from "@deployai/authz";
 
-import type { ActionQueueRow, DigestTopItem, EveningPatternRow } from "@/lib/epic8/mock-digest";
-import {
-  buildPhaseTrackingRows,
-  EVENING_CANDIDATES,
-  MORNING_DIGEST_TOP,
-  getStrategistEvidenceByNodeId,
-} from "@/lib/epic8/mock-digest";
+import type {
+  ActionQueueRow,
+  DigestTopItem,
+  EveningPatternRow,
+} from "@/lib/strategist-data/strategist-surface-types";
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
 import {
   digestSurfacesUseControlPlane,
@@ -102,7 +100,6 @@ function isDigestTopItem(x: unknown): x is DigestTopItem {
   if (!isCitationPreview(x.preview)) return false;
   if (!isEvidencePanelMetadata(x.metadata)) return false;
   if (!isEvidenceSpan(x.evidenceSpan)) return false;
-  // `RetrievalPhase` is a string union in contracts; accept any non-empty string from JSON.
   if ((x.retrievalPhase as string).length === 0) return false;
   return true;
 }
@@ -159,7 +156,7 @@ export function parseDigestTopItemSingle(json: unknown): DigestTopItem | null {
 
 /**
  * Remote evening payload: digest-shaped candidate cards + cross-account pattern rows.
- * `candidates` must be a non-empty array of valid `DigestTopItem` rows.
+ * `candidates` may be an empty array; every non-empty element must validate as `DigestTopItem`.
  * `patterns` is optional; when omitted, treated as empty (valid).
  */
 export function parseEveningSynthesisPayload(json: unknown): {
@@ -169,8 +166,12 @@ export function parseEveningSynthesisPayload(json: unknown): {
   if (!isRecord(json)) return null;
   const candJson = json.candidates;
   if (!Array.isArray(candJson)) return null;
-  const candidates = parseDigestTopItemsPayload(candJson);
-  if (!candidates) return null;
+  let candidates: readonly DigestTopItem[] = [];
+  if (candJson.length > 0) {
+    const parsed = parseDigestTopItemsPayload(candJson);
+    if (!parsed) return null;
+    candidates = parsed;
+  }
   const p = json.patterns;
   if (p !== undefined && !Array.isArray(p)) return null;
   const patternsRaw: unknown[] = p === undefined ? [] : p;
@@ -198,7 +199,7 @@ export function parsePhaseTrackingRowsPayload(json: unknown): readonly ActionQue
   return out;
 }
 
-export type MorningDigestLoadSource = "mock" | "live" | "degraded";
+export type MorningDigestLoadSource = "live" | "degraded";
 
 export type MorningDigestDegradedReason =
   | "fetch_error"
@@ -207,20 +208,44 @@ export type MorningDigestDegradedReason =
   | "empty_array"
   | "tenant_required"
   | "cp_not_configured"
-  | "cp_unconfigured";
+  | "cp_unconfigured"
+  | "no_configured_source";
 
 export type MorningDigestLoadResult = {
   readonly items: readonly DigestTopItem[];
   readonly source: MorningDigestLoadSource;
+  /** False when the payload is empty or degraded — never trust it as canonical telemetry. */
+  readonly dataTrusted: boolean;
   readonly degradedReason?: MorningDigestDegradedReason;
   /** HTTP status when `degradedReason` is `http_error`. */
   readonly httpStatus?: number;
 };
 
+function digestEmptyDegraded(
+  reason: MorningDigestDegradedReason,
+  httpStatus?: number,
+): MorningDigestLoadResult {
+  return {
+    items: [],
+    source: "degraded",
+    dataTrusted: false,
+    degradedReason: reason,
+    httpStatus,
+  };
+}
+
+function digestLive(items: readonly DigestTopItem[]): MorningDigestLoadResult {
+  return {
+    items,
+    source: "live",
+    dataTrusted: true,
+  };
+}
+
 /**
  * Epic 16.4 — when `DEPLOYAI_DIGEST_SOURCE=cp` or the signed-in tenant matches
- * `DEPLOYAI_PILOT_TENANT_ID`, loads from CP pilot surface; otherwise delegates to
- * `loadMorningDigestTopItemsResult` (URL or mock).
+ * `DEPLOYAI_PILOT_TENANT_ID`, loads from CP pilot surface; otherwise uses
+ * `STRATEGIST_DIGEST_SOURCE_URL` when set. No file-backed fixtures.
  */
 export async function loadMorningDigestTopItemsResultForActor(
   actor: AuthActor | null,
@@ -236,20 +261,12 @@ async function loadMorningDigestFromControlPlane(
 ): Promise<MorningDigestLoadResult> {
   const tid = actor?.tenantId?.trim();
   if (!tid) {
-    return {
-      items: MORNING_DIGEST_TOP,
-      source: "degraded",
-      degradedReason: "tenant_required",
-    };
+    return digestEmptyDegraded("tenant_required");
   }
   const base = getControlPlaneBaseUrl();
   const key = getControlPlaneInternalKey();
   if (!base || !key) {
-    return {
-      items: MORNING_DIGEST_TOP,
-      source: "degraded",
-      degradedReason: "cp_unconfigured",
-    };
+    return digestEmptyDegraded("cp_unconfigured");
   }
   const u = `${base.replace(/\/$/, "")}/internal/v1/strategist/pilot-surfaces/morning-digest-top?tenant_id=${encodeURIComponent(tid)}`;
   try {
@@ -259,44 +276,37 @@ async function loadMorningDigestFromControlPlane(
       signal: AbortSignal.timeout(STRATEGIST_REMOTE_FETCH_TIMEOUT_MS),
     });
     if (r.status === 404) {
-      return { items: [], source: "degraded", degradedReason: "cp_not_configured" };
+      return digestEmptyDegraded("cp_not_configured");
     }
     if (!r.ok) {
-      return {
-        items: MORNING_DIGEST_TOP,
-        source: "degraded",
-        degradedReason: "http_error",
-        httpStatus: r.status,
-      };
+      return digestEmptyDegraded("http_error", r.status);
     }
     const body = (await r.json()) as { items?: unknown };
     const rawItems = body.items;
     if (!Array.isArray(rawItems)) {
-      return { items: MORNING_DIGEST_TOP, source: "degraded", degradedReason: "invalid_payload" };
+      return digestEmptyDegraded("invalid_payload");
     }
     if (rawItems.length === 0) {
-      return { items: [], source: "live" };
+      return digestLive([]);
     }
     const parsed = parseDigestTopItemsPayload(rawItems);
     if (!parsed) {
-      return { items: MORNING_DIGEST_TOP, source: "degraded", degradedReason: "invalid_payload" };
+      return digestEmptyDegraded("invalid_payload");
     }
-    return { items: parsed, source: "live" };
+    return digestLive(parsed);
   } catch {
-    return { items: MORNING_DIGEST_TOP, source: "degraded", degradedReason: "fetch_error" };
+    return digestEmptyDegraded("fetch_error");
   }
 }
 
 /**
- * Optional remote source for the Morning Digest list (JSON array of `DigestTopItem` rows).
- * When `STRATEGIST_DIGEST_SOURCE_URL` is unset, returns seeded mock data (`source: mock`).
- * When set, fetches and validates the body; on any failure returns mock items with `source: degraded`
- * so the UI can show an honest banner (never silent fallback).
+ * Fetches validated morning-digest rows from `STRATEGIST_DIGEST_SOURCE_URL` when set.
+ * Returns `null` when the URL is unset (distinct from degraded fetch failures).
  */
-export async function loadMorningDigestTopItemsResult(): Promise<MorningDigestLoadResult> {
+async function morningDigestLoadResultFromConfiguredUrl(): Promise<MorningDigestLoadResult | null> {
   const u = process.env.STRATEGIST_DIGEST_SOURCE_URL?.trim();
   if (!u) {
-    return { items: MORNING_DIGEST_TOP, source: "mock" };
+    return null;
   }
   try {
     const r = await fetch(u, {
@@ -304,30 +314,37 @@ export async function loadMorningDigestTopItemsResult(): Promise<MorningDigestLo
       signal: AbortSignal.timeout(STRATEGIST_REMOTE_FETCH_TIMEOUT_MS),
     });
     if (!r.ok) {
-      return {
-        items: MORNING_DIGEST_TOP,
-        source: "degraded",
-        degradedReason: "http_error",
-        httpStatus: r.status,
-      };
+      return digestEmptyDegraded("http_error", r.status);
     }
     let body: unknown;
     try {
       body = await r.json();
     } catch {
-      return { items: MORNING_DIGEST_TOP, source: "degraded", degradedReason: "invalid_payload" };
+      return digestEmptyDegraded("invalid_payload");
     }
     if (!Array.isArray(body) || body.length === 0) {
-      return { items: MORNING_DIGEST_TOP, source: "degraded", degradedReason: "empty_array" };
+      return digestEmptyDegraded("empty_array");
     }
     const parsed = parseDigestTopItemsPayload(body);
     if (!parsed) {
-      return { items: MORNING_DIGEST_TOP, source: "degraded", degradedReason: "invalid_payload" };
+      return digestEmptyDegraded("invalid_payload");
     }
-    return { items: parsed, source: "live" };
+    return digestLive(parsed);
   } catch {
-    return { items: MORNING_DIGEST_TOP, source: "degraded", degradedReason: "fetch_error" };
+    return digestEmptyDegraded("fetch_error");
   }
+}
+
+/**
+ * Optional remote source for the Morning Digest list (JSON array of `DigestTopItem` rows).
+ * When `STRATEGIST_DIGEST_SOURCE_URL` is unset, returns an empty list with `dataTrusted: false`.
+ */
+export async function loadMorningDigestTopItemsResult(): Promise<MorningDigestLoadResult> {
+  const fromUrl = await morningDigestLoadResultFromConfiguredUrl();
+  if (fromUrl !== null) {
+    return fromUrl;
+  }
+  return digestEmptyDegraded("no_configured_source");
 }
 
 /** @deprecated Prefer `loadMorningDigestTopItemsResult` when provenance matters. */
@@ -342,21 +359,23 @@ export function morningDigestBannerMessage(result: MorningDigestLoadResult): str
   }
   switch (result.degradedReason) {
     case "fetch_error":
-      return "Could not reach the configured digest feed in time. Showing seeded demo items.";
+      return "Could not reach the configured digest feed in time. Showing no rows (data not trusted).";
     case "http_error":
-      return `Digest feed returned HTTP ${result.httpStatus ?? "error"}. Showing seeded demo items.`;
+      return `Digest feed returned HTTP ${result.httpStatus ?? "error"}. Data not trusted — empty digest.`;
     case "invalid_payload":
-      return "Digest feed returned data we could not validate as digest rows. Showing seeded demo items.";
+      return "Digest feed returned data we could not validate as digest rows. Data not trusted — empty digest.";
     case "empty_array":
-      return "Digest feed returned no rows. Showing seeded demo items.";
+      return "Digest feed returned no rows. Data not trusted — empty digest.";
     case "tenant_required":
-      return "Control-plane digest mode requires a tenant id (JWT tid or x-deployai-tenant). Showing seeded demo items.";
+      return "Control-plane digest mode requires a tenant id (JWT tid or x-deployai-tenant). Data not trusted — empty digest.";
     case "cp_unconfigured":
-      return "Control plane URL or internal API key is not configured for digest loading. Showing seeded demo items.";
+      return "Control plane URL or internal API key is not configured for digest loading. Data not trusted — empty digest.";
     case "cp_not_configured":
       return "No pilot digest data for this tenant in the control plane yet (see DEPLOYAI_PILOT_SURFACE_DATA_PATH).";
+    case "no_configured_source":
+      return "No digest feed is configured (set STRATEGIST_DIGEST_SOURCE_URL or pilot/CP digest mode). Data not trusted — empty digest.";
     default:
-      return "Digest feed is unavailable. Showing seeded demo items.";
+      return "Digest feed is unavailable. Data not trusted — empty digest.";
   }
 }
 
@@ -373,7 +392,6 @@ function evidenceNodeIdsMatch(requestedNodeId: string, payloadNodeId: string): b
   if (a === b) {
     return true;
   }
-  /* UUIDs may differ only by case from proxies / legacy fixtures */
   return a.toLowerCase() === b.toLowerCase();
 }
 
@@ -413,25 +431,37 @@ async function fetchEvidenceDigestTopFromPilotSurface(
 /**
  * Epic 16.5 / P5 — tenant + `canonical:read` must be enforced by the page (`requireCanonicalRead`) before calling.
  * CP path uses tenant-scoped pilot surface; missing node or wrong tenant → `not_found` (matches CP 404).
+ * When CP mode is off but `STRATEGIST_DIGEST_SOURCE_URL` returns trusted rows (same payload as `/digest`),
+ * resolves the node against that digest array so URL-backed demos and CI E2E keep the citation → evidence path.
  */
 export async function resolveStrategistEvidenceForActor(
   actor: AuthActor,
   nodeId: string,
 ): Promise<StrategistEvidenceLoadResult> {
-  if (!evidenceSurfacesUseControlPlane(actor)) {
-    const item = getStrategistEvidenceByNodeId(nodeId);
-    return item ? { status: "ok", item } : { status: "not_found" };
+  if (evidenceSurfacesUseControlPlane(actor)) {
+    const tid = actor.tenantId?.trim();
+    if (!tid) {
+      return { status: "not_found" };
+    }
+    return fetchEvidenceDigestTopFromPilotSurface(tid, nodeId);
   }
-  const tid = actor.tenantId?.trim();
-  if (!tid) {
-    return { status: "not_found" };
+
+  const digestFromUrl = await morningDigestLoadResultFromConfiguredUrl();
+  if (
+    digestFromUrl?.source === "live" &&
+    digestFromUrl.dataTrusted &&
+    digestFromUrl.items.length > 0
+  ) {
+    const hit = digestFromUrl.items.find((item) => evidenceNodeIdsMatch(nodeId, item.id));
+    if (hit) {
+      return { status: "ok", item: hit };
+    }
   }
-  return fetchEvidenceDigestTopFromPilotSurface(tid, nodeId);
+  return { status: "not_found" };
 }
 
 /**
- * Epic 16.5 — evidence deep-link: `DEPLOYAI_EVIDENCE_SOURCE=cp` or pilot tenant → CP pilot surface;
- * otherwise mock bridge (not tenant-partitioned — pilot hosts should use CP evidence).
+ * Epic 16.5 — evidence deep-link: `DEPLOYAI_EVIDENCE_SOURCE=cp` or pilot tenant → CP pilot surface.
  */
 export async function loadStrategistEvidenceItemForActor(
   actor: AuthActor,
@@ -451,35 +481,43 @@ export type PhaseTrackingDegradedReason = MorningDigestDegradedReason;
 export type PhaseTrackingLoadResult = {
   readonly items: readonly ActionQueueRow[];
   readonly source: PhaseTrackingLoadSource;
+  readonly dataTrusted: boolean;
   readonly degradedReason?: PhaseTrackingDegradedReason;
   readonly httpStatus?: number;
 };
 
-function phaseTrackingFallbackRows(today: string): readonly ActionQueueRow[] {
-  return buildPhaseTrackingRows(today);
+function phaseEmptyDegraded(
+  reason: PhaseTrackingDegradedReason,
+  httpStatus?: number,
+): PhaseTrackingLoadResult {
+  return {
+    items: [],
+    source: "degraded",
+    dataTrusted: false,
+    degradedReason: reason,
+    httpStatus,
+  };
+}
+
+function phaseLive(items: readonly ActionQueueRow[]): PhaseTrackingLoadResult {
+  return {
+    items,
+    source: "live",
+    dataTrusted: true,
+  };
 }
 
 async function loadPhaseTrackingFromControlPlane(
   actor: AuthActor | null,
-  today: string,
 ): Promise<PhaseTrackingLoadResult> {
-  const fallback = phaseTrackingFallbackRows(today);
   const tid = actor?.tenantId?.trim();
   if (!tid) {
-    return {
-      items: fallback,
-      source: "degraded",
-      degradedReason: "tenant_required",
-    };
+    return phaseEmptyDegraded("tenant_required");
   }
   const base = getControlPlaneBaseUrl();
   const key = getControlPlaneInternalKey();
   if (!base || !key) {
-    return {
-      items: fallback,
-      source: "degraded",
-      degradedReason: "cp_unconfigured",
-    };
+    return phaseEmptyDegraded("cp_unconfigured");
   }
   const u = `${base.replace(/\/$/, "")}/internal/v1/strategist/pilot-surfaces/phase-tracking?tenant_id=${encodeURIComponent(tid)}`;
   try {
@@ -489,31 +527,26 @@ async function loadPhaseTrackingFromControlPlane(
       signal: AbortSignal.timeout(STRATEGIST_REMOTE_FETCH_TIMEOUT_MS),
     });
     if (r.status === 404) {
-      return { items: [], source: "degraded", degradedReason: "cp_not_configured" };
+      return phaseEmptyDegraded("cp_not_configured");
     }
     if (!r.ok) {
-      return {
-        items: fallback,
-        source: "degraded",
-        degradedReason: "http_error",
-        httpStatus: r.status,
-      };
+      return phaseEmptyDegraded("http_error", r.status);
     }
     const body = (await r.json()) as { items?: unknown };
     const rawItems = body.items;
     if (!Array.isArray(rawItems)) {
-      return { items: fallback, source: "degraded", degradedReason: "invalid_payload" };
+      return phaseEmptyDegraded("invalid_payload");
     }
     if (rawItems.length === 0) {
-      return { items: [], source: "live" };
+      return phaseLive([]);
     }
     const parsed = parsePhaseTrackingRowsPayload(rawItems);
     if (!parsed) {
-      return { items: fallback, source: "degraded", degradedReason: "invalid_payload" };
+      return phaseEmptyDegraded("invalid_payload");
     }
-    return { items: parsed, source: "live" };
+    return phaseLive(parsed);
   } catch {
-    return { items: fallback, source: "degraded", degradedReason: "fetch_error" };
+    return phaseEmptyDegraded("fetch_error");
   }
 }
 
@@ -525,20 +558,22 @@ export async function loadPhaseTrackingRowsResultForActor(
   today: string,
 ): Promise<PhaseTrackingLoadResult> {
   if (phaseTrackingSurfacesUseControlPlane(actor)) {
-    return loadPhaseTrackingFromControlPlane(actor, today);
+    return loadPhaseTrackingFromControlPlane(actor);
   }
   return loadPhaseTrackingRowsResult(today);
 }
 
 /**
  * Optional remote JSON array of `ActionQueueRow` for `/phase-tracking`.
- * When `STRATEGIST_PHASE_TRACKING_SOURCE_URL` is unset, returns `buildPhaseTrackingRows(today)` (`source: mock`).
+ * When `STRATEGIST_PHASE_TRACKING_SOURCE_URL` is unset, returns an empty list with `dataTrusted: false`.
  */
-export async function loadPhaseTrackingRowsResult(today: string): Promise<PhaseTrackingLoadResult> {
+export async function loadPhaseTrackingRowsResult(
+  _today: string,
+): Promise<PhaseTrackingLoadResult> {
+  void _today;
   const u = process.env.STRATEGIST_PHASE_TRACKING_SOURCE_URL?.trim();
-  const fallback = phaseTrackingFallbackRows(today);
   if (!u) {
-    return { items: fallback, source: "mock" };
+    return phaseEmptyDegraded("no_configured_source");
   }
   try {
     const r = await fetch(u, {
@@ -546,29 +581,24 @@ export async function loadPhaseTrackingRowsResult(today: string): Promise<PhaseT
       signal: AbortSignal.timeout(STRATEGIST_REMOTE_FETCH_TIMEOUT_MS),
     });
     if (!r.ok) {
-      return {
-        items: fallback,
-        source: "degraded",
-        degradedReason: "http_error",
-        httpStatus: r.status,
-      };
+      return phaseEmptyDegraded("http_error", r.status);
     }
     let body: unknown;
     try {
       body = await r.json();
     } catch {
-      return { items: fallback, source: "degraded", degradedReason: "invalid_payload" };
+      return phaseEmptyDegraded("invalid_payload");
     }
     if (!Array.isArray(body) || body.length === 0) {
-      return { items: fallback, source: "degraded", degradedReason: "empty_array" };
+      return phaseEmptyDegraded("empty_array");
     }
     const parsed = parsePhaseTrackingRowsPayload(body);
     if (!parsed) {
-      return { items: fallback, source: "degraded", degradedReason: "invalid_payload" };
+      return phaseEmptyDegraded("invalid_payload");
     }
-    return { items: parsed, source: "live" };
+    return phaseLive(parsed);
   } catch {
-    return { items: fallback, source: "degraded", degradedReason: "fetch_error" };
+    return phaseEmptyDegraded("fetch_error");
   }
 }
 
@@ -583,21 +613,23 @@ export function phaseTrackingBannerMessage(result: PhaseTrackingLoadResult): str
   }
   switch (result.degradedReason) {
     case "fetch_error":
-      return "Could not reach the configured phase-tracking feed in time. Showing seeded demo rows.";
+      return "Could not reach the configured phase-tracking feed in time. Data not trusted — empty table.";
     case "http_error":
-      return `Phase-tracking feed returned HTTP ${result.httpStatus ?? "error"}. Showing seeded demo rows.`;
+      return `Phase-tracking feed returned HTTP ${result.httpStatus ?? "error"}. Data not trusted — empty table.`;
     case "invalid_payload":
-      return "Phase-tracking feed returned data we could not validate as action-queue rows. Showing seeded demo rows.";
+      return "Phase-tracking feed returned data we could not validate as action-queue rows. Data not trusted — empty table.";
     case "empty_array":
-      return "Phase-tracking feed returned no rows. Showing seeded demo rows.";
+      return "Phase-tracking feed returned no rows. Data not trusted — empty table.";
     case "tenant_required":
-      return "Control-plane phase tracking requires a tenant id (JWT tid or x-deployai-tenant). Showing seeded demo rows.";
+      return "Control-plane phase tracking requires a tenant id (JWT tid or x-deployai-tenant). Data not trusted — empty table.";
     case "cp_unconfigured":
-      return "Control plane URL or internal API key is not configured for phase-tracking loading. Showing seeded demo rows.";
+      return "Control plane URL or internal API key is not configured for phase-tracking loading. Data not trusted — empty table.";
     case "cp_not_configured":
       return "No pilot phase-tracking data for this tenant in the control plane yet (see DEPLOYAI_PILOT_SURFACE_DATA_PATH).";
+    case "no_configured_source":
+      return "No phase-tracking feed is configured (set STRATEGIST_PHASE_TRACKING_SOURCE_URL or pilot/CP mode). Data not trusted — empty table.";
     default:
-      return "Phase-tracking feed is unavailable. Showing seeded demo rows.";
+      return "Phase-tracking feed is unavailable. Data not trusted — empty table.";
   }
 }
 
@@ -609,40 +641,48 @@ export type EveningSynthesisLoadResult = {
   readonly candidates: readonly DigestTopItem[];
   readonly patterns: readonly EveningPatternRow[];
   readonly source: EveningSynthesisLoadSource;
+  readonly dataTrusted: boolean;
   readonly degradedReason?: EveningSynthesisDegradedReason;
   readonly httpStatus?: number;
 };
 
-function eveningSynthesisFallback(): {
-  candidates: readonly DigestTopItem[];
-  patterns: readonly EveningPatternRow[];
-} {
+function eveningEmptyDegraded(
+  reason: EveningSynthesisDegradedReason,
+  httpStatus?: number,
+): EveningSynthesisLoadResult {
   return {
-    candidates: MORNING_DIGEST_TOP.slice(0, 2),
-    patterns: EVENING_CANDIDATES,
+    candidates: [],
+    patterns: [],
+    source: "degraded",
+    dataTrusted: false,
+    degradedReason: reason,
+    httpStatus,
+  };
+}
+
+function eveningLive(
+  candidates: readonly DigestTopItem[],
+  patterns: readonly EveningPatternRow[],
+): EveningSynthesisLoadResult {
+  return {
+    candidates,
+    patterns,
+    source: "live",
+    dataTrusted: true,
   };
 }
 
 async function loadEveningSynthesisFromControlPlane(
   actor: AuthActor | null,
 ): Promise<EveningSynthesisLoadResult> {
-  const fallback = eveningSynthesisFallback();
   const tid = actor?.tenantId?.trim();
   if (!tid) {
-    return {
-      ...fallback,
-      source: "degraded",
-      degradedReason: "tenant_required",
-    };
+    return eveningEmptyDegraded("tenant_required");
   }
   const base = getControlPlaneBaseUrl();
   const key = getControlPlaneInternalKey();
   if (!base || !key) {
-    return {
-      ...fallback,
-      source: "degraded",
-      degradedReason: "cp_unconfigured",
-    };
+    return eveningEmptyDegraded("cp_unconfigured");
   }
   const u = `${base.replace(/\/$/, "")}/internal/v1/strategist/pilot-surfaces/evening-synthesis?tenant_id=${encodeURIComponent(tid)}`;
   try {
@@ -652,49 +692,38 @@ async function loadEveningSynthesisFromControlPlane(
       signal: AbortSignal.timeout(STRATEGIST_REMOTE_FETCH_TIMEOUT_MS),
     });
     if (r.status === 404) {
-      return {
-        candidates: [],
-        patterns: [],
-        source: "degraded",
-        degradedReason: "cp_not_configured",
-      };
+      return eveningEmptyDegraded("cp_not_configured");
     }
     if (!r.ok) {
-      return {
-        ...fallback,
-        source: "degraded",
-        degradedReason: "http_error",
-        httpStatus: r.status,
-      };
+      return eveningEmptyDegraded("http_error", r.status);
     }
     let body: unknown;
     try {
       body = await r.json();
     } catch {
-      return { ...fallback, source: "degraded", degradedReason: "invalid_payload" };
+      return eveningEmptyDegraded("invalid_payload");
     }
     if (!isRecord(body)) {
-      return { ...fallback, source: "degraded", degradedReason: "invalid_payload" };
+      return eveningEmptyDegraded("invalid_payload");
     }
     const parsed = parseEveningSynthesisPayload(body);
     if (!parsed) {
-      return { ...fallback, source: "degraded", degradedReason: "invalid_payload" };
+      return eveningEmptyDegraded("invalid_payload");
     }
-    return { ...parsed, source: "live" };
+    return eveningLive(parsed.candidates, parsed.patterns);
   } catch {
-    return { ...fallback, source: "degraded", degradedReason: "fetch_error" };
+    return eveningEmptyDegraded("fetch_error");
   }
 }
 
 /**
  * Optional remote JSON object `{ candidates: DigestTopItem[], patterns?: EveningPatternRow[] }`.
- * When `STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL` is unset, returns seeded stand-ins (`source: mock`).
+ * When `STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL` is unset, returns empty candidates/patterns with `dataTrusted: false`.
  */
 export async function loadEveningSynthesisResult(): Promise<EveningSynthesisLoadResult> {
   const u = process.env.STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL?.trim();
-  const fallback = eveningSynthesisFallback();
   if (!u) {
-    return { ...fallback, source: "mock" };
+    return eveningEmptyDegraded("no_configured_source");
   }
   try {
     const r = await fetch(u, {
@@ -702,29 +731,24 @@ export async function loadEveningSynthesisResult(): Promise<EveningSynthesisLoad
       signal: AbortSignal.timeout(STRATEGIST_REMOTE_FETCH_TIMEOUT_MS),
     });
     if (!r.ok) {
-      return {
-        ...fallback,
-        source: "degraded",
-        degradedReason: "http_error",
-        httpStatus: r.status,
-      };
+      return eveningEmptyDegraded("http_error", r.status);
     }
     let body: unknown;
     try {
       body = await r.json();
     } catch {
-      return { ...fallback, source: "degraded", degradedReason: "invalid_payload" };
+      return eveningEmptyDegraded("invalid_payload");
     }
     if (!isRecord(body)) {
-      return { ...fallback, source: "degraded", degradedReason: "invalid_payload" };
+      return eveningEmptyDegraded("invalid_payload");
     }
     const parsed = parseEveningSynthesisPayload(body);
     if (!parsed) {
-      return { ...fallback, source: "degraded", degradedReason: "invalid_payload" };
+      return eveningEmptyDegraded("invalid_payload");
     }
-    return { ...parsed, source: "live" };
+    return eveningLive(parsed.candidates, parsed.patterns);
   } catch {
-    return { ...fallback, source: "degraded", degradedReason: "fetch_error" };
+    return eveningEmptyDegraded("fetch_error");
   }
 }
 
@@ -752,20 +776,22 @@ export function eveningSynthesisBannerMessage(result: EveningSynthesisLoadResult
   }
   switch (result.degradedReason) {
     case "fetch_error":
-      return "Could not reach the configured evening synthesis feed in time. Showing seeded demo content.";
+      return "Could not reach the configured evening synthesis feed in time. Data not trusted — empty surface.";
     case "http_error":
-      return `Evening synthesis feed returned HTTP ${result.httpStatus ?? "error"}. Showing seeded demo content.`;
+      return `Evening synthesis feed returned HTTP ${result.httpStatus ?? "error"}. Data not trusted — empty surface.`;
     case "invalid_payload":
-      return "Evening synthesis feed returned data we could not validate. Showing seeded demo content.";
+      return "Evening synthesis feed returned data we could not validate. Data not trusted — empty surface.";
     case "empty_array":
-      return "Evening synthesis feed returned no usable payload. Showing seeded demo content.";
+      return "Evening synthesis feed returned no usable payload. Data not trusted — empty surface.";
     case "tenant_required":
-      return "Control-plane evening synthesis requires a tenant id (JWT tid or x-deployai-tenant). Showing seeded demo content.";
+      return "Control-plane evening synthesis requires a tenant id (JWT tid or x-deployai-tenant). Data not trusted — empty surface.";
     case "cp_unconfigured":
-      return "Control plane URL or internal API key is not configured for evening synthesis loading. Showing seeded demo content.";
+      return "Control plane URL or internal API key is not configured for evening synthesis loading. Data not trusted — empty surface.";
     case "cp_not_configured":
       return "No pilot evening synthesis data for this tenant in the control plane yet (see DEPLOYAI_PILOT_SURFACE_DATA_PATH).";
+    case "no_configured_source":
+      return "No evening synthesis feed is configured (set STRATEGIST_EVENING_SYNTHESIS_SOURCE_URL or pilot/CP mode). Data not trusted — empty surface.";
     default:
-      return "Evening synthesis feed is unavailable. Showing seeded demo content.";
+      return "Evening synthesis feed is unavailable. Data not trusted — empty surface.";
   }
 }

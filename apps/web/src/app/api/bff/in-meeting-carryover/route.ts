@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { decideSync } from "@deployai/authz";
 
 import { buildInMeetingCarryoverRows } from "@/lib/epic9/in-meeting-carryover-build";
+import { loadMorningDigestTopItemsResultForActor } from "@/lib/strategist-data/strategist-surface-data";
 import { getActorFromHeaders } from "@/lib/internal/actor";
 import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
 import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strategist-queues-route-guard";
@@ -36,7 +37,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "unattendedIds array required" }, { status: 400 });
   }
   const now = new Date().toISOString();
-  const rows = buildInMeetingCarryoverRows(body.unattendedIds, now);
+  const digestLoad = await loadMorningDigestTopItemsResultForActor(actor);
+  const rows = buildInMeetingCarryoverRows(body.unattendedIds, now, {
+    digest: digestLoad.items,
+  });
   const tid = actor.tenantId!.trim();
   try {
     await cpBulkAppendActionQueue(tid, rows);
