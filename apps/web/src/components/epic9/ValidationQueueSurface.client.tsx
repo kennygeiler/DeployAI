@@ -4,9 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 
-import { CitationChip, ValidationQueueCard } from "@deployai/shared-ui";
+import { ValidationQueueCard } from "@deployai/shared-ui";
 
-import { MORNING_DIGEST_TOP } from "@/lib/epic8/mock-digest";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 
 type Row = {
@@ -65,8 +64,7 @@ export function ValidationQueueSurface() {
         </p>
       </div>
       <div className="flex flex-col gap-4">
-        {rows.map((row, idx) => {
-          const digest = MORNING_DIGEST_TOP[idx % MORNING_DIGEST_TOP.length];
+        {rows.map((row) => {
           return (
             <ValidationQueueCard
               key={row.id}
@@ -76,22 +74,9 @@ export function ValidationQueueSurface() {
               state={row.state}
               disabled={row.state === "resolved" || row.state === "escalated"}
               supportingEvidence={
-                digest ? (
-                  <CitationChip
-                    id={`vq-chip-${row.id}`}
-                    label={digest.preview.citationId.slice(0, 8)}
-                    expanded={false}
-                    onToggleExpand={() => {}}
-                    variant="compact"
-                    preview={digest.preview}
-                    onViewEvidence={() => {}}
-                    onOverride={() => {}}
-                    onCopyLink={() => {}}
-                    onCiteInOverride={() => {}}
-                  />
-                ) : (
-                  <span className="text-ink-600 text-xs">No citation fixture</span>
-                )
+                <span className="text-ink-600 text-xs">
+                  Citation preview comes from pilot digest when wired (no local fixtures).
+                </span>
               }
               onConfirm={() =>
                 post({ op: "confirm", id: row.id }, "Confirmed — promoted toward canonical")

@@ -1,13 +1,21 @@
 import type { ActionQueueItem } from "@/lib/bff/strategist-queue-types";
-import { MORNING_DIGEST_RANKED_OUT, MORNING_DIGEST_TOP } from "@/lib/epic8/mock-digest";
+import type { DigestRankedOutItem, DigestTopItem } from "@/lib/strategist-data/strategist-surface-types";
 
-/** Resolve a human description for carryover rows (digest primaries + ranked-out labels). */
-export function digestLabelForCarryoverId(id: string): string | undefined {
-  const top = MORNING_DIGEST_TOP.find((x) => x.id === id);
+export type CarryoverDigestContext = {
+  digest?: readonly DigestTopItem[];
+  rankedOut?: readonly DigestRankedOutItem[];
+};
+
+/** Resolve a human description for carryover rows (digest primaries + optional ranked-out labels). */
+export function digestLabelForCarryoverId(
+  id: string,
+  ctx: CarryoverDigestContext = {},
+): string | undefined {
+  const top = ctx.digest?.find((x) => x.id === id);
   if (top) {
     return top.label;
   }
-  const ranked = MORNING_DIGEST_RANKED_OUT.find((x) => x.id === id);
+  const ranked = ctx.rankedOut?.find((x) => x.id === id);
   if (ranked) {
     return `${ranked.label} (${ranked.reason})`;
   }
@@ -21,12 +29,13 @@ export function digestLabelForCarryoverId(id: string): string | undefined {
 export function buildInMeetingCarryoverRows(
   unattendedIds: string[],
   nowIso: string,
+  ctx: CarryoverDigestContext = {},
 ): ActionQueueItem[] {
   return unattendedIds.map((id, i) => ({
     id: `carry-${id}-${i}-${nowIso}`,
     priority: "P2",
     phase: "P3 — Ecosystem map",
-    description: digestLabelForCarryoverId(id) ?? `Carryover from in-meeting alert (${id})`,
+    description: digestLabelForCarryoverId(id, ctx) ?? `Carryover from in-meeting alert (${id})`,
     status: "open",
     claimed_by: null,
     updated_at: nowIso,

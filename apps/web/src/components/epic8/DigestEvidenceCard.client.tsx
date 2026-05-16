@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 
 import { CitationChip, EvidencePanel } from "@deployai/shared-ui";
-import type { DigestTopItem } from "@/lib/epic8/mock-digest";
+import type { DigestTopItem } from "@/lib/strategist-data/strategist-surface-types";
 import { useStrategistSurface } from "@/lib/epic8/strategist-surface-context";
 
 export type DigestEvidenceCardProps = {

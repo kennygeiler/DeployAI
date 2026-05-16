@@ -1,15 +1,20 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { searchMemoryMockForServer } from "@/lib/bff/memory-search-mock";
-import { loadMorningDigestTopItems } from "@/lib/strategist-data/strategist-surface-data";
+import { searchMemoryMock } from "@/lib/bff/memory-search-mock";
+import { getStrategistLocalDateForServer } from "@/lib/internal/strategist-local-date";
 import { getActorFromHeaders } from "@/lib/internal/actor";
 import { decideSync } from "@deployai/authz";
+import {
+  loadMorningDigestTopItemsResultForActor,
+  loadPhaseTrackingRowsResultForActor,
+} from "@/lib/strategist-data/strategist-surface-data";
 
 /**
  * GET /api/bff/strategist-memory-search?q=...
  *
  * When `DEPLOYAI_CANONICAL_MEMORY_SEARCH_URL` is set, proxies that endpoint (appends `q` as
- * `query` param). Otherwise returns a mock in-process search (digest + action-queue fixtures).
+ * `query` param). Otherwise scans digest + phase-tracking rows returned for the signed-in actor
+ * (no static fixtures).
  */
 export async function GET(request: NextRequest) {
   const actor = await getActorFromHeaders();
@@ -37,7 +42,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: m, source: "proxy" }, { status: 502 });
     }
   }
-  const digest = await loadMorningDigestTopItems();
-  const hits = searchMemoryMockForServer(q, digest);
-  return NextResponse.json({ source: "mock", hits, query: q }, { status: 200 });
+  const today = getStrategistLocalDateForServer();
+  const digestResult = await loadMorningDigestTopItemsResultForActor(actor);
+  const phaseResult = await loadPhaseTrackingRowsResultForActor(actor, today);
+  const hits = searchMemoryMock(q, digestResult.items, phaseResult.items);
+  const dataTrusted = digestResult.dataTrusted && phaseResult.dataTrusted;
+  return NextResponse.json(
+    { source: "in_process", dataTrusted, hits, query: q },
+    { status: 200 },
+  );
 }

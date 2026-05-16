@@ -1,11 +1,14 @@
-import type {
-  CitationPreview,
-  EvidencePanelMetadata,
-  EvidencePanelState,
-} from "@deployai/shared-ui";
-import type { EvidenceSpan, RetrievalPhase } from "@deployai/contracts";
+/**
+ * Validated DTO fixtures for unit tests only (no production imports).
+ */
+import type { EvidenceSpan } from "@deployai/contracts";
 
-import { getStrategistLocalDateForServer } from "@/lib/internal/strategist-local-date";
+import type {
+  ActionQueueRow,
+  DigestTopItem,
+  DigestRankedOutItem,
+  EveningPatternRow,
+} from "@/lib/strategist-data/strategist-surface-types";
 
 const span = (source_ref: string, t: [number, number]): EvidenceSpan => ({
   start: t[0],
@@ -13,18 +16,7 @@ const span = (source_ref: string, t: [number, number]): EvidenceSpan => ({
   source_ref,
 });
 
-export type DigestTopItem = {
-  id: string;
-  label: string;
-  preview: CitationPreview;
-  retrievalPhase: RetrievalPhase;
-  metadata: EvidencePanelMetadata;
-  state: EvidencePanelState;
-  bodyText: string;
-  evidenceSpan: EvidenceSpan;
-};
-
-export const MORNING_DIGEST_TOP: readonly DigestTopItem[] = [
+export const FIXTURE_DIGEST_TOP: readonly DigestTopItem[] = [
   {
     id: "2d4437ee-9336-441e-ab57-121b81ee57a4",
     label: "07:00 — Program risks (DOT comms)",
@@ -93,8 +85,7 @@ export const MORNING_DIGEST_TOP: readonly DigestTopItem[] = [
   },
 ];
 
-/** Suppressed candidates (Oracle 6.4 “ranked out”) — not in the hard 3. */
-export const MORNING_DIGEST_RANKED_OUT: readonly { id: string; label: string; reason: string }[] = [
+export const FIXTURE_DIGEST_RANKED_OUT: readonly DigestRankedOutItem[] = [
   {
     id: "out-1",
     label: "Low-signal: generic status email",
@@ -103,9 +94,7 @@ export const MORNING_DIGEST_RANKED_OUT: readonly { id: string; label: string; re
   { id: "out-2", label: "Duplicate: same DOT thread (older)", reason: "Superseded by item 1" },
 ];
 
-export type EveningPatternRow = { id: string; title: string; note: string };
-
-export const EVENING_CANDIDATES: readonly EveningPatternRow[] = [
+export const FIXTURE_EVENING_PATTERNS: readonly EveningPatternRow[] = [
   {
     id: "e1",
     title: "Recurring: vendor latency on artifact uploads",
@@ -118,34 +107,7 @@ export const EVENING_CANDIDATES: readonly EveningPatternRow[] = [
   },
 ];
 
-export type ActionQueueRow = {
-  id: string;
-  title: string;
-  phase: string;
-  status: "open" | "in_progress" | "blocked";
-  assignee: string;
-  due: string;
-  priority: number;
-  summary: string;
-  retrievalPhase: RetrievalPhase;
-  metadata: EvidencePanelMetadata;
-  bodyText: string;
-  evidenceSpan: EvidenceSpan;
-};
-
-/** Strategist-local “today” for mock due-date windows (Story 8.2 date-range chips). */
-export const PHASE_TRACKING_MOCK_TODAY = "2026-04-24" as const;
-
-export type DueDateWindow = "all" | "today" | "next7" | "overdue";
-
-const ISO_LOCAL_DAY = /^\d{4}-\d{2}-\d{2}$/;
-
-function clampStrategistLocalDayForWindow(today: string | undefined): string {
-  if (today !== undefined && today !== "" && ISO_LOCAL_DAY.test(today)) {
-    return today;
-  }
-  return PHASE_TRACKING_MOCK_TODAY;
-}
+export const FIXTURE_PHASE_TODAY = "2026-04-24" as const;
 
 function addDaysToIsoDate(isoDate: string, days: number): string {
   const t = new Date(`${isoDate}T12:00:00.000Z`);
@@ -153,35 +115,10 @@ function addDaysToIsoDate(isoDate: string, days: number): string {
   return t.toISOString().slice(0, 10);
 }
 
-/**
- * YYYY-MM-DD due cell vs window chips (string comparison is valid for ISO dates).
- * `next7` = today through today+6 (seven calendar days inclusive).
- */
-export function actionQueueRowMatchesDueWindow(
-  due: string,
-  window: DueDateWindow,
-  today: string = PHASE_TRACKING_MOCK_TODAY,
-): boolean {
-  const day = clampStrategistLocalDayForWindow(today);
-  if (window === "all") {
-    return true;
-  }
-  if (window === "today") {
-    return due === day;
-  }
-  if (window === "overdue") {
-    return due < day;
-  }
-  const end = addDaysToIsoDate(day, 6);
-  return due >= day && due <= end;
-}
-
-/**
- * Action-queue mock rows with due dates **relative** to strategist-local `today`
- * (tomorrow, today, +2, −4) so date-window chips always have a non-empty walkthrough.
- */
-export function buildPhaseTrackingRows(today: string): ActionQueueRow[] {
-  const day = clampStrategistLocalDayForWindow(today);
+/** Phase rows with due dates relative to `FIXTURE_PHASE_TODAY`. */
+export function buildFixturePhaseRowsForToday(today: string): ActionQueueRow[] {
+  const day =
+    /^\d{4}-\d{2}-\d{2}$/.test(today) && today.length >= 10 ? today.slice(0, 10) : FIXTURE_PHASE_TODAY;
   return [
     {
       id: "aq-1",
@@ -267,39 +204,6 @@ export function buildPhaseTrackingRows(today: string): ActionQueueRow[] {
   ];
 }
 
-/** Fixed snapshot for unit tests (matches `PHASE_TRACKING_MOCK_TODAY` offsets). */
-export const PHASE_TRACKING_ROWS: readonly ActionQueueRow[] = Object.freeze(
-  buildPhaseTrackingRows(PHASE_TRACKING_MOCK_TODAY),
+export const FIXTURE_PHASE_ROWS: readonly ActionQueueRow[] = Object.freeze(
+  buildFixturePhaseRowsForToday(FIXTURE_PHASE_TODAY),
 );
-
-/**
- * Story 8.4 — resolve digest or action-queue rows for `/evidence/[nodeId]`.
- * Production will query canonical memory by `node_id`; this bridges mocks.
- * Not tenant-partitioned — hosted pilots should use CP evidence (`DEPLOYAI_EVIDENCE_SOURCE=cp`, pilot tenant, or `DEPLOYAI_PILOT_TENANT_ID`) so `/evidence/*` resolves via tenant-scoped pilot surface only.
- */
-export function getStrategistEvidenceByNodeId(nodeId: string): DigestTopItem | null {
-  const d = MORNING_DIGEST_TOP.find((x) => x.id === nodeId);
-  if (d) {
-    return d;
-  }
-  const localDay = getStrategistLocalDateForServer();
-  const aq = buildPhaseTrackingRows(localDay).find((r) => r.id === nodeId);
-  if (!aq) {
-    return null;
-  }
-  return {
-    id: aq.id,
-    label: aq.title,
-    preview: {
-      citationId: aq.id,
-      retrievalPhase: `${aq.phase} (action)`,
-      confidence: "—",
-      signedTimestamp: aq.metadata.timestamp,
-    },
-    retrievalPhase: aq.retrievalPhase,
-    metadata: aq.metadata,
-    state: "loaded",
-    bodyText: `${aq.summary}\n\n${aq.bodyText}`,
-    evidenceSpan: aq.evidenceSpan,
-  };
-}

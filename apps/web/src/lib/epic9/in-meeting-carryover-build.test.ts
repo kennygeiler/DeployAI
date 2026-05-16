@@ -4,29 +4,35 @@ import {
   buildInMeetingCarryoverRows,
   digestLabelForCarryoverId,
 } from "./in-meeting-carryover-build";
+import {
+  FIXTURE_DIGEST_RANKED_OUT,
+  FIXTURE_DIGEST_TOP,
+} from "@/lib/strategist-data/surface-test-fixtures";
+
+const ctx = { digest: FIXTURE_DIGEST_TOP, rankedOut: FIXTURE_DIGEST_RANKED_OUT };
 
 describe("digestLabelForCarryoverId", () => {
   it("resolves digest top id", () => {
-    expect(digestLabelForCarryoverId("2d4437ee-9336-441e-ab57-121b81ee57a4")).toBe(
+    expect(digestLabelForCarryoverId("2d4437ee-9336-441e-ab57-121b81ee57a4", ctx)).toBe(
       "07:00 — Program risks (DOT comms)",
     );
   });
 
   it("resolves ranked-out id with reason", () => {
-    expect(digestLabelForCarryoverId("out-1")).toBe(
+    expect(digestLabelForCarryoverId("out-1", ctx)).toBe(
       "Low-signal: generic status email (Below confidence floor for digest)",
     );
   });
 
   it("returns undefined for unknown id", () => {
-    expect(digestLabelForCarryoverId("unknown")).toBeUndefined();
+    expect(digestLabelForCarryoverId("unknown", ctx)).toBeUndefined();
   });
 });
 
 describe("buildInMeetingCarryoverRows", () => {
   it("builds stable unique ids and in_meeting_alert source", () => {
     const now = "2026-04-26T12:00:00.000Z";
-    const rows = buildInMeetingCarryoverRows(["a", "b"], now);
+    const rows = buildInMeetingCarryoverRows(["a", "b"], now, ctx);
     expect(rows).toHaveLength(2);
     expect(rows[0]!.id).toBe(`carry-a-0-${now}`);
     expect(rows[1]!.id).toBe(`carry-b-1-${now}`);
@@ -37,7 +43,7 @@ describe("buildInMeetingCarryoverRows", () => {
 
   it("uses fallback description when id is unknown", () => {
     const now = "2026-04-26T12:00:00.000Z";
-    const rows = buildInMeetingCarryoverRows(["x"], now);
+    const rows = buildInMeetingCarryoverRows(["x"], now, ctx);
     expect(rows[0]!.description).toBe("Carryover from in-meeting alert (x)");
   });
 });

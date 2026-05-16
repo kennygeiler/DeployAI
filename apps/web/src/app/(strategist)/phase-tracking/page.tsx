@@ -22,6 +22,7 @@ export default async function PhaseTrackingPage() {
     <PhaseTrackingClient
       initialPhaseTrackingRows={phaseLoad.items}
       phaseTrackingBanner={phaseTrackingBanner}
+      dataTrusted={phaseLoad.dataTrusted}
     />
   );
 }
