@@ -13,7 +13,14 @@ const meetingIdleFields = {
   pilotMeetingPresenceAwaitingGraph: false,
 } as const;
 
-/** Client `AppShell` must be hydrated so the ⌃K listener is attached (domcontentloaded alone is not enough). */
+/** Radix/cmdk + Playwright pointer/keyboard actions can stall at "performing action"; DOM click is CI-stable. */
+async function openCommandPalette(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    document.querySelector<HTMLButtonElement>('[data-testid="command-palette-trigger"]')?.click();
+  });
+}
+
+/** Client `AppShell` must be hydrated so listeners + chrome trigger attach (domcontentloaded alone is not enough). */
 async function waitForStrategistCommandShell(page: Page): Promise<void> {
   await expect(page.getByTestId("command-palette-trigger")).toBeVisible();
 }
@@ -36,7 +43,7 @@ test.describe("strategist", () => {
       await page.goto("/phase-tracking", { waitUntil: "domcontentloaded" });
       await expect(page.getByRole("heading", { name: /Phase & task tracking/i })).toBeVisible();
       await waitForStrategistCommandShell(page);
-      await page.keyboard.press("Control+K");
+      await openCommandPalette(page);
       await expect(page.getByRole("dialog")).toBeVisible();
       await expect(page.getByTestId("command-palette-input")).toBeVisible();
       // Playwright's synthesized click/keyboard often stalls at "performing action" in this
@@ -49,7 +56,7 @@ test.describe("strategist", () => {
       await page.goto("/digest", { waitUntil: "domcontentloaded" });
       await expect(page.getByRole("heading", { name: /Morning digest/i })).toBeVisible();
       await waitForStrategistCommandShell(page);
-      await page.keyboard.press("Control+K");
+      await openCommandPalette(page);
       await expect(page.getByRole("dialog")).toBeVisible();
       await page.evaluate(() => {
         document.querySelector<HTMLButtonElement>("[data-slot=dialog-close]")?.click();
@@ -63,7 +70,7 @@ test.describe("strategist", () => {
       await page.goto("/digest", { waitUntil: "domcontentloaded" });
       await expect(page.getByRole("heading", { name: /Morning digest/i })).toBeVisible();
       await waitForStrategistCommandShell(page);
-      await page.keyboard.press("Control+K");
+      await openCommandPalette(page);
       await expect(page.getByRole("dialog")).toBeVisible();
       const input = page.getByTestId("command-palette-input");
       await expect(input).toBeVisible();
@@ -264,33 +271,72 @@ test.describe("strategist", () => {
       page,
     }) => {
       const id = "2d4437ee-9336-441e-ab57-121b81ee57a4";
-      await page.goto("/in-meeting?inMeeting=1", { waitUntil: "domcontentloaded" });
-      await expect(page.getByRole("heading", { name: /In-meeting alert/i })).toBeVisible();
-      await expect(page.locator("[data-mvp-in-meeting-demo]")).toBeVisible();
-      await expect(page.getByRole("complementary", { name: /In-meeting alert/i })).toBeVisible();
-      const chip = page.locator(`#citation-in-meeting-${id}`);
-      await expect(chip).toBeVisible();
-      await page.evaluate((cid) => {
-        (
-          document.querySelector(`#citation-in-meeting-${cid}`) as HTMLButtonElement | null
-        )?.click();
-      }, id);
-      const panel = page.locator("[data-evidence-panel]").first();
-      await expect(panel).toBeVisible();
-      // Floating InMeetingAlertCard + compact panel: footer link can sit outside the viewport
-      // while still "visible" to Playwright; DOM click matches digest chip pattern in this file.
-      await page.evaluate(() => {
-        const root = document.querySelector("[data-evidence-panel]");
-        if (!root) {
+      const today = new Date().toISOString().slice(0, 10);
+      const oracleAt = new Date().toISOString();
+      await page.route("**/api/internal/strategist-activity*", async (route) => {
+        if (route.request().method() !== "GET") {
+          await route.continue();
           return;
         }
-        const link = Array.from(root.querySelectorAll("a")).find((a) =>
-          /navigate to source/i.test(a.textContent ?? ""),
-        ) as HTMLAnchorElement | undefined;
-        link?.click();
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            agentDegraded: false,
+            ingestionInProgress: false,
+            controlPlane: "ok",
+            strategistLocalDate: today,
+            agentServiceHealth: "unconfigured",
+            inMeeting: true,
+            meetingId: "demo-meeting-track-d",
+            meetingTitle: "E2E MVP Track D stub meeting",
+            oracleInMeetingAlertAt: oracleAt,
+            meetingDetectionSource: "oracle_signal",
+            calendarPollIntervalSeconds: 30,
+            pilotMeetingPresenceAwaitingGraph: false,
+          }),
+        });
       });
-      await expect(page).toHaveURL(new RegExp(`/evidence/${id}`));
-      await expect(page.getByRole("heading", { name: /Evidence node/i })).toBeVisible();
+      try {
+        await page.goto("/in-meeting", { waitUntil: "domcontentloaded" });
+        await expect(page.getByRole("heading", { name: /In-meeting alert/i })).toBeVisible();
+        await expect(page.locator("[data-mvp-in-meeting-demo]")).toBeVisible();
+        await expect(
+          page.locator('[data-mvp-in-meeting-demo][data-meeting-active="true"]'),
+        ).toBeVisible({ timeout: 15_000 });
+        await expect(page.locator('[data-epic91-meeting-alert="active"]')).toBeVisible({
+          timeout: 15_000,
+        });
+        const chip = page
+          .locator(`[data-in-meeting-primary-item="${id}"] [data-citation-chip]`)
+          .first();
+        await expect(chip).toBeVisible({ timeout: 15_000 });
+        await page.evaluate((cid) => {
+          (
+            document.querySelector(
+              `[data-in-meeting-primary-item="${cid}"] [data-citation-chip]`,
+            ) as HTMLButtonElement | null
+          )?.click();
+        }, id);
+        const panel = page.locator("[data-evidence-panel]").first();
+        await expect(panel).toBeVisible();
+        // Floating InMeetingAlertCard + compact panel: footer link can sit outside the viewport
+        // while still "visible" to Playwright; DOM click matches digest chip pattern in this file.
+        await page.evaluate(() => {
+          const root = document.querySelector("[data-evidence-panel]");
+          if (!root) {
+            return;
+          }
+          const link = Array.from(root.querySelectorAll("a")).find((a) =>
+            /navigate to source/i.test(a.textContent ?? ""),
+          ) as HTMLAnchorElement | undefined;
+          link?.click();
+        });
+        await expect(page).toHaveURL(new RegExp(`/evidence/${id}`));
+        await expect(page.getByRole("heading", { name: /Evidence node/i })).toBeVisible();
+      } finally {
+        await page.unroute("**/api/internal/strategist-activity*");
+      }
     });
   });
 

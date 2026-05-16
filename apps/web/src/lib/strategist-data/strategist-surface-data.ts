@@ -300,13 +300,13 @@ async function loadMorningDigestFromControlPlane(
 }
 
 /**
- * Optional remote source for the Morning Digest list (JSON array of `DigestTopItem` rows).
- * When `STRATEGIST_DIGEST_SOURCE_URL` is unset, returns an empty list with `dataTrusted: false`.
+ * Fetches validated morning-digest rows from `STRATEGIST_DIGEST_SOURCE_URL` when set.
+ * Returns `null` when the URL is unset (distinct from degraded fetch failures).
  */
-export async function loadMorningDigestTopItemsResult(): Promise<MorningDigestLoadResult> {
+async function morningDigestLoadResultFromConfiguredUrl(): Promise<MorningDigestLoadResult | null> {
   const u = process.env.STRATEGIST_DIGEST_SOURCE_URL?.trim();
   if (!u) {
-    return digestEmptyDegraded("no_configured_source");
+    return null;
   }
   try {
     const r = await fetch(u, {
@@ -333,6 +333,18 @@ export async function loadMorningDigestTopItemsResult(): Promise<MorningDigestLo
   } catch {
     return digestEmptyDegraded("fetch_error");
   }
+}
+
+/**
+ * Optional remote source for the Morning Digest list (JSON array of `DigestTopItem` rows).
+ * When `STRATEGIST_DIGEST_SOURCE_URL` is unset, returns an empty list with `dataTrusted: false`.
+ */
+export async function loadMorningDigestTopItemsResult(): Promise<MorningDigestLoadResult> {
+  const fromUrl = await morningDigestLoadResultFromConfiguredUrl();
+  if (fromUrl !== null) {
+    return fromUrl;
+  }
+  return digestEmptyDegraded("no_configured_source");
 }
 
 /** @deprecated Prefer `loadMorningDigestTopItemsResult` when provenance matters. */
@@ -419,20 +431,33 @@ async function fetchEvidenceDigestTopFromPilotSurface(
 /**
  * Epic 16.5 / P5 — tenant + `canonical:read` must be enforced by the page (`requireCanonicalRead`) before calling.
  * CP path uses tenant-scoped pilot surface; missing node or wrong tenant → `not_found` (matches CP 404).
- * Without CP evidence mode, returns `not_found` (file-backed evidence fixtures removed).
+ * When CP mode is off but `STRATEGIST_DIGEST_SOURCE_URL` returns trusted rows (same payload as `/digest`),
+ * resolves the node against that digest array so URL-backed demos and CI E2E keep the citation → evidence path.
  */
 export async function resolveStrategistEvidenceForActor(
   actor: AuthActor,
   nodeId: string,
 ): Promise<StrategistEvidenceLoadResult> {
-  if (!evidenceSurfacesUseControlPlane(actor)) {
-    return { status: "not_found" };
+  if (evidenceSurfacesUseControlPlane(actor)) {
+    const tid = actor.tenantId?.trim();
+    if (!tid) {
+      return { status: "not_found" };
+    }
+    return fetchEvidenceDigestTopFromPilotSurface(tid, nodeId);
   }
-  const tid = actor.tenantId?.trim();
-  if (!tid) {
-    return { status: "not_found" };
+
+  const digestFromUrl = await morningDigestLoadResultFromConfiguredUrl();
+  if (
+    digestFromUrl?.source === "live" &&
+    digestFromUrl.dataTrusted &&
+    digestFromUrl.items.length > 0
+  ) {
+    const hit = digestFromUrl.items.find((item) => evidenceNodeIdsMatch(nodeId, item.id));
+    if (hit) {
+      return { status: "ok", item: hit };
+    }
   }
-  return fetchEvidenceDigestTopFromPilotSurface(tid, nodeId);
+  return { status: "not_found" };
 }
 
 /**

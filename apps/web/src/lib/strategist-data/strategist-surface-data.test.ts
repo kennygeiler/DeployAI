@@ -616,6 +616,7 @@ describe("resolveStrategistEvidenceForActor", () => {
   const originalPilotTenant = process.env.DEPLOYAI_PILOT_TENANT_ID;
   const originalCp = process.env.DEPLOYAI_CONTROL_PLANE_URL;
   const originalKey = process.env.DEPLOYAI_INTERNAL_API_KEY;
+  const originalDigestUrl = process.env.STRATEGIST_DIGEST_SOURCE_URL;
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
@@ -639,11 +640,17 @@ describe("resolveStrategistEvidenceForActor", () => {
     } else {
       process.env.DEPLOYAI_INTERNAL_API_KEY = originalKey;
     }
+    if (originalDigestUrl === undefined) {
+      delete process.env.STRATEGIST_DIGEST_SOURCE_URL;
+    } else {
+      process.env.STRATEGIST_DIGEST_SOURCE_URL = originalDigestUrl;
+    }
   });
 
   it("returns not_found when CP evidence mode is off", async () => {
     delete process.env.DEPLOYAI_EVIDENCE_SOURCE;
     delete process.env.DEPLOYAI_PILOT_TENANT_ID;
+    delete process.env.STRATEGIST_DIGEST_SOURCE_URL;
     const actor: AuthActor = {
       role: "deployment_strategist",
       tenantId: undefined,
@@ -651,6 +658,27 @@ describe("resolveStrategistEvidenceForActor", () => {
     const id = FIXTURE_DIGEST_TOP[0]!.id;
     const r = await resolveStrategistEvidenceForActor(actor, id);
     expect(r.status).toBe("not_found");
+  });
+
+  it("returns ok when STRATEGIST_DIGEST_SOURCE_URL resolves and node matches (no CP mode)", async () => {
+    delete process.env.DEPLOYAI_EVIDENCE_SOURCE;
+    delete process.env.DEPLOYAI_PILOT_TENANT_ID;
+    process.env.STRATEGIST_DIGEST_SOURCE_URL = "https://digest-fixture.example/items.json";
+    const payload = structuredClone(FIXTURE_DIGEST_TOP);
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => payload,
+    }) as unknown as typeof fetch;
+    const actor: AuthActor = {
+      role: "deployment_strategist",
+      tenantId: undefined,
+    };
+    const r = await resolveStrategistEvidenceForActor(actor, FIXTURE_DIGEST_TOP[0]!.id);
+    expect(r.status).toBe("ok");
+    if (r.status === "ok") {
+      expect(r.item.id).toBe(FIXTURE_DIGEST_TOP[0]!.id);
+    }
   });
 
   it("returns not_found when CP responds 404", async () => {

@@ -59,6 +59,8 @@ export default defineConfig({
       DEPLOYAI_WEB_JWT_PUBLIC_KEY_PEM: pilotJwtPublicPem,
       // Lane M: production `next start` gates `?inMeeting=1` unless explicitly opted in.
       NEXT_PUBLIC_DEPLOYAI_STRATEGIST_MEETING_URL_DEMO: "1",
+      // Epic 16: URL-backed digest + evidence deeplink without CP (Playwright runs header-only strategist).
+      STRATEGIST_DIGEST_SOURCE_URL: "http://127.0.0.1:3000/e2e-fixtures/morning-digest-top.json",
     },
   },
 });
