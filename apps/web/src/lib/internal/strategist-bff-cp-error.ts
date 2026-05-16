@@ -11,8 +11,7 @@ export type StrategistBffCpErrorJson = {
 const DEGRADED_USER_MESSAGE =
   "This request could not be completed. Nothing was saved. The service may be temporarily unreachable—try again shortly, or contact support if this continues.";
 
-const NOT_FOUND_USER_MESSAGE =
-  "That queue item was not found or is no longer available.";
+const NOT_FOUND_USER_MESSAGE = "That queue item was not found or is no longer available.";
 
 export function nextResponseFromStrategistCpFetchError(err: unknown): NextResponse {
   const message = err instanceof Error ? err.message : String(err);
@@ -27,7 +26,10 @@ export function nextResponseFromStrategistCpFetchError(err: unknown): NextRespon
     });
 
   if (upstreamStatus === 404) {
-    return json({ error: "not_found", code: "cp_not_found", userMessage: NOT_FOUND_USER_MESSAGE, detail }, 404);
+    return json(
+      { error: "not_found", code: "cp_not_found", userMessage: NOT_FOUND_USER_MESSAGE, detail },
+      404,
+    );
   }
   if (upstreamStatus === 400 || upstreamStatus === 422) {
     return json(
@@ -53,7 +55,12 @@ export function nextResponseFromStrategistCpFetchError(err: unknown): NextRespon
   }
   if (!Number.isNaN(upstreamStatus) && upstreamStatus >= 500) {
     return json(
-      { error: "upstream_server_error", code: "cp_5xx", userMessage: DEGRADED_USER_MESSAGE, detail },
+      {
+        error: "upstream_server_error",
+        code: "cp_5xx",
+        userMessage: DEGRADED_USER_MESSAGE,
+        detail,
+      },
       502,
     );
   }

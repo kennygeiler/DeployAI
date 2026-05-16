@@ -17,7 +17,9 @@ export default async function EveningPage() {
   const actor = await requireCanonicalRead();
   const eveningLoad = await loadEveningSynthesisResultForActor(actor);
   const eveningBanner = eveningSynthesisBannerMessage(eveningLoad);
-  const solidificationPending = await getSolidificationPendingCountForStrategistPage(actor.tenantId ?? null);
+  const solidificationPending = await getSolidificationPendingCountForStrategistPage(
+    actor.tenantId ?? null,
+  );
   return (
     <EveningSynthesisClient
       initialCandidates={eveningLoad.candidates}

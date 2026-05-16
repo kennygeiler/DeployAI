@@ -8,7 +8,9 @@ async function readJson(res: ReturnType<typeof nextResponseFromStrategistCpFetch
 
 describe("nextResponseFromStrategistCpFetchError", () => {
   it("maps CP 404 to 404 with userMessage", async () => {
-    const res = nextResponseFromStrategistCpFetchError(new Error("cp action-queue patch 404: gone"));
+    const res = nextResponseFromStrategistCpFetchError(
+      new Error("cp action-queue patch 404: gone"),
+    );
     expect(res.status).toBe(404);
     const j = await readJson(res);
     expect(j.source).toBe("cp_error");
@@ -27,7 +29,9 @@ describe("nextResponseFromStrategistCpFetchError", () => {
   });
 
   it("maps missing-config style errors to 502 unreachable", async () => {
-    const res = nextResponseFromStrategistCpFetchError(new Error("DEPLOYAI_INTERNAL_API_KEY not set"));
+    const res = nextResponseFromStrategistCpFetchError(
+      new Error("DEPLOYAI_INTERNAL_API_KEY not set"),
+    );
     expect(res.status).toBe(502);
     const j = await readJson(res);
     expect(j.code).toBe("cp_unreachable");
