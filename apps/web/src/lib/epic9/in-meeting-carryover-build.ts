@@ -1,4 +1,4 @@
-import type { ActionQueueItem } from "@/lib/bff/strategist-queues-store";
+import type { ActionQueueItem } from "@/lib/bff/strategist-queue-types";
 import { MORNING_DIGEST_RANKED_OUT, MORNING_DIGEST_TOP } from "@/lib/epic8/mock-digest";
 
 /** Resolve a human description for carryover rows (digest primaries + ranked-out labels). */

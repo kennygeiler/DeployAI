@@ -2,7 +2,6 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { decideSync } from "@deployai/authz";
 
-import { pushInMeetingAudit } from "@/lib/bff/strategist-queues-store";
 import { auditTypeForInMeetingAction } from "@/lib/epic9/in-meeting-alert-actions";
 import { getActorFromHeaders, getActorIdFromHeaders } from "@/lib/internal/actor";
 import { postStrategistActivityToCp } from "@/lib/internal/strategist-cp-activity";
@@ -13,7 +12,7 @@ type Body = {
 };
 
 /**
- * Epic 9.3 — records `alert.dismissed` / `alert.corrected` (BFF mock; canonical audit lands on CP).
+ * Epic 9.3 — records alert actions; canonical audit on CP via strategist activity.
  */
 export async function POST(request: NextRequest) {
   const actor = await getActorFromHeaders();
@@ -37,7 +36,6 @@ export async function POST(request: NextRequest) {
     );
   }
   const type = auditTypeForInMeetingAction(body.action);
-  pushInMeetingAudit(actor.tenantId ?? null, { type, itemId: body.itemId });
   const tid = actor.tenantId?.trim();
   const aid = await getActorIdFromHeaders();
   if (tid && aid) {

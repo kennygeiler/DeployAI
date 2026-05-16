@@ -48,9 +48,13 @@ test.describe("Story 15.1 — strategist session from access JWT", () => {
 
     const bff = await page.evaluate(async () => {
       const r = await fetch("/api/bff/action-queue");
-      const body = r.ok ? await r.json() : null;
+      const body = await r.json().catch(() => null);
       return { status: r.status, body };
     });
+    if (bff.status === 503) {
+      expect(bff.body?.source).toBe("cp_misconfigured");
+      return;
+    }
     expect(bff.status).toBe(200);
     expect(Array.isArray(bff.body?.items)).toBe(true);
   });

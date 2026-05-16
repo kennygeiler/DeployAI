@@ -13,14 +13,14 @@
 
 DeployAI combines a **Next.js strategist application** (`apps/web`), **FastAPI control plane** and related services, **shared UI and contracts**, and **heavy CI gates** (lint, typecheck, tests, accessibility, compose smoke). Much of the engineering is real: schemas, tenant isolation tests, ingestion direction, agent eval contracts, and production-shaped routes.
 
-For **what is fixture vs live today**, and how far “demo” is from “pilot” and “production,” read the living catalog in [whats-actually-here.md](./whats-actually-here.md) (especially **§1**, **§2**, **§8**, and **§10**). It is the honest baseline for evaluations and hosted pilots.
+For **what is fixture vs pilot CP vs durable queues**, start with **[`docs/product/deployai-source-of-truth-spec.md`](./docs/product/deployai-source-of-truth-spec.md)** (architecture + env flags wired in code). For **demo checklists** and stakeholder language, pair it with **[`whats-actually-here.md`](./whats-actually-here.md)** (especially **§1**, **§2**, **§8**, and **§10**).
 
 ---
 
 ## What’s included
 
 - **Strategist web surfaces** — digest, phase tracking, evening synthesis, in-meeting alert, action / validation / solidification queues, evidence deep links, overrides and personal audit routes; data can come from **fixtures**, **optional HTTP JSON URLs**, **control-plane pilot loaders**, or **BFF helpers** depending on configuration.
-- **Control plane & BFF boundary** — meeting presence, ingestion and health signals for activity banners, internal APIs for integrations and pilot surfaces; **queue state** in typical dev/demo paths uses an **in-process BFF store** (see truth doc for multi-replica caveats).
+- **Control plane & BFF boundary** — meeting presence, ingestion and health signals for activity banners, internal APIs for integrations and pilot surfaces; **strategist queues are Postgres-backed via CP** (see **`docs/product/deployai-source-of-truth-spec.md`** and **`whats-actually-here.md`**).
 - **Polyglot monorepo** — Node/pnpm workspaces, Python (`uv`) for control plane and agents, Go FOIA CLI, Rust/Tauri edge agent; Dockerfiles and [local compose stack](./docs/dev-environment.md#7-local-stack-via-docker-compose-story-17) for a reference environment.
 - **Quality gates** — Turbo pipelines, Playwright E2E where scoped, Storybook and accessibility runners documented under [docs/dev-environment.md](./docs/dev-environment.md).
 
@@ -68,6 +68,8 @@ Production and pilot deployments should use **secrets from a vault**, not commit
 
 | Document | Audience | Purpose |
 | --- | --- | --- |
+| [docs/product/deployai-source-of-truth-spec.md](./docs/product/deployai-source-of-truth-spec.md) | Leadership, hosts, engineers | **Canonical** product/architecture spec — code-aligned flags and boundaries. |
+| [docs/product/pm-functionality-and-direction-brief.md](./docs/product/pm-functionality-and-direction-brief.md) | PM / GTM | What works today vs caveats vs next milestones. |
 | [whats-actually-here.md](./whats-actually-here.md) | Strategists, hosts, PM | Fixture vs live surfaces, demo checklist, pilot distance, FDE checklist. |
 | [docs/dev-environment.md](./docs/dev-environment.md) | Engineers | Toolchains, `pnpm` workflows, strategist dev middleware, compose stack, smoke commands. |
 | [docs/pilot/README.md](./docs/pilot/README.md) | Hosted pilot operators | Index of pilot runbooks and env bundles. |

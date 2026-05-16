@@ -1,12 +1,11 @@
 /**
- * Control-plane strategist queue APIs (internal key). Used when
- * {@link strategistQueuesUseControlPlane} is true.
+ * Control-plane strategist queue APIs (internal key). BFF queue routes always use these.
  */
 import type {
   ActionQueueItem,
   SolidificationQueueRow,
   ValidationQueueRow,
-} from "@/lib/bff/strategist-queues-store";
+} from "@/lib/bff/strategist-queue-types";
 
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
 

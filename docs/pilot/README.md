@@ -15,7 +15,8 @@ Operational docs for **hosted** strategist pilots. Planning source: [`_bmad-outp
 | [phase-0-checklist.md](./phase-0-checklist.md) | 16.6 | **Hosted verification** gate — JWT/tenant/CP loaders/queues/runbook (before visitors) |
 | [design-partner-day-playbook.md](./design-partner-day-playbook.md) | 16.6 | Day-of script + retro prompt |
 | [examples/pilot-surface.example.json](./examples/pilot-surface.example.json) | 16.4–16.5 | Sample `DEPLOYAI_PILOT_SURFACE_DATA_PATH` payload |
+| [deployai-source-of-truth-spec.md](../product/deployai-source-of-truth-spec.md) | Pilot + prod hosts | Canonical **code-aligned** deployment and architecture boundaries |
 
-**Product catalog:** [`whats-actually-here.md`](../../whats-actually-here.md) §10 (FDE checklist).
+**Product catalog:** [`whats-actually-here.md`](../../whats-actually-here.md) §10 (FDE checklist) + **`docs/product/`** summaries.
 
 **Strategist UX (Epic 16):** onboarding strip + **`/settings/integrations`** (M365 links, status, disconnect via BFF when JWT cookie present).

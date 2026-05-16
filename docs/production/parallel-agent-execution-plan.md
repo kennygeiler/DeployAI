@@ -25,4 +25,5 @@ Serialize CP migration ownership (**Q-101**).
 
 ## Links
 
-[operations-and-release.md](./operations-and-release.md), [identity-and-tenancy.md](./identity-and-tenancy.md), [strategist-data-plane.md](./strategist-data-plane.md), [strategist-queues-and-replicas.md](./strategist-queues-and-replicas.md).
+- [**Canonical product spec (code truth)**](../product/deployai-source-of-truth-spec.md)
+- [operations-and-release.md](./operations-and-release.md), [identity-and-tenancy.md](./identity-and-tenancy.md), [strategist-data-plane.md](./strategist-data-plane.md), [strategist-queues-and-replicas.md](./strategist-queues-and-replicas.md)

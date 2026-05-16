@@ -2,16 +2,9 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { decideSync } from "@deployai/authz";
 
-import {
-  listActionQueue,
-  mutateActionQueueItem,
-  pushActionQueueAudit,
-  type ActionQueueStatus,
-} from "@/lib/bff/strategist-queues-store";
+import type { ActionQueueStatus } from "@/lib/bff/strategist-queue-types";
 import { getActorFromHeaders } from "@/lib/internal/actor";
-import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
 import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
-import { strategistQueuesUseControlPlane } from "@/lib/internal/strategist-queues-backend";
 import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strategist-queues-route-guard";
 import { cpListActionQueue, cpPatchActionQueueItem } from "@/lib/internal/strategist-queues-cp";
 
@@ -42,26 +35,13 @@ export async function GET() {
   if (cpMisconfigured) {
     return cpMisconfigured;
   }
-  const tid = actor.tenantId?.trim();
-  if (
-    strategistQueuesUseControlPlane() &&
-    tid &&
-    getControlPlaneBaseUrl() &&
-    getControlPlaneInternalKey()
-  ) {
-    try {
-      const items = await cpListActionQueue(tid);
-      return NextResponse.json({ items, source: "cp" }, { status: 200 });
-    } catch (e) {
-      return nextResponseFromStrategistCpFetchError(e);
-    }
+  const tid = actor.tenantId!.trim();
+  try {
+    const items = await cpListActionQueue(tid);
+    return NextResponse.json({ items, source: "cp" }, { status: 200 });
+  } catch (e) {
+    return nextResponseFromStrategistCpFetchError(e);
   }
-  return NextResponse.json(
-    { items: listActionQueue(actor.tenantId ?? null), source: "memory" },
-    {
-      status: 200,
-    },
-  );
 }
 
 export async function POST(request: NextRequest) {
@@ -84,64 +64,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
   const who = actor.role === "deployment_strategist" ? "you" : actor.role;
-  const tid = actor.tenantId?.trim();
-  const useCp =
-    strategistQueuesUseControlPlane() &&
-    tid &&
-    getControlPlaneBaseUrl() &&
-    getControlPlaneInternalKey();
+  const tid = actor.tenantId!.trim();
 
   if (body.op === "claim") {
-    if (useCp) {
-      try {
-        const next = await cpPatchActionQueueItem(tid!, body.id, {
-          status: "claimed",
-          claimed_by: who,
-        });
-        return NextResponse.json({ item: next, source: "cp" });
-      } catch (e) {
-        return nextResponseFromStrategistCpFetchError(e);
-      }
-    }
-    const next = mutateActionQueueItem(actor.tenantId ?? null, body.id, {
-      status: "claimed",
-      claimed_by: who,
-    });
-    if (next) {
-      pushActionQueueAudit(actor.tenantId ?? null, "action_queue.claimed", {
-        itemId: body.id,
+    try {
+      const next = await cpPatchActionQueueItem(tid, body.id, {
+        status: "claimed",
         claimed_by: who,
       });
+      return NextResponse.json({ item: next, source: "cp" });
+    } catch (e) {
+      return nextResponseFromStrategistCpFetchError(e);
     }
-    return next
-      ? NextResponse.json({ item: next, source: "memory" })
-      : NextResponse.json({ error: "not found" }, { status: 404 });
   }
   if (body.op === "progress") {
-    if (useCp) {
-      try {
-        const next = await cpPatchActionQueueItem(tid!, body.id, {
-          status: "in_progress",
-          claimed_by: who,
-        });
-        return NextResponse.json({ item: next, source: "cp" });
-      } catch (e) {
-        return nextResponseFromStrategistCpFetchError(e);
-      }
-    }
-    const next = mutateActionQueueItem(actor.tenantId ?? null, body.id, {
-      status: "in_progress",
-      claimed_by: who,
-    });
-    if (next) {
-      pushActionQueueAudit(actor.tenantId ?? null, "action_queue.in_progress", {
-        itemId: body.id,
+    try {
+      const next = await cpPatchActionQueueItem(tid, body.id, {
+        status: "in_progress",
         claimed_by: who,
       });
+      return NextResponse.json({ item: next, source: "cp" });
+    } catch (e) {
+      return nextResponseFromStrategistCpFetchError(e);
     }
-    return next
-      ? NextResponse.json({ item: next, source: "memory" })
-      : NextResponse.json({ error: "not found" }, { status: 404 });
   }
   if (body.op === "resolve") {
     const st = body.state as ActionQueueStatus;
@@ -158,36 +103,17 @@ export async function POST(request: NextRequest) {
     const evidenceIds = Array.isArray(body.evidence_event_ids)
       ? body.evidence_event_ids.filter((x) => typeof x === "string" && x.length > 0)
       : undefined;
-    if (useCp) {
-      try {
-        const next = await cpPatchActionQueueItem(tid!, body.id, {
-          status: st,
-          claimed_by: who,
-          resolution_reason: body.reason?.trim() || null,
-          evidence_event_ids: evidenceIds && evidenceIds.length > 0 ? evidenceIds : null,
-        });
-        return NextResponse.json({ item: next, source: "cp" });
-      } catch (e) {
-        return nextResponseFromStrategistCpFetchError(e);
-      }
-    }
-    const next = mutateActionQueueItem(actor.tenantId ?? null, body.id, {
-      status: st,
-      claimed_by: who,
-      resolution_reason: body.reason?.trim() || null,
-      evidence_event_ids: evidenceIds && evidenceIds.length > 0 ? evidenceIds : null,
-    });
-    if (next) {
-      pushActionQueueAudit(actor.tenantId ?? null, "action_queue.resolved", {
-        itemId: body.id,
-        state: body.state,
-        reason: body.reason?.trim() ?? null,
-        evidence_event_ids: evidenceIds ?? null,
+    try {
+      const next = await cpPatchActionQueueItem(tid, body.id, {
+        status: st,
+        claimed_by: who,
+        resolution_reason: body.reason?.trim() || null,
+        evidence_event_ids: evidenceIds && evidenceIds.length > 0 ? evidenceIds : null,
       });
+      return NextResponse.json({ item: next, source: "cp" });
+    } catch (e) {
+      return nextResponseFromStrategistCpFetchError(e);
     }
-    return next
-      ? NextResponse.json({ item: next, source: "memory" })
-      : NextResponse.json({ error: "not found" }, { status: 404 });
   }
   return NextResponse.json({ error: "unknown op" }, { status: 400 });
 }

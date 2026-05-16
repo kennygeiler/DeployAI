@@ -2,12 +2,9 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { decideSync } from "@deployai/authz";
 
-import { appendActionQueueItems } from "@/lib/bff/strategist-queues-store";
 import { buildInMeetingCarryoverRows } from "@/lib/epic9/in-meeting-carryover-build";
 import { getActorFromHeaders } from "@/lib/internal/actor";
-import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
 import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
-import { strategistQueuesUseControlPlane } from "@/lib/internal/strategist-queues-backend";
 import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strategist-queues-route-guard";
 import { cpBulkAppendActionQueue } from "@/lib/internal/strategist-queues-cp";
 
@@ -40,20 +37,11 @@ export async function POST(request: NextRequest) {
   }
   const now = new Date().toISOString();
   const rows = buildInMeetingCarryoverRows(body.unattendedIds, now);
-  const tid = actor.tenantId?.trim();
-  if (
-    strategistQueuesUseControlPlane() &&
-    tid &&
-    getControlPlaneBaseUrl() &&
-    getControlPlaneInternalKey()
-  ) {
-    try {
-      await cpBulkAppendActionQueue(tid, rows);
-      return NextResponse.json({ ok: true, inserted: rows.length, source: "cp" }, { status: 200 });
-    } catch (e) {
-      return nextResponseFromStrategistCpFetchError(e);
-    }
+  const tid = actor.tenantId!.trim();
+  try {
+    await cpBulkAppendActionQueue(tid, rows);
+    return NextResponse.json({ ok: true, inserted: rows.length, source: "cp" }, { status: 200 });
+  } catch (e) {
+    return nextResponseFromStrategistCpFetchError(e);
   }
-  appendActionQueueItems(actor.tenantId ?? null, rows);
-  return NextResponse.json({ ok: true, inserted: rows.length, source: "memory" }, { status: 200 });
 }

@@ -77,7 +77,7 @@ async def _ensure_validation_solidification_seed(
     session: AsyncSession,
     tenant_id: uuid.UUID,
 ) -> None:
-    """Mirror ``seedStrategistQueuesIfEmpty`` from ``strategist-queues-store.ts``."""
+    """Seed validation/solidification rows when a tenant has none (legacy BFF demo parity)."""
     rv = await session.execute(
         select(func.count())
         .select_from(StrategistValidationQueueItem)
