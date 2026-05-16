@@ -1,5 +1,8 @@
 import type { ActionQueueItem } from "@/lib/bff/strategist-queue-types";
-import type { DigestRankedOutItem, DigestTopItem } from "@/lib/strategist-data/strategist-surface-types";
+import type {
+  DigestRankedOutItem,
+  DigestTopItem,
+} from "@/lib/strategist-data/strategist-surface-types";
 
 export type CarryoverDigestContext = {
   digest?: readonly DigestTopItem[];

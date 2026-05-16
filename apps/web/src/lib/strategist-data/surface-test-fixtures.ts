@@ -118,7 +118,9 @@ function addDaysToIsoDate(isoDate: string, days: number): string {
 /** Phase rows with due dates relative to `FIXTURE_PHASE_TODAY`. */
 export function buildFixturePhaseRowsForToday(today: string): ActionQueueRow[] {
   const day =
-    /^\d{4}-\d{2}-\d{2}$/.test(today) && today.length >= 10 ? today.slice(0, 10) : FIXTURE_PHASE_TODAY;
+    /^\d{4}-\d{2}-\d{2}$/.test(today) && today.length >= 10
+      ? today.slice(0, 10)
+      : FIXTURE_PHASE_TODAY;
   return [
     {
       id: "aq-1",

@@ -170,9 +170,7 @@ export type InMeetingAlertDemoProps = {
  * Epic 9 Stories 9.1–9.4 — meeting presence from activity poll + URL demo flags, three-item budget,
  * correction vs dismissal (FR37), carryover to Action Queue when meeting ends (FR38).
  */
-export function InMeetingAlertDemo({
-  initialDigestItems = [],
-}: InMeetingAlertDemoProps) {
+export function InMeetingAlertDemo({ initialDigestItems = [] }: InMeetingAlertDemoProps) {
   const router = useRouter();
   const surface = useStrategistSurface();
   const { primary, rankedOut } = React.useMemo(

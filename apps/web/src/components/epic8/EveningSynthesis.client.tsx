@@ -3,7 +3,10 @@
 import Link from "next/link";
 
 import { DigestEvidenceCard } from "./DigestEvidenceCard.client";
-import type { DigestTopItem, EveningPatternRow } from "@/lib/strategist-data/strategist-surface-types";
+import type {
+  DigestTopItem,
+  EveningPatternRow,
+} from "@/lib/strategist-data/strategist-surface-types";
 import { useStrategistSurface } from "@/lib/epic8/strategist-surface-context";
 
 export type EveningSynthesisClientProps = {

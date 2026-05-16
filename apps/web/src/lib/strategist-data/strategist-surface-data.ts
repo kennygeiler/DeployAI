@@ -4,7 +4,11 @@ import type { EvidenceSpan } from "@deployai/contracts";
 
 import type { AuthActor } from "@deployai/authz";
 
-import type { ActionQueueRow, DigestTopItem, EveningPatternRow } from "@/lib/strategist-data/strategist-surface-types";
+import type {
+  ActionQueueRow,
+  DigestTopItem,
+  EveningPatternRow,
+} from "@/lib/strategist-data/strategist-surface-types";
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
 import {
   digestSurfacesUseControlPlane,
@@ -538,7 +542,9 @@ export async function loadPhaseTrackingRowsResultForActor(
  * Optional remote JSON array of `ActionQueueRow` for `/phase-tracking`.
  * When `STRATEGIST_PHASE_TRACKING_SOURCE_URL` is unset, returns an empty list with `dataTrusted: false`.
  */
-export async function loadPhaseTrackingRowsResult(_today: string): Promise<PhaseTrackingLoadResult> {
+export async function loadPhaseTrackingRowsResult(
+  _today: string,
+): Promise<PhaseTrackingLoadResult> {
   void _today;
   const u = process.env.STRATEGIST_PHASE_TRACKING_SOURCE_URL?.trim();
   if (!u) {

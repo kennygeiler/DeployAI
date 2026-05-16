@@ -1,7 +1,10 @@
 "use client";
 
 import { DigestEvidenceCard } from "./DigestEvidenceCard.client";
-import type { DigestRankedOutItem, DigestTopItem } from "@/lib/strategist-data/strategist-surface-types";
+import type {
+  DigestRankedOutItem,
+  DigestTopItem,
+} from "@/lib/strategist-data/strategist-surface-types";
 import { useStrategistSurface } from "@/lib/epic8/strategist-surface-context";
 
 export type MorningDigestClientProps = {

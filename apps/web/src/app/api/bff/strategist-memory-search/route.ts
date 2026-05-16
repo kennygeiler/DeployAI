@@ -47,8 +47,5 @@ export async function GET(request: NextRequest) {
   const phaseResult = await loadPhaseTrackingRowsResultForActor(actor, today);
   const hits = searchMemoryMock(q, digestResult.items, phaseResult.items);
   const dataTrusted = digestResult.dataTrusted && phaseResult.dataTrusted;
-  return NextResponse.json(
-    { source: "in_process", dataTrusted, hits, query: q },
-    { status: 200 },
-  );
+  return NextResponse.json({ source: "in_process", dataTrusted, hits, query: q }, { status: 200 });
 }
