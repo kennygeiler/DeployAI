@@ -156,6 +156,10 @@ jobs:
     # (~60s) + E2E runs (~30s). 20 min leaves headroom for CI cold
     # starts and image pulls.
     timeout-minutes: 20
+    env:
+      # Lane M: client bundle inlines NEXT_PUBLIC_* at build time; CI prod builds must match the
+      # Playwright webServer env so `?inMeeting=1` demos work under `next start`.
+      NEXT_PUBLIC_DEPLOYAI_STRATEGIST_MEETING_URL_DEMO: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
