@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { CitationChip, ValidationQueueCard } from "@deployai/shared-ui";
 
 import { MORNING_DIGEST_TOP } from "@/lib/epic8/mock-digest";
+import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 
 type Row = {
   id: string;
@@ -22,7 +23,7 @@ export function ValidationQueueSurface() {
     const r = await fetch("/api/bff/validation-queue", { cache: "no-store" });
     if (!r.ok) {
       toast.error("Validation queue failed to load", {
-        description: (await r.text()).slice(0, 200),
+        description: (await readStrategistBffErrorDescription(r)).slice(0, 240),
       });
       return;
     }
@@ -43,7 +44,9 @@ export function ValidationQueueSurface() {
         body: JSON.stringify(body),
       });
       if (!r.ok) {
-        toast.error("Action failed", { description: (await r.text()).slice(0, 200) });
+        toast.error("Action failed", {
+          description: (await readStrategistBffErrorDescription(r)).slice(0, 240),
+        });
         return;
       }
       toast.success(okMessage);

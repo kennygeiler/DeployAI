@@ -10,7 +10,9 @@ import {
 } from "@/lib/bff/strategist-queues-store";
 import { getActorFromHeaders } from "@/lib/internal/actor";
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
+import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
 import { strategistQueuesUseControlPlane } from "@/lib/internal/strategist-queues-backend";
+import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strategist-queues-route-guard";
 import { cpListActionQueue, cpPatchActionQueueItem } from "@/lib/internal/strategist-queues-cp";
 
 type PostBody =
@@ -36,6 +38,10 @@ export async function GET() {
   if (!d.allow) {
     return new NextResponse("Forbidden", { status: 403 });
   }
+  const cpMisconfigured = strategistQueueBffCpMisconfiguredResponse(actor.tenantId);
+  if (cpMisconfigured) {
+    return cpMisconfigured;
+  }
   const tid = actor.tenantId?.trim();
   if (
     strategistQueuesUseControlPlane() &&
@@ -47,8 +53,7 @@ export async function GET() {
       const items = await cpListActionQueue(tid);
       return NextResponse.json({ items, source: "cp" }, { status: 200 });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      return NextResponse.json({ error: msg, source: "cp_error" }, { status: 502 });
+      return nextResponseFromStrategistCpFetchError(e);
     }
   }
   return NextResponse.json(
@@ -67,6 +72,10 @@ export async function POST(request: NextRequest) {
   const d = decideSync(actor, "canonical:read", { kind: "canonical_memory" });
   if (!d.allow) {
     return new NextResponse("Forbidden", { status: 403 });
+  }
+  const cpMisconfigured = strategistQueueBffCpMisconfiguredResponse(actor.tenantId);
+  if (cpMisconfigured) {
+    return cpMisconfigured;
   }
   let body: PostBody;
   try {
@@ -90,8 +99,8 @@ export async function POST(request: NextRequest) {
           claimed_by: who,
         });
         return NextResponse.json({ item: next, source: "cp" });
-      } catch {
-        return NextResponse.json({ error: "not found" }, { status: 404 });
+      } catch (e) {
+        return nextResponseFromStrategistCpFetchError(e);
       }
     }
     const next = mutateActionQueueItem(actor.tenantId ?? null, body.id, {
@@ -116,8 +125,8 @@ export async function POST(request: NextRequest) {
           claimed_by: who,
         });
         return NextResponse.json({ item: next, source: "cp" });
-      } catch {
-        return NextResponse.json({ error: "not found" }, { status: 404 });
+      } catch (e) {
+        return nextResponseFromStrategistCpFetchError(e);
       }
     }
     const next = mutateActionQueueItem(actor.tenantId ?? null, body.id, {
@@ -158,8 +167,8 @@ export async function POST(request: NextRequest) {
           evidence_event_ids: evidenceIds && evidenceIds.length > 0 ? evidenceIds : null,
         });
         return NextResponse.json({ item: next, source: "cp" });
-      } catch {
-        return NextResponse.json({ error: "not found" }, { status: 404 });
+      } catch (e) {
+        return nextResponseFromStrategistCpFetchError(e);
       }
     }
     const next = mutateActionQueueItem(actor.tenantId ?? null, body.id, {

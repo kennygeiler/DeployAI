@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { EveningSynthesisClient } from "@/components/epic8/EveningSynthesis.client";
-import { listSolidificationQueue } from "@/lib/bff/strategist-queues-store";
+import { getSolidificationPendingCountForStrategistPage } from "@/lib/internal/strategist-queues-ssr";
 import { requireCanonicalRead } from "@/lib/internal/strategist-surface";
 import {
   eveningSynthesisBannerMessage,
@@ -17,7 +17,7 @@ export default async function EveningPage() {
   const actor = await requireCanonicalRead();
   const eveningLoad = await loadEveningSynthesisResultForActor(actor);
   const eveningBanner = eveningSynthesisBannerMessage(eveningLoad);
-  const solidificationPending = listSolidificationQueue(actor.tenantId ?? null).length;
+  const solidificationPending = await getSolidificationPendingCountForStrategistPage(actor.tenantId ?? null);
   return (
     <EveningSynthesisClient
       initialCandidates={eveningLoad.candidates}
