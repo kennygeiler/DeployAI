@@ -3,13 +3,20 @@ package export
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"time"
 )
 
+// ErrExportWindow signals --from/--to Unix ms bounds conflict when both are non-zero (Story 12.2 UX guard).
+var ErrExportWindow = errors.New("when both export window bounds are non-zero, --from must be <= --to")
+
 // RunExport writes a minimal directory layout: manifest.json + placeholder events.jsonl.
 func RunExport(outDir, account string, fromMs, toMs int64) error {
+	if fromMs != 0 && toMs != 0 && fromMs > toMs {
+		return ErrExportWindow
+	}
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return err
 	}

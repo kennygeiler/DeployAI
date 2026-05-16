@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -159,5 +160,44 @@ func TestVerifyEdgeTranscriptBundleDir_v2RoundTrip(t *testing.T) {
 	}
 	if err := VerifyEdgeTranscriptBundleDir(dir, "", false, revPath); err == nil {
 		t.Fatal("expected revocation failure when createdAtUnixMs is after revokedAtUnixMs")
+	}
+}
+
+func TestVerifyEdgeTranscript_rejectsTraversalInSegmentsFilename(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	payload := filepath.Join(dir, "payload_segments.json")
+	segBytes := []byte(`["x"]`)
+	if err := os.WriteFile(payload, segBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	pub, _, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	th := sha256.Sum256(segBytes)
+	segs := []string{"x"}
+	mr := MerkleRootChain(segs)
+	for _, malicious := range []string{"../payload_segments.json", `..\..\payload_segments.json`, "sub/segments.json", ".."} {
+		mfPath := filepath.Join(dir, "manifest.json")
+		mf := map[string]any{
+			"format":              EdgeTranscriptFormat,
+			"deviceId":            "d",
+			"publicKeyEd25519B64": base64.StdEncoding.EncodeToString(pub),
+			"merkleRootHex":       hex.EncodeToString(mr[:]),
+			"transcriptSha256Hex": hex.EncodeToString(th[:]),
+			"segmentsFile":        malicious,
+			"createdAtUnixMs":     int64(0),
+		}
+		mb, _ := json.Marshal(mf)
+		if err := os.WriteFile(mfPath, mb, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		fakeSig := strings.Repeat("A", base64.StdEncoding.EncodedLen(ed25519.SignatureSize))
+		_ = os.WriteFile(filepath.Join(dir, "transcript.sig"), []byte(fakeSig), 0o600)
+		if err := VerifyEdgeTranscriptBundleDir(dir, "", false, ""); err == nil {
+			t.Fatalf("expected rejection for malicious segmentsFile %q", malicious)
+		}
 	}
 }

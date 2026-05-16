@@ -33,7 +33,7 @@ transcript_sha256:<64 lowercase hex chars>
 - `format`: literal `deployai.edge.transcript.v1`
 - `deviceId`, `publicKeyEd25519B64` (32-byte Ed25519 public key, standard Base64)
 - `merkleRootHex`, `transcriptSha256Hex`
-- `segmentsFile`: usually `segments.json`
+- `segmentsFile`: usually `segments.json` (**must be a single filename** — path separators and `..` segments are rejected by `foia verify` so a malicious manifest cannot read files outside the bundle directory)
 - `createdAtUnixMs`: wall clock at bundle creation
 - `rfc3161` (optional): `{ "tsaUrl": "...", "tokenDerBase64": "..." }` — DER-encoded **TimeStampToken** (PKCS#7) from an RFC 3161 HTTP TSA; the imprint is the **32-byte Merkle root** (SHA-256 message imprint). Offline verification uses `foia verify` (and `github.com/digitorus/timestamp` to parse and verify the CMS when certificates are embedded).
 

@@ -8,8 +8,8 @@
 
 meta:
   plan: _bmad-output/planning-artifacts/mvp-operating-plan-2026.md
-  last_updated: "2026-04-28"
-  note: "sprint-status.yaml — Epics 1–11, 15–16 done; Epic 12 active (12.2 review). MVP Tracks A–D done; Track E (golden-path E2E + mock cleanup) still open. See whats-actually-here.md for fixture vs durable APIs."
+  last_updated: "2026-05-16"
+  note: "sprint-status.yaml — Epics 1–11, 15–16 done; Epic 12 active (Story 12-2 FOIA skeleton + verify/export hardening on main PR TBD). MVP Tracks A–D done; Track E (golden-path E2E + mock cleanup) in_progress. whats-actually-here.md stays authority for fixtures vs durable APIs."
 
 risk_mitigations:
   - id: R1-planning-drift

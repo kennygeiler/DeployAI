@@ -100,9 +100,9 @@ func VerifyEdgeTranscriptBundleDir(bundleDir string, publicKeyB64 string, skipTS
 	if mf.Format != EdgeTranscriptFormat && mf.Format != EdgeTranscriptFormatV2 {
 		return fmt.Errorf("unsupported format %q (want %s or %s)", mf.Format, EdgeTranscriptFormat, EdgeTranscriptFormatV2)
 	}
-	segName := mf.SegmentsFile
-	if segName == "" {
-		segName = "segments.json"
+	segName, err := sanitizeManifestSegmentsFilename(mf.SegmentsFile)
+	if err != nil {
+		return err
 	}
 	segmentsPath := filepath.Join(bundleDir, segName)
 	segmentsBytes, err := os.ReadFile(segmentsPath)
@@ -197,6 +197,19 @@ func VerifyEdgeTranscriptBundleDir(bundleDir string, publicKeyB64 string, skipTS
 	}
 
 	return nil
+}
+
+// sanitizeManifestSegmentsFilename restricts manifest.segmentsFile to a plain filename under the bundle dir
+// (reject directory traversal via ../ or absolute-ish paths — Blind Hunter AC for untrusted manifests).
+func sanitizeManifestSegmentsFilename(declared string) (string, error) {
+	name := strings.TrimSpace(declared)
+	if name == "" {
+		return "segments.json", nil
+	}
+	if filepath.Base(name) != name || name == "." || name == ".." {
+		return "", fmt.Errorf("manifest segmentsFile %q must be a single basename (no directories or '..')", declared)
+	}
+	return name, nil
 }
 
 func decodeConsentSHA256Hex(s string) ([]byte, error) {
