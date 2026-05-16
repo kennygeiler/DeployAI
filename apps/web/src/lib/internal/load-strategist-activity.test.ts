@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => new Headers()),
+}));
+
 import { loadStrategistActivityForActor } from "./load-strategist-activity";
 
 function meetingOffResponse() {
@@ -224,5 +228,30 @@ describe("loadStrategistActivityForActor", () => {
       agentServiceHealth: "unconfigured",
       inMeeting: false,
     });
+  });
+
+  it("threads correlation id to CP fetches when provided", async () => {
+    globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo, init?: RequestInit) => {
+      const u = typeof input === "string" ? input : String(input);
+      if (u.includes("/healthz")) {
+        return Promise.resolve(new Response(JSON.stringify({ status: "ok" }), { status: 200 }));
+      }
+      if (u.includes("meeting-presence")) {
+        expect(init?.headers).toMatchObject({ "X-DeployAI-Correlation-Id": "corr-test" });
+        return Promise.resolve(meetingOffResponse());
+      }
+      if (u.includes("ingestion-runs")) {
+        expect(init?.headers).toMatchObject({ "X-DeployAI-Correlation-Id": "corr-test" });
+        return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    }) as unknown as typeof fetch;
+
+    const r = await loadStrategistActivityForActor(
+      { role: "deployment_strategist", tenantId: "t1" },
+      { inboundCorrelationId: "corr-test" },
+    );
+
+    expect(r.controlPlane).toBe("ok");
   });
 });
