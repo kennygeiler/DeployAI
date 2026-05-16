@@ -98,6 +98,27 @@ If Apple secrets are **missing**, the workflow still builds; the optional notary
 
 ---
 
+## 9. Hosted Gate 1 — GitHub Actions probes (optional)
+
+Run [.github/workflows/gate-1-hosted-verification.yml](../.github/workflows/gate-1-hosted-verification.yml) manually; **never commit URLs/keys**.
+
+| Who | Action |
+|-----|--------|
+| Repo admin | Variable `GATE1_HOSTED_CHECKS_ENABLED=true` ([ci-hosted-gate-1.md](./production/ci-hosted-gate-1.md)). |
+| Repo admin | Secrets `GATE1_CP_HEALTH_URL`, optional `GATE1_WEB_PROBE_URL` — map logical names privately ([vault-secret-names.template.md](./production/config-templates/vault-secret-names.template.md)). |
+
+---
+
+## Quick reference — GitHub secrets & variables (hosted Gate 1, optional)
+
+| Name | Type | Purpose |
+|------|------|---------|
+| `GATE1_HOSTED_CHECKS_ENABLED` | Variable | Enables hosted probes workflow. |
+| `GATE1_CP_HEALTH_URL` | Secret | CP `/healthz` URL. |
+| `GATE1_WEB_PROBE_URL` | Secret | Optional strategist HTTPS probe. |
+
+---
+
 ## Quick reference — GitHub secrets & variables (edge releases)
 
 | Name | Type | Purpose |

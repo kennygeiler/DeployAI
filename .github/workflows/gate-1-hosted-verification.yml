@@ -1,0 +1,60 @@
+# Optional hosted probes for phase-0 Gate 1 (TLS + CP healthz).
+# Configure variable + secrets per docs/production/ci-hosted-gate-1.md
+name: Gate 1 hosted verification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  gate-1-hosted:
+    name: Hosted Gate 1 probes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Skip when disabled
+        if: ${{ vars.GATE1_HOSTED_CHECKS_ENABLED != 'true' }}
+        run: |
+          echo "::notice title=Gate 1 hosted verification skipped::Set Actions variable GATE1_HOSTED_CHECKS_ENABLED=true and secrets documented in docs/production/ci-hosted-gate-1.md."
+          exit 0
+
+      - name: Control plane GET /healthz
+        if: ${{ vars.GATE1_HOSTED_CHECKS_ENABLED == 'true' }}
+        env:
+          GATE1_CP_HEALTH_URL: ${{ secrets.GATE1_CP_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GATE1_CP_HEALTH_URL:-}" ]; then
+            echo "::error::Secret GATE1_CP_HEALTH_URL is not set."
+            exit 1
+          fi
+          tmp="$(mktemp)"
+          curl -fsS --max-time 30 -o "$tmp" "$GATE1_CP_HEALTH_URL"
+          jq -e '.status == "ok" and .service == "control-plane"' "$tmp" >/dev/null
+          echo "CP healthz OK."
+
+      - name: Web TLS / HTTP probe (optional)
+        if: ${{ vars.GATE1_HOSTED_CHECKS_ENABLED == 'true' }}
+        env:
+          GATE1_WEB_PROBE_URL: ${{ secrets.GATE1_WEB_PROBE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GATE1_WEB_PROBE_URL:-}" ]; then
+            echo "::notice::GATE1_WEB_PROBE_URL unset — skipping web probe."
+            exit 0
+          fi
+          code="$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' "$GATE1_WEB_PROBE_URL")"
+          echo "Web probe HTTP status: ${code}"
+          case "${code}" in
+            2?? | 3??) echo "Web probe OK." ;;
+            *)
+              echo "::error::Unexpected HTTP status ${code} from web probe."
+              exit 1
+              ;;
+          esac
