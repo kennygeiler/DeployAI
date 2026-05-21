@@ -91,6 +91,25 @@ services:
       timeout: 3s
       retries: 10
 
+  # One-shot: applies Alembic migrations to the application schema, then exits.
+  # control-plane waits for this to complete, so it never serves against an
+  # unmigrated database.
+  migrate:
+    build:
+      context: ../..
+      dockerfile: services/control-plane/Dockerfile
+    image: deployai/control-plane:local-dev
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      # Migrations run via the SYNC psycopg driver — asyncpg cannot execute
+      # the multi-statement DDL blocks the migration scripts use. The app
+      # (control-plane) still connects with asyncpg.
+      DATABASE_URL: ${CONTROL_PLANE_MIGRATE_DATABASE_URL:-postgresql+psycopg://deployai:deployai-local-dev@postgres:5432/deployai}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   control-plane:
     build:
       context: ../..
@@ -110,6 +129,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       # Use 127.0.0.1 (not `localhost`) to match IPv4-only uvicorn bind
       # and avoid IPv6-resolution-into-refused-connection failure mode.
