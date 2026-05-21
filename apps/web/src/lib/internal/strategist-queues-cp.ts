@@ -25,8 +25,14 @@ function cpBase(): string {
   return base;
 }
 
-export async function cpListActionQueue(tenantId: string): Promise<ActionQueueItem[]> {
-  const url = `${cpBase()}/internal/v1/strategist/action-queue-items?tenant_id=${encodeURIComponent(tenantId)}`;
+export async function cpListActionQueue(
+  tenantId: string,
+  engagementId?: string,
+): Promise<ActionQueueItem[]> {
+  let url = `${cpBase()}/internal/v1/strategist/action-queue-items?tenant_id=${encodeURIComponent(tenantId)}`;
+  if (engagementId) {
+    url += `&engagement_id=${encodeURIComponent(engagementId)}`;
+  }
   const r = await fetch(url, { method: "GET", headers: cpHeaders(), cache: "no-store" });
   if (!r.ok) {
     throw new Error(`cp action-queue list ${r.status}: ${await r.text()}`);
@@ -51,6 +57,7 @@ export async function cpBulkAppendActionQueue(
       updated_at: it.updated_at,
       source: it.source,
       evidence_node_ids: it.evidence_node_ids ?? [],
+      engagement_id: it.engagement_id ?? null,
     })),
   };
   const r = await fetch(url, {
