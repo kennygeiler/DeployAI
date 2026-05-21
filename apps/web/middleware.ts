@@ -42,6 +42,8 @@ function parseRole(r: string | null): V1Role | null {
     "platform_admin",
     "customer_admin",
     "deployment_strategist",
+    "fde",
+    "biz_dev",
     "successor_strategist",
     "customer_records_officer",
     "external_auditor",
@@ -91,7 +93,12 @@ export async function middleware(request: NextRequest) {
     process.env.DEPLOYAI_DISABLE_DEV_STRATEGIST !== "1" &&
     !requestHeaders.get("x-deployai-role")
   ) {
-    requestHeaders.set("x-deployai-role", "deployment_strategist");
+    // Dev-only role injection. Override the injected role — e.g. to test as
+    // fde or biz_dev — with DEPLOYAI_DEV_STRATEGIST_ROLE.
+    requestHeaders.set(
+      "x-deployai-role",
+      process.env.DEPLOYAI_DEV_STRATEGIST_ROLE?.trim() || "deployment_strategist",
+    );
   }
 
   const { pathname } = request.nextUrl;

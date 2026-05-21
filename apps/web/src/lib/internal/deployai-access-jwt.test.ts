@@ -37,6 +37,9 @@ describe("deployai-access-jwt", () => {
     expect(v1RoleFromJwtRoles(["external_auditor", "deployment_strategist"])).toBe(
       "deployment_strategist",
     );
+    expect(v1RoleFromJwtRoles(["fde"])).toBe("fde");
+    expect(v1RoleFromJwtRoles(["biz_dev"])).toBe("biz_dev");
+    expect(v1RoleFromJwtRoles(["fde", "deployment_strategist"])).toBe("deployment_strategist");
     expect(v1RoleFromJwtRoles(["unknown"])).toBeNull();
   });
 
