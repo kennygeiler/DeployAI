@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from control_plane.config.internal_api import verify_internal_key
 from control_plane.db import get_app_db_session
 from control_plane.domain.app_identity.models import AppTenant, AppUser
-from control_plane.domain.engagement import Engagement, EngagementMember
+from control_plane.domain.engagement import Engagement, EngagementLogEntry, EngagementMember
 from control_plane.phases.machine import DEPLOYMENT_PHASES, default_phase
 
 # Roles a user can hold on an engagement — the cross-functional team.
@@ -235,3 +235,75 @@ async def remove_engagement_member(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="member not found")
     await session.delete(row)
     await session.commit()
+
+
+# --- Engagement log (Phase 3, increment 3.1 — manual capture) ---
+
+_LOG_ENTRY_KINDS: tuple[str, ...] = ("meeting", "decision", "risk", "next_action")
+
+
+class EngagementLogEntryCreate(BaseModel):
+    entry_kind: str
+    body: str = Field(min_length=1, max_length=4000)
+    author: str | None = Field(default=None, max_length=200)
+
+
+class EngagementLogEntryRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    engagement_id: uuid.UUID
+    entry_kind: str
+    body: str
+    author: str | None
+    created_at: datetime
+
+
+@router.get(
+    "/{engagement_id}/log",
+    response_model=list[EngagementLogEntryRead],
+    dependencies=[Depends(require_internal)],
+)
+async def list_engagement_log(
+    engagement_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+) -> list[EngagementLogEntry]:
+    await _require_engagement(session, tenant_id, engagement_id)
+    r = await session.execute(
+        select(EngagementLogEntry)
+        .where(EngagementLogEntry.engagement_id == engagement_id)
+        .order_by(EngagementLogEntry.created_at.desc())
+    )
+    return list(r.scalars().all())
+
+
+@router.post(
+    "/{engagement_id}/log",
+    response_model=EngagementLogEntryRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_internal)],
+)
+async def add_engagement_log_entry(
+    engagement_id: uuid.UUID,
+    body: EngagementLogEntryCreate,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+) -> EngagementLogEntry:
+    await _require_engagement(session, tenant_id, engagement_id)
+    if body.entry_kind not in _LOG_ENTRY_KINDS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"invalid entry_kind: {body.entry_kind}",
+        )
+    row = EngagementLogEntry(
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        entry_kind=body.entry_kind,
+        body=body.body,
+        author=body.author,
+    )
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return row
