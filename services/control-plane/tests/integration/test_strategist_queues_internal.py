@@ -107,3 +107,58 @@ async def test_validation_queue_seed_and_patch(
     )
     assert r2.status_code == 200
     assert r2.json()["state"] == "resolved"
+
+
+@pytest.mark.asyncio
+async def test_action_queue_engagement_scoping(
+    q_client: AsyncClient,
+    postgres_engine: Engine,
+) -> None:
+    tid = uuid.uuid4()
+    eid = uuid.uuid4()
+    _ins_tenant(postgres_engine, tid)
+    with postgres_engine.begin() as c:
+        c.execute(
+            text("INSERT INTO engagements (id, tenant_id, name) VALUES (:e, :t, 'eng A')"),
+            {"e": str(eid), "t": str(tid)},
+        )
+
+    bulk = {
+        "items": [
+            {
+                "id": "aq-eng-1",
+                "priority": "P1",
+                "phase": "Phase",
+                "description": "scoped to engagement",
+                "status": "open",
+                "updated_at": "2026-04-28T12:00:00.000Z",
+                "evidence_node_ids": [],
+                "engagement_id": str(eid),
+            },
+            {
+                "id": "aq-eng-2",
+                "priority": "P2",
+                "phase": "Phase",
+                "description": "no engagement",
+                "status": "open",
+                "updated_at": "2026-04-28T12:00:00.000Z",
+                "evidence_node_ids": [],
+            },
+        ],
+    }
+    r = await q_client.post(
+        f"/internal/v1/strategist/action-queue-items/bulk?tenant_id={tid}",
+        json=bulk,
+    )
+    assert r.status_code == 201, r.text
+    created = {row["id"]: row for row in r.json()}
+    assert created["aq-eng-1"]["engagement_id"] == str(eid)
+    assert created["aq-eng-2"]["engagement_id"] is None
+
+    r_scoped = await q_client.get(f"/internal/v1/strategist/action-queue-items?tenant_id={tid}&engagement_id={eid}")
+    assert r_scoped.status_code == 200
+    assert [row["id"] for row in r_scoped.json()] == ["aq-eng-1"]
+
+    r_all = await q_client.get(f"/internal/v1/strategist/action-queue-items?tenant_id={tid}")
+    assert r_all.status_code == 200
+    assert {row["id"] for row in r_all.json()} == {"aq-eng-1", "aq-eng-2"}
