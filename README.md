@@ -13,18 +13,18 @@
 
 DeployAI combines a **Next.js strategist application** (`apps/web`), **FastAPI control plane** and related services, **shared UI and contracts**, and **heavy CI gates** (lint, typecheck, tests, accessibility, compose smoke). Much of the engineering is real: schemas, tenant isolation tests, ingestion direction, agent eval contracts, and production-shaped routes.
 
-For **what is fixture vs pilot CP vs durable queues**, start with **[`docs/product/deployai-source-of-truth-spec.md`](./docs/product/deployai-source-of-truth-spec.md)** (architecture + env flags wired in code). For **demo checklists** and stakeholder language, pair it with **[`whats-actually-here.md`](./whats-actually-here.md)** (especially **§1**, **§2**, **§8**, and **§10**).
+For **what is fixture vs pilot CP vs durable queues** — and for product intent, architecture, honest delivery status, and the full documentation map — see the single source of truth: **[`docs/product/deployai-source-of-truth-spec.md`](./docs/product/deployai-source-of-truth-spec.md)**.
 
 ---
 
 ## What’s included
 
 - **Strategist web surfaces** — digest, phase tracking, evening synthesis, in-meeting alert, action / validation / solidification queues, evidence deep links, overrides and personal audit routes; data can come from **fixtures**, **optional HTTP JSON URLs**, **control-plane pilot loaders**, or **BFF helpers** depending on configuration.
-- **Control plane & BFF boundary** — meeting presence, ingestion and health signals for activity banners, internal APIs for integrations and pilot surfaces; **strategist queues are Postgres-backed via CP** (see **`docs/product/deployai-source-of-truth-spec.md`** and **`whats-actually-here.md`**).
+- **Control plane & BFF boundary** — meeting presence, ingestion and health signals for activity banners, internal APIs for integrations and pilot surfaces; **strategist queues are Postgres-backed via CP** (see **`docs/product/deployai-source-of-truth-spec.md`**).
 - **Polyglot monorepo** — Node/pnpm workspaces, Python (`uv`) for control plane and agents, Go FOIA CLI, Rust/Tauri edge agent; Dockerfiles and [local compose stack](./docs/dev-environment.md#7-local-stack-via-docker-compose-story-17) for a reference environment.
 - **Quality gates** — Turbo pipelines, Playwright E2E where scoped, Storybook and accessibility runners documented under [docs/dev-environment.md](./docs/dev-environment.md).
 
-Capabilities above describe **what you can run and test**, not a completion checklist — use [whats-actually-here.md](./whats-actually-here.md) for stage (“demo” vs “pilot”) language.
+Capabilities above describe **what you can run and test**, not a completion checklist — see the [source-of-truth spec](./docs/product/deployai-source-of-truth-spec.md) §3 and §13 for honest demo / pilot / production staging.
 
 ---
 
@@ -58,7 +58,7 @@ The web app serves on **http://localhost:3000** by default.
 | **JWT, tenant, and header boundaries** | [docs/pilot/session-and-headers.md](./docs/pilot/session-and-headers.md) — `DEPLOYAI_WEB_TRUST_JWT`, PEM, issuer/audience, `DEPLOYAI_STRATEGIST_REQUIRE_TENANT`, optional `DEPLOYAI_WEB_CLEAR_STRATEGIST_HEADERS_BEFORE_JWT`. |
 | **Hardening checklist (TLS, CP coupling, loaders)** | [docs/pilot/hosted-environment.md](./docs/pilot/hosted-environment.md). |
 | **Pre–external-visitor verification** | [docs/pilot/phase-0-checklist.md](./docs/pilot/phase-0-checklist.md) — reachability, JWT/tenant, integrations, digest/evidence CP mode, queue durability mode, runbook, limitations review. |
-| **Demo vs pilot distance** | [whats-actually-here.md §10](./whats-actually-here.md#10-fde-field-evaluation-pilot) — minimum credible hosted build and queue/replica warnings. |
+| **Demo vs pilot distance** | [source-of-truth spec §13](./docs/product/deployai-source-of-truth-spec.md) — demo vs pilot vs production staging and hosted-build requirements. |
 
 Production and pilot deployments should use **secrets from a vault**, not committed `.env` files. Align web and control plane URLs, keys, and JWT trust material per the pilot docs above.
 
@@ -68,12 +68,10 @@ Production and pilot deployments should use **secrets from a vault**, not commit
 
 | Document | Audience | Purpose |
 | --- | --- | --- |
-| [docs/product/deployai-source-of-truth-spec.md](./docs/product/deployai-source-of-truth-spec.md) | Leadership, hosts, engineers | **Canonical** product/architecture spec — code-aligned flags and boundaries. |
-| [docs/product/pm-functionality-and-direction-brief.md](./docs/product/pm-functionality-and-direction-brief.md) | PM / GTM | What works today vs caveats vs next milestones. |
-| [whats-actually-here.md](./whats-actually-here.md) | Strategists, hosts, PM | Fixture vs live surfaces, demo checklist, pilot distance, FDE checklist. |
+| [docs/product/deployai-source-of-truth-spec.md](./docs/product/deployai-source-of-truth-spec.md) | Everyone | **Canonical source of truth** — product intent, architecture, honest real-vs-fixture status, doc index. Start here. |
 | [docs/dev-environment.md](./docs/dev-environment.md) | Engineers | Toolchains, `pnpm` workflows, strategist dev middleware, compose stack, smoke commands. |
 | [docs/pilot/README.md](./docs/pilot/README.md) | Hosted pilot operators | Index of pilot runbooks and env bundles. |
-| [_bmad-output/planning-artifacts/epics.md](./_bmad-output/planning-artifacts/epics.md) | **Internal planning only** | Epic and story grid; not a public delivery promise — pair with **whats-actually-here** for reality. |
+| [_bmad-output/implementation-artifacts/sprint-status.yaml](./_bmad-output/implementation-artifacts/sprint-status.yaml) | Engineering | Delivery tracker — honest, code-verified epic status. |
 
 Supporting references: [docs/human-ops-runbook.md](./docs/human-ops-runbook.md) (secrets, CI, release operations), [.github/workflows/README.md](./.github/workflows/README.md) (automation overview).
 

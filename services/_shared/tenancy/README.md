@@ -43,4 +43,4 @@ sys.path hacks.
 
 - `docs/security/tenant-isolation.md` — three-layer defense rationale.
 - `docs/canonical-memory.md` — the canonical tables these primitives protect.
-- `_bmad-output/planning-artifacts/architecture.md` §L181-184 — NFR23 design.
+- `docs/archive/architecture.md` §L181-184 — NFR23 design (archived).

@@ -1,6 +1,6 @@
 # Customer pilot (Epic 15–16)
 
-Operational docs for **hosted** strategist pilots. Planning source: [`_bmad-output/planning-artifacts/epics.md`](../../_bmad-output/planning-artifacts/epics.md) (Epics **15** prerequisites, **16** design partner).
+Operational docs for **hosted** strategist pilots. Planning context: [`docs/archive/epics.md`](../archive/epics.md) (archived — Epics **15** prerequisites, **16** design partner).
 
 | Doc | Epic story | Purpose |
 | --- | ---------- | ------- |
@@ -17,6 +17,6 @@ Operational docs for **hosted** strategist pilots. Planning source: [`_bmad-outp
 | [examples/pilot-surface.example.json](./examples/pilot-surface.example.json) | 16.4–16.5 | Sample `DEPLOYAI_PILOT_SURFACE_DATA_PATH` payload |
 | [deployai-source-of-truth-spec.md](../product/deployai-source-of-truth-spec.md) | Pilot + prod hosts | Canonical **code-aligned** deployment and architecture boundaries |
 
-**Product catalog:** [`whats-actually-here.md`](../../whats-actually-here.md) §10 (FDE checklist) + **`docs/product/`** summaries.
+**Product reference:** [`deployai-source-of-truth-spec.md`](../product/deployai-source-of-truth-spec.md) — canonical; see §13 for demo / pilot / production staging.
 
 **Strategist UX (Epic 16):** onboarding strip + **`/settings/integrations`** (M365 links, status, disconnect via BFF when JWT cookie present).

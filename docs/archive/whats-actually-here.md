@@ -1,3 +1,8 @@
+> **ARCHIVED — superseded.** Its fixture-vs-real catalog was merged into the canonical doc.
+> Current source of truth: [`docs/product/deployai-source-of-truth-spec.md`](../product/deployai-source-of-truth-spec.md) (see §3, §7, §13, §14).
+> Delivery status: [`_bmad-output/implementation-artifacts/sprint-status.yaml`](../../_bmad-output/implementation-artifacts/sprint-status.yaml).
+> Do not use this file for current development — relative links below are stale.
+
 # What’s actually here
 
 **Canonical architecture + flag matrix:** [`docs/product/deployai-source-of-truth-spec.md`](./docs/product/deployai-source-of-truth-spec.md) — use for leadership / cross-team “what is real in code.” This file stays the **demo / pilot / fixture** catalog and maintenance checklist.

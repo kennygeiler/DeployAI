@@ -96,7 +96,7 @@ Align `apps/web` secrets with **one** primary posture; hybrid setups need explic
 
 - **Full IdP / Entra** app registration steps, certificate lifecycle, or refresh-token UX — covered by product/epic documentation and your SSO vendor; this doc only states the **web app contract** (headers + optional JWT env).
 - **Control-plane** `POST /test/session-tokens` and `DEPLOYAI_ALLOW_TEST_SESSION_MINT` — **internal/test** only; not a production identity source for browsers.
-- **Strategist data realism** (CP loaders, queue durability, digest URLs) — see [whats-actually-here.md](../../whats-actually-here.md), [oracle-and-digest-pilot.md](../pilot/oracle-and-digest-pilot.md), [queue-durability-modes.md](../pilot/queue-durability-modes.md).
+- **Strategist data realism** (CP loaders, queue durability, digest URLs) — see [source-of-truth spec §7](../product/deployai-source-of-truth-spec.md), [oracle-and-digest-pilot.md](../pilot/oracle-and-digest-pilot.md), [queue-durability-modes.md](../pilot/queue-durability-modes.md).
 - **Admin surfaces** (`/admin/*`) tenant model — different operator assumptions; not expanded here.
 
 ---
@@ -118,7 +118,7 @@ Use before calling production “ready” for strategist routes.
 ## References
 
 - Companion production docs — lane task grid and ship-fast **`PS-*`** decision table (merge with sibling PRs as needed): `docs/production/parallel-agent-execution-plan.md`, `docs/production/product-strategy-ship-fast-decisions.md`.
-- [whats-actually-here.md](../../whats-actually-here.md) — §8 stages (Demo / Pilot / Production), §10 FDE pilot minimums (SSO, no dev headers).
+- [source-of-truth spec](../product/deployai-source-of-truth-spec.md) — §13 demo / pilot / production staging and FDE pilot minimums (SSO, no dev headers).
 - [docs/pilot/session-and-headers.md](../pilot/session-and-headers.md) — Authoritative pilot description of middleware, JWT, strip flag, and `DEPLOYAI_STRATEGIST_REQUIRE_TENANT`.
 - [docs/pilot/hosted-environment.md](../pilot/hosted-environment.md) — Hardening checklist (identity boundary, CP coupling, loaders).
 - [docs/pilot/tenant-provisioning.md](../pilot/tenant-provisioning.md) — Tenant UUID, test session mint (internal), header contract for CP.

@@ -1,278 +1,185 @@
-# generated: 2026-04-21
-# development_board: _bmad-output/implementation-artifacts/development-board.yaml
-# mvp_plan: _bmad-output/planning-artifacts/mvp-operating-plan-2026.md
-# last_updated: 2026-05-16 (Lane Q note: strategist CP queue BFF + fail-closed prod; development-board Epic 12.2 FOIA note unchanged for sprint grid)
-# project: DeployAI
-# note: last_updated bumps as stories transition; story 1-1 completed implementation, code-review patches applied, and was squash-merged to main on 2026-04-22 (PR #1 → status done). Story 1-2 context authored, implementation delivered (PR #2 all jobs green on the 5-job CI gate: toolchain-check, smoke, sbom-source, cve-scan, dependency-review [GHAS-gated]; release.yml scaffold dormant until Story 1.3; dependabot 5-ecosystem config live), reviewed, and squash-merged to main on 2026-04-22 (PR #2 → status done). Story 1-3 (per-workspace starter initialization) context authored, implementation delivered: apps/web (Next.js 16.2 + Tailwind v4 + Vitest), apps/edge-agent (Tauri 2.10 + Rust 1.95 + capability-locked), apps/foia-cli (Go 1.26 static binary), services/control-plane (FastAPI 0.136 + uv 0.11 + Alembic async + /healthz) all green on `pnpm turbo run lint typecheck test build` (16/16) with `pnpm install --frozen-lockfile` reproducible; root pre-commit hooks + docs/dev-environment.md landed; deferred ECH-02/ECH-06/ECH-09 closed by construction; one intentional ESLint 10 → 9.39.4 downgrade for ecosystem compat with eslint-config-next@16.2.4 (captured in deferred-work). PR #3 squash-merged to main on 2026-04-22 (→ status done). Story 1-4 (design tokens package @deployai/design-tokens + Storybook 10 init in apps/web + Tailwind v4 @theme preset + WCAG AA contrast test via wcag-contrast + Foundations/Tokens.stories.tsx satisfying UX-DR1/UX-DR2) context authored and implementation delivered on branch feat/story-1-4-design-tokens: 15-file token source + 100-test suite (17 contrast + 83 invariants), dual-surface exports (TS + tokens.css + tailwind.css `@theme` preset), Storybook 10.3 via @storybook/nextjs-vite (first major to support Next.js 16) with @storybook/addon-a11y running wcag2a+wcag2aa matchers, 4 Tokens stories (Palette/TypeRamp/Spacing/RadiiAndShadows), next/font Inter + IBM Plex Mono in apps/web, docs/design-tokens.md + docs/repo-layout.md updated; `pnpm turbo run lint typecheck test build` 20/20 green; `pnpm --filter @deployai/web build-storybook` succeeds. → code-review via bmad-code-review on 2026-04-22 surfaced 3 HIGH AC misses + 8 MEDIUM + 6 LOW findings; all patches batch-applied (ink-400 darkened to `#6A6E78` → measured 4.95:1 on paper-100 clearing AC3 4.5:1 floor; dual-emit `--space-*` + `--spacing-*` in tokens.css satisfying AC2 literal; contrast suite grew 17→25 assertions covering all 4 inverted chip pairs + card-surface pairs + SC 1.4.11 non-text UI floor; `walk()` invariant extended across all 7 token domains lifting spec tests 83→144; `motion.reducedMotion`→`motion["reduced-motion"]` for kebab-case identifier consistency; `animation-iteration-count: 1 !important` dropped from globals.css; Storybook `reactDocgen` enabled; axe `runOnly` expanded to `wcag21aa`+`wcag22aa`; IBM Plex Mono next/font variable renamed `--font-ibm-plex-mono` for symmetry; `assertSafeValue()` guard added to emitter; first-class `build-storybook` turbo task satisfies AC15; `shadows.ts` focus ring tokenized; clean scripts dropped `node_modules`; slug-safe anchor ids; sprint-number refs removed from user copy). Final verification on branch `feat/story-1-4-design-tokens`: 169/169 design-tokens tests pass (up from 100); `pnpm turbo run lint typecheck test build` 20/20 green; `pnpm turbo run build-storybook` 6/6 green; format check clean. PR #4 squash-merged to main on 2026-04-22. → status done. Story 1-5 (shadcn/ui initialization and theme bridging) context authored on branch cursor/story-1-5-ready-for-dev → status ready-for-dev (2026-04-22). Context branch fast-forward-merged to main; implementation landed on branch feat/story-1-5-shadcn-ui: shadcn CLI v4.4.0 stable (Tailwind v4 + React 19 + Next.js 16 compatible, no @canary needed) with hand-authored components.json (style: new-york, rsc: true, baseColor: neutral, cssVariables: true, iconLibrary: lucide) and src/lib/utils.ts; batched `shadcn add --yes` installed the 23-primitive core set exactly (button/input/textarea/label/form/dialog/dropdown-menu/context-menu/command/popover/hover-card/tooltip/tabs/separator/card/sheet/badge/avatar/progress/scroll-area/accordion/collapsible/sonner); added class-variance-authority + clsx + tailwind-merge + lucide-react + tw-animate-css (CLI v4.4.0 does not install these transitively) plus @testing-library/user-event; theme bridge in apps/web/src/app/globals.css uses both `@layer base :root { ... }` for shadcn-semantic → token aliases (zero literal colors; --border: paper-300, --input: stone-500, --ring: evidence-700, --radius: radius-md) AND `@theme inline { ... }` to re-export into Tailwind v4's theme layer so utilities (bg-primary/text-muted-foreground/ring-ring/rounded-md) resolve; ExampleForm.tsx + 6-scenario ExampleForm.test.tsx covering happy-path submit, required-field, on-blur format, Cmd+Enter, aria-invalid+aria-describedby flip, label-above-input; Foundations/ButtonVariants Storybook surface (4 stories × 6 variants × 4 sizes × disabled states, clean under wcag2a+wcag2aa+wcag21aa+wcag22aa axe runOnly); apps/web/eslint.config.mjs + root .prettierignore ignore apps/web/src/components/ui/** as vendored third-party code; scoped `exactOptionalPropertyTypes: false` to apps/web/tsconfig.json (shadcn/Radix prop surface friction — 3 files rejected by base's strict flag); docs/shadcn.md new (~290 lines) with full initialization contract; docs/design-tokens.md shadcn-bridge section rewritten in place with shipped CSS; docs/repo-layout.md "What Story 1.5 shipped" section added. Verification: `pnpm install --frozen-lockfile` reproducible; `pnpm turbo run lint typecheck test build` 20/20 green; 7/7 tests pass (1 page.test.tsx + 6 ExampleForm); `pnpm turbo run build-storybook` 6/6 green with ButtonVariants chunk emitted; `pnpm format:check` clean. → status review on 2026-04-22. Adversarial code review landed on the same branch (Blind Hunter + Edge Case Hunter + Acceptance Auditor in parallel) — 5 patches applied (ExampleForm email/message schema hardened with `.min(1, "Email is required")` + `.trim()`; globals.css dark-mode comment fixed from the non-matching `.dark :root` descendant selector to `:root.dark`/`[data-theme="dark"]`; ButtonVariants rewritten as a 6 × 4 variant × size matrix with enabled + disabled rendering = 48 cells per AC4; ExampleForm tests expanded to 9 covering `aria-describedby` on message, `htmlFor`-based label assertion, whitespace-only rejection, blank-email "Email is required" surface), 2 dismissed as noise (`radix-ui` umbrella false-positive, `@theme inline` already documented in Completion Notes), 1 deferred (narrow `exactOptionalPropertyTypes: false` scope to vendored-only — logged in deferred-work.md). Verification after patches: `pnpm turbo run lint typecheck test build build-storybook` 21/21 green, 9/9 tests pass, `pnpm format:check` clean. → status done on 2026-04-22. Story 1-6 (accessibility CI gate stack — eslint-plugin-jsx-a11y @ error + @storybook/addon-a11y via @storybook/test-runner + @axe-core/react dev runtime + @axe-core/playwright E2E + pa11y-ci with axe + htmlcs runners + .github/workflows/a11y.yml + docs/a11y-gates.md) context authored on branch cursor/story-1-6-ready-for-dev (2026-04-22) — 19 ACs (8 epic-source + 11 cross-cutting), 10 task phases, shared `apps/web/src/lib/a11y-config.ts` module as single source of truth for axe WCAG tags (rewiring Story 1.5's preview.ts literal), gate-proof verification pattern baked into Phases 1/4/5, explicit React-19-@axe-core/react risk documented with three-path fallback, package-name reconciliation (`axe-playwright` in epic text → `@axe-core/playwright` in implementation per Deque maintenance posture), workflow-filename reconciliation (`a11y-gate.yml` in workflow README → `a11y.yml` per epic AC — README row updated accordingly). → status ready-for-dev.
-# project_key: NOKEY
-# tracking_system: file-system
-# story_location: _bmad-output/implementation-artifacts
+# DeployAI — delivery status (honest tracker)
+# =============================================================================
+# Canonical product/architecture reference:
+#   docs/product/deployai-source-of-truth-spec.md
+# This file is the tracking counterpart to that document. Update BOTH in the
+# same PR that changes delivery status.
+#
+# This REPLACES the BMAD-generated sprint-status.yaml. The BMAD version marked
+# 13 of 16 epics "done" with ~95 stories "done"; in BMAD, "done" means "story
+# acceptance criteria met / CI green" — NOT "production feature". The statuses
+# below were re-derived by reading the code at commit c21e9b4 on 2026-05-21.
+#
+# STATUS LEGEND
+#   solid          Genuinely complete, code-verified, production-shaped.
+#   built-fixture  UI/code complete and functional, but runs on fixture /
+#                  mock-seed / operator-supplied data — not real tenant data.
+#   partial        Mixed: some stories real, others stubbed or not implemented.
+#   stub           Structural code exists; core behavior is a placeholder.
+#   backlog        Not started.
+# =============================================================================
 
-# STATUS DEFINITIONS:
-# ==================
-# Epic Status:
-#   - backlog: Epic not yet started
-#   - in-progress: Epic actively being worked on
-#   - done: All stories in epic completed
-#
-# Epic Status Transitions:
-#   - backlog → in-progress: Automatically when first story is created (via create-story)
-#   - in-progress → done: Manually when all stories reach 'done' status
-#
-# Story Status:
-#   - backlog: Story only exists in epic file
-#   - ready-for-dev: Story file created in stories folder
-#   - in-progress: Developer actively working on implementation
-#   - review: Ready for code review (via Dev's code-review workflow)
-#   - done: Story completed
-#
-# Retrospective Status:
-#   - optional: Can be completed but not required
-#   - done: Retrospective has been completed
-#
-# WORKFLOW NOTES:
-# ===============
-# - Epic transitions to 'in-progress' automatically when first story is created
-# - Stories can be worked in parallel if team capacity allows
-# - Developer typically creates next story after previous one is 'done' to incorporate learnings
-# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
-
-generated: 2026-04-21
-last_updated: 2026-05-16
 project: DeployAI
-project_key: NOKEY
-tracking_system: file-system
-story_location: _bmad-output/implementation-artifacts
+last_verified: 2026-05-21
+verified_against: c21e9b4 (main)
+canonical_doc: docs/product/deployai-source-of-truth-spec.md
 
-development_status:
-  # ======================================================================
-  # Epic 1: Foundations, Canonical Memory & Citation Envelope (w1–6)
-  # ======================================================================
-  epic-1: done
-  1-1-init-pnpm-turborepo-monorepo-scaffold: done
-  1-2-baseline-ci-cd-with-supply-chain-signing: done
-  1-3-per-workspace-starter-initialization: done
-  1-4-design-tokens-package: done
-  1-5-shadcn-ui-initialization-and-theme-bridging: done
-  1-6-accessibility-ci-gate-stack: done
-  1-7-docker-compose-reference-dev-environment: done
-  1-8-canonical-memory-schema: done
-  1-9-three-layer-tenant-isolation: done
-  1-10-cross-tenant-isolation-fuzz-ci-gate: done
-  1-11-citation-envelope-contract-v0-1: done
-  1-12-continuity-of-reference-contract-tests: done
-  1-13-rfc-3161-signed-timestamps: done
-  1-14-llm-provider-abstraction-interface: done
-  1-15-tauri-signed-hello-world-spike: done
-  1-16-minimal-admin-shell: done
-  1-17-cartographer-schema-evolution-staging: done
-  epic-1-retrospective: done
+headline: >-
+  Demo-grade prototype. Strong engineering scaffolding; demo-shaped product.
+  No live agent loop, no portfolio / multi-engagement data model, meeting
+  presence is a stub. See deployai-source-of-truth-spec.md sections 3 and 14.
 
-  # ======================================================================
-  # Epic 2: Identity, Tenancy & SSO (w4–6)
-  # ======================================================================
-  epic-2: done
-  2-1-role-matrix-and-authz-resolver-interface: done
-  2-2-microsoft-entra-id-saml-oidc-sso: done
-  2-3-scim-2-0-provisioning-endpoint: done
-  2-4-tenant-scoped-session-store: done
-  2-5-account-provisioning-flow: done
-  2-6-integration-kill-switch-plumbing: done
-  2-7-break-glass-plumbing: done
-  epic-2-retrospective: done
+epics:
 
-  # ======================================================================
-  # Epic 3: Ingestion Pipelines (w7–9)
-  # ======================================================================
-  epic-3: done
-  3-1-m365-calendar-oauth-ingestion: done
-  3-2-exchange-m365-email-oauth-ingestion: done
-  3-3-microsoft-teams-transcript-import: done
-  3-4-voice-meeting-file-upload: done
-  3-5-thread-level-extraction-unit-enforcement: done
-  3-6-transient-failure-tolerance-idempotent-writes: done
-  3-7-throttling-aware-backpressure: done
-  3-8-ingestion-run-telemetry-admin-runs-wire-up: done
-  epic-3-retrospective: done
+  epic-1:
+    title: Foundations, Canonical Memory & Citation Envelope
+    bmad_claim: done
+    status: solid
+    reality: >-
+      Real structural work. Monorepo scaffold, 13 CI workflows, SBOM/CVE
+      scanning, accessibility gates, design tokens, canonical-memory schema,
+      three-layer tenant isolation + Postgres RLS, cross-tenant fuzz tests,
+      citation envelope contract, RFC 3161 timestamp scaffolding.
 
-  # ======================================================================
-  # Epic 4: Agent Runtime Contracts & Replay-Parity Harness (w8–11)
-  # ======================================================================
-  epic-4: done
-  4-1-langgraph-postgres-checkpointing-stub-agent: done
-  4-2-citation-aware-llamaindex-adapter: done
-  4-3-golden-fixture-authoring-tool-and-schema: done
-  4-4-golden-query-corpus-authoring: done
-  4-5-rule-based-evaluator: done
-  4-6-llm-judge-evaluator: done
-  4-7-human-adjudication-surface: done
-  4-8-eleventh-call-ci-gate-quarterly-report-generator: done
-  epic-4-retrospective: done
+  epic-2:
+    title: Identity, Tenancy & SSO
+    bmad_claim: done
+    status: partial
+    reality: >-
+      OIDC and SCIM routes implemented; role matrix and tenant-scoped sessions
+      real. SAML is explicitly NOT implemented (auth_saml.py returns 501-style
+      "not implemented"). Integration kill-switch and break-glass are TODO stubs.
 
-  # ======================================================================
-  # Epic 5: Agent Runtime Foundation (w10–12)
-  # ======================================================================
-  epic-5: done
-  5-1-anthropic-claude-sonnet-4-provider: done
-  5-2-openai-gpt-4o-provider-with-failover: done
-  5-3-prompt-infrastructure-tool-calling-scaffolding: done
-  5-4-seven-phase-deployment-framework-state-machine: done
-  5-5-tiered-solidification-classifier: done
-  5-6-phase-context-modulation-retrieval-thresholds: done
-  epic-5-retrospective: done
+  epic-3:
+    title: Ingestion Pipelines
+    bmad_claim: done
+    status: partial
+    reality: >-
+      M365 calendar/email/Teams and Slack/Gmail OAuth integration plumbing is
+      real. ASR transcription of uploaded audio is a stub (logs + canned text).
+      S3-backed body/artifact storage not implemented (disk stub only).
 
-  # ======================================================================
-  # Epic 6: Cartographer, Oracle & Master Strategist (w12–16)
-  # ======================================================================
-  epic-6: done
-  6-1-cartographer-mission-relevance-triage: done
-  6-2-cartographer-entity-relationship-extraction: done
-  6-3-oracle-phase-gated-retrieval-ccm-null-result: done
-  6-4-oracle-three-item-budget-ranked-out-footer: done
-  6-5-oracle-suggestions-only-posture: done
-  6-6-master-strategist-arbitration-action-queue-ranking: done
-  6-7-master-strategist-phase-transition-proposals: done
-  6-8-agent-graceful-degradation-contract: done
-  epic-6-retrospective: done
+  epic-4:
+    title: Agent Runtime Contracts & Replay-Parity Harness
+    bmad_claim: done
+    status: solid
+    reality: >-
+      Contracts and the rule + LLM-judge evaluation harness (apps/eval,
+      tests/continuity-of-reference) are real and runnable. They validate
+      contracts; they are not wired to a production agent.
 
-  # ======================================================================
-  # Epic 7: Design System Component Library (w14–16)
-  # ======================================================================
-  epic-7: done
-  7-1-citation-chip-component: done
-  7-2-evidence-panel-component: done
-  7-3-phase-indicator-component: done
-  7-4-freshness-chip-component: done
-  7-5-override-composer-component: done
-  7-6-in-meeting-alert-card-component: done
-  7-7-validation-queue-card-component: done
-  7-8-tombstone-card-component: done
-  7-9-agent-outage-banner-component: done
-  7-10-session-banner-primitive: done
-  7-11-empty-state-loading-memory-syncing-glyph-primitives: done
-  7-12-button-form-modal-sheet-popover-consistency-patterns: done
-  7-13-tablet-mobile-read-only-responsive-tokens: done
-  7-14-storybook-governance-axe-chromatic: done
-  7-15-vpat-automation-evidence-pipeline: done
-  epic-7-retrospective: done
+  epic-5:
+    title: Agent Runtime Foundation
+    bmad_claim: done
+    status: partial
+    reality: >-
+      Anthropic and OpenAI LLM provider clients are real (HTTP + SSE streaming,
+      failover). The 7-phase state machine (machine.py, ~26 lines) and
+      solidification classifier are thin deterministic code.
 
-  # ======================================================================
-  # Epic 8: Morning Digest, Phase Tracking & Evening Synthesis (w16–19)
-  # ======================================================================
-  epic-8: done
-  8-1-morning-digest-surface: done
-  8-2-phase-task-tracking-surface: done
-  8-3-evening-synthesis-surface: done
-  8-4-expand-inline-citation-deep-link-resolution: done
-  8-5-left-rail-top-rail-nav-chrome: done
-  8-6-cmd-k-command-palette: done
-  8-7-agent-error-ingestion-in-progress-states-on-surfaces: done
-  epic-8-retrospective: done
+  epic-6:
+    title: Cartographer, Oracle & Master Strategist
+    bmad_claim: done
+    status: stub
+    reality: >-
+      The "agents" are deterministic Python heuristics, not LLM-driven agents.
+      Master Strategist arbitration is a weighted linear formula. No LangGraph
+      state machines. No live loop ingests meetings and updates the UI.
 
-  # ======================================================================
-  # Epic 9: In-Meeting Alert, Action Queue & Validation Queues (w19–22)
-  # ======================================================================
-  epic-9: done
-  9-0-mvp-in-meeting-alert-thin-surface: done
-  mvp-track-e-golden-path-e2e: done
-  9-1-in-meeting-alert-detection-and-eight-second-render: done
-  9-2-three-item-hard-budget-enforcement: done
-  9-3-correction-vs-dismissal-non-confusable-actions: done
-  9-4-unattended-alert-items-persist-as-action-queue: done
-  9-5-action-queue-lifecycle-claim-in-progress-resolve: done
-  9-6-user-validation-queue-surface: done
-  9-7-solidification-review-queue-surface: done
-  9-8-alert-card-draggable-position-persistence: done
-  epic-9-retrospective: done
+  epic-7:
+    title: Design System Component Library
+    bmad_claim: done
+    status: solid
+    reality: >-
+      Real. shared-ui primitives (citation chip, evidence panel, alert card,
+      validation card, banners, etc.) — reusable, tested, Storybook-covered.
 
-  # ======================================================================
-  # Epic 10: Override, Trust Repair & Personal Audit (w20–22)
-  # ======================================================================
-  epic-10: done
-  10-1-override-event-schema-canonical-log-entry: done
-  10-2-override-composer-submission-endpoint: done
-  10-3-override-applied-sub-citation-in-reasoning-trails: done
-  10-4-trust-earn-back-confidence-cue: done
-  10-5-private-scope-annotations: done
-  10-6-override-history-surface: done
-  10-7-personal-audit-surface: done
-  epic-10-retrospective: done
+  epic-8:
+    title: Morning Digest, Phase Tracking & Evening Synthesis
+    bmad_claim: done
+    status: built-fixture
+    reality: >-
+      Surfaces and nav chrome (digest, phase tracking, evening, Cmd+K) are real
+      in the browser. Data is fixtures or optional HTTP feeds. BMAD epics.md
+      itself notes the full Story 8.x acceptance criteria are not all satisfied.
 
-  # ======================================================================
-  # Epic 11: Edge Capture Agent — Tauri macOS V1 (w16–22)
-  # ======================================================================
-  epic-11: done
-  11-1-tauri-capability-based-permissions-scaffold: done
-  11-2-per-device-hardware-backed-signing-key: done
-  11-3-tamper-evident-local-transcript: done
-  11-4-audio-capture-and-two-party-consent-ux: done
-  11-5-sparkle-auto-updater-with-signed-appcast: done
-  11-6-offline-verification-via-foia-cli-integration: done
-  11-7-edge-agent-kill-switch: done
-  epic-11-retrospective: done
+  epic-9:
+    title: In-Meeting Alert, Action Queue & Validation Queues
+    bmad_claim: done
+    status: built-fixture
+    reality: >-
+      Queue lifecycle APIs are real and Postgres-backed via CP. Validation/
+      solidification rows are hardcoded mock seed data. Meeting detection is a
+      stub; the in-meeting surface relies on stub tenants or a URL demo flag.
 
-  # ======================================================================
-  # Epic 12: FOIA Export, Compliance, Operability & External Auditor (w17–23)
-  # ======================================================================
-  epic-12: in-progress
-  12-1-go-foia-cli-signed-binary-offline-verifier: done
-  12-2-foia-bundle-construction-four-hour-ten-gb: review
-  12-3-external-auditor-jit-read-only-shell: backlog
-  12-4-break-glass-end-to-end-operability: backlog
-  12-5-immutable-audit-log-with-s3-object-lock: backlog
-  12-6-quarterly-compliance-packet-generator: backlog
-  12-7-procurement-package-artifact-set: backlog
-  12-8-nist-ai-rmf-mapping-doc: backlog
-  12-9-self-hosted-reference-build-fresh-laptop-acceptance: backlog
-  12-10-slos-grafana-dashboards-oncall-paging: backlog
-  12-11-unleash-feature-flags-canary-deploy: backlog
-  12-12-monthly-chaos-drills-backup-dr-verification: backlog
-  12-13-cost-per-account-telemetry: backlog
-  12-14-platform-admin-privileged-override-audit-log: backlog
-  epic-12-retrospective: optional
+  epic-10:
+    title: Override, Trust Repair & Personal Audit
+    bmad_claim: done
+    status: built-fixture
+    reality: >-
+      Overrides and personal-audit surfaces are real via BFF -> CP durable APIs.
+      Credibility is bounded by identity: dev-header role injection, not real
+      tenant SSO. Private-scope annotation crypto present.
 
-  # ======================================================================
-  # Epic 13: Usability Validation & VPAT Authoring (w18–23)
-  # ======================================================================
-  epic-13: backlog
-  13-1-usability-study-recruiting: backlog
-  13-2-top-five-v1-journeys-scripted-with-axe-playwright: backlog
-  13-3-usability-study-execution-triaged-findings: backlog
-  13-4-vpat-authoring-and-publication: backlog
-  13-5-post-ship-n8-usability-study: backlog
-  epic-13-retrospective: optional
+  epic-11:
+    title: Edge Capture Agent (Tauri macOS V1)
+    bmad_claim: done
+    status: partial
+    reality: >-
+      Tauri capability scaffold, Ed25519 device signing, tamper-evident
+      transcripts, Sparkle verify path, CP kill-switch poll are real. Continuous
+      CoreAudio audio capture is a follow-up (per capabilities doc).
 
-  # ======================================================================
-  # Epic 14: V1.5 Scaffolding & Successor Inheritance (post-V1)
-  # ======================================================================
-  epic-14: backlog
-  14-1-successor-strategist-inheritance-activation: backlog
-  14-2-timeline-surface: backlog
-  14-3-customer-admin-self-service-user-management: backlog
-  14-4-siem-egress-syslog-cef-ocsf-pull-api: backlog
-  14-5-edge-agent-windows-port: backlog
-  14-6-helm-chart-and-byok-hsm-interface: backlog
-  epic-14-retrospective: optional
+  epic-12:
+    title: FOIA Export, Compliance, Operability & External Auditor
+    bmad_claim: in-progress
+    status: partial
+    reality: >-
+      Go FOIA CLI / offline verifier exists (12-1). Bundle construction (12-2)
+      in review. External auditor shell, break-glass end-to-end, immutable
+      S3 audit log, compliance packet, SLOs/dashboards/paging, feature flags,
+      chaos drills, cost telemetry (12-3..12-14) are all backlog.
 
-  # ======================================================================
-  # Epic 15: Customer Pilot Prerequisites — Identity, Durability & Runbooks
-  # ======================================================================
-  epic-15: done
-  15-1-hosted-strategist-session-tenant-role: done
-  15-2-repeatable-tenant-provisioning-pilot: done
-  15-3-strategist-queue-durability-cp-or-single-replica: done
-  15-4-meeting-presence-pilot-scope-or-graph-cache: done
-  15-5-pilot-observability-support-runbook: done
-  epic-15-retrospective: done
+  epic-13:
+    title: Usability Validation & VPAT Authoring
+    bmad_claim: backlog
+    status: backlog
+    reality: Not started.
 
-  # ======================================================================
-  # Epic 16: Design Partner Pilot — Onboarding, Integrations UX & CP Loaders
-  # ======================================================================
-  epic-16: done
-  16-1-strategist-onboarding-shell-tenant-context: done
-  16-2-integrations-ux-m365-connect-from-web: done
-  16-3-integrations-ux-status-reconnect-disconnect: done
-  16-4-loader-digest-from-cp-canonical-memory: done
-  16-5-loader-evidence-deeplink-tenant-resolution: done
-  16-6-phase-0-dry-run-phase-1-design-partner-playbook: done
-  epic-16-retrospective: done
+  epic-14:
+    title: V1.5 Scaffolding & Successor Inheritance
+    bmad_claim: backlog
+    status: backlog
+    reality: >-
+      Not started. Includes the Timeline surface and customer-admin
+      self-service — both relevant to engagement tracking, both unbuilt.
+
+  epic-15:
+    title: Customer Pilot Prerequisites — Identity, Durability & Runbooks
+    bmad_claim: done
+    status: partial
+    reality: >-
+      Hosted session/tenant/role plumbing exists; queue durability decided
+      (CP-only, no web memory fallback); pilot runbooks written. Meeting
+      presence remains a stub; observability is doc-level, not instrumented.
+
+  epic-16:
+    title: Design Partner Pilot — Onboarding, Integrations UX & CP Loaders
+    bmad_claim: done
+    status: built-fixture
+    reality: >-
+      Onboarding shell and M365 integrations UX exist. CP "loaders" read
+      operator-supplied JSON pilot-surface files, not automatic canonical-memory
+      projections (those are types-only, unwired).
+
+# --- Notes for the new owner --------------------------------------------------
+# Priorities are the new owner's call. What the code shows in flight / unbuilt:
+#  - In flight: Epic 12 story 12-2 (FOIA bundle construction) in review.
+#  - Largest gap vs an FDE/strategist team tracking many engagements: there is
+#    no engagement/portfolio entity (one tenant = one deployment). See
+#    deployai-source-of-truth-spec.md sections 1 and 6.
+#  - Per-story detail (historical) lives in docs/archive/epics.md.
+notes:
+  in_flight: epic-12 (12-2 FOIA bundle construction, in review)
+  story_level_history: docs/archive/epics.md
+  requirements_baseline: docs/archive/prd.md (79 FR, 78 NFR, 12 DP)

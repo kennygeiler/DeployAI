@@ -372,8 +372,8 @@ handling may behave differently.
 ## References
 
 - **Story spec:** `_bmad-output/implementation-artifacts/1-5-shadcn-ui-initialization-and-theme-bridging.md`
-- **Epics:** `_bmad-output/planning-artifacts/epics.md` §Story-1.5
-- **UX spec:** `_bmad-output/planning-artifacts/ux-design-specification.md`
+- **Epics:** `docs/archive/epics.md` §Story-1.5 (archived)
+- **UX spec:** `docs/archive/ux-design-specification.md` (archived)
   §Component Architecture (827–853), §Button Hierarchy (859–866),
   §Form Patterns (877–883).
 - **Design tokens:** [design-tokens.md](./design-tokens.md)

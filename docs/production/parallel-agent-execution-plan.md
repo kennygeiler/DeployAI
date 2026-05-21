@@ -2,7 +2,7 @@
 
 **Purpose:** Order parallel work across lanes **I/D/Q/M/W/O** without breaking merge safety.
 
-**Defaults:** [product-strategy-ship-fast-decisions.md](./product-strategy-ship-fast-decisions.md) + [whats-actually-here.md](../../whats-actually-here.md) §8.
+**Defaults:** [product-strategy-ship-fast-decisions.md](./product-strategy-ship-fast-decisions.md) + [source-of-truth spec](../product/deployai-source-of-truth-spec.md) §13.
 
 ## Phases (serial)
 

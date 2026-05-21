@@ -203,7 +203,7 @@ not via branch-protection settings):
 
 ## SLSA provenance: why `actions/attest-build-provenance@v4`, not `slsa-github-generator`
 
-The architecture doc (`_bmad-output/planning-artifacts/architecture.md` §"CI/CD") names `slsa-github-generator` as the SLSA L2 provenance tool. As of 2026, GitHub offers a first-class, less-ceremony alternative: **`actions/attest-build-provenance@v4`**.
+The archived architecture doc (`docs/archive/architecture.md` §"CI/CD") names `slsa-github-generator` as the SLSA L2 provenance tool. As of 2026, GitHub offers a first-class, less-ceremony alternative: **`actions/attest-build-provenance@v4`**.
 
 - It produces a SLSA v1.0 provenance predicate (same predicate format at the output layer).
 - It uses GitHub's OIDC + Sigstore under the hood; no long-lived credentials; keyless.
@@ -227,7 +227,8 @@ Both approaches satisfy NFR64 at SLSA Level 2. If a StateRAMP 3PAO audit require
 
 ## Cross-reference
 
-- Root product requirements: `_bmad-output/planning-artifacts/prd.md` §"Supply chain" + §"NFR62–NFR65"
-- Architecture rationale: `_bmad-output/planning-artifacts/architecture.md` §"CI/CD" + §"Binding Constraints"
+- Root product requirements: `docs/archive/prd.md` §"Supply chain" + §"NFR62–NFR65" (archived)
+- Architecture rationale: `docs/archive/architecture.md` §"CI/CD" + §"Binding Constraints" (archived)
+- Current source of truth: `docs/product/deployai-source-of-truth-spec.md`
 - Story 1.2 authoring context: `_bmad-output/implementation-artifacts/1-2-baseline-ci-cd-with-supply-chain-signing.md`
 - Carry-forward items from Story 1.1: `_bmad-output/implementation-artifacts/deferred-work.md`
