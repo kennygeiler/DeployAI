@@ -295,7 +295,7 @@ Run it locally: `pnpm install --frozen-lockfile` then `pnpm --filter @deployai/w
 
 **Status:** Direction, not a delivery promise.
 
-**Current position — 2026-05-21.** Phases 0 and 0.5 are done. Phase 1 is in progress: increments 1 and 2 of 4 are merged to `main` (PRs #90, #91); increments 3 and 4 remain. **This section is the handoff point** — an agent or developer resuming the work starts here, then reads the Phase 1 increment table below.
+**Current position — 2026-05-21.** Phases 0 and 0.5 are done. Phase 1 is in progress: increments 1, 2, and 4a are delivered (PRs #90, #91, #93); increments 4b (engagement selector UI) and 3 (canonical-memory retrofit) remain. **This section is the handoff point** — an agent or developer resuming the work starts here, then reads the Phase 1 increment table below.
 
 **The pivot.** The archived BMAD epics ([`epics.md`](../archive/epics.md)) targeted a *single-strategist, single-deployment, agent-driven* product sold into government procurement. The direction going forward is a *team tool*: a cross-functional team (FDE, deployment strategist, biz dev) tracking many engagements and finding insight across them. The two share the canonical-memory substrate and little else. This roadmap supersedes the archived epic plan for prioritization; `sprint-status.yaml` remains the record of what the old plan delivered.
 
@@ -306,7 +306,7 @@ Run it locally: `pnpm install --frozen-lockfile` then `pnpm --filter @deployai/w
 | Phase | Goal | Status |
 | --- | --- | --- |
 | 0 | Ground truth — it builds, it runs, baseline recorded | **Done** (plus Phase 0.5 data-layer repair) |
-| 1 | `Engagement` data-model pivot | **In progress** — increments 1–2 of 4 merged |
+| 1 | `Engagement` data-model pivot | **In progress** — increments 1, 2, 4a done; 4b + 3 remain |
 | 2 | Real identity + team roles | Not started |
 | 3 | Manual capture + portfolio view | Not started |
 | 4 | Shared-brain layer — collaboration, role lenses, cross-role insight | Not started |
@@ -342,9 +342,10 @@ Phase 1 ships in **four increments**, each its own reviewed, CI-passing PR:
 | 1 | **The `Engagement` entity** — `engagements` + `engagement_members` tables, domain models, migration `0016`, internal CRUD API at `/internal/v1/engagements`, tests. | Merged — [PR #90](https://github.com/kennygeiler/DeployAI/pull/90) |
 | 2 | **Engagement-scope the strategist queues** — `engagement_id` on the three queue tables (migration `0017`); action-queue API wired (bulk-create stores it, list endpoint takes an optional `engagement_id` filter). | Merged — [PR #91](https://github.com/kennygeiler/DeployAI/pull/91) |
 | 3 | **Canonical-memory retrofit** — additive nullable `engagement_id` + index on `canonical_memory_events`, the identity-graph tables, `solidified_learnings`, `learning_lifecycle_states`, `tombstones`, `phase_transition_proposals`, `private_override_annotations`. | Not started |
-| 4 | **Web / BFF** — the strategist actor carries a selected `engagement_id`; the BFF threads it to the (already engagement-aware) queue routes; an engagement selector in the strategist shell. | Not started |
+| 4a | **Web / BFF plumbing** — the action-queue BFF threads an optional `engagement_id` to the (engagement-aware) CP queue routes. | Merged — [PR #93](https://github.com/kennygeiler/DeployAI/pull/93) |
+| 4b | **Engagement selector UI** — the strategist shell lets the user pick an engagement; the selection drives the BFF `engagement_id`. | Not started |
 
-**Recommended order: increment 4 before 3.** Increment 4 makes engagements visible and usable in the product; increment 3 is back-end plumbing for canonical-memory tables that have no active writers in this prototype, so it is best done alongside the Phase 5 agent/ingestion work. Open call — confirm before starting.
+**Recommended next: increment 4b** (the engagement selector UI), then increment 3. 4b makes engagements visible and usable in the product; increment 3 is back-end plumbing for canonical-memory tables that have no active writers in this prototype, so it is best done alongside the Phase 5 agent/ingestion work.
 
 **Conventions established in increments 1–2** (follow them in 3 and 4):
 - Engagement-scoped operational tables use **app-layer tenant/engagement filtering**, not RLS — matching the strategist-queues precedent (migration `0015`).
@@ -404,5 +405,6 @@ This document is the canonical product/architecture reference. **Operational run
 | 2026-05-21 | **Phase 0 executed** — results recorded in §3. Builds clean (67/67 turbo tasks); compose stack runs healthy; key finding: `make dev` did not migrate the app DB, so CP-backed queues 502'd. |
 | 2026-05-21 | **Phase 0.5 — control-plane data layer repaired.** Added `asyncpg` + `psycopg` as runtime dependencies (the image shipped with no Postgres driver), made `alembic/env.py` honor `DATABASE_URL`, shipped the migration scripts in the image, and added a one-shot `migrate` compose service. `make dev` now produces a migrated database; BFF queue routes return live data (verified end-to-end). |
 | 2026-05-21 | **Phase 1 increments 1–2 delivered.** Increment 1 — the `Engagement` entity ([PR #90](https://github.com/kennygeiler/DeployAI/pull/90)). Increment 2 — engagement-scoped strategist queues ([PR #91](https://github.com/kennygeiler/DeployAI/pull/91)). §16 restructured into a four-increment plan with status; it is now the handoff point for resuming the work. |
+| 2026-05-21 | **Phase 1 increment 4a delivered** ([PR #93](https://github.com/kennygeiler/DeployAI/pull/93)) — the action-queue BFF threads an optional `engagement_id` to the control plane. Increment 4b (engagement selector UI) and increment 3 (canonical-memory retrofit) remain. |
 
 **Maintenance rule:** when code behavior changes, update this document and `sprint-status.yaml` in the same PR. **Handoff rule:** every piece of work updates §16 — mark increments done with their PR, and leave the "Current position" line and increment table accurate so any agent or developer can resume from this document alone. When in doubt, verify against code and record the verification date in the header table.
