@@ -9,6 +9,8 @@ V1Role = Literal[
     "platform_admin",
     "customer_admin",
     "deployment_strategist",
+    "fde",
+    "biz_dev",
     "successor_strategist",
     "customer_records_officer",
     "external_auditor",
@@ -108,6 +110,15 @@ _ALLOWED: Final[frozenset[tuple[str, str]]] = frozenset(
         ("deployment_strategist", "integration:kill_switch"),
         ("deployment_strategist", "canonical:read"),
         ("deployment_strategist", "override:submit"),
+        # fde — Forward Deployed Engineer; operationally equivalent to a
+        # deployment strategist (both run the engagement).
+        ("fde", "ingest:view_runs"),
+        ("fde", "ingest:sync"),
+        ("fde", "integration:kill_switch"),
+        ("fde", "canonical:read"),
+        ("fde", "override:submit"),
+        # biz_dev — business development; reads the engagement memory.
+        ("biz_dev", "canonical:read"),
         ("successor_strategist", "ingest:view_runs"),
         ("successor_strategist", "canonical:read"),
         ("successor_strategist", "override:submit"),
