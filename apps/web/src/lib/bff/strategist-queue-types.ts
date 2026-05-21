@@ -23,6 +23,7 @@ export type ActionQueueItem = {
   evidence_node_ids?: string[];
   resolution_reason?: string | null;
   evidence_event_ids?: string[] | null;
+  engagement_id?: string | null;
 };
 
 export type ValidationQueueRow = {

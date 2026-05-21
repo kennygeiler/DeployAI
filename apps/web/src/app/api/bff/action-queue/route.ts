@@ -22,7 +22,7 @@ type PostBody =
 /**
  * Epic 9.5 — Action Queue list + legacy POST body (prefer `/action-queue/:id/{claim,progress,resolve}`).
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const actor = await getActorFromHeaders();
   if (!actor) {
     return new NextResponse("Unauthorized", { status: 401 });
@@ -36,8 +36,9 @@ export async function GET() {
     return cpMisconfigured;
   }
   const tid = actor.tenantId!.trim();
+  const engagementId = request.nextUrl.searchParams.get("engagement_id")?.trim() || undefined;
   try {
-    const items = await cpListActionQueue(tid);
+    const items = await cpListActionQueue(tid, engagementId);
     return NextResponse.json({ items, source: "cp" }, { status: 200 });
   } catch (e) {
     return nextResponseFromStrategistCpFetchError(e);
