@@ -173,3 +173,42 @@ async def test_engagement_member_invalid_role_422(e_client: AsyncClient, postgre
         json={"user_id": str(uid), "role": "platform_admin"},
     )
     assert rm.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_engagement_log_crud(e_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid = uuid.uuid4()
+    _ins_tenant(postgres_engine, tid)
+    r = await e_client.post(f"/internal/v1/engagements?tenant_id={tid}", json={"name": "NYC DOT"})
+    eid = r.json()["id"]
+
+    rl = await e_client.post(
+        f"/internal/v1/engagements/{eid}/log?tenant_id={tid}",
+        json={
+            "entry_kind": "decision",
+            "body": "Calibration scheduled for week 3.",
+            "author": "fde-1",
+        },
+    )
+    assert rl.status_code == 201, rl.text
+    entry = rl.json()
+    assert entry["entry_kind"] == "decision"
+    assert entry["body"] == "Calibration scheduled for week 3."
+    assert entry["author"] == "fde-1"
+
+    rlist = await e_client.get(f"/internal/v1/engagements/{eid}/log?tenant_id={tid}")
+    assert rlist.status_code == 200
+    assert len(rlist.json()) == 1
+
+
+@pytest.mark.asyncio
+async def test_engagement_log_invalid_kind_422(e_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid = uuid.uuid4()
+    _ins_tenant(postgres_engine, tid)
+    r = await e_client.post(f"/internal/v1/engagements?tenant_id={tid}", json={"name": "x"})
+    eid = r.json()["id"]
+    rl = await e_client.post(
+        f"/internal/v1/engagements/{eid}/log?tenant_id={tid}",
+        json={"entry_kind": "rumor", "body": "not a valid kind"},
+    )
+    assert rl.status_code == 422
