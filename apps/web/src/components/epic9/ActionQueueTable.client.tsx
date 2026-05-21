@@ -10,6 +10,7 @@ import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { EngagementSelector } from "@/components/epic9/EngagementSelector.client";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -36,9 +37,13 @@ export function ActionQueueTable() {
   const [resolveState, setResolveState] = React.useState<ResolveState>("resolved");
   const [resolveReason, setResolveReason] = React.useState("");
   const [resolveEvidence, setResolveEvidence] = React.useState("");
+  const [engagementId, setEngagementId] = React.useState<string | undefined>(undefined);
 
   const refresh = React.useCallback(async () => {
-    const r = await fetch("/api/bff/action-queue", { cache: "no-store" });
+    const url = engagementId
+      ? `/api/bff/action-queue?engagement_id=${encodeURIComponent(engagementId)}`
+      : "/api/bff/action-queue";
+    const r = await fetch(url, { cache: "no-store" });
     if (!r.ok) {
       setErr(await readStrategistBffErrorDescription(r));
       return;
@@ -46,7 +51,7 @@ export function ActionQueueTable() {
     setErr(null);
     const j = (await r.json()) as { items: ActionQueueItem[] };
     setItems(j.items ?? []);
-  }, []);
+  }, [engagementId]);
 
   React.useEffect(() => {
     const t = window.setTimeout(() => void refresh(), 0);
@@ -216,6 +221,7 @@ export function ActionQueueTable() {
           Refresh
         </Button>
       </div>
+      <EngagementSelector value={engagementId} onChange={setEngagementId} />
       {err ? <p className="text-destructive text-sm">{err}</p> : null}
       <div className="border-border overflow-x-auto rounded-lg border">
         <table className="w-full min-w-[42rem] text-left text-sm">
