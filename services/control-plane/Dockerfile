@@ -27,6 +27,10 @@ WORKDIR /repo/services/control-plane
 RUN uv sync --frozen --no-install-project --no-dev
 COPY services/control-plane/src /repo/services/control-plane/src
 RUN uv sync --frozen --no-dev
+# Alembic config + migration scripts — needed so the image can run
+# `alembic upgrade head` (see the compose `migrate` service).
+COPY services/control-plane/alembic.ini /repo/services/control-plane/alembic.ini
+COPY services/control-plane/alembic /repo/services/control-plane/alembic
 
 FROM python:3.13-slim AS runtime
 WORKDIR /repo/services/control-plane

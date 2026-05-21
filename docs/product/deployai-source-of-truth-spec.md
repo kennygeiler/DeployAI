@@ -60,6 +60,25 @@ Read this before trusting any "done" label anywhere in the repo.
 - **What is demo-grade:** digest/evening data (fixtures or optional HTTP feeds), meeting presence (a stub), the "agentic" layer (deterministic Python heuristics, no live LLM-driven loop into the UI — see §11). There is no running agent that ingests meetings and updates surfaces.
 - **Overall:** a credible, well-engineered **prototype skeleton** — better scaffolding than most prototypes, but a prototype. It is **demo-usable**, not **pilot-usable** or **production-usable** (see §13 for the precise distinction).
 
+### Phase 0 verification — 2026-05-21
+
+The §16 Phase 0 checklist was executed against commit `de8f3e0`.
+
+**Works:**
+- Toolchain matches the repo pins — Node 24.15.0, pnpm 10.33.0, Rust 1.95.0, Go 1.26.2, uv 0.11.7, Docker 29.4.0.
+- `pnpm install --frozen-lockfile` — reproducible, no lockfile drift.
+- `pnpm turbo run lint typecheck test build` — **67 / 67 tasks pass** (~42s): every workspace lints, typechecks, unit-tests, and builds clean (control-plane 114 unit tests, cartographer 47, etc.).
+- `make dev` — all 6 containers (postgres, redis, minio, freetsa-stub, control-plane, web) build and come up healthy; `make dev-verify` green; the demo seed loads 24 `fixtures.canonical_events`.
+- All 10 strategist pages render (HTTP 200) through the web shell.
+
+**Broken / gaps:**
+- **The compose stack did not migrate the application database.** Postgres contained only the `fixtures` demo schema — no `alembic_version` table and none of the app tables. Root cause: nothing ran `alembic upgrade`, `alembic.ini` carried only a placeholder `sqlalchemy.url`, and `alembic/env.py` did not read `DATABASE_URL`. Compounding it, the control-plane runtime image shipped with **no Postgres driver at all** (`asyncpg` absent from dependencies; `psycopg` dev-only) — so even a migrated database would have been unreachable.
+- **Consequently all three BFF strategist-queue routes returned 502** (`cp_error`). Queue *pages* render, but their data layer failed.
+- `/evidence/[nodeId]` 404s for IDs absent from the (unmigrated) graph.
+- The control-plane integration tests (76 deselected from the unit run — they need testcontainers) were not exercised in this pass.
+
+**Resolved — Phase 0.5 (this PR).** The data layer is now wired: `asyncpg` + `psycopg` are runtime dependencies; `alembic/env.py` honors `DATABASE_URL`; the Dockerfile ships the migration scripts; and a one-shot `migrate` compose service runs `alembic upgrade head` (via the sync `psycopg` driver — `asyncpg` cannot execute the migrations' multi-statement DDL) before the control plane starts. Verified: all 16 migrations apply and the BFF strategist-queue routes return live Postgres data (200) instead of 502. The Phase 1 `Engagement` migration can now build on a working path.
+
 ---
 
 ## 4. Architecture — as built
@@ -268,10 +287,82 @@ Run it locally: `pnpm install --frozen-lockfile` then `pnpm --filter @deployai/w
 
 - **Live status:** [`_bmad-output/implementation-artifacts/sprint-status.yaml`](../../_bmad-output/implementation-artifacts/sprint-status.yaml) — rewritten to honest, code-verified epic-level statuses. **This is the tracker to update as work lands.** Update it in the same PR that changes delivery status, and update §3/§7/§14 here if a surface moves from fixture to real.
 - **Requirements baseline:** the PRD defined 79 functional requirements, 78 non-functional requirements, and 12 design-philosophy commitments (DP1–DP12). The full text is archived at [`docs/archive/prd.md`](../archive/prd.md); the epic→FR mapping at [`docs/archive/epics.md`](../archive/epics.md). These are a historical baseline, not a delivery promise.
+- **Forward roadmap:** see **§16** — the sequenced Phase 0–5 plan for the team-based direction.
 
 ---
 
-## 16. Documentation map
+## 16. Forward roadmap
+
+**Status:** Direction, not a delivery promise.
+
+**The pivot.** The archived BMAD epics ([`epics.md`](../archive/epics.md)) targeted a *single-strategist, single-deployment, agent-driven* product sold into government procurement. The direction going forward is a *team tool*: a cross-functional team (FDE, deployment strategist, biz dev) tracking many engagements and finding insight across them. The two share the canonical-memory substrate and little else. This roadmap supersedes the archived epic plan for prioritization; `sprint-status.yaml` remains the record of what the old plan delivered.
+
+**Principle:** fix the foundation, don't polish the demo. Build what *any* version needs; defer what only the old product needed — SAML, KMS/FIPS, FOIA export, immutable audit log, compliance packets are all deferred.
+
+### Phase overview
+
+| Phase | Goal | Gate to next |
+| --- | --- | --- |
+| 0 | Ground truth — it builds, it runs, baseline recorded | A written what-works / what-breaks note |
+| 1 | `Engagement` data-model pivot | Engagement-scoped data, isolation tested |
+| 2 | Real identity + team roles | Real auth; `fde` / `deployment_strategist` / `biz_dev` roles |
+| 3 | Manual capture + portfolio view | A team logs real engagements and sees them rolled up |
+| 4 | Shared-brain layer — collaboration, role lenses, cross-role insight | — |
+| 5 | Intelligence — agents, ingestion, synthesis | — |
+
+### Phase 0 — Ground truth
+
+Goal: a verified baseline. You cannot plan on a codebase you have not run.
+
+> **Executed 2026-05-21 — results in §3 (Phase 0 verification).** Headline: builds clean (67/67 turbo tasks); the compose stack runs. Phase 0 found the application DB was never migrated and the control-plane image shipped no Postgres driver, so CP-backed queues returned 502. **Phase 0.5 (this PR) repaired that** — `make dev` now produces a migrated DB and the queues serve live data. Phase 1 builds on it.
+
+- [ ] Install the toolchain per repo pins — Node 24.x + pnpm 10.x (`.nvmrc`, root `package.json` `engines`), Python (`.python-version`, `uv`), Go + Rust (`.tool-versions`, `rust-toolchain.toml`).
+- [ ] `pnpm install --frozen-lockfile` — reproducible, no lockfile drift.
+- [ ] `pnpm turbo run lint typecheck test build` — record pass/fail per workspace.
+- [ ] Python service tests — `control-plane`, `ingest`, `cartographer`, `oracle`, `master_strategist` (pytest via `uv`).
+- [ ] Bring up the stack — `make dev` then `make dev-verify` (postgres, redis, minio, freetsa-stub, control-plane, web).
+- [ ] Run Alembic migrations against the compose Postgres; confirm `GET /healthz` on the control plane.
+- [ ] `pnpm --filter @deployai/web dev`; walk every strategist surface — `/digest`, `/phase-tracking`, `/evening`, `/in-meeting`, `/action-queue`, `/validation-queue`, `/solidification-review`, `/evidence/[id]`, `/overrides`, `/audit/personal`, `/settings/integrations`. Note which render, which 503, which are fixtures.
+- [ ] Confirm queue routes return real Postgres data with `DEPLOYAI_CONTROL_PLANE_URL` + `DEPLOYAI_INTERNAL_API_KEY` set.
+
+**Exit:** a short "ground truth" note — what builds, what runs, what's broken — recorded in §3 (or a linked `ground-truth.md`).
+
+### Phase 1 — `Engagement` data-model pivot
+
+Goal: make *a team with many engagements* the native shape. This is the keystone — Phases 2–4 are blocked on it.
+
+**Decision (confirm before implementation):** an `engagement` lives *within* a tenant — **tenant = team/company, engagement = one customer deployment**. Recommended over a portfolio-above-tenants model: simpler, matches "one team, many engagements," and keeps the existing tenant RLS as the outer boundary.
+
+**New table — `engagements`:** `id`, `tenant_id` (FK), `name`, `customer_account`, `current_phase` (one of the 7 phases — §12; moves off `tenant_deployment_phases`), `status` (active / paused / closed), `created_at`, `updated_at`.
+
+**Optional but cheap — `engagement_members`:** `engagement_id`, `user_id`, `role`. This is the seam that makes Phase 2 (roles) and Phase 4 (collaboration) drop-in; recommend including it now.
+
+**Tables that become engagement-scoped** (add `engagement_id` FK): `canonical_memory_events`, `identity_nodes` + `identity_attribute_history` + `identity_supersessions`, `solidified_learnings`, `learning_lifecycle_states`, `tombstones`, `phase_transition_proposals`, `strategist_action_queue_items`, `strategist_validation_queue_items`, `strategist_solidification_queue_items`, `private_override_annotations`. `tenant_deployment_phases` folds into `engagements.current_phase` (keep an `engagement_phase_history` table if the audit trail is wanted).
+
+**Stays tenant-scoped** (team-level): `app_tenants`, `app_users`, `integrations`, `edge_agents`, `break_glass_sessions`, `schema_proposals`, `adjudication_queue_items`, `ingestion_runs`.
+
+**Workstreams:**
+
+1. **Schema** — Alembic migration, expand-contract: add `engagements` (+ `engagement_members`); add *nullable* `engagement_id` to the scoped tables; backfill (one default engagement per existing tenant; set `engagement_id`); flip `NOT NULL`; add indexes; extend RLS / app-layer scoping to engagement.
+2. **Domain models** — new `Engagement` SQLAlchemy model; add `engagement_id` to the affected `domain/` models; fold the phase model.
+3. **Control-plane API** — engagement CRUD (list / create / get); internal queue + pilot-surface routes take `engagement_id` alongside `tenant_id`.
+4. **BFF + web** — the actor/context carries a selected `engagement_id`; BFF queue routes pass it through; an engagement selector in the strategist shell (a dropdown is enough).
+5. **Isolation tests** — extend the cross-tenant fuzz (`services/control-plane/.../fuzz/`) to also assert no cross-*engagement* leakage.
+
+**Sequencing:** schema (additive) → backfill → `NOT NULL` flip → domain models → CP API → BFF/web → tests. Do it on a branch.
+
+**Risk / effort:** touches ~11 tables, RLS, the domain layer, CP routes, the BFF, and the web shell — multi-week, and the highest-leverage build in the plan. Nothing downstream is safe to start until the schema is flipped.
+
+### Phases 2–5 — direction (scope when Phase 1 lands)
+
+- **Phase 2 — Real identity + roles.** Replace dev-header role injection (§8) with real auth — the control plane already has OIDC (`auth_oidc.py`). Add `fde`, `deployment_strategist`, `biz_dev` via the existing `AuthzResolver`. Populate `engagement_members`.
+- **Phase 3 — Manual capture + portfolio.** A fast per-engagement "log meeting / decision / risk / next action" form writing real `canonical_memory_events`; a "my engagements" portfolio view (phase, last activity, attention flag). First real value — no agents.
+- **Phase 4 — Shared-brain layer.** Per-engagement collaboration (assignment, notes, attribution), role lenses (FDE → technical, biz dev → commercial, strategist → both), cross-role insight (surface where their views diverge).
+- **Phase 5 — Intelligence.** Wire the agent loop, M365 ingestion, meeting presence, insight synthesis — the original "magic," deferred until the manual loop is trusted and used daily.
+
+---
+
+## 17. Documentation map
 
 This document is the canonical product/architecture reference. **Operational runbooks remain standalone** and are not duplicated here — find them below.
 
@@ -304,10 +395,13 @@ This document is the canonical product/architecture reference. **Operational run
 
 ---
 
-## 17. Changelog
+## 18. Changelog
 
 | Date | Change |
 | --- | --- |
 | 2026-05-21 | **Consolidation.** This document established as the single source of truth, cross-referenced against code at `c21e9b4`. Absorbed `whats-actually-here.md`, `pm-functionality-and-direction-brief.md`, and the BMAD planning artifacts (archived under `docs/archive/`). `sprint-status.yaml` rewritten with honest, code-verified statuses. |
+| 2026-05-21 | **§16 Forward roadmap added.** Phase 0 (build verification) and Phase 1 (`Engagement` data-model pivot) scoped concretely; Phases 2–5 outlined. Reflects the pivot from a single-strategist government-sales product to a team-based multi-engagement tracker. |
+| 2026-05-21 | **Phase 0 executed** — results recorded in §3. Builds clean (67/67 turbo tasks); compose stack runs healthy; key finding: `make dev` did not migrate the app DB, so CP-backed queues 502'd. |
+| 2026-05-21 | **Phase 0.5 — control-plane data layer repaired.** Added `asyncpg` + `psycopg` as runtime dependencies (the image shipped with no Postgres driver), made `alembic/env.py` honor `DATABASE_URL`, shipped the migration scripts in the image, and added a one-shot `migrate` compose service. `make dev` now produces a migrated database; BFF queue routes return live data (verified end-to-end). |
 
 **Maintenance rule:** when code behavior changes, update this document and `sprint-status.yaml` in the same PR. When in doubt, verify against code and record the verification date in the header table.

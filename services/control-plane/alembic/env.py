@@ -16,6 +16,7 @@ Operates in both async and sync modes:
 from __future__ import annotations
 
 import asyncio
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
@@ -40,6 +41,12 @@ config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# Deployment override: when DATABASE_URL is set it wins over the alembic.ini
+# placeholder, so `alembic upgrade head` runs against the real database.
+_database_url = os.environ.get("DATABASE_URL")
+if _database_url:
+    config.set_main_option("sqlalchemy.url", _database_url)
 
 target_metadata = Base.metadata
 

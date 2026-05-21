@@ -183,3 +183,4 @@ notes:
   in_flight: epic-12 (12-2 FOIA bundle construction, in review)
   story_level_history: docs/archive/epics.md
   requirements_baseline: docs/archive/prd.md (79 FR, 78 NFR, 12 DP)
+  forward_roadmap: docs/product/deployai-source-of-truth-spec.md (section 16, Phase 0-5 plan)
