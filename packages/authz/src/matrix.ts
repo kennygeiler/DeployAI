@@ -30,6 +30,17 @@ const can: Array<[V1Role, Action]> = [
   ["deployment_strategist", "canonical:read"],
   ["deployment_strategist", "override:submit"],
   ["deployment_strategist", "eval:view_adjudication"],
+  // fde — Forward Deployed Engineer; operationally equivalent to a
+  // deployment strategist (both run the engagement).
+  ["fde", "ingest:view_runs"],
+  ["fde", "ingest:sync"],
+  ["fde", "integration:kill_switch"],
+  ["fde", "canonical:read"],
+  ["fde", "override:submit"],
+  ["fde", "eval:view_adjudication"],
+  // biz_dev — business development; reads the engagement memory. Least
+  // privilege for now; expand when the Phase 4 collaboration model lands.
+  ["biz_dev", "canonical:read"],
   ["successor_strategist", "ingest:view_runs"],
   ["successor_strategist", "canonical:read"],
   ["successor_strategist", "override:submit"],

@@ -42,6 +42,10 @@ def test_matrix_parity_sample() -> None:
         ("customer_admin", "break_glass:invoke", False),
         ("external_auditor", "canonical:read", False),
         ("external_auditor", "foia:export", True),
+        ("fde", "canonical:read", True),
+        ("fde", "break_glass:invoke", False),
+        ("biz_dev", "canonical:read", True),
+        ("biz_dev", "ingest:view_runs", False),
     ],
 )
 def test_role_action(
