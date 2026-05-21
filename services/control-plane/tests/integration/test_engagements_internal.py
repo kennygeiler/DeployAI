@@ -28,6 +28,14 @@ def _ins_tenant(engine: Engine, tid: uuid.UUID) -> None:
         )
 
 
+def _ins_user(engine: Engine, user_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
+    with engine.begin() as c:
+        c.execute(
+            text("INSERT INTO app_users (id, tenant_id, user_name) VALUES (:u, :t, 'member')"),
+            {"u": str(user_id), "t": str(tenant_id)},
+        )
+
+
 @pytest_asyncio.fixture
 async def e_client(postgres_engine: Engine, monkeypatch: pytest.MonkeyPatch) -> AsyncClient:
     monkeypatch.setenv("DATABASE_URL", _async_url(postgres_engine))
@@ -112,3 +120,56 @@ async def test_engagement_tenant_isolation(e_client: AsyncClient, postgres_engin
 
     r_get = await e_client.get(f"/internal/v1/engagements/{eid}?tenant_id={tid_b}")
     assert r_get.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_engagement_member_crud(e_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid = uuid.uuid4()
+    uid = uuid.uuid4()
+    _ins_tenant(postgres_engine, tid)
+    _ins_user(postgres_engine, uid, tid)
+
+    r = await e_client.post(f"/internal/v1/engagements?tenant_id={tid}", json={"name": "NYC DOT"})
+    assert r.status_code == 201
+    eid = r.json()["id"]
+
+    rm = await e_client.post(
+        f"/internal/v1/engagements/{eid}/members?tenant_id={tid}",
+        json={"user_id": str(uid), "role": "fde"},
+    )
+    assert rm.status_code == 201, rm.text
+    member = rm.json()
+    assert member["role"] == "fde"
+    assert member["user_id"] == str(uid)
+    mid = member["id"]
+
+    rl = await e_client.get(f"/internal/v1/engagements/{eid}/members?tenant_id={tid}")
+    assert rl.status_code == 200
+    assert len(rl.json()) == 1
+
+    rdup = await e_client.post(
+        f"/internal/v1/engagements/{eid}/members?tenant_id={tid}",
+        json={"user_id": str(uid), "role": "biz_dev"},
+    )
+    assert rdup.status_code == 409
+
+    rdel = await e_client.delete(f"/internal/v1/engagements/{eid}/members/{mid}?tenant_id={tid}")
+    assert rdel.status_code == 204
+
+    rl2 = await e_client.get(f"/internal/v1/engagements/{eid}/members?tenant_id={tid}")
+    assert rl2.json() == []
+
+
+@pytest.mark.asyncio
+async def test_engagement_member_invalid_role_422(e_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid = uuid.uuid4()
+    uid = uuid.uuid4()
+    _ins_tenant(postgres_engine, tid)
+    _ins_user(postgres_engine, uid, tid)
+    r = await e_client.post(f"/internal/v1/engagements?tenant_id={tid}", json={"name": "x"})
+    eid = r.json()["id"]
+    rm = await e_client.post(
+        f"/internal/v1/engagements/{eid}/members?tenant_id={tid}",
+        json={"user_id": str(uid), "role": "platform_admin"},
+    )
+    assert rm.status_code == 422

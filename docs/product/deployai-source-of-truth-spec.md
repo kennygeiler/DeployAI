@@ -295,7 +295,7 @@ Run it locally: `pnpm install --frozen-lockfile` then `pnpm --filter @deployai/w
 
 **Status:** Direction, not a delivery promise.
 
-**Current position — 2026-05-21.** Phases 0 and 0.5 are done. Phase 1 is delivered bar the optional increment 3 (PRs #90, #91, #93–#95). Phase 2 is underway — increment 2.1 (team roles) is in PR #96. **This section is the handoff point** — an agent or developer resuming the work starts here, then reads the Phase 1 and Phase 2 increment tables below.
+**Current position — 2026-05-21.** Phases 0 and 0.5 are done. Phase 1 is delivered bar the optional increment 3 (PRs #90, #91, #93–#95). Phase 2 is underway — increments 2.1 and 2.2 delivered (PRs #96, #97); increment 2.3 (real session auth) remains. **This section is the handoff point** — an agent or developer resuming the work starts here, then reads the Phase 1 and Phase 2 increment tables below.
 
 **The pivot.** The archived BMAD epics ([`epics.md`](../archive/epics.md)) targeted a *single-strategist, single-deployment, agent-driven* product sold into government procurement. The direction going forward is a *team tool*: a cross-functional team (FDE, deployment strategist, biz dev) tracking many engagements and finding insight across them. The two share the canonical-memory substrate and little else. This roadmap supersedes the archived epic plan for prioritization; `sprint-status.yaml` remains the record of what the old plan delivered.
 
@@ -307,7 +307,7 @@ Run it locally: `pnpm install --frozen-lockfile` then `pnpm --filter @deployai/w
 | --- | --- | --- |
 | 0 | Ground truth — it builds, it runs, baseline recorded | **Done** (plus Phase 0.5 data-layer repair) |
 | 1 | `Engagement` data-model pivot | **Done** bar the optional increment 3 (deferred) |
-| 2 | Real identity + team roles | **In progress** — increment 2.1 done |
+| 2 | Real identity + team roles | **In progress** — increments 2.1, 2.2 done |
 | 3 | Manual capture + portfolio view | Not started |
 | 4 | Shared-brain layer — collaboration, role lenses, cross-role insight | Not started |
 | 5 | Intelligence — agents, ingestion, synthesis | Not started |
@@ -361,10 +361,10 @@ Goal: the cross-functional team (FDE, deployment strategist, biz dev) are real, 
 | # | Increment | Status |
 | --- | --- | --- |
 | 2.1 | **Team roles** — add `fde` and `biz_dev` to the authz matrix (TS `@deployai/authz`, the Python `deployai_authz` resolver, the role-matrix doc). `fde` mirrors `deployment_strategist`; `biz_dev` is least-privilege `canonical:read`. | Merged — [PR #96](https://github.com/kennygeiler/DeployAI/pull/96) |
-| 2.2 | **Engagement membership API** — control-plane CRUD on `engagement_members` (the table from increment 1.1, currently unpopulated): add / list / remove a user on an engagement with a role. | Not started |
+| 2.2 | **Engagement membership API** — control-plane CRUD on `engagement_members`: add / list / remove a user on an engagement with a role. | Merged — [PR #97](https://github.com/kennygeiler/DeployAI/pull/97) |
 | 2.3 | **Real session auth** — replace dev-header role injection (§8) with an OIDC-backed session; the actor's role and tenant come from the verified session, not request headers. The control plane already has `auth_oidc.py`. | Not started |
 
-**Recommended next: increment 2.2** — it populates `engagement_members` using the roles from 2.1 and is additive / low-risk. Increment 2.3 (real auth) is the security-sensitive one and deserves its own focused, carefully-reviewed effort.
+**Recommended next: increment 2.3** — real session auth. It replaces dev-header role injection, so it is the security-sensitive increment and deserves a focused, carefully-reviewed effort (likely its own sub-increments).
 
 ### Phases 3–5 — direction (scope when Phase 2 lands)
 
@@ -420,5 +420,6 @@ This document is the canonical product/architecture reference. **Operational run
 | 2026-05-21 | **Phase 1 increment 4b — engagements BFF list route** ([PR #94](https://github.com/kennygeiler/DeployAI/pull/94)) — `GET /api/bff/engagements`. The engagement selector UI component remains; increment 3 (canonical-memory retrofit) not started. |
 | 2026-05-21 | **Phase 1 increment 4b completed** ([PR #95](https://github.com/kennygeiler/DeployAI/pull/95)) — an `EngagementSelector` on the action-queue surface scopes the queue by engagement, end to end. Only increment 3 (canonical-memory retrofit) remains in Phase 1. |
 | 2026-05-21 | **Phase 2 started — increment 2.1** ([PR #96](https://github.com/kennygeiler/DeployAI/pull/96)) — `fde` and `biz_dev` team roles added to the authz matrix (TS + Python + role-matrix doc). §16 gained a scoped Phase 2 section (2.1 / 2.2 / 2.3). |
+| 2026-05-21 | **Phase 2 increment 2.2** ([PR #97](https://github.com/kennygeiler/DeployAI/pull/97)) — engagement membership API: control-plane CRUD on `engagement_members` with role validation. |
 
 **Maintenance rule:** when code behavior changes, update this document and `sprint-status.yaml` in the same PR. **Handoff rule:** every piece of work updates §16 — mark increments done with their PR, and leave the "Current position" line and increment table accurate so any agent or developer can resume from this document alone. When in doubt, verify against code and record the verification date in the header table.
