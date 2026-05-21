@@ -295,20 +295,22 @@ Run it locally: `pnpm install --frozen-lockfile` then `pnpm --filter @deployai/w
 
 **Status:** Direction, not a delivery promise.
 
+**Current position — 2026-05-21.** Phases 0 and 0.5 are done. Phase 1 is in progress: increments 1 and 2 of 4 are merged to `main` (PRs #90, #91); increments 3 and 4 remain. **This section is the handoff point** — an agent or developer resuming the work starts here, then reads the Phase 1 increment table below.
+
 **The pivot.** The archived BMAD epics ([`epics.md`](../archive/epics.md)) targeted a *single-strategist, single-deployment, agent-driven* product sold into government procurement. The direction going forward is a *team tool*: a cross-functional team (FDE, deployment strategist, biz dev) tracking many engagements and finding insight across them. The two share the canonical-memory substrate and little else. This roadmap supersedes the archived epic plan for prioritization; `sprint-status.yaml` remains the record of what the old plan delivered.
 
 **Principle:** fix the foundation, don't polish the demo. Build what *any* version needs; defer what only the old product needed — SAML, KMS/FIPS, FOIA export, immutable audit log, compliance packets are all deferred.
 
 ### Phase overview
 
-| Phase | Goal | Gate to next |
+| Phase | Goal | Status |
 | --- | --- | --- |
-| 0 | Ground truth — it builds, it runs, baseline recorded | A written what-works / what-breaks note |
-| 1 | `Engagement` data-model pivot | Engagement-scoped data, isolation tested |
-| 2 | Real identity + team roles | Real auth; `fde` / `deployment_strategist` / `biz_dev` roles |
-| 3 | Manual capture + portfolio view | A team logs real engagements and sees them rolled up |
-| 4 | Shared-brain layer — collaboration, role lenses, cross-role insight | — |
-| 5 | Intelligence — agents, ingestion, synthesis | — |
+| 0 | Ground truth — it builds, it runs, baseline recorded | **Done** (plus Phase 0.5 data-layer repair) |
+| 1 | `Engagement` data-model pivot | **In progress** — increments 1–2 of 4 merged |
+| 2 | Real identity + team roles | Not started |
+| 3 | Manual capture + portfolio view | Not started |
+| 4 | Shared-brain layer — collaboration, role lenses, cross-role insight | Not started |
+| 5 | Intelligence — agents, ingestion, synthesis | Not started |
 
 ### Phase 0 — Ground truth
 
@@ -329,29 +331,27 @@ Goal: a verified baseline. You cannot plan on a codebase you have not run.
 
 ### Phase 1 — `Engagement` data-model pivot
 
-Goal: make *a team with many engagements* the native shape. This is the keystone — Phases 2–4 are blocked on it.
+Goal: make *a team with many engagements* the native shape. The keystone — Phases 2–5 build on it.
 
-**Decision (confirm before implementation):** an `engagement` lives *within* a tenant — **tenant = team/company, engagement = one customer deployment**. Recommended over a portfolio-above-tenants model: simpler, matches "one team, many engagements," and keeps the existing tenant RLS as the outer boundary.
+**Decision (settled, implemented in increment 1):** an `engagement` lives *within* a tenant — **tenant = team/company, engagement = one customer deployment**. Chosen over a portfolio-above-tenants model: simpler, and it keeps the existing tenant boundary as the outer scope.
 
-**New table — `engagements`:** `id`, `tenant_id` (FK), `name`, `customer_account`, `current_phase` (one of the 7 phases — §12; moves off `tenant_deployment_phases`), `status` (active / paused / closed), `created_at`, `updated_at`.
+Phase 1 ships in **four increments**, each its own reviewed, CI-passing PR:
 
-**Optional but cheap — `engagement_members`:** `engagement_id`, `user_id`, `role`. This is the seam that makes Phase 2 (roles) and Phase 4 (collaboration) drop-in; recommend including it now.
+| # | Increment | Status |
+| --- | --- | --- |
+| 1 | **The `Engagement` entity** — `engagements` + `engagement_members` tables, domain models, migration `0016`, internal CRUD API at `/internal/v1/engagements`, tests. | Merged — [PR #90](https://github.com/kennygeiler/DeployAI/pull/90) |
+| 2 | **Engagement-scope the strategist queues** — `engagement_id` on the three queue tables (migration `0017`); action-queue API wired (bulk-create stores it, list endpoint takes an optional `engagement_id` filter). | Merged — [PR #91](https://github.com/kennygeiler/DeployAI/pull/91) |
+| 3 | **Canonical-memory retrofit** — additive nullable `engagement_id` + index on `canonical_memory_events`, the identity-graph tables, `solidified_learnings`, `learning_lifecycle_states`, `tombstones`, `phase_transition_proposals`, `private_override_annotations`. | Not started |
+| 4 | **Web / BFF** — the strategist actor carries a selected `engagement_id`; the BFF threads it to the (already engagement-aware) queue routes; an engagement selector in the strategist shell. | Not started |
 
-**Tables that become engagement-scoped** (add `engagement_id` FK): `canonical_memory_events`, `identity_nodes` + `identity_attribute_history` + `identity_supersessions`, `solidified_learnings`, `learning_lifecycle_states`, `tombstones`, `phase_transition_proposals`, `strategist_action_queue_items`, `strategist_validation_queue_items`, `strategist_solidification_queue_items`, `private_override_annotations`. `tenant_deployment_phases` folds into `engagements.current_phase` (keep an `engagement_phase_history` table if the audit trail is wanted).
+**Recommended order: increment 4 before 3.** Increment 4 makes engagements visible and usable in the product; increment 3 is back-end plumbing for canonical-memory tables that have no active writers in this prototype, so it is best done alongside the Phase 5 agent/ingestion work. Open call — confirm before starting.
 
-**Stays tenant-scoped** (team-level): `app_tenants`, `app_users`, `integrations`, `edge_agents`, `break_glass_sessions`, `schema_proposals`, `adjudication_queue_items`, `ingestion_runs`.
+**Conventions established in increments 1–2** (follow them in 3 and 4):
+- Engagement-scoped operational tables use **app-layer tenant/engagement filtering**, not RLS — matching the strategist-queues precedent (migration `0015`).
+- `engagement_id` columns are **nullable** (the expand step). Backfilling existing rows and the flip to `NOT NULL` happen once writers populate the column — not yet scheduled (the prototype has no production data).
+- Migration revision ids continue the `YYYYMMDD_NNNN` sequence; the latest on `main` is `0017`.
 
-**Workstreams:**
-
-1. **Schema** — Alembic migration, expand-contract: add `engagements` (+ `engagement_members`); add *nullable* `engagement_id` to the scoped tables; backfill (one default engagement per existing tenant; set `engagement_id`); flip `NOT NULL`; add indexes; extend RLS / app-layer scoping to engagement.
-2. **Domain models** — new `Engagement` SQLAlchemy model; add `engagement_id` to the affected `domain/` models; fold the phase model.
-3. **Control-plane API** — engagement CRUD (list / create / get); internal queue + pilot-surface routes take `engagement_id` alongside `tenant_id`.
-4. **BFF + web** — the actor/context carries a selected `engagement_id`; BFF queue routes pass it through; an engagement selector in the strategist shell (a dropdown is enough).
-5. **Isolation tests** — extend the cross-tenant fuzz (`services/control-plane/.../fuzz/`) to also assert no cross-*engagement* leakage.
-
-**Sequencing:** schema (additive) → backfill → `NOT NULL` flip → domain models → CP API → BFF/web → tests. Do it on a branch.
-
-**Risk / effort:** touches ~11 tables, RLS, the domain layer, CP routes, the BFF, and the web shell — multi-week, and the highest-leverage build in the plan. Nothing downstream is safe to start until the schema is flipped.
+**Still deferred within Phase 1:** flipping `engagement_id` to `NOT NULL`; folding `tenant_deployment_phases` into `engagements.current_phase`; extending the cross-tenant fuzz to cross-engagement isolation.
 
 ### Phases 2–5 — direction (scope when Phase 1 lands)
 
@@ -403,5 +403,6 @@ This document is the canonical product/architecture reference. **Operational run
 | 2026-05-21 | **§16 Forward roadmap added.** Phase 0 (build verification) and Phase 1 (`Engagement` data-model pivot) scoped concretely; Phases 2–5 outlined. Reflects the pivot from a single-strategist government-sales product to a team-based multi-engagement tracker. |
 | 2026-05-21 | **Phase 0 executed** — results recorded in §3. Builds clean (67/67 turbo tasks); compose stack runs healthy; key finding: `make dev` did not migrate the app DB, so CP-backed queues 502'd. |
 | 2026-05-21 | **Phase 0.5 — control-plane data layer repaired.** Added `asyncpg` + `psycopg` as runtime dependencies (the image shipped with no Postgres driver), made `alembic/env.py` honor `DATABASE_URL`, shipped the migration scripts in the image, and added a one-shot `migrate` compose service. `make dev` now produces a migrated database; BFF queue routes return live data (verified end-to-end). |
+| 2026-05-21 | **Phase 1 increments 1–2 delivered.** Increment 1 — the `Engagement` entity ([PR #90](https://github.com/kennygeiler/DeployAI/pull/90)). Increment 2 — engagement-scoped strategist queues ([PR #91](https://github.com/kennygeiler/DeployAI/pull/91)). §16 restructured into a four-increment plan with status; it is now the handoff point for resuming the work. |
 
-**Maintenance rule:** when code behavior changes, update this document and `sprint-status.yaml` in the same PR. When in doubt, verify against code and record the verification date in the header table.
+**Maintenance rule:** when code behavior changes, update this document and `sprint-status.yaml` in the same PR. **Handoff rule:** every piece of work updates §16 — mark increments done with their PR, and leave the "Current position" line and increment table accurate so any agent or developer can resume from this document alone. When in doubt, verify against code and record the verification date in the header table.
