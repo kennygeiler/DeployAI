@@ -2,7 +2,7 @@
 
 **Document type:** Living mapping (Epic 12 Story 12.8).  
 **Version:** 0.1 · **Last reviewed:** 2026-04-26  
-**Scope:** Relates product artifacts described in [`whats-actually-here.md`](../../whats-actually-here.md), [`_bmad-output/implementation-artifacts/sprint-status.yaml`](../../_bmad-output/implementation-artifacts/sprint-status.yaml), and planning epics—not every roadmap claim is shipped.
+**Scope:** Relates product artifacts described in the [`source-of-truth spec`](../product/deployai-source-of-truth-spec.md) and [`sprint-status.yaml`](../../_bmad-output/implementation-artifacts/sprint-status.yaml)—not every roadmap claim is shipped.
 
 Legend: **Shipped** (in-repo behavior/tests), **Partial** (plumbing or demo-bound), **Planned** (design/epic only).
 
@@ -69,4 +69,4 @@ Legend: **Shipped** (in-repo behavior/tests), **Partial** (plumbing or demo-boun
 ## References
 
 - NIST AI RMF 1.0 — [NIST AI 600-1](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf) (external).
-- Internal: [`_bmad-output/planning-artifacts/epics.md`](../../_bmad-output/planning-artifacts/epics.md) Epic 12; PRD cross-references FR60–FR69.
+- Internal: [`docs/archive/epics.md`](../archive/epics.md) Epic 12; [`docs/archive/prd.md`](../archive/prd.md) FR60–FR69.

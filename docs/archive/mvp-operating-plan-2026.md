@@ -1,3 +1,8 @@
+> **ARCHIVED — superseded.** Historical BMAD planning artifact, kept for reference only.
+> Current source of truth: [`docs/product/deployai-source-of-truth-spec.md`](../product/deployai-source-of-truth-spec.md).
+> Delivery status: [`_bmad-output/implementation-artifacts/sprint-status.yaml`](../../_bmad-output/implementation-artifacts/sprint-status.yaml).
+> Do not use this file for current development — its claims were not re-verified against code.
+
 # MVP operating plan (2026)
 
 This document turns the **current product risks** into **concrete mitigations**, defines a **usable MVP** (feature-first; **compliance and deep security work explicitly deferred** until after MVP), and sequences work from **today → shippable demo**. It complements the full PRD and `epics.md`; it does not replace them.

@@ -3,7 +3,7 @@
 Story 1.3 scaffold: FastAPI + Pydantic v2 + SQLAlchemy 2.x async + Alembic (empty) + uv-managed deps.
 
 - `GET /healthz` → `{"status": "ok"}` liveness probe.
-- Real routes land in later Epic 1 / Epic 5 stories per `_bmad-output/planning-artifacts/architecture.md`.
+- Routes are implemented under `src/control_plane/api/routes/`; architecture overview in [`docs/product/deployai-source-of-truth-spec.md`](../../docs/product/deployai-source-of-truth-spec.md) §4.
 
 ## Local dev
 

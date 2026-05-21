@@ -266,6 +266,6 @@ comment on the corresponding downstream story.
 - Workflow source: `.github/workflows/a11y.yml`
 - Shared tag list + disabled-rules ledger: `apps/web/src/lib/a11y-config.ts`
 - Story 1.6 authoring context: `_bmad-output/implementation-artifacts/1-6-accessibility-ci-gate-stack.md`
-- UX accessibility directives: `_bmad-output/planning-artifacts/ux-design-specification.md` §UX-DR26–UX-DR34
+- UX accessibility directives: `docs/archive/ux-design-specification.md` §UX-DR26–UX-DR34 (archived)
 - Tokens contrast suite: `packages/design-tokens/src/__tests__/tokens.test.ts`
 - Repo-wide CI conventions: `.github/workflows/README.md`

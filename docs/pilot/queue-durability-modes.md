@@ -10,4 +10,4 @@
 
 ## Record your choice
 
-Document tenant + CP endpoints in [`whats-actually-here.md`](../../whats-actually-here.md) §2/§10 for each hosted environment.
+Record tenant + CP endpoints for each hosted environment in your environment runbook; see the [source-of-truth spec](../product/deployai-source-of-truth-spec.md) §7 and §13 for the queue-durability contract.

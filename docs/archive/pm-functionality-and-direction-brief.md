@@ -1,3 +1,8 @@
+> **ARCHIVED — superseded.** Its content was merged into the canonical doc.
+> Current source of truth: [`docs/product/deployai-source-of-truth-spec.md`](../product/deployai-source-of-truth-spec.md).
+> Delivery status: [`_bmad-output/implementation-artifacts/sprint-status.yaml`](../../_bmad-output/implementation-artifacts/sprint-status.yaml).
+> Do not use this file for current development — its claims were not re-verified against code.
+
 # PM brief — DeployAI functionality & direction
 
 **Companion to:** [`deployai-source-of-truth-spec.md`](./deployai-source-of-truth-spec.md) (architecture + flags). **Not** a substitute for [`_bmad-output/implementation-artifacts/sprint-status.yaml`](../../_bmad-output/implementation-artifacts/sprint-status.yaml).

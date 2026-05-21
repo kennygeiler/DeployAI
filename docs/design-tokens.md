@@ -272,11 +272,11 @@ story in Epic 7 composes correctly.
 
 ## References
 
-- `_bmad-output/planning-artifacts/epics.md` §Story 1.4 — epic-source ACs.
-- `_bmad-output/planning-artifacts/ux-design-specification.md` §Foundations
+- `docs/archive/epics.md` §Story 1.4 — epic-source ACs (archived).
+- `docs/archive/ux-design-specification.md` §Foundations
   (lines 437–531, 861–865) — every concrete value here traces back to that
   spec.
-- `_bmad-output/planning-artifacts/architecture.md` §Monorepo Organization
+- `docs/archive/architecture.md` §Monorepo Organization (archived)
   — the `packages/design-tokens/` position in the workspace tree.
 - Tailwind v4 `@theme` docs: <https://tailwindcss.com/docs/theme>
 - WCAG 2.1: <https://www.w3.org/TR/WCAG21/>

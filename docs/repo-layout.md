@@ -18,7 +18,7 @@ The root `pnpm-workspace.yaml` declares five workspace roots. Every future top-l
 | `infra/*` | Terraform + Terragrunt IaC (`infra/terraform/`), docker-compose reference dev env (`infra/compose/`), deferred Helm chart (`infra/helm/`) | Authored directly |
 | `tests/*` | Cross-workspace test harnesses: `11th-call/`, `continuity-of-reference/`, `phase-retrieval-matrix/`, `tenant-isolation-fuzz/`, `e2e-user-journeys/` | Authored directly |
 
-> **Current scope (2026-04):** The monorepo is populated across **`apps/*`**, multiple **`services/*`** (control-plane, ingest, cartographer, oracle, master_strategist, …), **`packages/*`** (design-tokens, contracts, shared-ui, authz, …), **`infra/compose`**, and **`tests/**`. Epic/story completion is tracked in [**`_bmad-output/implementation-artifacts/sprint-status.yaml`**](../_bmad-output/implementation-artifacts/sprint-status.yaml); **fixture vs live APIs** for strategists is summarized in [**`whats-actually-here.md`**](../whats-actually-here.md). The row below labeled **Story 1.3 shipped** is a historical snapshot of first bootstrap — not an exhaustive list of today’s modules.
+> **Current scope (2026-04):** The monorepo is populated across **`apps/*`**, multiple **`services/*`** (control-plane, ingest, cartographer, oracle, master_strategist, …), **`packages/*`** (design-tokens, contracts, shared-ui, authz, …), **`infra/compose`**, and **`tests/**`. Epic/story completion is tracked in [**`_bmad-output/implementation-artifacts/sprint-status.yaml`**](../_bmad-output/implementation-artifacts/sprint-status.yaml); **fixture vs live APIs** for strategists is summarized in the [**source-of-truth spec**](product/deployai-source-of-truth-spec.md) §7. The row below labeled **Story 1.3 shipped** is a historical snapshot of first bootstrap — not an exhaustive list of today’s modules.
 
 ## Root-level configuration
 
@@ -214,6 +214,6 @@ Seed fixtures (Story 1.7) still live in the separate `fixtures.*` schema — Sto
 
 The old **“Story 1.11 gap list”** has been **removed** — it falsely claimed `services/*` beyond control-plane, missing `shared-ui`, missing FOIA CLI, missing edge signing, etc., all of which **exist on `main`** now.
 
-**Authoritative tracking:** [sprint-status.yaml](../_bmad-output/implementation-artifacts/sprint-status.yaml) · **Honest UX/API posture:** [whats-actually-here.md](../whats-actually-here.md) · **Deferred follow-ups:** [deferred-work.md](../_bmad-output/implementation-artifacts/deferred-work.md).
+**Authoritative tracking:** [sprint-status.yaml](../_bmad-output/implementation-artifacts/sprint-status.yaml) · **Honest UX/API posture:** [source-of-truth spec](product/deployai-source-of-truth-spec.md) · **Deferred follow-ups:** [deferred-work.md](../_bmad-output/implementation-artifacts/deferred-work.md).
 
 Examples that remain **open or partial** at the platform level (not exhaustive): **Epic 12** compliance/operability stories (SLOs, chaos, immutable audit bucket, …), **Epic 13** usability/VPAT program, **full Grafana-style observability stack** in compose (see Epic **12.10**), **AWS-KMS DEK** vs dev providers where not yet wired, **screen-reader automation** for releases, **mobile viewport** tooling depth vs desktop-first gates.

@@ -40,4 +40,4 @@ Expected under **Option B** ([queue-durability-modes.md](./queue-durability-mode
 ## Escalation
 
 - **Engineering:** repo owner + CP logs (correlation id when available).
-- **Product truth:** [`whats-actually-here.md`](../../whats-actually-here.md).
+- **Product truth:** [`deployai-source-of-truth-spec.md`](../product/deployai-source-of-truth-spec.md).

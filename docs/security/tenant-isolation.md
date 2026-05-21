@@ -123,7 +123,7 @@ other two intact. Story 1.10's fuzz harness attacks each layer independently.
 
 ## Further reading
 
-- `_bmad-output/planning-artifacts/architecture.md` §L181–184
+- `docs/archive/architecture.md` §L181–184 (archived)
 - `docs/canonical-memory.md`
 - `services/_shared/tenancy/README.md`
 - NFR23 (three-layer isolation), NFR52 (fuzz CI gate), NFR76 (key rotation)

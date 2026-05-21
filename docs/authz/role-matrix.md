@@ -26,6 +26,6 @@ This document is the human-facing source for `packages/authz/src/matrix.ts` and 
 
 **Related**
 
-- [Architecture — Authorization](../../_bmad-output/planning-artifacts/architecture.md) (search “Authorization”)
-- [Epic 2 — Story 2.1](../../_bmad-output/planning-artifacts/epics.md) (search “Story 2.1”)
+- [Architecture — Authorization](../archive/architecture.md) (archived; search “Authorization”)
+- [Epic 2 — Story 2.1](../archive/epics.md) (archived; search “Story 2.1”)
 - RLS session GUC: [rls-alignment.md](./rls-alignment.md)

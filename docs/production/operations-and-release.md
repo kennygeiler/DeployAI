@@ -1,12 +1,12 @@
 # Operations and release (production-facing)
 
-How to think about hosting **DeployAI** (strategist web + control plane) in **dev**, **staging**, and **production** after CI is green. Complements pilot runbooks; does **not** replace [whats-actually-here.md](../../whats-actually-here.md) or [_bmad-output/implementation-artifacts/development-board.yaml](../../_bmad-output/implementation-artifacts/development-board.yaml) for engineering Track **E** truth.
+How to think about hosting **DeployAI** (strategist web + control plane) in **dev**, **staging**, and **production** after CI is green. Complements pilot runbooks; does **not** replace the [source-of-truth spec](../product/deployai-source-of-truth-spec.md) or [sprint-status.yaml](../../_bmad-output/implementation-artifacts/sprint-status.yaml) for product and delivery truth.
 
 ---
 
 ## Epic alignment (strategist surfaces)
 
-Ops framing matches [_bmad-output/planning-artifacts/epics.md](../../_bmad-output/planning-artifacts/epics.md): **Epic 8** (digest / phase / evening loaders), **Epic 9** (queues + BFF), **Epic 10** (overrides / audit boundaries). Pilot workflows trend toward **Epic 16**; operators triage via [support-runbook](../pilot/support-runbook.md). **[Lane O](parallel-agent-execution-plan.md)** uses **[ship-fast observability defaults](product-strategy-ship-fast-decisions.md)** (**PS-O-101**–**PS-O-106**).
+Ops framing matches the epic structure (archived [epics.md](../archive/epics.md)): **Epic 8** (digest / phase / evening loaders), **Epic 9** (queues + BFF), **Epic 10** (overrides / audit boundaries). Pilot workflows trend toward **Epic 16**; operators triage via [support-runbook](../pilot/support-runbook.md). **[Lane O](parallel-agent-execution-plan.md)** uses **[ship-fast observability defaults](product-strategy-ship-fast-decisions.md)** (**PS-O-101**–**PS-O-106**).
 
 ---
 
@@ -14,7 +14,7 @@ Ops framing matches [_bmad-output/planning-artifacts/epics.md](../../_bmad-outpu
 
 - **Dev:** fixtures + optional compose CP; dev strategist injection possible — not prod parity ([dev-environment.md](../dev-environment.md)).
 - **Staging:** production-shaped TLS + vault secrets + `NODE_ENV=production` ([phase-0-checklist](../pilot/phase-0-checklist.md)).
-- **Pilot / prod-class:** TLS, JWT or trusted edge headers, CP reachable, queue replica honesty ([whats-actually-here.md](../../whats-actually-here.md)).
+- **Pilot / prod-class:** TLS, JWT or trusted edge headers, CP reachable, queue replica honesty ([source-of-truth spec](../product/deployai-source-of-truth-spec.md) §9, §13).
 
 ---
 

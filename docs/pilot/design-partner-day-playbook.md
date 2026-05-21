@@ -15,7 +15,7 @@
 ## Who to call
 
 - **Platform / on-call** — see [`support-runbook.md`](./support-runbook.md).
-- **Product** — scope and known gaps from [`whats-actually-here.md`](../../whats-actually-here.md).
+- **Product** — scope and known gaps from [`deployai-source-of-truth-spec.md`](../product/deployai-source-of-truth-spec.md) (§2, §14).
 
 ## Retrospective (within 48h)
 
