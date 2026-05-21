@@ -96,7 +96,7 @@ Complete at least one path from [`oauth-from-web.md`](./oauth-from-web.md) (conn
 ### Gate 7 — Runbook spot-check
 
 - Publish [`support-runbook.md`](./support-runbook.md) in your **on-call / Slack / wiki** channel (paste URL).
-- Confirm the [source-of-truth spec](../product/deployai-source-of-truth-spec.md) §16 documentation map links this runbook — anyone triaging incidents has one hop to pilot triage steps.
+- Confirm the [source-of-truth spec](../product/deployai-source-of-truth-spec.md) §17 documentation map links this runbook — anyone triaging incidents has one hop to pilot triage steps.
 
 ### Gate 8 — Limitations review
 
