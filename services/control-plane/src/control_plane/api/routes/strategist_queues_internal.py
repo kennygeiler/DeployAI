@@ -118,6 +118,7 @@ class ActionQueueItemRead(BaseModel):
     evidence_node_ids: list[str] = Field(default_factory=list)
     resolution_reason: str | None = None
     evidence_event_ids: list[str] | None = None
+    engagement_id: str | None = None
 
 
 def _action_read(row: StrategistActionQueueItem) -> ActionQueueItemRead:
@@ -137,6 +138,7 @@ def _action_read(row: StrategistActionQueueItem) -> ActionQueueItemRead:
         evidence_node_ids=list(row.evidence_node_ids or []),
         resolution_reason=row.resolution_reason,
         evidence_event_ids=ev_ids,
+        engagement_id=str(row.engagement_id) if row.engagement_id else None,
     )
 
 
@@ -162,6 +164,7 @@ class ActionQueueBulkRow(BaseModel):
     updated_at: str | None = None
     source: str | None = None
     evidence_node_ids: list[str] = Field(default_factory=list)
+    engagement_id: uuid.UUID | None = None
 
 
 class ActionQueueBulkBody(BaseModel):
@@ -183,15 +186,15 @@ class ActionQueuePatchBody(BaseModel):
 async def list_action_queue_items(
     session: Annotated[AsyncSession, Depends(get_app_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
+    engagement_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> list[ActionQueueItemRead]:
     t = await session.get(AppTenant, tenant_id)
     if t is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="tenant not found")
-    r = await session.execute(
-        select(StrategistActionQueueItem)
-        .where(StrategistActionQueueItem.tenant_id == tenant_id)
-        .order_by(StrategistActionQueueItem.updated_at.desc())
-    )
+    stmt = select(StrategistActionQueueItem).where(StrategistActionQueueItem.tenant_id == tenant_id)
+    if engagement_id is not None:
+        stmt = stmt.where(StrategistActionQueueItem.engagement_id == engagement_id)
+    r = await session.execute(stmt.order_by(StrategistActionQueueItem.updated_at.desc()))
     rows = r.scalars().all()
     return [_action_read(x) for x in rows]
 
@@ -224,6 +227,7 @@ async def bulk_append_action_queue_items(
             updated_at=_parse_updated_at_iso(it.updated_at, now),
             source=it.source,
             evidence_node_ids=it.evidence_node_ids,
+            engagement_id=it.engagement_id,
             resolution_reason=None,
             evidence_event_ids=None,
         )

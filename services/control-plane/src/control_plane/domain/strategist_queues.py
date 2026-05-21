@@ -23,6 +23,12 @@ class StrategistActionQueueItem(Base):
         nullable=False,
         index=True,
     )
+    engagement_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("engagements.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     priority: Mapped[str] = mapped_column(Text(), nullable=False)
     phase: Mapped[str] = mapped_column(Text(), nullable=False)
     description: Mapped[str] = mapped_column(Text(), nullable=False)
@@ -50,6 +56,12 @@ class StrategistValidationQueueItem(Base):
         nullable=False,
         index=True,
     )
+    engagement_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("engagements.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     proposed_fact: Mapped[str] = mapped_column(Text(), nullable=False)
     confidence: Mapped[str] = mapped_column(Text(), nullable=False)
     state: Mapped[str] = mapped_column(Text(), nullable=False)
@@ -65,6 +77,12 @@ class StrategistSolidificationQueueItem(Base):
         UUID(as_uuid=True),
         ForeignKey("app_tenants.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
+    )
+    engagement_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("engagements.id", ondelete="CASCADE"),
+        nullable=True,
         index=True,
     )
     proposed_fact: Mapped[str] = mapped_column(Text(), nullable=False)
