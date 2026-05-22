@@ -59,3 +59,37 @@ export async function cpListMatrixEdges(
   }
   return (await r.json()) as MatrixEdge[];
 }
+
+export async function cpCreateMatrixNode(
+  tenantId: string,
+  engagementId: string,
+  node: { node_type: string; title: string; status: string | null },
+): Promise<MatrixNode> {
+  const r = await fetch(matrixUrl(tenantId, engagementId, "nodes"), {
+    method: "POST",
+    headers: { ...cpHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(node),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    throw new Error(`cp matrix node create ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as MatrixNode;
+}
+
+export async function cpCreateMatrixEdge(
+  tenantId: string,
+  engagementId: string,
+  edge: { edge_type: string; from_node_id: string; to_node_id: string },
+): Promise<MatrixEdge> {
+  const r = await fetch(matrixUrl(tenantId, engagementId, "edges"), {
+    method: "POST",
+    headers: { ...cpHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(edge),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    throw new Error(`cp matrix edge create ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as MatrixEdge;
+}

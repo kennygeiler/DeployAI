@@ -157,7 +157,7 @@ This is a *seam*, not a plugin system: 5.x does not build runtime extensibility 
 | `risk` | a `risk` matrix node |
 | `next_action` | a `commitment` matrix node |
 
-`engagement_log_entries` is retired in **increment 5.4** — not before. The Phase 4 engagement detail page and capture form read the journal today; the table and its API are dropped only once 5.3 (map view) and 5.4 (structured capture) have repointed those surfaces. Increments 5.2a/5.2b leave the journal untouched and working in parallel.
+`engagement_log_entries` is retired in **increment 5.5** — not before. The Phase 4 engagement detail page and capture form read the journal today; the table and its API are dropped only once 5.3 (map view) and 5.4 (structured capture) have replaced those surfaces. Increments 5.2–5.4 leave the journal untouched and working in parallel.
 
 ---
 
@@ -169,7 +169,8 @@ This is a *seam*, not a plugin system: 5.x does not build runtime extensibility 
 | 5.2a | Matrix schema, grain fix & domain models | Migrations `0020` (`matrix_nodes`, `matrix_edges`) + `0021` (`engagement_id` grain fix), domain models. |
 | 5.2b | Matrix control-plane API | Internal CRUD API for matrix nodes & edges. |
 | 5.3 | Matrix BFF & map view | BFF routes + a map view on the engagement detail page. |
-| 5.4 | Structured capture & journal retirement | Manual entry writes structured nodes/events (the `EngagementCaptureForm` evolves — the Phase 6 manual-entry harness); `engagement_log_entries` and its API are retired. |
+| 5.4 | Structured capture | The `MatrixCapture` component — typed node/edge forms write to the matrix; the Phase 6 manual-entry harness. |
+| 5.5 | Journal retirement | `engagement_log_entries`, its API, the Phase 3/4 Log + cross-role surfaces, and `EngagementCaptureForm` are retired — superseded by the matrix. |
 
 ---
 

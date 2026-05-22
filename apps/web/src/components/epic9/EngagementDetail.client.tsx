@@ -4,6 +4,7 @@ import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { MatrixCapture } from "@/components/epic9/MatrixCapture.client";
 import { Button } from "@/components/ui/button";
 import type { EngagementLogEntry } from "@/lib/bff/engagement-log-types";
 import type { Engagement, EngagementMember } from "@/lib/bff/engagement-types";
@@ -280,8 +281,8 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
             <h2 className="text-ink-800 text-sm font-semibold">Deployment matrix</h2>
             {matrixNodes.length === 0 ? (
               <p className="text-ink-600 text-sm">
-                No matrix entities yet — the deployment map is populated by structured capture
-                (Phase 5.4) and ingestion (Phase 6).
+                No matrix entities yet — add the first one below, or let ingestion (Phase 6)
+                populate the map.
               </p>
             ) : (
               <div className="space-y-3">
@@ -321,6 +322,7 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
                 })}
               </div>
             )}
+            <MatrixCapture engagementId={engagementId} nodes={matrixNodes} onChanged={refresh} />
           </section>
 
           {log.length > 0 ? (
