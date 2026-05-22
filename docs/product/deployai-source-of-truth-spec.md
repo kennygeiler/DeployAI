@@ -295,7 +295,7 @@ Run it locally: `pnpm install --frozen-lockfile` then `pnpm --filter @deployai/w
 
 **Status:** Direction, not a delivery promise.
 
-**Current position — 2026-05-21.** Phases 0 and 0.5 are done. Phase 1 is delivered bar the optional increment 3 (PRs #90, #91, #93–#95). Phase 2 is delivered. Phase 3 is delivered — increments 3.1, 3.2, 3.3 (PRs #99–#101). Phase 4 (shared-brain layer) is the next phase to scope. **This section is the handoff point** — an agent or developer resuming the work starts here, then reads the phase increment tables below.
+**Current position — 2026-05-21.** Phases 0 and 0.5 are done. Phase 1 is delivered bar the optional increment 3 (PRs #90, #91, #93–#95). Phase 2 is delivered. Phase 3 is delivered — increments 3.1, 3.2, 3.3 (PRs #99–#101). Phase 4 (shared-brain layer) is scoped and underway — increment 4.1 (engagement detail page) is in progress. **This section is the handoff point** — an agent or developer resuming the work starts here, then reads the phase increment tables below.
 
 **The pivot.** The archived BMAD epics ([`epics.md`](../archive/epics.md)) targeted a *single-strategist, single-deployment, agent-driven* product sold into government procurement. The direction going forward is a *team tool*: a cross-functional team (FDE, deployment strategist, biz dev) tracking many engagements and finding insight across them. The two share the canonical-memory substrate and little else. This roadmap supersedes the archived epic plan for prioritization; `sprint-status.yaml` remains the record of what the old plan delivered.
 
@@ -309,7 +309,7 @@ Run it locally: `pnpm install --frozen-lockfile` then `pnpm --filter @deployai/w
 | 1 | `Engagement` data-model pivot | **Done** bar the optional increment 3 (deferred) |
 | 2 | Real identity + team roles | **Done** — increments 2.1, 2.2, 2.3 |
 | 3 | Manual capture + portfolio view | **Done** — increments 3.1, 3.2, 3.3 |
-| 4 | Shared-brain layer — collaboration, role lenses, cross-role insight | Not started |
+| 4 | Shared-brain layer — collaboration, role lenses, cross-role insight | In progress — increment 4.1 |
 | 5 | Intelligence — agents, ingestion, synthesis | Not started |
 
 ### Phase 0 — Ground truth
@@ -378,9 +378,20 @@ Goal: a team can log entries on an engagement and see their engagements rolled u
 
 Manual capture writes to a dedicated `engagement_log_entries` table — **not** `canonical_memory_events` (the agent-extraction log). They are different things: operator-entered notes vs. cited agent output. This also sidesteps the deferred Phase 1 increment 3 (`engagement_id` on `canonical_memory_events`).
 
-### Phases 4–5 — direction (scope when Phase 3 lands)
+### Phase 4 — Shared-brain layer
 
-- **Phase 4 — Shared-brain layer.** Per-engagement collaboration (assignment, notes, attribution), role lenses (FDE → technical, biz dev → commercial, strategist → both), cross-role insight (surface where their views diverge).
+Goal: turn the portfolio from a list into the place the cross-functional team works — each engagement gets a detail view, members are assigned with roles, and the team can see where the FDE, strategist, and biz-dev views of an engagement diverge.
+
+| # | Increment | Status |
+| --- | --- | --- |
+| 4.1 | **Engagement detail page** — `/engagements/[engagementId]`: one engagement with its members and log roll-up, over a new aggregate BFF route (`GET /api/bff/engagements/:id` → `{engagement, members, log}`). Portfolio rows link into it. | In progress |
+| 4.2 | **Membership & attribution UI** — assign / remove team members on an engagement from the detail page (over the existing `engagement_members` CP API); log entries carry visible author attribution. | Not started |
+| 4.3 | **Role lenses & cross-role insight** — FDE / strategist / biz-dev views of an engagement (technical / commercial / both), and a surface that flags where those views diverge. | Not started |
+
+The detail page is read-only in 4.1 — it aggregates data the CP already exposes (`GET /internal/v1/engagements/{id}`, `/members`, `/log`). Membership *mutation* and attribution land in 4.2; role lenses in 4.3.
+
+### Phase 5 — direction (scope when Phase 4 lands)
+
 - **Phase 5 — Intelligence.** Wire the agent loop, M365 ingestion, meeting presence, insight synthesis — the original "magic," deferred until the manual loop is trusted and used daily.
 
 ---
