@@ -22,13 +22,15 @@ DeployAI is an **agentic Deployment System of Record** — durable, cited memory
 
 **The intended solution.** Convert every meeting, email, call, and field note for an account into a canonical, queryable store — an immutable event log, a time-versioned identity/stakeholder graph, and a library of "solidified learnings" with evidence snapshots. Agents are *retrieval-bound*: they may only surface or propose facts that trace back to a stored event, with a mandatory **citation envelope** on every output. Strategist-facing surfaces (morning digest, phase tracking, in-meeting alerts, queues) project that memory at the moment it is needed.
 
-**Who it serves.** The primary user is the **deployment strategist** (also called a Forward Deployed Engineer / deployment lead at peer companies). The first intended deployment is the founder's own NYC DOT hardware engagement; peer GovTech vendors are the next intended customers. See archived [`product-brief-DeployAI.md`](../archive/product-brief-DeployAI.md) for the full GTM and commercial model.
+**Who it serves.** DeployAI serves a **cross-functional deployment team** — forward-deployed engineer, deployment strategist, and biz-dev lead — running long-cycle customer deployments together. It is built as **a product to sell** to such teams: an extensible base an adopting team's own engineers can tailor. (The original brief framed a single deployment strategist and a GovTech sales motion — see archived [`product-brief-DeployAI.md`](../archive/product-brief-DeployAI.md); the current direction and roadmap are **§16**.)
 
-**Important scope note for engagement/portfolio tracking.** DeployAI was *originally* architected as **deep single-account memory** — one tenant modelling one deployment in one phase of a 7-phase framework (see §6, §12), with no first-class engagement entity. The **team-tracking pivot** (see **§16** — the live roadmap) has since changed that: it added a first-class **`engagement`** entity and an **`engagement_members`** join to the data model, plus the `/engagements` portfolio and per-engagement detail surfaces. As of Phase 4 the model is **tenant = team, engagement = one customer deployment** — a team can track many engagements, assign cross-functional members (FDE / deployment strategist / biz dev), and log role-attributed activity per engagement on real data. What remains deferred is *cross-engagement intelligence*: agent-driven synthesis and roll-up across engagements is Phase 5, and the original Timeline surface (Epic 14) is still post-V1 backlog. The engagement layer is prototype-grade — see §3.
+**Important scope note for engagement/portfolio tracking.** DeployAI was *originally* architected as **deep single-account memory** — one tenant modelling one deployment in one phase of a 7-phase framework (see §6, §12), with no first-class engagement entity. The **team-tracking pivot** (see **§16** — the live roadmap) has since changed that: it added a first-class **`engagement`** entity and an **`engagement_members`** join to the data model, plus the `/engagements` portfolio and per-engagement detail surfaces. As of Phase 4 the model is **tenant = team, engagement = one customer deployment** — a team can track many engagements, assign cross-functional members (FDE / deployment strategist / biz dev), and log role-attributed activity per engagement on real data. What remains ahead is the **re-scoped Phase 5–7 roadmap** (§16): converging the engagement layer onto canonical memory as a structured *map* (Phase 5), ingestion harnesses (Phase 6), and the agent-driven insight layer (Phase 7). The engagement layer is prototype-grade — see §3.
 
 ---
 
 ## 2. V1 scope
+
+> **§16 supersedes this section for forward prioritization.** The lists below are the *original* product brief's V1 scope, kept for history and context; the live, re-scoped roadmap is **§16**.
 
 **In scope for V1** (per the product brief; this is *intent*, not a completion claim — see §3):
 
@@ -295,11 +297,13 @@ Run it locally: `pnpm install --frozen-lockfile` then `pnpm --filter @deployai/w
 
 **Status:** Direction, not a delivery promise.
 
-**Current position — 2026-05-21.** Phases 0 and 0.5 are done. Phase 1 is delivered bar the optional increment 3 (PRs #90, #91, #93–#95). Phase 2 is delivered. Phase 3 is delivered — increments 3.1, 3.2, 3.3 (PRs #99–#101). Phase 4 (shared-brain layer) is delivered — increments 4.1, 4.2, 4.3 (PRs #102, #103, #105). Phase 5 (intelligence — agents, ingestion, synthesis) is the next phase to scope. **This section is the handoff point** — an agent or developer resuming the work starts here, then reads the phase increment tables below.
+**Current position — 2026-05-22.** Phases 0–4 are delivered (PRs #90–#105) — the team-tracking pivot shipped: a first-class `engagement` entity, team roles, manual capture, and the portfolio + detail surfaces. **The forward roadmap was re-scoped on 2026-05-22** (see *Direction reset* below) around the product's actual goal — a shared-memory and insight platform that maps a deployment and surfaces cross-team insight. **Phase 5 — the converged deployment-matrix model — is the next phase, and is scoped into increments below.** **This section is the handoff point** — an agent or developer resuming the work starts here.
 
-**The pivot.** The archived BMAD epics ([`epics.md`](../archive/epics.md)) targeted a *single-strategist, single-deployment, agent-driven* product sold into government procurement. The direction going forward is a *team tool*: a cross-functional team (FDE, deployment strategist, biz dev) tracking many engagements and finding insight across them. The two share the canonical-memory substrate and little else. This roadmap supersedes the archived epic plan for prioritization; `sprint-status.yaml` remains the record of what the old plan delivered.
+**The pivot.** The archived BMAD epics ([`epics.md`](../archive/epics.md)) targeted a *single-strategist, single-deployment, agent-driven* product sold into government procurement. The direction going forward is a *team tool*: a cross-functional team (FDE, deployment strategist, biz dev) running customer deployments together and finding insight across them. This roadmap supersedes the archived epic plan for prioritization; `sprint-status.yaml` remains the record of what the old plan delivered.
 
-**Principle:** fix the foundation, don't polish the demo. Build what *any* version needs; defer what only the old product needed — SAML, KMS/FIPS, FOIA export, immutable audit log, compliance packets are all deferred.
+**Direction reset — 2026-05-22.** Phases 1–4 delivered a manual engagement *journal* — a chronological log (`engagement_log_entries`) sitting *beside* the canonical-memory substrate, not on it. The product's actual goal is more than a tracker: a shared-memory and insight platform that **ingests the interactions of a deployment** (email, meeting notes, field notes, manual entry), builds a structured **map** of it — stakeholders, systems, decisions, risks, commitments, dependencies — on the **canonical-memory substrate**, and generates **insights, suggestions, and learnings** across the cross-functional team. Phases 5–7 re-aim there: the journal is superseded by the structured matrix (Phase 5); ingestion is no longer deferred — it is **core, required scope** (Phase 6); the agent layer produces insight over the matrix (Phase 7). DeployAI is sold as an **extensible base** an adopting team's own engineers can tailor.
+
+**Principle:** fix the foundation, don't polish the demo. Build what the goal needs — the structured map, real ingestion, cited insight; defer what only the old GovTech-sales product needed — SAML, KMS/FIPS, FOIA export, immutable audit log, compliance packets. On ingestion, **stay agnostic and do not re-invent existing summary products** — consume their output, build the map and the insight on top.
 
 ### Phase overview
 
@@ -310,7 +314,9 @@ Run it locally: `pnpm install --frozen-lockfile` then `pnpm --filter @deployai/w
 | 2 | Real identity + team roles | **Done** — increments 2.1, 2.2, 2.3 |
 | 3 | Manual capture + portfolio view | **Done** — increments 3.1, 3.2, 3.3 |
 | 4 | Shared-brain layer — collaboration, role lenses, cross-role insight | **Done** — increments 4.1, 4.2, 4.3 |
-| 5 | Intelligence — agents, ingestion, synthesis | Not started |
+| 5 | Converged deployment-matrix model — structured map on canonical memory | **Next** — scoped below |
+| 6 | Ingestion harnesses — email, meeting notes, field notes, manual entry | Required — scopes after Phase 5 |
+| 7 | Insight, suggestion & learning layer — agents over the matrix | Planned — after Phase 6 |
 
 ### Phase 0 — Ground truth
 
@@ -345,7 +351,7 @@ Phase 1 ships in **four increments**, each its own reviewed, CI-passing PR:
 | 4a | **Web / BFF plumbing** — the action-queue BFF threads an optional `engagement_id` to the (engagement-aware) CP queue routes. | Merged — [PR #93](https://github.com/kennygeiler/DeployAI/pull/93) |
 | 4b | **Engagement selector** — a BFF route lists the tenant's engagements; an `EngagementSelector` on the action-queue surface drives the queue's `engagement_id`. | Merged — [PR #94](https://github.com/kennygeiler/DeployAI/pull/94), [#95](https://github.com/kennygeiler/DeployAI/pull/95) |
 
-**Increment 3 is deferred** — work has moved to Phase 2. The canonical-memory retrofit is back-end plumbing for tables that have no active writers in this prototype, so it is best done alongside the Phase 5 agent/ingestion work. The engagement selector (4b) is currently scoped to the action-queue surface — a shell-global placement that persists the selection across surfaces is a refinement worth picking up with later UI work.
+**Increment 3 is absorbed into Phase 5** — the canonical-memory retrofit (`engagement_id` on `canonical_memory_events` and the identity-graph tables) is the tenant↔engagement grain fix, and Phase 5 increment 5.1 does it properly as part of the matrix model. The engagement selector (4b) is currently scoped to the action-queue surface — a shell-global placement that persists the selection across surfaces is a refinement worth picking up with later UI work.
 
 **Conventions established in increments 1–2** (follow them in 3 and 4):
 - Engagement-scoped operational tables use **app-layer tenant/engagement filtering**, not RLS — matching the strategist-queues precedent (migration `0015`).
@@ -392,9 +398,54 @@ The detail page is read-only in 4.1 — it aggregates data the CP already expose
 
 **Phase 4 is complete.** The cross-functional team can run an engagement end to end on real data: a detail view per engagement, members assigned with roles, a log with role-attributed entries, and a deterministic cross-role breakdown. The manual loop is now whole — Phase 5 layers intelligence on top of it.
 
-### Phase 5 — direction (scope when Phase 4 lands)
+### Phase 5 — Converged deployment-matrix model
 
-- **Phase 5 — Intelligence.** Wire the agent loop, M365 ingestion, meeting presence, insight synthesis — the original "magic," deferred until the manual loop is trusted and used daily.
+Goal: replace the flat engagement *journal* with a structured *map* of a deployment, built **on the canonical-memory substrate** — the foundation Phases 6–7 query. This is the journal→map turn, and it is the first phase of the re-scoped roadmap.
+
+**Why.** Phases 1–4 produced a chronological log. "Map the complex matrix of a deployment, find cross-team insight, spot opportunities to scale" — the product's goal — are queries over a *structured graph* of entities and relationships, not over free text. The canonical-memory substrate already has the right primitive (an event log + a time-versioned identity graph); the journal was built beside it. Phase 5 converges them.
+
+**The model.** A deployment is a matrix of entities and typed relationships, engagement-scoped, living in canonical memory. A *starter* entity set — finalized in increment 5.1:
+
+- **Stakeholder / Organization** — the customer-side people and org units (the existing canonical identity graph).
+- **System** — a system or component in the deployment.
+- **Decision**, **Risk**, **Commitment** — what was decided, what is at risk, what was promised (by whom, to whom, when).
+- **Dependency** — typed links between systems, decisions, and commitments.
+- **Interaction** — a meeting / email / field note / manual entry: the raw input Phase 6 harnesses produce, resolving into the entities above.
+- **Opportunity** — a place to scale or introduce a new offering (the biz-dev payoff).
+
+**The grain fix.** Phase 5 resolves the tenant↔engagement grain — it does the long-deferred Phase 1 increment 3 (`engagement_id` on `canonical_memory_events` and the identity-graph tables) so the matrix is engagement-scoped within a team's tenant.
+
+**Extensibility.** DeployAI is sold as a base teams tailor; the entity/relationship model is designed with an extension seam (custom entity and relationship types) — the seam is *designed* in 5.1, not built as a plugin system now.
+
+| # | Increment | Status |
+| --- | --- | --- |
+| 5.1 | **Matrix model & grain decision record** — finalize the entity/relationship set, decide the canonical-memory home, resolve the tenant↔engagement grain (the deferred increment 1.3), design the extension seam. Deliverable: the model written into this section + a schema sketch. Design-only PR. | Not started |
+| 5.2 | **Matrix schema & control-plane API** — migrations for the matrix entity/relationship tables (canonical-memory–scoped, engagement-scoped), domain models, internal CRUD API. The `engagement_log_entries` journal is superseded — migrated into / replaced by structured entities. | Not started |
+| 5.3 | **Matrix BFF & map view** — BFF routes + a map view on the engagement detail page that renders the deployment matrix. | Not started |
+| 5.4 | **Structured capture** — manual entry writes structured matrix entities (the `EngagementCaptureForm` evolves). This is also the *manual-entry harness* that Phase 6 unifies with the automated ones. | Not started |
+
+**Increment 5.1 is the first implementation step** — mostly design, its PR a decision record. Everything in Phases 5–7 depends on it.
+
+### Phase 6 — Ingestion harnesses
+
+Goal: feed the matrix automatically. **Required scope, not deferred** — the product's value depends on capturing what actually happens in a deployment, not on disciplined manual entry.
+
+A normalized **interaction-ingestion pipeline** plus a set of **harnesses** — adapters that pull interactions from where they already happen and normalize them into canonical events that resolve into matrix entities:
+
+- **Email harness** — Gmail API / Microsoft Graph (Outlook) / a generic IMAP-style adapter.
+- **Meeting-notes harness** — ingests transcripts/summaries from existing meeting tools (Teams, Zoom, Otter, Fireflies, Granola, …) via their exports/APIs.
+- **Field-notes harness** — a quick-capture path for on-site notes.
+- **Manual-entry harness** — the Phase 5 structured capture form, as one input adapter among the rest.
+
+**Design rule:** DeployAI is **agnostic** and **does not re-invent existing summary products** — it consumes their output (a transcript, a summary, an email thread) and builds the cross-deployment *map* and *insight* on top. Harnesses are adapters behind one normalized interface; a new source is added without touching the matrix. Phase 6 scopes into per-harness increments once the Phase 5 model is stable.
+
+### Phase 7 — Insight, suggestion & learning layer
+
+Goal: the three agents — **Cartographer, Oracle, Master Strategist** — operate on the populated matrix to produce **cross-team insight**, **suggestions**, **learnings**, and **opportunity detection** (where to scale or introduce new offerings). Retrieval-bound and citation-enveloped, as the architecture always intended (§1, §11) — the "magic," now standing on a real substrate rather than a fixture. Scoped when Phase 6 lands.
+
+### Validation track — parallel, ongoing
+
+DeployAI has **no real users yet** and is being built as a product to sell. Each phase should yield an artifact to put in front of real FDEs / deployment strategists / biz-dev practitioners — Phase 5's map view is the first. **Validate that "map your deployment and surface where to grow the account" resonates with real practitioners before committing the full Phase 6–7 build cost.** Treat customer conversations as a gate between phases, not an afterthought.
 
 ---
 
@@ -453,5 +504,6 @@ This document is the canonical product/architecture reference. **Operational run
 | 2026-05-21 | **Phase 2.3 follow-up** ([PR #104](https://github.com/kennygeiler/DeployAI/pull/104)) — `roleFromHeaders` in `actor.ts` was missing `fde`/`biz_dev`, so the header auth path dropped those team roles that `middleware.ts` already admits; allow-list aligned. |
 | 2026-05-21 | **Phase 4 increment 4.2** ([PR #103](https://github.com/kennygeiler/DeployAI/pull/103)) — engagement membership UI: assign / remove team members from the detail page over new BFF routes; engagement-log entries now carry server-derived author attribution. |
 | 2026-05-21 | **Phase 4 complete — increment 4.3** ([PR #105](https://github.com/kennygeiler/DeployAI/pull/105)) — log entries record the author's team role (`author_role`, migration `0019`); the detail page gains a role-lens log filter and a deterministic cross-role activity breakdown. Phase 4 (shared-brain layer) is delivered; Phase 5 (intelligence) is next to scope. |
+| 2026-05-22 | **Roadmap re-scoped — direction reset.** Phases 1–4 delivered an engagement *journal*; the forward roadmap is re-aimed at the product's goal — a structured deployment *map* on canonical memory (Phase 5), required ingestion harnesses for email / meeting notes / field notes / manual entry (Phase 6), and an agent-driven insight / suggestion / learning layer (Phase 7). §16 rewritten with Phases 5–7 + a validation track; §1 vision and the README realigned. |
 
 **Maintenance rule:** when code behavior changes, update this document and `sprint-status.yaml` in the same PR. **Handoff rule:** every piece of work updates §16 — mark increments done with their PR, and leave the "Current position" line and increment table accurate so any agent or developer can resume from this document alone. When in doubt, verify against code and record the verification date in the header table.

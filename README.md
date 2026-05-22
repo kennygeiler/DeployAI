@@ -31,6 +31,12 @@ a cross-functional team tracking *many* engagements and finding insight across t
   graph, evidence) and little else; the older single-strategist surfaces remain in the repo
   as demo-grade scaffolding.
 
+**Where it's headed.** The roadmap (re-scoped 2026-05-22) takes DeployAI from a manual
+tracker to a **shared-memory and insight platform**: ingest the interactions of a deployment
+— email, meeting notes, field notes, manual entry — build a structured **map** of it
+(stakeholders, systems, decisions, risks, commitments, dependencies) on the canonical-memory
+substrate, and generate insights, suggestions, and learnings across the team. See spec §16.
+
 Product intent, architecture, honest real-vs-fixture status, and the phased roadmap that
 drives the pivot all live in the source-of-truth spec — **§16 is the live roadmap and the
 handoff point** for anyone continuing the work.
@@ -53,7 +59,8 @@ handoff point** for anyone continuing the work.
 - Pilot- or production-ready out of the box — see the demo / pilot / production staging in
   spec §13.
 - An "AI agent" product *today* — the agentic layer is deterministic heuristics. There is
-  no live LLM loop ingesting meetings and updating surfaces (that is Phase 5, not started).
+  no live LLM loop ingesting meetings and updating surfaces (that is the re-scoped Phase 5–7
+  roadmap, not yet started — spec §16).
 
 **How to evaluate it:** run the [Quick start](#quick-start), walk the `/engagements`
 surfaces, then read spec **§3** (honest maturity) and **§13** (demo vs pilot vs production).
@@ -85,13 +92,13 @@ control plane:
 
 ## What's not built yet
 
-- **Phase 5 — Intelligence** (not started): the agent loop, M365 ingestion, meeting
-  presence, and insight *synthesis*. Cross-role "insight" today is deterministic counts —
-  not semantic divergence detection.
+- **The re-scoped roadmap** (spec §16) — three phases ahead, none started. **Phase 5:** a
+  structured deployment-*matrix* model on canonical memory, replacing today's flat log.
+  **Phase 6:** ingestion harnesses for email, meeting notes, and field notes. **Phase 7:**
+  the agent-driven insight, suggestion, and learning layer. Today's cross-role "insight" is
+  deterministic counts, not semantic analysis.
 - The **older single-strategist surfaces** (morning digest, evening synthesis, in-meeting
   alert) remain **fixture / demo-grade**.
-- **Deferred plumbing** — the canonical-memory `engagement_id` retrofit; the engagement
-  selector is currently action-queue-only. See spec §16 for the full deferred list.
 - **No production/pilot hardening** beyond the pilot operator pack.
 
 ---
