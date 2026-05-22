@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BookOpen,
+  Briefcase,
   CheckSquare,
   FileWarning,
   ListChecks,
@@ -20,6 +21,7 @@ import { cn } from "@/lib/utils";
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 
 const primary: readonly NavItem[] = [
+  { href: "/engagements", label: "Engagements", icon: Briefcase },
   { href: "/digest", label: "Morning digest", icon: Sun },
   { href: "/in-meeting", label: "In-meeting alert", icon: Video },
   { href: "/phase-tracking", label: "Phase & tasks", icon: ListChecks },

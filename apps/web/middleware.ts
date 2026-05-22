@@ -13,6 +13,7 @@ const isAdmin = (p: string) =>
   p === "/admin/runs" || p === "/admin/adjudication" || p.startsWith("/admin/schema-proposals");
 
 const isStrategistSurface = (p: string) =>
+  p === "/engagements" ||
   p === "/digest" ||
   p === "/in-meeting" ||
   p === "/phase-tracking" ||
@@ -143,6 +144,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/engagements",
     "/digest",
     "/in-meeting",
     "/action-queue",
