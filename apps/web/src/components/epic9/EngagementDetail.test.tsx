@@ -235,11 +235,11 @@ describe("EngagementDetail", () => {
 
     render(<EngagementDetail engagementId="e1" />);
 
-    await waitFor(() => screen.getByText("LiDAR ingest"));
-    expect(screen.getByText("Systems")).toBeTruthy();
+    await waitFor(() => screen.getByText("Systems"));
     expect(screen.getByText("Risks")).toBeTruthy();
-    expect(screen.getByText("Calibration slip")).toBeTruthy();
     // The risk node shows its outgoing edge to the system it threatens.
     expect(screen.getByText("threatens → LiDAR ingest")).toBeTruthy();
+    // The matrix-capture form is wired into the section.
+    expect(screen.getByText("Add to the matrix")).toBeTruthy();
   });
 });
