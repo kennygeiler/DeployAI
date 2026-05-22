@@ -63,8 +63,8 @@ export function EngagementPortfolio() {
             {engagements.length === 0 ? (
               <tr>
                 <td className="text-ink-600 px-3 py-6" colSpan={5}>
-                  No engagements yet — create one via the control-plane engagements API
-                  (POST /internal/v1/engagements).
+                  No engagements yet — create one via the control-plane engagements API (POST
+                  /internal/v1/engagements).
                 </td>
               </tr>
             ) : (
