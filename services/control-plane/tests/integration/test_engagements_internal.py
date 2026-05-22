@@ -188,6 +188,7 @@ async def test_engagement_log_crud(e_client: AsyncClient, postgres_engine: Engin
             "entry_kind": "decision",
             "body": "Calibration scheduled for week 3.",
             "author": "fde-1",
+            "author_role": "fde",
         },
     )
     assert rl.status_code == 201, rl.text
@@ -195,6 +196,7 @@ async def test_engagement_log_crud(e_client: AsyncClient, postgres_engine: Engin
     assert entry["entry_kind"] == "decision"
     assert entry["body"] == "Calibration scheduled for week 3."
     assert entry["author"] == "fde-1"
+    assert entry["author_role"] == "fde"
 
     rlist = await e_client.get(f"/internal/v1/engagements/{eid}/log?tenant_id={tid}")
     assert rlist.status_code == 200

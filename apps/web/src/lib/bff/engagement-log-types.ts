@@ -11,5 +11,7 @@ export type EngagementLogEntry = {
   entry_kind: string;
   body: string;
   author: string | null;
+  /** Team role of the author at write time; null for pre-Phase-4.3 entries. */
+  author_role: string | null;
   created_at: string;
 };

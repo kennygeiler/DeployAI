@@ -47,7 +47,7 @@ export async function cpListEngagementLog(
 export async function cpAddEngagementLogEntry(
   tenantId: string,
   engagementId: string,
-  entry: { entry_kind: string; body: string; author: string | null },
+  entry: { entry_kind: string; body: string; author: string | null; author_role: string | null },
 ): Promise<EngagementLogEntry> {
   const r = await fetch(logUrl(tenantId, engagementId), {
     method: "POST",

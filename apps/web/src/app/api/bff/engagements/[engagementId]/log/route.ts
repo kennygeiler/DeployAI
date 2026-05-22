@@ -63,13 +63,15 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "entry_kind and body are required" }, { status: 400 });
   }
   // Attribution is server-derived from the actor — not client-supplied — so a
-  // log entry cannot be posted under someone else's name.
+  // log entry cannot be posted under someone else's name. author_role is the
+  // actor's team role, which backs the Phase 4 role lenses.
   const author = await getActorIdFromHeaders();
   try {
     const entry = await cpAddEngagementLogEntry(tid, engagementId, {
       entry_kind: entryKind,
       body: text,
       author,
+      author_role: actor.role,
     });
     return NextResponse.json({ entry, source: "cp" }, { status: 201 });
   } catch (e) {

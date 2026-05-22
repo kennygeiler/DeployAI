@@ -43,6 +43,7 @@ describe("EngagementDetail", () => {
               entry_kind: "decision",
               body: "Chose a phased rollout",
               author: "Dana",
+              author_role: "deployment_strategist",
               created_at: "2026-05-09T00:00:00Z",
             },
           ],
@@ -139,5 +140,52 @@ describe("EngagementDetail", () => {
     await waitFor(() => expect(calls.some((c) => c.method === "DELETE")).toBe(true));
     const deleted = calls.find((c) => c.method === "DELETE");
     expect(deleted?.url).toContain("/api/bff/engagements/e1/members/m1");
+  });
+
+  it("breaks log activity down by role and filters via the role lens", async () => {
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          engagement: ENGAGEMENT,
+          members: [],
+          log: [
+            {
+              id: "l1",
+              engagement_id: "e1",
+              entry_kind: "risk",
+              body: "Sensor drift on the north corridor",
+              author: "u1",
+              author_role: "fde",
+              created_at: "2026-05-09T00:00:00Z",
+            },
+            {
+              id: "l2",
+              engagement_id: "e1",
+              entry_kind: "decision",
+              body: "Approved the phased rollout",
+              author: "u2",
+              author_role: "deployment_strategist",
+              created_at: "2026-05-10T00:00:00Z",
+            },
+          ],
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(<EngagementDetail engagementId="e1" />);
+
+    await waitFor(() => screen.getByText("Sensor drift on the north corridor"));
+    // Both entries visible under the default "All roles" lens.
+    expect(screen.getByText("Approved the phased rollout")).toBeTruthy();
+    // biz_dev logged nothing — the coverage gap is surfaced.
+    expect(screen.getByText(/No log activity yet from:.*Business development/)).toBeTruthy();
+
+    // Narrowing the lens to FDE hides the strategist's entry.
+    await user.selectOptions(screen.getByLabelText("Role lens"), "fde");
+    expect(screen.getByText("Sensor drift on the north corridor")).toBeTruthy();
+    expect(screen.queryByText("Approved the phased rollout")).toBeNull();
   });
 });
