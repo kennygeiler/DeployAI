@@ -246,6 +246,7 @@ class EngagementLogEntryCreate(BaseModel):
     entry_kind: str
     body: str = Field(min_length=1, max_length=4000)
     author: str | None = Field(default=None, max_length=200)
+    author_role: str | None = Field(default=None, max_length=200)
 
 
 class EngagementLogEntryRead(BaseModel):
@@ -256,6 +257,7 @@ class EngagementLogEntryRead(BaseModel):
     entry_kind: str
     body: str
     author: str | None
+    author_role: str | None
     created_at: datetime
 
 
@@ -302,6 +304,7 @@ async def add_engagement_log_entry(
         entry_kind=body.entry_kind,
         body=body.body,
         author=body.author,
+        author_role=body.author_role,
     )
     session.add(row)
     await session.commit()
