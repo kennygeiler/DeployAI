@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import * as React from "react";
+import { toast } from "sonner";
 
+import { Button } from "@/components/ui/button";
 import type { EngagementLogEntry } from "@/lib/bff/engagement-log-types";
 import type { Engagement, EngagementMember } from "@/lib/bff/engagement-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
@@ -23,6 +25,8 @@ const ROLE_LABEL: Record<string, string> = {
   biz_dev: "Business development",
 };
 
+const MEMBER_ROLES = ["fde", "deployment_strategist", "biz_dev"] as const;
+
 type DetailResponse = {
   engagement: Engagement;
   members: EngagementMember[];
@@ -31,11 +35,14 @@ type DetailResponse = {
 
 /**
  * Phase 4 — engagement detail. One customer deployment with its team and
- * log roll-up. Read-only here; membership mutation lands in increment 4.2.
+ * log roll-up; team members can be assigned and removed here (increment 4.2).
  */
 export function EngagementDetail({ engagementId }: { engagementId: string }) {
   const [data, setData] = React.useState<DetailResponse | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
+  const [newUserId, setNewUserId] = React.useState("");
+  const [newRole, setNewRole] = React.useState<string>("fde");
+  const [busy, setBusy] = React.useState(false);
 
   const refresh = React.useCallback(async () => {
     const r = await fetch(`/api/bff/engagements/${encodeURIComponent(engagementId)}`, {
@@ -54,6 +61,56 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
     const t = window.setTimeout(() => void refresh(), 0);
     return () => window.clearTimeout(t);
   }, [refresh]);
+
+  const addMember = React.useCallback(async () => {
+    const userId = newUserId.trim();
+    if (!userId) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/bff/engagements/${encodeURIComponent(engagementId)}/members`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ user_id: userId, role: newRole }),
+      });
+      if (!r.ok) {
+        toast.error("Could not assign member", {
+          description: (await readStrategistBffErrorDescription(r)).slice(0, 240),
+        });
+        return;
+      }
+      toast.success("Member assigned");
+      setNewUserId("");
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }, [engagementId, newRole, newUserId, refresh]);
+
+  const removeMember = React.useCallback(
+    async (memberId: string) => {
+      setBusy(true);
+      try {
+        const r = await fetch(
+          `/api/bff/engagements/${encodeURIComponent(engagementId)}/members/` +
+            encodeURIComponent(memberId),
+          { method: "DELETE" },
+        );
+        if (!r.ok) {
+          toast.error("Could not remove member", {
+            description: (await readStrategistBffErrorDescription(r)).slice(0, 240),
+          });
+          return;
+        }
+        toast.success("Member removed");
+        await refresh();
+      } finally {
+        setBusy(false);
+      }
+    },
+    [engagementId, refresh],
+  );
 
   return (
     <div className="max-w-5xl space-y-5">
@@ -104,19 +161,71 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
           <section className="space-y-2">
             <h2 className="text-ink-800 text-sm font-semibold">Team</h2>
             {data.members.length === 0 ? (
-              <p className="text-ink-600 text-sm">
-                No members assigned yet — assignment lands in Phase 4.2.
-              </p>
+              <p className="text-ink-600 text-sm">No members assigned yet.</p>
             ) : (
               <ul className="border-border divide-border divide-y rounded-lg border text-sm">
                 {data.members.map((m) => (
                   <li key={m.id} className="flex items-center justify-between gap-3 px-3 py-2">
                     <span className="font-mono text-xs">{m.user_id}</span>
-                    <span className="text-ink-700">{ROLE_LABEL[m.role] ?? m.role}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-ink-700">{ROLE_LABEL[m.role] ?? m.role}</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        disabled={busy}
+                        onClick={() => void removeMember(m.id)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
                   </li>
                 ))}
               </ul>
             )}
+            <div className="border-border space-y-2 rounded-lg border p-3">
+              <h3 className="text-ink-800 text-xs font-semibold">Assign a member</h3>
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="grid gap-1">
+                  <label className="text-ink-600 text-xs" htmlFor="member-user-id">
+                    User ID
+                  </label>
+                  <input
+                    id="member-user-id"
+                    className="border-border rounded-md border px-2 py-1 text-sm"
+                    placeholder="user UUID"
+                    value={newUserId}
+                    onChange={(e) => setNewUserId(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-1">
+                  <label className="text-ink-600 text-xs" htmlFor="member-role">
+                    Role
+                  </label>
+                  <select
+                    id="member-role"
+                    className="border-border rounded-md border px-2 py-1 text-sm"
+                    value={newRole}
+                    onChange={(e) => setNewRole(e.target.value)}
+                  >
+                    {MEMBER_ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {ROLE_LABEL[r]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={busy || !newUserId.trim()}
+                  onClick={() => void addMember()}
+                >
+                  Assign
+                </Button>
+              </div>
+            </div>
           </section>
 
           <section className="space-y-2">

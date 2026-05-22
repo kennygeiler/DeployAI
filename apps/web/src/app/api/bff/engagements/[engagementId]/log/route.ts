@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { decideSync } from "@deployai/authz";
 
-import { getActorFromHeaders } from "@/lib/internal/actor";
+import { getActorFromHeaders, getActorIdFromHeaders } from "@/lib/internal/actor";
 import { cpAddEngagementLogEntry, cpListEngagementLog } from "@/lib/internal/engagement-log-cp";
 import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
 import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strategist-queues-route-guard";
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
   }
   const { engagementId } = await ctx.params;
   const tid = actor.tenantId!.trim();
-  let parsed: { entry_kind?: unknown; body?: unknown; author?: unknown };
+  let parsed: { entry_kind?: unknown; body?: unknown };
   try {
     parsed = (await request.json()) as typeof parsed;
   } catch {
@@ -62,8 +62,9 @@ export async function POST(request: NextRequest, ctx: Ctx) {
   if (!entryKind || !text) {
     return NextResponse.json({ error: "entry_kind and body are required" }, { status: 400 });
   }
-  const author =
-    typeof parsed.author === "string" && parsed.author.trim() ? parsed.author.trim() : null;
+  // Attribution is server-derived from the actor — not client-supplied — so a
+  // log entry cannot be posted under someone else's name.
+  const author = await getActorIdFromHeaders();
   try {
     const entry = await cpAddEngagementLogEntry(tid, engagementId, {
       entry_kind: entryKind,

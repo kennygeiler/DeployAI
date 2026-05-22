@@ -295,7 +295,7 @@ Run it locally: `pnpm install --frozen-lockfile` then `pnpm --filter @deployai/w
 
 **Status:** Direction, not a delivery promise.
 
-**Current position — 2026-05-21.** Phases 0 and 0.5 are done. Phase 1 is delivered bar the optional increment 3 (PRs #90, #91, #93–#95). Phase 2 is delivered. Phase 3 is delivered — increments 3.1, 3.2, 3.3 (PRs #99–#101). Phase 4 (shared-brain layer) is scoped and underway — increment 4.1 (engagement detail page) is delivered ([PR #102](https://github.com/kennygeiler/DeployAI/pull/102)); increment 4.2 (membership & attribution UI) is next. **This section is the handoff point** — an agent or developer resuming the work starts here, then reads the phase increment tables below.
+**Current position — 2026-05-21.** Phases 0 and 0.5 are done. Phase 1 is delivered bar the optional increment 3 (PRs #90, #91, #93–#95). Phase 2 is delivered. Phase 3 is delivered — increments 3.1, 3.2, 3.3 (PRs #99–#101). Phase 4 (shared-brain layer) is scoped and underway — increment 4.1 (engagement detail page) is delivered ([PR #102](https://github.com/kennygeiler/DeployAI/pull/102)); increment 4.2 (membership & attribution UI) is delivered ([PR #103](https://github.com/kennygeiler/DeployAI/pull/103)); increment 4.3 (role lenses & cross-role insight) is next. **This section is the handoff point** — an agent or developer resuming the work starts here, then reads the phase increment tables below.
 
 **The pivot.** The archived BMAD epics ([`epics.md`](../archive/epics.md)) targeted a *single-strategist, single-deployment, agent-driven* product sold into government procurement. The direction going forward is a *team tool*: a cross-functional team (FDE, deployment strategist, biz dev) tracking many engagements and finding insight across them. The two share the canonical-memory substrate and little else. This roadmap supersedes the archived epic plan for prioritization; `sprint-status.yaml` remains the record of what the old plan delivered.
 
@@ -309,7 +309,7 @@ Run it locally: `pnpm install --frozen-lockfile` then `pnpm --filter @deployai/w
 | 1 | `Engagement` data-model pivot | **Done** bar the optional increment 3 (deferred) |
 | 2 | Real identity + team roles | **Done** — increments 2.1, 2.2, 2.3 |
 | 3 | Manual capture + portfolio view | **Done** — increments 3.1, 3.2, 3.3 |
-| 4 | Shared-brain layer — collaboration, role lenses, cross-role insight | In progress — 4.1 done, 4.2 next |
+| 4 | Shared-brain layer — collaboration, role lenses, cross-role insight | In progress — 4.1–4.2 done, 4.3 next |
 | 5 | Intelligence — agents, ingestion, synthesis | Not started |
 
 ### Phase 0 — Ground truth
@@ -385,7 +385,7 @@ Goal: turn the portfolio from a list into the place the cross-functional team wo
 | # | Increment | Status |
 | --- | --- | --- |
 | 4.1 | **Engagement detail page** — `/engagements/[engagementId]`: one engagement with its members and log roll-up, over a new aggregate BFF route (`GET /api/bff/engagements/:id` → `{engagement, members, log}`). Portfolio rows link into it. | Merged — [PR #102](https://github.com/kennygeiler/DeployAI/pull/102) |
-| 4.2 | **Membership & attribution UI** — assign / remove team members on an engagement from the detail page (over the existing `engagement_members` CP API); log entries carry visible author attribution. | Not started |
+| 4.2 | **Membership & attribution UI** — assign / remove team members on an engagement from the detail page (over the existing `engagement_members` CP API); log entries carry visible author attribution. | Merged — [PR #103](https://github.com/kennygeiler/DeployAI/pull/103) |
 | 4.3 | **Role lenses & cross-role insight** — FDE / strategist / biz-dev views of an engagement (technical / commercial / both), and a surface that flags where those views diverge. | Not started |
 
 The detail page is read-only in 4.1 — it aggregates data the CP already exposes (`GET /internal/v1/engagements/{id}`, `/members`, `/log`). Membership *mutation* and attribution land in 4.2; role lenses in 4.3.
@@ -449,5 +449,6 @@ This document is the canonical product/architecture reference. **Operational run
 | 2026-05-21 | **Phase 3 complete — increment 3.3** ([PR #101](https://github.com/kennygeiler/DeployAI/pull/101)) — the `/engagements` portfolio page (phase + status per engagement), wired into the strategist nav and middleware. |
 | 2026-05-21 | **Phase 4 started — increment 4.1** ([PR #102](https://github.com/kennygeiler/DeployAI/pull/102)) — the `/engagements/[engagementId]` detail page (engagement + members + log roll-up) over a new aggregate BFF route. §16 gained a scoped Phase 4 section (4.1 / 4.2 / 4.3). |
 | 2026-05-21 | **Phase 2.3 follow-up** ([PR #104](https://github.com/kennygeiler/DeployAI/pull/104)) — `roleFromHeaders` in `actor.ts` was missing `fde`/`biz_dev`, so the header auth path dropped those team roles that `middleware.ts` already admits; allow-list aligned. |
+| 2026-05-21 | **Phase 4 increment 4.2** ([PR #103](https://github.com/kennygeiler/DeployAI/pull/103)) — engagement membership UI: assign / remove team members from the detail page over new BFF routes; engagement-log entries now carry server-derived author attribution. |
 
 **Maintenance rule:** when code behavior changes, update this document and `sprint-status.yaml` in the same PR. **Handoff rule:** every piece of work updates §16 — mark increments done with their PR, and leave the "Current position" line and increment table accurate so any agent or developer can resume from this document alone. When in doubt, verify against code and record the verification date in the header table.
