@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { EngagementLogEntry } from "@/lib/bff/engagement-log-types";
 import type { Engagement, EngagementMember } from "@/lib/bff/engagement-types";
+import type { MatrixEdge, MatrixNode } from "@/lib/bff/matrix-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 
 const PHASE_LABEL: Record<string, string> = {
@@ -34,15 +35,37 @@ const ROLE_SHORT: Record<string, string> = {
 const MEMBER_ROLES = ["fde", "deployment_strategist", "biz_dev"] as const;
 const LOG_KINDS = ["meeting", "decision", "risk", "next_action"] as const;
 
+const MATRIX_NODE_TYPES = [
+  "stakeholder",
+  "organization",
+  "system",
+  "decision",
+  "risk",
+  "commitment",
+  "opportunity",
+] as const;
+
+const NODE_TYPE_LABEL: Record<string, string> = {
+  stakeholder: "Stakeholders",
+  organization: "Organizations",
+  system: "Systems",
+  decision: "Decisions",
+  risk: "Risks",
+  commitment: "Commitments",
+  opportunity: "Opportunities",
+};
+
 type DetailResponse = {
   engagement: Engagement;
   members: EngagementMember[];
   log: EngagementLogEntry[];
+  matrix?: { nodes: MatrixNode[]; edges: MatrixEdge[] };
 };
 
 /**
- * Phase 4 — engagement detail. One customer deployment with its team, a
- * cross-role activity breakdown, and the log (role-lens filterable).
+ * Engagement detail — one customer deployment: its team, the deployment
+ * matrix (typed nodes + edges), a cross-role activity breakdown, and the
+ * role-lens-filterable log.
  */
 export function EngagementDetail({ engagementId }: { engagementId: string }) {
   const [data, setData] = React.useState<DetailResponse | null>(null);
@@ -132,6 +155,10 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
   const unattributedCount = log.filter(
     (e) => !MEMBER_ROLES.some((r) => r === e.author_role),
   ).length;
+
+  const matrixNodes = data?.matrix?.nodes ?? [];
+  const matrixEdges = data?.matrix?.edges ?? [];
+  const nodeTitleById = new Map(matrixNodes.map((n) => [n.id, n.title] as const));
 
   return (
     <div className="max-w-5xl space-y-5">
@@ -247,6 +274,53 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
                 </Button>
               </div>
             </div>
+          </section>
+
+          <section className="space-y-2">
+            <h2 className="text-ink-800 text-sm font-semibold">Deployment matrix</h2>
+            {matrixNodes.length === 0 ? (
+              <p className="text-ink-600 text-sm">
+                No matrix entities yet — the deployment map is populated by structured capture
+                (Phase 5.4) and ingestion (Phase 6).
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {MATRIX_NODE_TYPES.map((t) => {
+                  const nodes = matrixNodes.filter((n) => n.node_type === t);
+                  if (nodes.length === 0) {
+                    return null;
+                  }
+                  return (
+                    <div key={t} className="space-y-1">
+                      <h3 className="text-ink-700 text-xs font-semibold uppercase">
+                        {NODE_TYPE_LABEL[t]}
+                      </h3>
+                      <ul className="border-border divide-border divide-y rounded-lg border text-sm">
+                        {nodes.map((n) => {
+                          const edges = matrixEdges.filter((e) => e.from_node_id === n.id);
+                          return (
+                            <li key={n.id} className="space-y-1 px-3 py-2">
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="text-ink-800 font-medium">{n.title}</span>
+                                {n.status ? (
+                                  <span className="text-ink-500 text-xs">{n.status}</span>
+                                ) : null}
+                              </div>
+                              {edges.map((e) => (
+                                <p key={e.id} className="text-ink-500 text-xs">
+                                  {e.edge_type.replace("_", " ")} →{" "}
+                                  {nodeTitleById.get(e.to_node_id) ?? "—"}
+                                </p>
+                              ))}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </section>
 
           {log.length > 0 ? (

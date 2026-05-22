@@ -188,4 +188,58 @@ describe("EngagementDetail", () => {
     expect(screen.getByText("Sensor drift on the north corridor")).toBeTruthy();
     expect(screen.queryByText("Approved the phased rollout")).toBeNull();
   });
+
+  it("renders the deployment matrix grouped by node type with edges", async () => {
+    const node = (id: string, node_type: string, title: string, status: string | null) => ({
+      id,
+      engagement_id: "e1",
+      node_type,
+      title,
+      identity_node_id: null,
+      attributes: {},
+      status,
+      evidence_event_ids: [],
+      created_at: "2026-05-09T00:00:00Z",
+      updated_at: "2026-05-09T00:00:00Z",
+    });
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          engagement: ENGAGEMENT,
+          members: [],
+          log: [],
+          matrix: {
+            nodes: [
+              node("n1", "system", "LiDAR ingest", null),
+              node("n2", "risk", "Calibration slip", "open"),
+            ],
+            edges: [
+              {
+                id: "ed1",
+                engagement_id: "e1",
+                edge_type: "threatens",
+                from_node_id: "n2",
+                to_node_id: "n1",
+                attributes: {},
+                evidence_event_ids: [],
+                created_at: "2026-05-09T00:00:00Z",
+                updated_at: "2026-05-09T00:00:00Z",
+              },
+            ],
+          },
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<EngagementDetail engagementId="e1" />);
+
+    await waitFor(() => screen.getByText("LiDAR ingest"));
+    expect(screen.getByText("Systems")).toBeTruthy();
+    expect(screen.getByText("Risks")).toBeTruthy();
+    expect(screen.getByText("Calibration slip")).toBeTruthy();
+    // The risk node shows its outgoing edge to the system it threatens.
+    expect(screen.getByText("threatens → LiDAR ingest")).toBeTruthy();
+  });
 });
