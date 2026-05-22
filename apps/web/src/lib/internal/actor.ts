@@ -16,6 +16,8 @@ function roleFromHeaders(h: Headers): V1Role | null {
   }
   if (
     r === "deployment_strategist" ||
+    r === "fde" ||
+    r === "biz_dev" ||
     r === "successor_strategist" ||
     r === "customer_records_officer"
   ) {
