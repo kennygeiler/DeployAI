@@ -86,7 +86,12 @@ export function EngagementCaptureForm({ engagementId }: { engagementId: string }
           value={body}
           onChange={(e) => setBody(e.target.value)}
         />
-        <Button type="button" size="sm" disabled={submitting || !body.trim()} onClick={() => void submit()}>
+        <Button
+          type="button"
+          size="sm"
+          disabled={submitting || !body.trim()}
+          onClick={() => void submit()}
+        >
           Log
         </Button>
       </div>
