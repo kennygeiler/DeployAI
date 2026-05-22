@@ -10,6 +10,7 @@ import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { EngagementCaptureForm } from "@/components/epic9/EngagementCaptureForm.client";
 import { EngagementSelector } from "@/components/epic9/EngagementSelector.client";
 import { Button } from "@/components/ui/button";
 import {
@@ -222,6 +223,7 @@ export function ActionQueueTable() {
         </Button>
       </div>
       <EngagementSelector value={engagementId} onChange={setEngagementId} />
+      {engagementId ? <EngagementCaptureForm engagementId={engagementId} /> : null}
       {err ? <p className="text-destructive text-sm">{err}</p> : null}
       <div className="border-border overflow-x-auto rounded-lg border">
         <table className="w-full min-w-[42rem] text-left text-sm">
