@@ -20,7 +20,7 @@ describe("EngagementDetail", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders the engagement with its team and log", async () => {
+  it("renders the engagement header and team", async () => {
     const fetchMock = vi.fn();
     fetchMock.mockResolvedValue({
       ok: true,
@@ -36,17 +36,6 @@ describe("EngagementDetail", () => {
               created_at: "2026-05-02T00:00:00Z",
             },
           ],
-          log: [
-            {
-              id: "l1",
-              engagement_id: "e1",
-              entry_kind: "decision",
-              body: "Chose a phased rollout",
-              author: "Dana",
-              author_role: "deployment_strategist",
-              created_at: "2026-05-09T00:00:00Z",
-            },
-          ],
         }),
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -56,7 +45,6 @@ describe("EngagementDetail", () => {
     await waitFor(() => screen.getByText("NYC DOT LiDAR"));
     expect(screen.getByText("Phase: Pilot")).toBeTruthy();
     expect(screen.getByText("u1")).toBeTruthy();
-    expect(screen.getByText("Chose a phased rollout")).toBeTruthy();
   });
 
   it("shows the BFF error description when the request fails", async () => {
@@ -83,7 +71,7 @@ describe("EngagementDetail", () => {
       }
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ engagement: ENGAGEMENT, members: [], log: [] }),
+        json: () => Promise.resolve({ engagement: ENGAGEMENT, members: [] }),
       });
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -125,7 +113,6 @@ describe("EngagementDetail", () => {
                 created_at: "2026-05-02T00:00:00Z",
               },
             ],
-            log: [],
           }),
       });
     });
@@ -140,53 +127,6 @@ describe("EngagementDetail", () => {
     await waitFor(() => expect(calls.some((c) => c.method === "DELETE")).toBe(true));
     const deleted = calls.find((c) => c.method === "DELETE");
     expect(deleted?.url).toContain("/api/bff/engagements/e1/members/m1");
-  });
-
-  it("breaks log activity down by role and filters via the role lens", async () => {
-    const fetchMock = vi.fn();
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          engagement: ENGAGEMENT,
-          members: [],
-          log: [
-            {
-              id: "l1",
-              engagement_id: "e1",
-              entry_kind: "risk",
-              body: "Sensor drift on the north corridor",
-              author: "u1",
-              author_role: "fde",
-              created_at: "2026-05-09T00:00:00Z",
-            },
-            {
-              id: "l2",
-              engagement_id: "e1",
-              entry_kind: "decision",
-              body: "Approved the phased rollout",
-              author: "u2",
-              author_role: "deployment_strategist",
-              created_at: "2026-05-10T00:00:00Z",
-            },
-          ],
-        }),
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const user = userEvent.setup();
-    render(<EngagementDetail engagementId="e1" />);
-
-    await waitFor(() => screen.getByText("Sensor drift on the north corridor"));
-    // Both entries visible under the default "All roles" lens.
-    expect(screen.getByText("Approved the phased rollout")).toBeTruthy();
-    // biz_dev logged nothing — the coverage gap is surfaced.
-    expect(screen.getByText(/No log activity yet from:.*Business development/)).toBeTruthy();
-
-    // Narrowing the lens to FDE hides the strategist's entry.
-    await user.selectOptions(screen.getByLabelText("Role lens"), "fde");
-    expect(screen.getByText("Sensor drift on the north corridor")).toBeTruthy();
-    expect(screen.queryByText("Approved the phased rollout")).toBeNull();
   });
 
   it("renders the deployment matrix grouped by node type with edges", async () => {
@@ -209,7 +149,6 @@ describe("EngagementDetail", () => {
         Promise.resolve({
           engagement: ENGAGEMENT,
           members: [],
-          log: [],
           matrix: {
             nodes: [
               node("n1", "system", "LiDAR ingest", null),

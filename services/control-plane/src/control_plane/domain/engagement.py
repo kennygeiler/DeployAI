@@ -60,25 +60,6 @@ class EngagementMember(Base):
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
 
 
-class EngagementLogEntry(Base):
-    """A manually-logged entry on an engagement — meeting / decision / risk /
-    next-action (Phase 3, manual capture). See source-of-truth spec §16."""
-
-    __tablename__ = "engagement_log_entries"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=func.gen_random_uuid()
-    )
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("app_tenants.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    engagement_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("engagements.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    entry_kind: Mapped[str] = mapped_column(Text(), nullable=False)
-    body: Mapped[str] = mapped_column(Text(), nullable=False)
-    author: Mapped[str | None] = mapped_column(Text(), nullable=True)
-    # Team role of the author at write time (fde / deployment_strategist /
-    # biz_dev) — backs the Phase 4 role lenses. Nullable: pre-4.3 entries.
-    author_role: Mapped[str | None] = mapped_column(Text(), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+# Phase 5 (increment 5.5): the EngagementLogEntry / engagement_log_entries
+# journal has been retired — superseded by the deployment matrix
+# (matrix_nodes / matrix_edges). See docs/product/deployment-matrix-model.md.

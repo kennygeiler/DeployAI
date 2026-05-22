@@ -3,7 +3,6 @@ import { type NextRequest, NextResponse } from "next/server";
 import { decideSync } from "@deployai/authz";
 
 import { getActorFromHeaders } from "@/lib/internal/actor";
-import { cpListEngagementLog } from "@/lib/internal/engagement-log-cp";
 import { cpGetEngagement, cpListEngagementMembers } from "@/lib/internal/engagements-cp";
 import { cpListMatrixEdges, cpListMatrixNodes } from "@/lib/internal/matrix-cp";
 import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
@@ -12,9 +11,10 @@ import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strate
 type Ctx = { params: Promise<{ engagementId: string }> };
 
 /**
- * Engagement detail aggregate — one engagement with its team, log roll-up,
- * and deployment matrix (nodes + edges), backing the
- * /engagements/[engagementId] view.
+ * Engagement detail aggregate — one engagement with its team and deployment
+ * matrix (nodes + edges), backing the /engagements/[engagementId] view. The
+ * Phase 3 engagement-log was retired in increment 5.5 — the matrix supersedes
+ * it.
  */
 export async function GET(_request: NextRequest, ctx: Ctx) {
   const actor = await getActorFromHeaders();
@@ -33,9 +33,8 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
   const tid = actor.tenantId!.trim();
   try {
     const engagement = await cpGetEngagement(tid, engagementId);
-    const [members, log, matrixNodes, matrixEdges] = await Promise.all([
+    const [members, matrixNodes, matrixEdges] = await Promise.all([
       cpListEngagementMembers(tid, engagementId),
-      cpListEngagementLog(tid, engagementId),
       cpListMatrixNodes(tid, engagementId),
       cpListMatrixEdges(tid, engagementId),
     ]);
@@ -43,7 +42,6 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
       {
         engagement,
         members,
-        log,
         matrix: { nodes: matrixNodes, edges: matrixEdges },
         source: "cp",
       },
