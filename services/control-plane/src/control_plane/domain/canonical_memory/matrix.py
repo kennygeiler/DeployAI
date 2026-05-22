@@ -73,6 +73,7 @@ class MatrixNode(Base):
         TIMESTAMP(timezone=True),
         nullable=False,
         server_default=text("now()"),
+        onupdate=text("now()"),
     )
 
     __table_args__ = (
@@ -132,6 +133,7 @@ class MatrixEdge(Base):
         TIMESTAMP(timezone=True),
         nullable=False,
         server_default=text("now()"),
+        onupdate=text("now()"),
     )
 
     __table_args__ = (
