@@ -214,3 +214,104 @@ async def test_engagement_log_invalid_kind_422(e_client: AsyncClient, postgres_e
         json={"entry_kind": "rumor", "body": "not a valid kind"},
     )
     assert rl.status_code == 422
+
+
+async def _new_engagement(e_client: AsyncClient, postgres_engine: Engine) -> tuple[uuid.UUID, str]:
+    tid = uuid.uuid4()
+    _ins_tenant(postgres_engine, tid)
+    r = await e_client.post(f"/internal/v1/engagements?tenant_id={tid}", json={"name": "Matrix"})
+    return tid, r.json()["id"]
+
+
+@pytest.mark.asyncio
+async def test_matrix_node_crud(e_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+
+    created = await e_client.post(
+        f"/internal/v1/engagements/{eid}/matrix/nodes?tenant_id={tid}",
+        json={"node_type": "system", "title": "LiDAR ingest"},
+    )
+    assert created.status_code == 201, created.text
+    node = created.json()
+    assert node["node_type"] == "system"
+    assert node["attributes"] == {}
+    assert node["evidence_event_ids"] == []
+    node_id = node["id"]
+
+    got = await e_client.get(f"/internal/v1/engagements/{eid}/matrix/nodes/{node_id}?tenant_id={tid}")
+    assert got.status_code == 200
+    assert got.json()["title"] == "LiDAR ingest"
+
+    listed = await e_client.get(f"/internal/v1/engagements/{eid}/matrix/nodes?tenant_id={tid}")
+    assert listed.status_code == 200
+    assert len(listed.json()) == 1
+
+    patched = await e_client.patch(
+        f"/internal/v1/engagements/{eid}/matrix/nodes/{node_id}?tenant_id={tid}",
+        json={"title": "LiDAR ingest pipeline", "status": "at_risk", "attributes": {"owner": "DOT"}},
+    )
+    assert patched.status_code == 200, patched.text
+    assert patched.json()["title"] == "LiDAR ingest pipeline"
+    assert patched.json()["status"] == "at_risk"
+    assert patched.json()["attributes"] == {"owner": "DOT"}
+
+    deleted = await e_client.delete(f"/internal/v1/engagements/{eid}/matrix/nodes/{node_id}?tenant_id={tid}")
+    assert deleted.status_code == 204
+    missing = await e_client.get(f"/internal/v1/engagements/{eid}/matrix/nodes/{node_id}?tenant_id={tid}")
+    assert missing.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_matrix_node_invalid_type_422(e_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    r = await e_client.post(
+        f"/internal/v1/engagements/{eid}/matrix/nodes?tenant_id={tid}",
+        json={"node_type": "gremlin", "title": "not a valid type"},
+    )
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_matrix_edge_crud(e_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+
+    async def _node(node_type: str, title: str) -> str:
+        r = await e_client.post(
+            f"/internal/v1/engagements/{eid}/matrix/nodes?tenant_id={tid}",
+            json={"node_type": node_type, "title": title},
+        )
+        return str(r.json()["id"])
+
+    risk_id = await _node("risk", "Calibration slip")
+    system_id = await _node("system", "LiDAR ingest")
+
+    created = await e_client.post(
+        f"/internal/v1/engagements/{eid}/matrix/edges?tenant_id={tid}",
+        json={"edge_type": "threatens", "from_node_id": risk_id, "to_node_id": system_id},
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["edge_type"] == "threatens"
+
+    listed = await e_client.get(f"/internal/v1/engagements/{eid}/matrix/edges?tenant_id={tid}")
+    assert listed.status_code == 200
+    assert len(listed.json()) == 1
+
+    deleted = await e_client.delete(
+        f"/internal/v1/engagements/{eid}/matrix/edges/{created.json()['id']}?tenant_id={tid}"
+    )
+    assert deleted.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_matrix_edge_unknown_node_422(e_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    created = await e_client.post(
+        f"/internal/v1/engagements/{eid}/matrix/nodes?tenant_id={tid}",
+        json={"node_type": "system", "title": "only node"},
+    )
+    node_id = created.json()["id"]
+    r = await e_client.post(
+        f"/internal/v1/engagements/{eid}/matrix/edges?tenant_id={tid}",
+        json={"edge_type": "depends_on", "from_node_id": node_id, "to_node_id": str(uuid.uuid4())},
+    )
+    assert r.status_code == 422
