@@ -6,7 +6,6 @@ import { toast } from "sonner";
 
 import { MatrixCapture } from "@/components/epic9/MatrixCapture.client";
 import { Button } from "@/components/ui/button";
-import type { EngagementLogEntry } from "@/lib/bff/engagement-log-types";
 import type { Engagement, EngagementMember } from "@/lib/bff/engagement-types";
 import type { MatrixEdge, MatrixNode } from "@/lib/bff/matrix-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
@@ -27,14 +26,7 @@ const ROLE_LABEL: Record<string, string> = {
   biz_dev: "Business development",
 };
 
-const ROLE_SHORT: Record<string, string> = {
-  fde: "FDE",
-  deployment_strategist: "Strategist",
-  biz_dev: "Biz dev",
-};
-
 const MEMBER_ROLES = ["fde", "deployment_strategist", "biz_dev"] as const;
-const LOG_KINDS = ["meeting", "decision", "risk", "next_action"] as const;
 
 const MATRIX_NODE_TYPES = [
   "stakeholder",
@@ -59,21 +51,20 @@ const NODE_TYPE_LABEL: Record<string, string> = {
 type DetailResponse = {
   engagement: Engagement;
   members: EngagementMember[];
-  log: EngagementLogEntry[];
   matrix?: { nodes: MatrixNode[]; edges: MatrixEdge[] };
 };
 
 /**
- * Engagement detail — one customer deployment: its team, the deployment
- * matrix (typed nodes + edges), a cross-role activity breakdown, and the
- * role-lens-filterable log.
+ * Engagement detail — one customer deployment: its team and the deployment
+ * matrix (typed nodes + edges). The Phase 3 engagement-log surfaces — Log,
+ * Cross-role view, role lens — were retired in increment 5.5 along with the
+ * `engagement_log_entries` journal; the matrix supersedes them.
  */
 export function EngagementDetail({ engagementId }: { engagementId: string }) {
   const [data, setData] = React.useState<DetailResponse | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   const [newUserId, setNewUserId] = React.useState("");
   const [newRole, setNewRole] = React.useState<string>("fde");
-  const [roleLens, setRoleLens] = React.useState<string>("all");
   const [busy, setBusy] = React.useState(false);
 
   const refresh = React.useCallback(async () => {
@@ -143,19 +134,6 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
     },
     [engagementId, refresh],
   );
-
-  const log = data?.log ?? [];
-  const lensedLog = roleLens === "all" ? log : log.filter((e) => e.author_role === roleLens);
-  const breakdown = MEMBER_ROLES.map((role) => {
-    const counts = LOG_KINDS.map(
-      (kind) => log.filter((e) => e.author_role === role && e.entry_kind === kind).length,
-    );
-    return { role, counts, total: counts.reduce((a, b) => a + b, 0) };
-  });
-  const gapRoles = breakdown.filter((b) => b.total === 0).map((b) => b.role);
-  const unattributedCount = log.filter(
-    (e) => !MEMBER_ROLES.some((r) => r === e.author_role),
-  ).length;
 
   const matrixNodes = data?.matrix?.nodes ?? [];
   const matrixEdges = data?.matrix?.edges ?? [];
@@ -323,117 +301,6 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
               </div>
             )}
             <MatrixCapture engagementId={engagementId} nodes={matrixNodes} onChanged={refresh} />
-          </section>
-
-          {log.length > 0 ? (
-            <section className="space-y-2">
-              <h2 className="text-ink-800 text-sm font-semibold">Cross-role view</h2>
-              <p className="text-ink-600 text-sm">
-                Log entries per team role — a count of who is recording what. A row of zeros is a
-                role that has not weighed in.
-              </p>
-              <div className="border-border overflow-x-auto rounded-lg border">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-paper-200/80 text-ink-700">
-                    <tr>
-                      <th className="px-3 py-2 font-medium">Role</th>
-                      {LOG_KINDS.map((k) => (
-                        <th key={k} className="px-3 py-2 font-medium capitalize">
-                          {k.replace("_", " ")}
-                        </th>
-                      ))}
-                      <th className="px-3 py-2 font-medium">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {breakdown.map((row) => (
-                      <tr key={row.role} className="border-border border-t">
-                        <td className="px-3 py-2 font-medium">{ROLE_SHORT[row.role]}</td>
-                        {row.counts.map((n, i) => (
-                          <td
-                            key={LOG_KINDS[i]}
-                            className={
-                              n === 0 ? "text-ink-400 px-3 py-2" : "text-ink-700 px-3 py-2"
-                            }
-                          >
-                            {n}
-                          </td>
-                        ))}
-                        <td className="text-ink-800 px-3 py-2 font-medium">{row.total}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {gapRoles.length > 0 ? (
-                <p className="text-ink-600 text-sm">
-                  No log activity yet from: {gapRoles.map((r) => ROLE_LABEL[r]).join(", ")}.
-                </p>
-              ) : null}
-              {unattributedCount > 0 ? (
-                <p className="text-ink-500 text-xs">
-                  Excludes {unattributedCount} {unattributedCount === 1 ? "entry" : "entries"}{" "}
-                  logged before role attribution.
-                </p>
-              ) : null}
-            </section>
-          ) : null}
-
-          <section className="space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-ink-800 text-sm font-semibold">Log</h2>
-              {log.length > 0 ? (
-                <div className="flex items-center gap-2">
-                  <label className="text-ink-600 text-xs" htmlFor="role-lens">
-                    Role lens
-                  </label>
-                  <select
-                    id="role-lens"
-                    className="border-border rounded-md border px-2 py-1 text-sm"
-                    value={roleLens}
-                    onChange={(e) => setRoleLens(e.target.value)}
-                  >
-                    <option value="all">All roles</option>
-                    {MEMBER_ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {ROLE_LABEL[r]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : null}
-            </div>
-            {log.length === 0 ? (
-              <p className="text-ink-600 text-sm">
-                No log entries yet — capture meetings, decisions, risks, and next actions from the
-                action queue.
-              </p>
-            ) : lensedLog.length === 0 ? (
-              <p className="text-ink-600 text-sm">
-                No entries from {ROLE_LABEL[roleLens] ?? roleLens} on this engagement.
-              </p>
-            ) : (
-              <ul className="border-border divide-border divide-y rounded-lg border text-sm">
-                {lensedLog.map((e) => (
-                  <li key={e.id} className="space-y-1 px-3 py-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-ink-600 font-mono text-xs uppercase">
-                        {e.entry_kind.replace("_", " ")}
-                      </span>
-                      <span className="text-ink-500 font-mono text-xs">
-                        {e.created_at.slice(0, 10)}
-                      </span>
-                    </div>
-                    <p className="text-ink-700">{e.body}</p>
-                    {e.author_role || e.author ? (
-                      <p className="text-ink-500 text-xs">
-                        — {e.author_role ? (ROLE_LABEL[e.author_role] ?? e.author_role) : e.author}
-                      </p>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
           </section>
         </>
       ) : null}
