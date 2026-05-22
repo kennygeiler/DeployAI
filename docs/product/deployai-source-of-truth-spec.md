@@ -297,7 +297,7 @@ Run it locally: `pnpm install --frozen-lockfile` then `pnpm --filter @deployai/w
 
 **Status:** Direction, not a delivery promise.
 
-**Current position — 2026-05-22.** Phases 0–4 are delivered (PRs #90–#105) — the team-tracking pivot shipped: a first-class `engagement` entity, team roles, manual capture, and the portfolio + detail surfaces. **The forward roadmap was re-scoped on 2026-05-22** (see *Direction reset* below) around the product's actual goal — a shared-memory and insight platform that maps a deployment and surfaces cross-team insight. **Phase 5 — the converged deployment-matrix model — is underway: increment 5.1 (the matrix model decision record, [`deployment-matrix-model.md`](./deployment-matrix-model.md)) is in progress.** **This section is the handoff point** — an agent or developer resuming the work starts here.
+**Current position — 2026-05-22.** Phases 0–4 are delivered (PRs #90–#105) — the team-tracking pivot shipped: a first-class `engagement` entity, team roles, manual capture, and the portfolio + detail surfaces. **The forward roadmap was re-scoped on 2026-05-22** (see *Direction reset* below) around the product's actual goal — a shared-memory and insight platform that maps a deployment and surfaces cross-team insight. **Phase 5 — the converged deployment-matrix model — is underway: increment 5.1 (the matrix model decision record, [`deployment-matrix-model.md`](./deployment-matrix-model.md)) is delivered ([PR #108](https://github.com/kennygeiler/DeployAI/pull/108)); increment 5.2 (matrix schema & control-plane API) is next.** **This section is the handoff point** — an agent or developer resuming the work starts here.
 
 **The pivot.** The archived BMAD epics ([`epics.md`](../archive/epics.md)) targeted a *single-strategist, single-deployment, agent-driven* product sold into government procurement. The direction going forward is a *team tool*: a cross-functional team (FDE, deployment strategist, biz dev) running customer deployments together and finding insight across them. This roadmap supersedes the archived epic plan for prioritization; `sprint-status.yaml` remains the record of what the old plan delivered.
 
@@ -314,7 +314,7 @@ Run it locally: `pnpm install --frozen-lockfile` then `pnpm --filter @deployai/w
 | 2 | Real identity + team roles | **Done** — increments 2.1, 2.2, 2.3 |
 | 3 | Manual capture + portfolio view | **Done** — increments 3.1, 3.2, 3.3 |
 | 4 | Shared-brain layer — collaboration, role lenses, cross-role insight | **Done** — increments 4.1, 4.2, 4.3 |
-| 5 | Converged deployment-matrix model — structured map on canonical memory | In progress — increment 5.1 |
+| 5 | Converged deployment-matrix model — structured map on canonical memory | In progress — 5.1 done, 5.2 next |
 | 6 | Ingestion harnesses — email, meeting notes, field notes, manual entry | Required — scopes after Phase 5 |
 | 7 | Insight, suggestion & learning layer — agents over the matrix | Planned — after Phase 6 |
 
@@ -412,7 +412,7 @@ Goal: replace the flat engagement *journal* with a structured *map* of a deploym
 
 | # | Increment | Status |
 | --- | --- | --- |
-| 5.1 | **Matrix model & grain decision record** — finalize the entity/relationship set, decide the canonical-memory home, resolve the tenant↔engagement grain (the deferred increment 1.3), design the extension seam. Deliverable: [`deployment-matrix-model.md`](./deployment-matrix-model.md). Design-only PR. | In progress |
+| 5.1 | **Matrix model & grain decision record** — finalize the entity/relationship set, decide the canonical-memory home, resolve the tenant↔engagement grain (the deferred increment 1.3), design the extension seam. Deliverable: [`deployment-matrix-model.md`](./deployment-matrix-model.md). Design-only PR. | Merged — [PR #108](https://github.com/kennygeiler/DeployAI/pull/108) |
 | 5.2 | **Matrix schema & control-plane API** — migrations for the matrix entity/relationship tables (canonical-memory–scoped, engagement-scoped), domain models, internal CRUD API. The `engagement_log_entries` journal is superseded — migrated into / replaced by structured entities. | Not started |
 | 5.3 | **Matrix BFF & map view** — BFF routes + a map view on the engagement detail page that renders the deployment matrix. | Not started |
 | 5.4 | **Structured capture** — manual entry writes structured matrix entities (the `EngagementCaptureForm` evolves). This is also the *manual-entry harness* that Phase 6 unifies with the automated ones. | Not started |
@@ -499,5 +499,6 @@ This document is the canonical product/architecture reference. **Operational run
 | 2026-05-21 | **Phase 4 increment 4.2** ([PR #103](https://github.com/kennygeiler/DeployAI/pull/103)) — engagement membership UI: assign / remove team members from the detail page over new BFF routes; engagement-log entries now carry server-derived author attribution. |
 | 2026-05-21 | **Phase 4 complete — increment 4.3** ([PR #105](https://github.com/kennygeiler/DeployAI/pull/105)) — log entries record the author's team role (`author_role`, migration `0019`); the detail page gains a role-lens log filter and a deterministic cross-role activity breakdown. Phase 4 (shared-brain layer) is delivered; Phase 5 (intelligence) is next to scope. |
 | 2026-05-22 | **Roadmap re-scoped — direction reset.** Phases 1–4 delivered an engagement *journal*; the forward roadmap is re-aimed at the product's goal — a structured deployment *map* on canonical memory (Phase 5), required ingestion harnesses for email / meeting notes / field notes / manual entry (Phase 6), and an agent-driven insight / suggestion / learning layer (Phase 7). §16 rewritten with Phases 5–7 + a validation track; §1 vision and the README realigned. |
+| 2026-05-22 | **Phase 5 started — increment 5.1** ([PR #108](https://github.com/kennygeiler/DeployAI/pull/108)) — the deployment-matrix model decision record ([`deployment-matrix-model.md`](./deployment-matrix-model.md)): a typed property graph (`matrix_nodes` + `matrix_edges`) on canonical memory, interactions kept as cited events, the tenant↔engagement grain fix, and the extension seam. Design-only; increment 5.2 builds the schema from it. |
 
 **Maintenance rule:** when code behavior changes, update this document and `sprint-status.yaml` in the same PR. **Handoff rule:** every piece of work updates §16 — mark increments done with their PR, and leave the "Current position" line and increment table accurate so any agent or developer can resume from this document alone. When in doubt, verify against code and record the verification date in the header table.
