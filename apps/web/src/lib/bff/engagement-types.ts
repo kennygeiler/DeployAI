@@ -13,3 +13,15 @@ export type Engagement = {
   created_at: string;
   updated_at: string;
 };
+
+/**
+ * A user's membership on an engagement, with their team role.
+ * Mirrors the control-plane `EngagementMemberRead` model.
+ */
+export type EngagementMember = {
+  id: string;
+  engagement_id: string;
+  user_id: string;
+  role: string;
+  created_at: string;
+};

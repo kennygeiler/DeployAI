@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import * as React from "react";
 
 import type { Engagement } from "@/lib/bff/engagement-types";
@@ -70,7 +71,14 @@ export function EngagementPortfolio() {
             ) : (
               engagements.map((e) => (
                 <tr key={e.id} className="border-border border-t">
-                  <td className="px-3 py-2 font-medium">{e.name}</td>
+                  <td className="px-3 py-2 font-medium">
+                    <Link
+                      href={`/engagements/${encodeURIComponent(e.id)}`}
+                      className="text-evidence-800 underline-offset-2 hover:underline"
+                    >
+                      {e.name}
+                    </Link>
+                  </td>
                   <td className="text-ink-600 px-3 py-2">{e.customer_account ?? "—"}</td>
                   <td className="px-3 py-2">{PHASE_LABEL[e.current_phase] ?? e.current_phase}</td>
                   <td className="px-3 py-2">
