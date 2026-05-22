@@ -55,3 +55,37 @@ export async function cpListEngagementMembers(
   }
   return (await r.json()) as EngagementMember[];
 }
+
+export async function cpAddEngagementMember(
+  tenantId: string,
+  engagementId: string,
+  member: { user_id: string; role: string },
+): Promise<EngagementMember> {
+  const url =
+    `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}/members` +
+    `?tenant_id=${encodeURIComponent(tenantId)}`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { ...cpHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(member),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    throw new Error(`cp engagement member add ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as EngagementMember;
+}
+
+export async function cpRemoveEngagementMember(
+  tenantId: string,
+  engagementId: string,
+  memberId: string,
+): Promise<void> {
+  const url =
+    `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}` +
+    `/members/${encodeURIComponent(memberId)}?tenant_id=${encodeURIComponent(tenantId)}`;
+  const r = await fetch(url, { method: "DELETE", headers: cpHeaders(), cache: "no-store" });
+  if (!r.ok) {
+    throw new Error(`cp engagement member remove ${r.status}: ${await r.text()}`);
+  }
+}
