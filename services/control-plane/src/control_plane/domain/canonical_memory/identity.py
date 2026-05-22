@@ -27,6 +27,8 @@ class IdentityNode(Base):
         server_default=text("deployai_uuid_v7()"),
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    # Engagement scope (Phase 5 grain fix) — nullable expand step; see migration 0021.
+    engagement_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,
@@ -58,6 +60,8 @@ class IdentityAttributeHistory(Base):
         server_default=text("deployai_uuid_v7()"),
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    # Engagement scope (Phase 5 grain fix) — nullable expand step; see migration 0021.
+    engagement_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,
@@ -94,6 +98,8 @@ class IdentitySupersession(Base):
         server_default=text("deployai_uuid_v7()"),
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    # Engagement scope (Phase 5 grain fix) — nullable expand step; see migration 0021.
+    engagement_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,

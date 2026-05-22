@@ -82,31 +82,33 @@ A `stakeholder` node does **not** re-model a person. It carries `identity_node_i
 
 ## 4. Schema sketch
 
-Illustrative — finalized in increment 5.2. New tables follow **canonical-memory conventions**, not the engagement-table conventions (see §5).
+As built in increment 5.2a (`matrix_nodes` / `matrix_edges`, migration `0020`):
 
 ```
 matrix_nodes
   id                 UUID  PK  DEFAULT deployai_uuid_v7()
-  tenant_id          UUID  NOT NULL
-  engagement_id      UUID  NOT NULL  FK engagements(id)        -- born engagement-scoped
-  created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+  tenant_id          UUID  NOT NULL  FK app_tenants(id)  ON DELETE CASCADE
+  engagement_id      UUID  NOT NULL  FK engagements(id)  ON DELETE CASCADE   -- born engagement-scoped
   node_type          TEXT  NOT NULL                            -- stakeholder | organization | system | ...
   title              TEXT  NOT NULL                            -- human label
-  identity_node_id   UUID  NULL  FK identity_nodes(id)         -- set for stakeholder nodes
+  identity_node_id   UUID  NULL  FK identity_nodes(id) ON DELETE RESTRICT    -- set for stakeholder nodes
   attributes         JSONB NOT NULL DEFAULT '{}'               -- type-specific fields
   status             TEXT  NULL                                -- type-specific lifecycle
   evidence_event_ids UUID[] NOT NULL DEFAULT '{}'              -- canonical events this node cites
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 
 matrix_edges
   id                 UUID  PK  DEFAULT deployai_uuid_v7()
-  tenant_id          UUID  NOT NULL
-  engagement_id      UUID  NOT NULL  FK engagements(id)
-  created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+  tenant_id          UUID  NOT NULL  FK app_tenants(id)  ON DELETE CASCADE
+  engagement_id      UUID  NOT NULL  FK engagements(id)  ON DELETE CASCADE
   edge_type          TEXT  NOT NULL                            -- belongs_to | depends_on | ...
-  from_node_id       UUID  NOT NULL  FK matrix_nodes(id)
-  to_node_id         UUID  NOT NULL  FK matrix_nodes(id)
+  from_node_id       UUID  NOT NULL  FK matrix_nodes(id) ON DELETE CASCADE
+  to_node_id         UUID  NOT NULL  FK matrix_nodes(id) ON DELETE CASCADE
   attributes         JSONB NOT NULL DEFAULT '{}'
   evidence_event_ids UUID[] NOT NULL DEFAULT '{}'
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 ```
 
 `matrix_nodes` and `matrix_edges` are **mutable** (support `UPDATE`) — like `identity_nodes` and `solidified_learnings`, and unlike the append-only `canonical_memory_events`. The append-only narrative lives at the *event* layer; the matrix is the current derived view.
@@ -120,15 +122,15 @@ The repo has two divergent conventions:
 - **Canonical-memory tables** (`canonical_memory_events`, identity, learnings): `deployai_uuid_v7()` IDs, **RLS policies** (`tenant_rls_<table>`, `FORCE ROW LEVEL SECURITY`) via `TenantScopedSession`.
 - **Engagement tables** (`engagements`, `engagement_members`, …, migrations 0016–0019): `gen_random_uuid()` IDs, **app-layer tenant filtering**, no RLS.
 
-**Decision: the matrix tables adopt the canonical-memory conventions** — `deployai_uuid_v7()` IDs and tenant RLS — because the matrix lives in and is queried alongside canonical memory. Engagement scoping is a finer-grained **app-layer filter within the tenant** (RLS is tenant-grained; `engagement_id` is filtered in queries), consistent with how the strategist queues already scope by engagement.
+**Decision (revised during 5.2a implementation): the matrix tables use `deployai_uuid_v7()` IDs but app-layer tenant + engagement filtering — *not* RLS.** The 5.1 draft had proposed RLS for consistency with canonical memory; building 5.2 showed that to be the wrong trade. The matrix tables are reached through the **internal-key control-plane API**, exactly like `engagements`, `engagement_members`, and the strategist queues — none of which use RLS. RLS depends on `TenantScopedSession` setting `app.current_tenant`; the entire engagement internal API uses a plain session. Adopting RLS would force `TenantScopedSession` into a code path that does not use it and make the matrix tables the lone RLS'd table behind the internal API. The `deployai_uuid_v7()` ID convention is kept — it is harmless and consistent with the substrate the matrix sits in.
 
 ### 5.1 The grain fix (absorbs deferred increment 1.3)
 
-Canonical-memory tables are **tenant-grained** — they predate the engagement entity. For the matrix to be engagement-scoped, increment 5.2 adds a **nullable `engagement_id`** (the expand step, `# expand-contract: expand`) to:
+Canonical-memory tables are **tenant-grained** — they predate the engagement entity. For the matrix to be engagement-scoped, increment 5.2a adds a **nullable `engagement_id`** (the expand step, `# expand-contract: expand`, migration `0021`) to:
 
 `canonical_memory_events`, `identity_nodes`, `identity_attribute_history`, `identity_supersessions`, `solidified_learnings`, `learning_lifecycle_states`, `tombstones`.
 
-Nullable because these tables predate engagements and have existing (fixture) rows; the `NOT NULL` flip is deferred until writers populate it (no production data today). The **new** `matrix_nodes` / `matrix_edges` tables carry `engagement_id NOT NULL` from creation. This is the long-deferred Phase 1 increment 3, done as part of the matrix model.
+The column is nullable (these tables predate engagements and carry fixture rows; the `NOT NULL` flip is deferred until writers populate it) and has **no foreign key** — uniform across all seven tables. `canonical_memory_events` is append-only: an `ON DELETE CASCADE`/`SET NULL` would mutate event rows and trip the `canonical_memory_events_append_only` trigger. No-FK matches the `tombstones.original_node_id` precedent. The **new** `matrix_nodes` / `matrix_edges` tables carry `engagement_id NOT NULL` with a real FK from creation. This is the long-deferred Phase 1 increment 3, done as part of the matrix model.
 
 ---
 
@@ -155,7 +157,7 @@ This is a *seam*, not a plugin system: 5.x does not build runtime extensibility 
 | `risk` | a `risk` matrix node |
 | `next_action` | a `commitment` matrix node |
 
-Increment 5.2 retires `engagement_log_entries` and its API; 5.4 repoints the capture form at structured nodes/events.
+`engagement_log_entries` is retired in **increment 5.4** — not before. The Phase 4 engagement detail page and capture form read the journal today; the table and its API are dropped only once 5.3 (map view) and 5.4 (structured capture) have repointed those surfaces. Increments 5.2a/5.2b leave the journal untouched and working in parallel.
 
 ---
 
@@ -164,15 +166,17 @@ Increment 5.2 retires `engagement_log_entries` and its API; 5.4 repoints the cap
 | # | Increment | Builds |
 | --- | --- | --- |
 | 5.1 | **This document.** | The model, decided. |
-| 5.2 | Matrix schema & control-plane API | Migrations (`matrix_nodes`, `matrix_edges`, `engagement_id` grain fix), domain models, internal CRUD API; retire `engagement_log_entries`. |
+| 5.2a | Matrix schema, grain fix & domain models | Migrations `0020` (`matrix_nodes`, `matrix_edges`) + `0021` (`engagement_id` grain fix), domain models. |
+| 5.2b | Matrix control-plane API | Internal CRUD API for matrix nodes & edges. |
 | 5.3 | Matrix BFF & map view | BFF routes + a map view on the engagement detail page. |
-| 5.4 | Structured capture | Manual entry writes structured nodes/events (the `EngagementCaptureForm` evolves); this becomes the Phase 6 manual-entry harness. |
+| 5.4 | Structured capture & journal retirement | Manual entry writes structured nodes/events (the `EngagementCaptureForm` evolves — the Phase 6 manual-entry harness); `engagement_log_entries` and its API are retired. |
 
 ---
 
-## 9. Open questions — carried into 5.2
+## 9. Open questions — carried into 5.2b+
 
-- **Type catalog: table or constant?** Start with a constant; promote to a `matrix_type_catalog` table if/when teams need per-tenant custom types.
+- **Type catalog: table or constant?** Start with a constant; promote to a `matrix_type_catalog` table if/when teams need per-tenant custom types. 5.2b's CRUD API validates `node_type` / `edge_type` against the catalog.
 - **`NOT NULL` flip for `engagement_id`** on canonical-memory tables — deferred (no production data), as with the strategist-queue `engagement_id`.
-- **Edge cardinality / uniqueness constraints** (e.g. one `belongs_to` per stakeholder) — left to 5.2, per edge type.
-- **RLS on the matrix tables** — adopt the `tenant_rls_*` pattern; the migration must carry the `# expand-contract:` marker since it touches canonical-memory tables (the guardrail test).
+- **Edge cardinality / uniqueness constraints** (e.g. one `belongs_to` per stakeholder) — left to 5.2b, per edge type.
+
+**Resolved during 5.2a:** RLS on the matrix tables — *not* adopted; the matrix uses app-layer tenant/engagement filtering like the other internal-API tables (see §5). The grain-fix migration carries the `# expand-contract: expand` marker (it adds columns to canonical-memory tables).

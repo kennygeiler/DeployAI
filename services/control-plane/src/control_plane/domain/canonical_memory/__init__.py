@@ -28,6 +28,7 @@ from control_plane.domain.canonical_memory.learnings import (
     LearningState,
     SolidifiedLearning,
 )
+from control_plane.domain.canonical_memory.matrix import MatrixEdge, MatrixNode
 from control_plane.domain.canonical_memory.proposals import SchemaProposal
 from control_plane.domain.canonical_memory.tombstones import Tombstone
 
@@ -39,6 +40,8 @@ __all__ = [
     "IdentitySupersession",
     "LearningLifecycleState",
     "LearningState",
+    "MatrixEdge",
+    "MatrixNode",
     "SchemaProposal",
     "SolidifiedLearning",
     "Tombstone",
