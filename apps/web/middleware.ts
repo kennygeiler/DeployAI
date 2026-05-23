@@ -9,7 +9,11 @@ import {
 import { stripInboundStrategistHeadersBeforeJwt } from "@/lib/internal/strategist-header-strip-before-jwt";
 import { ensureRequestCorrelationHeader } from "@/lib/internal/correlation-id";
 
-const isStrategistSurface = (p: string) => p === "/engagements" || p.startsWith("/engagements/");
+const isStrategistSurface = (p: string) =>
+  p === "/engagements" ||
+  p.startsWith("/engagements/") ||
+  p === "/settings" ||
+  p.startsWith("/settings/");
 
 /** BFF routes the strategist shell polls; need the same actor as pages. */
 const isStrategistApi = (p: string) => p.startsWith("/api/bff/");
@@ -130,5 +134,11 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/engagements", "/engagements/:path*", "/api/bff/:path*"],
+  matcher: [
+    "/engagements",
+    "/engagements/:path*",
+    "/settings",
+    "/settings/:path*",
+    "/api/bff/:path*",
+  ],
 };

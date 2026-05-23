@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from control_plane.agents.llm import get_llm_provider
+from control_plane.agents.llm import get_llm_provider, resolve_tenant_llm_provider
 from control_plane.agents.matrix_extractor import (
     ExistingNode,
     extract_matrix_proposals,
@@ -853,6 +853,7 @@ async def extract_engagement_proposals(
     (accepted / rejected proposals are preserved as history).
     """
     await _require_engagement(session, tenant_id, engagement_id)
+    llm = await resolve_tenant_llm_provider(session, tenant_id, llm)
     event_row = await session.execute(
         select(CanonicalMemoryEvent).where(
             CanonicalMemoryEvent.tenant_id == tenant_id,
@@ -1076,6 +1077,7 @@ async def refresh_matrix_insights(
     design record §11 for the idempotency rules.
     """
     engagement = await _require_engagement(session, tenant_id, engagement_id)
+    llm = await resolve_tenant_llm_provider(session, tenant_id, llm)
 
     nodes_q = await session.execute(select(MatrixNode).where(MatrixNode.engagement_id == engagement_id))
     nodes = list(nodes_q.scalars().all())
