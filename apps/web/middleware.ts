@@ -90,16 +90,34 @@ export async function middleware(request: NextRequest) {
   if (jwtGate?.invalidToken) {
     return new NextResponse("Unauthorized: invalid or expired access token", { status: 401 });
   }
+  // Dev-only role injection. Triggers when EITHER:
+  //   - `next dev` (process.env.NODE_ENV === "development", inlined by Next), OR
+  //   - DEPLOYAI_LOCAL_DEV_ROLE_INJECT=1 at runtime (escape hatch for the
+  //     local Docker compose stack, which runs the production build but still
+  //     wants header auto-injection so engineers can hit pages without an SSO
+  //     proxy or a browser extension).
+  // NEVER set DEPLOYAI_LOCAL_DEV_ROLE_INJECT in a hosted/pilot deploy.
+  // Override the injected role — e.g. to test as fde or biz_dev — with
+  // DEPLOYAI_DEV_STRATEGIST_ROLE.
+  const devRoleInjectEnabled =
+    process.env.NODE_ENV === "development" || process.env.DEPLOYAI_LOCAL_DEV_ROLE_INJECT === "1";
   if (
-    process.env.NODE_ENV === "development" &&
+    devRoleInjectEnabled &&
     process.env.DEPLOYAI_DISABLE_DEV_STRATEGIST !== "1" &&
     !requestHeaders.get("x-deployai-role")
   ) {
-    // Dev-only role injection. Override the injected role — e.g. to test as
-    // fde or biz_dev — with DEPLOYAI_DEV_STRATEGIST_ROLE.
     requestHeaders.set(
       "x-deployai-role",
       process.env.DEPLOYAI_DEV_STRATEGIST_ROLE?.trim() || "deployment_strategist",
+    );
+  }
+  // Tenant injection — symmetric with role injection. BFF routes call
+  // `actor.tenantId!.trim()` and 500 if tenant is missing, so we must supply
+  // one whenever we supply a role. Defaults to the seed_app.py tenant.
+  if (devRoleInjectEnabled && !requestHeaders.get("x-deployai-tenant")) {
+    requestHeaders.set(
+      "x-deployai-tenant",
+      process.env.DEPLOYAI_DEV_TENANT_ID?.trim() || "11111111-1111-1111-1111-111111111111",
     );
   }
 

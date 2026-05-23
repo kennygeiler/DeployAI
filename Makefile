@@ -18,7 +18,12 @@ ENV_FILE := $(COMPOSE_DIR)/.env
 ENV_EXAMPLE := $(COMPOSE_DIR)/.env.example
 SEED_SCRIPT := $(COMPOSE_DIR)/seed/seed.sh
 
-DC := docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE)
+# `env -u ANTHROPIC_API_KEY -u DEPLOYAI_LLM_PROVIDER` — defensive unset so an
+# empty shell value (sometimes set by login scripts / oh-my-zsh plugins)
+# cannot override the value we load from $(ENV_FILE). Compose precedence is
+# shell-env > --env-file; an empty shell var silently zeros out the secret.
+# Add new secret-bearing vars to this list when the compose file references them.
+DC := env -u ANTHROPIC_API_KEY -u DEPLOYAI_LLM_PROVIDER docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE)
 
 # Ports — sourced from .env at runtime when it exists; these defaults mirror .env.example.
 POSTGRES_PORT ?= 5432
@@ -30,7 +35,7 @@ WEB_PORT ?= 3000
 
 .DEFAULT_GOAL := help
 
-.PHONY: help dev dev-verify dev-down dev-logs compose-smoke env \
+.PHONY: help dev dev-verify dev-down dev-logs compose-smoke env seed-app \
 	lint-python-epic6-agents format-python-epic6-agents
 
 help:
@@ -41,6 +46,7 @@ help:
 	@echo "  make dev-verify     Probe every service's health endpoint"
 	@echo "  make dev-down       Tear down + remove named volumes"
 	@echo "  make dev-logs       Tail compose logs"
+	@echo "  make seed-app       Seed 1 engagement + ~20 canonical events + run extraction (requires ANTHROPIC_API_KEY in .env)"
 	@echo "  make compose-smoke  CI entry point (dev + dev-verify, 30-min ceiling)"
 	@echo "  make lint-python-epic6-agents  ruff check + ruff format --check (cartographer, oracle, master_strategist)"
 	@echo "  make format-python-epic6-agents  apply ruff format to the same (before commit)"
@@ -105,6 +111,18 @@ dev-verify: env
 dev-down:
 	@echo "make: tearing down stack + volumes"
 	$(DC) down -v --remove-orphans
+
+# Phase 6.2c — repeatable app-schema seed for manual testing.
+# Creates one realistic gov/policy engagement w/ ~20 events and triggers
+# Cartographer extraction so proposals exist on the engagement detail page.
+# Requires the stack to be up (`make dev` first) and ANTHROPIC_API_KEY in
+# infra/compose/.env for real LLM proposals (otherwise stub returns empty).
+#
+# Args: pass `SEED_APP_ARGS=--force-extract` to discard pending proposals and
+#       re-run the LLM, or `SEED_APP_ARGS=--skip-extract` to ingest only.
+seed-app: env
+	@echo "make: seeding app schema (1 engagement + ~20 events + extraction)…"
+	@python3 $(COMPOSE_DIR)/seed/seed_app.py $(SEED_APP_ARGS)
 
 dev-logs:
 	$(DC) logs -f --tail=200
