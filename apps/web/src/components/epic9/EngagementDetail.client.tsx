@@ -6,9 +6,10 @@ import { toast } from "sonner";
 
 import { InteractionImport } from "@/components/epic9/InteractionImport.client";
 import { MatrixCapture } from "@/components/epic9/MatrixCapture.client";
+import { MatrixProposals } from "@/components/epic9/MatrixProposals.client";
 import { Button } from "@/components/ui/button";
 import type { Engagement, EngagementMember } from "@/lib/bff/engagement-types";
-import type { MatrixEdge, MatrixNode } from "@/lib/bff/matrix-types";
+import type { MatrixEdge, MatrixNode, MatrixProposal } from "@/lib/bff/matrix-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 
 const PHASE_LABEL: Record<string, string> = {
@@ -52,7 +53,11 @@ const NODE_TYPE_LABEL: Record<string, string> = {
 type DetailResponse = {
   engagement: Engagement;
   members: EngagementMember[];
-  matrix?: { nodes: MatrixNode[]; edges: MatrixEdge[] };
+  matrix?: {
+    nodes: MatrixNode[];
+    edges: MatrixEdge[];
+    proposals?: MatrixProposal[];
+  };
 };
 
 /**
@@ -138,6 +143,7 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
 
   const matrixNodes = data?.matrix?.nodes ?? [];
   const matrixEdges = data?.matrix?.edges ?? [];
+  const matrixProposals = data?.matrix?.proposals ?? [];
   const nodeTitleById = new Map(matrixNodes.map((n) => [n.id, n.title] as const));
 
   return (
@@ -302,6 +308,16 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
               </div>
             )}
             <MatrixCapture engagementId={engagementId} nodes={matrixNodes} onChanged={refresh} />
+          </section>
+
+          <section className="space-y-2">
+            <h2 className="text-ink-800 text-sm font-semibold">Proposals to review</h2>
+            <MatrixProposals
+              engagementId={engagementId}
+              proposals={matrixProposals}
+              nodes={matrixNodes}
+              onChanged={refresh}
+            />
           </section>
 
           <section className="space-y-2">

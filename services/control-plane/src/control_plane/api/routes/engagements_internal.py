@@ -10,7 +10,7 @@ section 16 (Phase 1).
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
@@ -23,7 +23,7 @@ from control_plane.db import get_app_db_session
 from control_plane.domain.app_identity.models import AppTenant, AppUser
 from control_plane.domain.canonical_memory.events import CanonicalMemoryEvent
 from control_plane.domain.canonical_memory.identity import IdentityNode
-from control_plane.domain.canonical_memory.matrix import MatrixEdge, MatrixNode
+from control_plane.domain.canonical_memory.matrix import MatrixEdge, MatrixNode, MatrixProposal
 from control_plane.domain.engagement import Engagement, EngagementMember
 from control_plane.phases.machine import DEPLOYMENT_PHASES, default_phase
 
@@ -609,3 +609,213 @@ async def ingest_interaction(
     await session.commit()
     await session.refresh(row)
     return row
+
+
+# --- Matrix proposals (Phase 6, increment 6.2a — human review loop) ---
+#
+# A matrix_proposal references the canonical event it was derived from
+# (source_event_id) and carries a payload ready to insert as a matrix node
+# or edge. Accept commits it with evidence_event_ids = [source_event_id];
+# reject closes it out. The Cartographer extraction agent (6.2b) is what
+# produces proposals; this increment is the review-loop infrastructure.
+
+
+class MatrixProposalRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    engagement_id: uuid.UUID
+    source_event_id: uuid.UUID
+    proposal_kind: str
+    payload: dict[str, Any]
+    rationale: str | None
+    status: str
+    created_at: datetime
+    decided_at: datetime | None
+    decided_by: str | None
+    result_node_id: uuid.UUID | None
+    result_edge_id: uuid.UUID | None
+
+
+class MatrixProposalDecision(BaseModel):
+    """Optional metadata for accept / reject — the BFF passes the actor id."""
+
+    actor_id: str | None = Field(default=None, max_length=200)
+
+
+async def _require_proposal(session: AsyncSession, engagement_id: uuid.UUID, proposal_id: uuid.UUID) -> MatrixProposal:
+    r = await session.execute(
+        select(MatrixProposal).where(
+            MatrixProposal.engagement_id == engagement_id,
+            MatrixProposal.id == proposal_id,
+        )
+    )
+    p = r.scalar_one_or_none()
+    if p is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="matrix proposal not found")
+    return p
+
+
+@router.get(
+    "/{engagement_id}/proposals",
+    response_model=list[MatrixProposalRead],
+    dependencies=[Depends(require_internal)],
+)
+async def list_matrix_proposals(
+    engagement_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+    status_filter: Annotated[str | None, Query(alias="status")] = "pending",
+) -> list[MatrixProposal]:
+    await _require_engagement(session, tenant_id, engagement_id)
+    stmt = select(MatrixProposal).where(MatrixProposal.engagement_id == engagement_id)
+    if status_filter is not None:
+        stmt = stmt.where(MatrixProposal.status == status_filter)
+    r = await session.execute(stmt.order_by(MatrixProposal.created_at))
+    return list(r.scalars().all())
+
+
+@router.post(
+    "/{engagement_id}/proposals/{proposal_id}/accept",
+    response_model=MatrixProposalRead,
+    dependencies=[Depends(require_internal)],
+)
+async def accept_matrix_proposal(
+    engagement_id: uuid.UUID,
+    proposal_id: uuid.UUID,
+    body: MatrixProposalDecision,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+) -> MatrixProposal:
+    await _require_engagement(session, tenant_id, engagement_id)
+    proposal = await _require_proposal(session, engagement_id, proposal_id)
+    if proposal.status != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"proposal is not pending (status={proposal.status})",
+        )
+    payload = proposal.payload or {}
+    extra_evidence = payload.get("evidence_event_ids")
+    evidence_ids: list[uuid.UUID] = [proposal.source_event_id]
+    if isinstance(extra_evidence, list):
+        for raw in extra_evidence:
+            try:
+                evidence_ids.append(uuid.UUID(str(raw)))
+            except (TypeError, ValueError):
+                continue
+
+    if proposal.proposal_kind == "node":
+        node_type = payload.get("node_type") if isinstance(payload.get("node_type"), str) else ""
+        title = payload.get("title") if isinstance(payload.get("title"), str) else ""
+        if not node_type or not title or node_type not in _MATRIX_NODE_TYPES:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="proposal payload must include a valid node_type and a title",
+            )
+        identity_raw = payload.get("identity_node_id")
+        identity_node_id: uuid.UUID | None = None
+        if isinstance(identity_raw, str) and identity_raw:
+            try:
+                identity_node_id = uuid.UUID(identity_raw)
+            except ValueError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="identity_node_id is not a valid UUID",
+                ) from e
+            identity = await session.get(IdentityNode, identity_node_id)
+            if identity is None or identity.tenant_id != tenant_id:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="identity_node_id not found in tenant",
+                )
+        attributes = payload.get("attributes") if isinstance(payload.get("attributes"), dict) else {}
+        node_status = payload.get("status") if isinstance(payload.get("status"), str) else None
+        node = MatrixNode(
+            tenant_id=tenant_id,
+            engagement_id=engagement_id,
+            node_type=node_type,
+            title=title,
+            identity_node_id=identity_node_id,
+            attributes=attributes,
+            status=node_status,
+            evidence_event_ids=evidence_ids,
+        )
+        session.add(node)
+        await session.flush()
+        proposal.result_node_id = node.id
+    elif proposal.proposal_kind == "edge":
+        edge_type = payload.get("edge_type") if isinstance(payload.get("edge_type"), str) else ""
+        if not edge_type or edge_type not in _MATRIX_EDGE_TYPES:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="proposal payload must include a valid edge_type",
+            )
+        try:
+            from_node_id = uuid.UUID(str(payload.get("from_node_id")))
+            to_node_id = uuid.UUID(str(payload.get("to_node_id")))
+        except (TypeError, ValueError) as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="proposal payload must include valid from_node_id / to_node_id UUIDs",
+            ) from e
+        for label, node_id in (("from_node_id", from_node_id), ("to_node_id", to_node_id)):
+            r = await session.execute(
+                select(MatrixNode.id).where(MatrixNode.engagement_id == engagement_id, MatrixNode.id == node_id)
+            )
+            if r.scalar_one_or_none() is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=f"{label} not found in this engagement",
+                )
+        attributes = payload.get("attributes") if isinstance(payload.get("attributes"), dict) else {}
+        edge = MatrixEdge(
+            tenant_id=tenant_id,
+            engagement_id=engagement_id,
+            edge_type=edge_type,
+            from_node_id=from_node_id,
+            to_node_id=to_node_id,
+            attributes=attributes,
+            evidence_event_ids=evidence_ids,
+        )
+        session.add(edge)
+        await session.flush()
+        proposal.result_edge_id = edge.id
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"unknown proposal_kind: {proposal.proposal_kind}",
+        )
+
+    proposal.status = "accepted"
+    proposal.decided_at = datetime.now(UTC)
+    proposal.decided_by = body.actor_id
+    await session.commit()
+    await session.refresh(proposal)
+    return proposal
+
+
+@router.post(
+    "/{engagement_id}/proposals/{proposal_id}/reject",
+    response_model=MatrixProposalRead,
+    dependencies=[Depends(require_internal)],
+)
+async def reject_matrix_proposal(
+    engagement_id: uuid.UUID,
+    proposal_id: uuid.UUID,
+    body: MatrixProposalDecision,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+) -> MatrixProposal:
+    await _require_engagement(session, tenant_id, engagement_id)
+    proposal = await _require_proposal(session, engagement_id, proposal_id)
+    if proposal.status != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"proposal is not pending (status={proposal.status})",
+        )
+    proposal.status = "rejected"
+    proposal.decided_at = datetime.now(UTC)
+    proposal.decided_by = body.actor_id
+    await session.commit()
+    await session.refresh(proposal)
+    return proposal

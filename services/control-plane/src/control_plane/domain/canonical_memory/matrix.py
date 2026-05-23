@@ -142,3 +142,66 @@ class MatrixEdge(Base):
         Index("idx_matrix_edges_from_node_id", "from_node_id"),
         Index("idx_matrix_edges_to_node_id", "to_node_id"),
     )
+
+
+class MatrixProposal(Base):
+    """A proposed matrix node or edge derived from a canonical event.
+
+    Lives between the Phase 6 extraction agent (Cartographer, 6.2b) and the
+    committed matrix: accept commits it as a node/edge with
+    ``evidence_event_ids = [source_event_id]``; reject closes it out.
+    """
+
+    __tablename__ = "matrix_proposals"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("deployai_uuid_v7()"),
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("app_tenants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    engagement_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("engagements.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    source_event_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("canonical_memory_events.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    proposal_kind: Mapped[str] = mapped_column(nullable=False)  # "node" | "edge"
+    payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
+    )
+    rationale: Mapped[str | None] = mapped_column(nullable=True)
+    status: Mapped[str] = mapped_column(nullable=False, server_default=text("'pending'"))
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    decided_by: Mapped[str | None] = mapped_column(nullable=True)
+    result_node_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("matrix_nodes.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    result_edge_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("matrix_edges.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    __table_args__ = (
+        Index("idx_matrix_proposals_tenant_id", "tenant_id"),
+        Index("idx_matrix_proposals_engagement_status", "engagement_id", "status"),
+        Index("idx_matrix_proposals_source_event_id", "source_event_id"),
+    )
