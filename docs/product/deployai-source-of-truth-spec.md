@@ -297,7 +297,7 @@ Run it locally: `pnpm install --frozen-lockfile` then `pnpm --filter @deployai/w
 
 **Status:** Direction, not a delivery promise.
 
-**Current position — 2026-05-22.** Phases 0–4 are delivered (PRs #90–#105) — the team-tracking pivot. **The forward roadmap was re-scoped on 2026-05-22** (see *Direction reset* below) around the product's actual goal — a shared-memory and insight platform that maps a deployment and surfaces cross-team insight. **Phase 5 (the converged deployment-matrix model) is delivered** — increments 5.1, 5.2a, 5.2b, 5.3, 5.4, 5.5 (PRs #108–#113). The Phase 3 engagement-log journal is retired; the matrix supersedes it end to end. **Phase 6 (ingestion harnesses — email / meeting notes / field notes / manual entry)** is the next phase to scope into increments. **This section is the handoff point** — an agent or developer resuming the work starts here.
+**Current position — 2026-05-22.** Phases 0–4 are delivered (PRs #90–#105) — the team-tracking pivot. **The forward roadmap was re-scoped on 2026-05-22** (see *Direction reset* below) around the product's actual goal — a shared-memory and insight platform that maps a deployment and surfaces cross-team insight. **Phase 5 (the converged deployment-matrix model) is delivered** — increments 5.1, 5.2a, 5.2b, 5.3, 5.4, 5.5 (PRs #108–#113). The Phase 3 engagement-log journal is retired; the matrix supersedes it end to end. **Phase 6 (ingestion + agent extraction) is underway:** the user picked *collapse extraction into Phase 6*, *universal JSON one-shot import as the first harness*, and *one-shot file/paste import as the runtime*. Increment 6.1 (the ingestion pipeline + JSON one-shot import) is delivered ([PR #114](https://github.com/kennygeiler/DeployAI/pull/114)); increment 6.2 (LLM-driven extraction — the Cartographer agent reading events and proposing matrix entities) is next. **This section is the handoff point** — an agent or developer resuming the work starts here.
 
 **The pivot.** The archived BMAD epics ([`epics.md`](../archive/epics.md)) targeted a *single-strategist, single-deployment, agent-driven* product sold into government procurement. The direction going forward is a *team tool*: a cross-functional team (FDE, deployment strategist, biz dev) running customer deployments together and finding insight across them. This roadmap supersedes the archived epic plan for prioritization; `sprint-status.yaml` remains the record of what the old plan delivered.
 
@@ -315,8 +315,8 @@ Run it locally: `pnpm install --frozen-lockfile` then `pnpm --filter @deployai/w
 | 3 | Manual capture + portfolio view | **Done** — increments 3.1, 3.2, 3.3 |
 | 4 | Shared-brain layer — collaboration, role lenses, cross-role insight | **Done** — increments 4.1, 4.2, 4.3 |
 | 5 | Converged deployment-matrix model — structured map on canonical memory | **Done** — increments 5.1, 5.2a, 5.2b, 5.3, 5.4, 5.5 |
-| 6 | Ingestion harnesses — email, meeting notes, field notes, manual entry | Required — scopes after Phase 5 |
-| 7 | Insight, suggestion & learning layer — agents over the matrix | Planned — after Phase 6 |
+| 6 | Ingestion + agent extraction — interactions land as events; Cartographer proposes matrix entities | In progress — 6.1 done, 6.2 next |
+| 7 | Synthesis — Oracle / Master Strategist produce insight, suggestions, learnings, opportunities over the matrix | Planned — after Phase 6 |
 
 ### Phase 0 — Ground truth
 
@@ -423,22 +423,26 @@ Goal: replace the flat engagement *journal* with a structured *map* of a deploym
 
 **Phase 5 is complete.** The deployment matrix exists end to end on real data: a typed property graph (`matrix_nodes` + `matrix_edges`) on the canonical-memory substrate, an internal CRUD API, a map view on the engagement detail page, and structured capture. The Phase 3 journal and its derived 4.3 cross-role activity view are retired — by design; real cross-role insight returns in Phase 7 over the matrix. Phase 6 layers ingestion on top.
 
-### Phase 6 — Ingestion harnesses
+### Phase 6 — Ingestion + agent extraction
 
-Goal: feed the matrix automatically. **Required scope, not deferred** — the product's value depends on capturing what actually happens in a deployment, not on disciplined manual entry.
+Goal: feed the matrix automatically. **Required scope, not deferred** — the product's value depends on capturing what actually happens in a deployment, not on disciplined manual entry. Per the 2026-05-22 design call, **Phase 6 collapses the extraction step in** — the agent layer that reads interactions and proposes matrix entities comes online here, not in a later phase, so ingestion produces *visible* matrix growth from day one. Phase 7 stays focused on *synthesis* over the populated matrix (insight, suggestions, learnings, opportunities) — distinct from per-event extraction.
 
-A normalized **interaction-ingestion pipeline** plus a set of **harnesses** — adapters that pull interactions from where they already happen and normalize them into canonical events that resolve into matrix entities:
+**The shape.** An *interaction* (email, meeting note, field note, manual one-shot import) lands as a canonical event (`canonical_memory_events`). An **extraction agent** (Cartographer) then reads the event and produces **matrix proposals** — proposed `matrix_nodes` / `matrix_edges` that cite the event via `evidence_event_ids` (retrieval-bound, citation-enveloped, per §1 / §11). Proposals are reviewed in the UI and accepted into the matrix; nothing is silently auto-applied. Adopting teams' direct structured capture (5.4) and agent-proposed entities live side by side, both citing their sources.
 
-- **Email harness** — Gmail API / Microsoft Graph (Outlook) / a generic IMAP-style adapter.
-- **Meeting-notes harness** — ingests transcripts/summaries from existing meeting tools (Teams, Zoom, Otter, Fireflies, Granola, …) via their exports/APIs.
-- **Field-notes harness** — a quick-capture path for on-site notes.
-- **Manual-entry harness** — the Phase 5 structured capture form, as one input adapter among the rest.
+**Sequencing call (2026-05-22):** the **first harness is a universal one-shot JSON import** — paste/upload a single interaction; cheapest to ship, no OAuth, immediately useful for validation. Provider-specific harnesses (email, meeting-notes export) layer on after the extraction loop is proven. Runtime for the first harness is **one-shot import** (no polling, no webhooks).
 
-**Design rule:** DeployAI is **agnostic** and **does not re-invent existing summary products** — it consumes their output (a transcript, a summary, an email thread) and builds the cross-deployment *map* and *insight* on top. Harnesses are adapters behind one normalized interface; a new source is added without touching the matrix. Phase 6 scopes into per-harness increments once the Phase 5 model is stable.
+| # | Increment | Status |
+| --- | --- | --- |
+| 6.1 | **Ingestion pipeline + JSON one-shot import** — a CP `POST /internal/v1/engagements/{id}/ingest` endpoint that lands one interaction as a canonical event; web BFF + a minimal "Import an interaction" UI on the engagement detail page. No extraction yet — establishes the data path. | Merged — [PR #114](https://github.com/kennygeiler/DeployAI/pull/114) |
+| 6.2 | **LLM-driven extraction (Cartographer)** — when an interaction event lands, an extraction agent reads it (plus the engagement's existing matrix for context) and writes **matrix proposals** — proposed nodes/edges with `evidence_event_ids` citing the source event. Stored as proposals; not auto-applied. | Not started |
+| 6.3 | **Proposal review UI** — show extraction proposals on the engagement detail page; accept (commits to the matrix) / reject. The retrieval-bound loop visible end to end. | Not started |
+| 6.4 | **Provider harnesses** (direction) — Gmail / Microsoft Graph (email), meeting-notes exports (Teams / Otter / Fireflies / Granola). Brings OAuth + polling and/or webhook infra. Scoped once the extraction loop is proven. | Direction |
 
-### Phase 7 — Insight, suggestion & learning layer
+**Design rule (unchanged):** DeployAI is **agnostic** and **does not re-invent existing summary products** — it consumes their output (a transcript, a summary, an email thread) and builds the cross-deployment *map* and *insight* on top. Provider-specific harnesses are adapters behind one normalized `IngestInteractionCreate` shape.
 
-Goal: the three agents — **Cartographer, Oracle, Master Strategist** — operate on the populated matrix to produce **cross-team insight**, **suggestions**, **learnings**, and **opportunity detection** (where to scale or introduce new offerings). Retrieval-bound and citation-enveloped, as the architecture always intended (§1, §11) — the "magic," now standing on a real substrate rather than a fixture. Scoped when Phase 6 lands.
+### Phase 7 — Synthesis layer (insight, suggestion, learnings, opportunities)
+
+Goal: with the matrix populated by Phase 5 (manual) and Phase 6 (ingest + agent extraction), the **Oracle** and **Master Strategist** agents read the matrix + canonical memory and produce **cross-team insight**, **suggestions**, **learnings**, and **opportunity detection** (where to scale or introduce new offerings). Retrieval-bound and citation-enveloped, per §1 / §11. This is the *synthesis* layer — distinct from Phase 6 *extraction*. Scoped once 6.1–6.3 prove the agent loop.
 
 ### Validation track — parallel, ongoing
 
@@ -509,5 +513,6 @@ This document is the canonical product/architecture reference. **Operational run
 | 2026-05-22 | **Phase 5 increment 5.3** ([PR #111](https://github.com/kennygeiler/DeployAI/pull/111)) — the matrix is visible: a web CP client + the `/api/bff/engagements/:id` aggregate extended with the matrix, and a "Deployment matrix" section on the engagement detail page (nodes grouped by type, edges as relationships). Read-only — capture lands in 5.4. |
 | 2026-05-22 | **Phase 5 increment 5.4** ([PR #112](https://github.com/kennygeiler/DeployAI/pull/112)) — structured capture: a `MatrixCapture` component (typed node + edge forms) on the engagement detail page, over new POST BFF routes — the matrix is now buildable from the UI. §16's 5.4 split into 5.4 (capture) / 5.5 (journal retirement). |
 | 2026-05-22 | **Phase 5 complete — increment 5.5** ([PR #113](https://github.com/kennygeiler/DeployAI/pull/113)) — the `engagement_log_entries` journal is retired (migration `0022`); the Phase 3/4 Log + cross-role view + role lens + `EngagementCaptureForm` are removed. The matrix is now the single source of structured engagement data. Phase 6 (ingestion harnesses) is next to scope. |
+| 2026-05-22 | **Phase 6 started — increment 6.1** ([PR #114](https://github.com/kennygeiler/DeployAI/pull/114)) — universal one-shot interaction import: a CP `POST /engagements/{id}/ingest` endpoint that lands one interaction as a `canonical_memory_events` row (with idempotent `dedup_key` handling) + an `InteractionImport` form on the engagement detail page. §16 Phase 6 re-scoped to collapse extraction in (Cartographer comes online in 6.2); Phase 7 re-labelled as the synthesis layer. |
 
 **Maintenance rule:** when code behavior changes, update this document and `sprint-status.yaml` in the same PR. **Handoff rule:** every piece of work updates §16 — mark increments done with their PR, and leave the "Current position" line and increment table accurate so any agent or developer can resume from this document alone. When in doubt, verify against code and record the verification date in the header table.

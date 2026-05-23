@@ -274,3 +274,56 @@ async def test_matrix_edge_unknown_node_422(e_client: AsyncClient, postgres_engi
         json={"edge_type": "depends_on", "from_node_id": node_id, "to_node_id": str(uuid.uuid4())},
     )
     assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_ingest_interaction_creates_canonical_event(e_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    r = await e_client.post(
+        f"/internal/v1/engagements/{eid}/ingest?tenant_id={tid}",
+        json={
+            "source": "manual_import",
+            "occurred_at": "2026-05-09T15:00:00+00:00",
+            "content": {"text": "Calibration walkthrough — risk: drift on north corridor."},
+            "source_ref": "https://example/notes/42",
+        },
+    )
+    assert r.status_code == 201, r.text
+    event = r.json()
+    assert event["event_type"] == "ingest.manual_import"
+    assert event["engagement_id"] == eid
+    assert event["source_ref"] == "https://example/notes/42"
+    assert event["payload"]["content"]["text"].startswith("Calibration walkthrough")
+
+
+@pytest.mark.asyncio
+async def test_ingest_dedup_key_is_idempotent(e_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    body = {
+        "source": "meeting_note",
+        "occurred_at": "2026-05-09T15:00:00+00:00",
+        "content": {"text": "first"},
+        "dedup_key": "otter:meeting:abc123:v1",
+    }
+    first = await e_client.post(f"/internal/v1/engagements/{eid}/ingest?tenant_id={tid}", json=body)
+    assert first.status_code == 201
+    # Re-post with the same dedup_key (content varied to prove the first wins).
+    body["content"] = {"text": "second — should be ignored"}
+    second = await e_client.post(f"/internal/v1/engagements/{eid}/ingest?tenant_id={tid}", json=body)
+    assert second.status_code == 201
+    assert second.json()["id"] == first.json()["id"]
+    assert second.json()["payload"]["content"]["text"] == "first"
+
+
+@pytest.mark.asyncio
+async def test_ingest_unknown_source_422(e_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    r = await e_client.post(
+        f"/internal/v1/engagements/{eid}/ingest?tenant_id={tid}",
+        json={
+            "source": "smoke_signal",
+            "occurred_at": "2026-05-09T15:00:00+00:00",
+            "content": {"text": "nope"},
+        },
+    )
+    assert r.status_code == 422
