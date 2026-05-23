@@ -48,3 +48,29 @@ export type MatrixProposal = {
   result_node_id: string | null;
   result_edge_id: string | null;
 };
+
+/**
+ * Phase 7 (increment 7.2) — observations produced by Oracle (per-engagement)
+ * or Master Strategist (cross-engagement; `engagement_id` is null). Cites
+ * the matrix nodes / edges / events the insight is about. Mutating the
+ * matrix is not part of accepting an insight — they are observations, not
+ * graph edits. See `docs/product/synthesis-agents.md`.
+ */
+export type MatrixInsight = {
+  id: string;
+  tenant_id: string;
+  engagement_id: string | null;
+  agent: string;
+  insight_type: string;
+  severity: "low" | "medium" | "high";
+  title: string;
+  body: string;
+  citation_node_ids: string[];
+  citation_edge_ids: string[];
+  citation_event_ids: string[];
+  dedup_key: string;
+  status: "open" | "dismissed" | "resolved";
+  created_at: string;
+  decided_at: string | null;
+  decided_by: string | null;
+};

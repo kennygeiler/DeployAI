@@ -232,3 +232,88 @@ class MatrixProposal(Base):
         Index("idx_matrix_proposals_engagement_status", "engagement_id", "status"),
         Index("idx_matrix_proposals_source_event_id", "source_event_id"),
     )
+
+
+# --- Phase 7 (increment 7.2): matrix insights -------------------------------
+#
+# Insights are observations produced by Oracle (per-engagement) and Master
+# Strategist (cross-engagement). Unlike proposals, accepting an insight does
+# not mutate the matrix — they are observations, not graph edits. Status moves
+# open → dismissed | resolved (user action) or → resolved (auto, when the
+# predicate that produced the insight no longer fires).
+
+INSIGHT_AGENTS: tuple[str, ...] = ("oracle", "master_strategist")
+INSIGHT_SEVERITIES: tuple[str, ...] = ("low", "medium", "high")
+INSIGHT_STATUSES: tuple[str, ...] = ("open", "dismissed", "resolved")
+
+
+class MatrixInsight(Base):
+    """An observation derived from the matrix by a synthesis agent.
+
+    ``engagement_id`` is nullable — null = tenant-scoped insight (Master
+    Strategist). ``dedup_key`` is UNIQUE; refresh upserts in place.
+    """
+
+    __tablename__ = "matrix_insights"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("deployai_uuid_v7()"),
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("app_tenants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    engagement_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("engagements.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    agent: Mapped[str] = mapped_column(nullable=False)
+    insight_type: Mapped[str] = mapped_column(nullable=False)
+    severity: Mapped[str] = mapped_column(nullable=False)
+    title: Mapped[str] = mapped_column(nullable=False)
+    body: Mapped[str] = mapped_column(nullable=False)
+    citation_node_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(UUID(as_uuid=True)),
+        nullable=False,
+        server_default=text("'{}'::uuid[]"),
+    )
+    citation_edge_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(UUID(as_uuid=True)),
+        nullable=False,
+        server_default=text("'{}'::uuid[]"),
+    )
+    citation_event_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(UUID(as_uuid=True)),
+        nullable=False,
+        server_default=text("'{}'::uuid[]"),
+    )
+    dedup_key: Mapped[str] = mapped_column(nullable=False)
+    status: Mapped[str] = mapped_column(nullable=False, server_default=text("'open'"))
+    input_hash: Mapped[str | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    decided_by: Mapped[str | None] = mapped_column(nullable=True)
+
+    __table_args__ = (
+        Index(
+            "idx_matrix_insights_engagement_status",
+            "tenant_id",
+            "engagement_id",
+            "status",
+        ),
+        Index(
+            "idx_matrix_insights_tenant_agent_status",
+            "tenant_id",
+            "agent",
+            "status",
+        ),
+        Index("uq_matrix_insights_dedup_key", "dedup_key", unique=True),
+    )
