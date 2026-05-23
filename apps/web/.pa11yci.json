@@ -13,11 +13,11 @@
     },
     "ignore": []
   },
-  "_urls_comment": "`/` redirects to `/engagements` (a strategist surface) per the 2026-05-23 MVP cleanup. The strategist middleware gates that surface on `x-deployai-role`, so pa11y must send the header for the audit to land on the rendered page instead of the 403 plain-text response (which has no `<html lang>` / `<title>`). Tenant header matches the seed default and is supplied alongside since BFF actor loads need it once we move past redirect.",
+  "_urls_comment": "Target the MVP surface directly. `/` redirects to `/engagements` per the 2026-05-23 cleanup; we audit `/engagements` itself instead of following the 307 because puppeteer's extra-HTTP-headers don't reliably stick across redirects, and the strategist middleware gates `/engagements` on `x-deployai-role` — without it, the page is a bare 403 plain-text response with no `<html lang>` / `<title>`. Tenant header matches the seed default in case any BFF actor-load fires during render.",
   "urls": [
     {
-      "url": "http://127.0.0.1:3000/",
-      "screenCapture": "pa11y-screenshots/homepage.png",
+      "url": "http://127.0.0.1:3000/engagements",
+      "screenCapture": "pa11y-screenshots/engagements.png",
       "headers": {
         "x-deployai-role": "deployment_strategist",
         "x-deployai-tenant": "11111111-1111-1111-1111-111111111111"
