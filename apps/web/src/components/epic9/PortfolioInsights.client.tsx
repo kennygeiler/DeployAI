@@ -40,7 +40,13 @@ export function PortfolioInsights() {
   React.useEffect(() => {
     let cancelled = false;
     void (async () => {
-      await fetchList();
+      try {
+        await fetchList();
+      } catch (e) {
+        if (!cancelled) {
+          setErr(e instanceof Error ? e.message : "Could not load portfolio insights.");
+        }
+      }
       if (!cancelled) {
         setLoading(false);
       }

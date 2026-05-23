@@ -36,7 +36,11 @@ export function EngagementPortfolio() {
   }, []);
 
   React.useEffect(() => {
-    const t = window.setTimeout(() => void refresh(), 0);
+    const t = window.setTimeout(() => {
+      refresh().catch((e) => {
+        setErr(e instanceof Error ? e.message : "Could not load engagements.");
+      });
+    }, 0);
     return () => window.clearTimeout(t);
   }, [refresh]);
 

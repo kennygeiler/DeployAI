@@ -38,7 +38,16 @@ export function EngagementInsights({ engagementId }: { engagementId: string }) {
   React.useEffect(() => {
     let cancelled = false;
     void (async () => {
-      await fetchList();
+      try {
+        await fetchList();
+      } catch (e) {
+        // Surface as an in-card error rather than an unhandled rejection.
+        // Real BFF errors hit the !r.ok branch above; this catches lower-level
+        // failures (network, AbortError on unmount, test-env fetch teardown).
+        if (!cancelled) {
+          setErr(e instanceof Error ? e.message : "Could not load insights.");
+        }
+      }
       if (!cancelled) {
         setLoading(false);
       }

@@ -56,7 +56,13 @@ export function LlmConfigForm() {
   React.useEffect(() => {
     let cancelled = false;
     void (async () => {
-      await load();
+      try {
+        await load();
+      } catch (e) {
+        if (!cancelled) {
+          setErr(e instanceof Error ? e.message : "Could not load LLM config.");
+        }
+      }
       if (!cancelled) {
         setLoading(false);
       }
