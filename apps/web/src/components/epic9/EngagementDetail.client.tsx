@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { EngagementInsights } from "@/components/epic9/EngagementInsights.client";
 import { InteractionImport } from "@/components/epic9/InteractionImport.client";
 import { MatrixCapture } from "@/components/epic9/MatrixCapture.client";
+import { MatrixGraph } from "@/components/epic9/MatrixGraph.client";
 import { MatrixProposals } from "@/components/epic9/MatrixProposals.client";
 import { Button } from "@/components/ui/button";
 import type { Engagement, EngagementMember } from "@/lib/bff/engagement-types";
@@ -153,6 +154,9 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
   const matrixEdges = data?.matrix?.edges ?? [];
   const matrixProposals = data?.matrix?.proposals ?? [];
   const nodeTitleById = new Map(matrixNodes.map((n) => [n.id, n.title] as const));
+  // Sprint 2 inc 1 — view toggle. Defaults to table (the old surface) so
+  // returning users see the familiar shape; graph is one click away.
+  const [matrixView, setMatrixView] = React.useState<"table" | "graph">("table");
 
   return (
     <div className="max-w-5xl space-y-5">
@@ -273,8 +277,34 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
           <EngagementInsights engagementId={engagementId} />
 
           <section className="space-y-2">
-            <h2 className="text-ink-800 text-sm font-semibold">Deployment matrix</h2>
-            {matrixNodes.length === 0 ? (
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-ink-800 text-sm font-semibold">Deployment matrix</h2>
+              <div className="inline-flex gap-1" role="group" aria-label="Matrix view mode">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={matrixView === "table" ? "default" : "outline"}
+                  aria-pressed={matrixView === "table"}
+                  onClick={() => setMatrixView("table")}
+                  className="h-7 px-3 text-xs"
+                >
+                  Table
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={matrixView === "graph" ? "default" : "outline"}
+                  aria-pressed={matrixView === "graph"}
+                  onClick={() => setMatrixView("graph")}
+                  className="h-7 px-3 text-xs"
+                >
+                  Graph
+                </Button>
+              </div>
+            </div>
+            {matrixView === "graph" ? (
+              <MatrixGraph nodes={matrixNodes} edges={matrixEdges} />
+            ) : matrixNodes.length === 0 ? (
               <p className="text-ink-600 text-sm">
                 No matrix entities yet — add the first one below, or let ingestion (Phase 6)
                 populate the map.
