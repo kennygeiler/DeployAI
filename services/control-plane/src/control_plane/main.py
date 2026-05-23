@@ -22,6 +22,7 @@ from control_plane.api.routes.auth_saml import router as auth_saml_router
 from control_plane.api.routes.break_glass import router as break_glass_router
 from control_plane.api.routes.engagements_internal import router as engagements_internal_router
 from control_plane.api.routes.event_search import router as event_search_router
+from control_plane.api.routes.extract_preview import router as extract_preview_router
 from control_plane.api.routes.ingestion_runs import router as ingestion_runs_internal_router
 from control_plane.api.routes.integrations import router as integrations_router
 from control_plane.api.routes.integrations_google_gmail import (
@@ -102,6 +103,7 @@ app.include_router(strategist_integration_records_internal_router, prefix="/inte
 app.include_router(strategist_queues_internal_router, prefix="/internal/v1")
 app.include_router(engagements_internal_router, prefix="/internal/v1")
 app.include_router(event_search_router, prefix="/internal/v1")
+app.include_router(extract_preview_router, prefix="/internal/v1")
 app.include_router(tenants_internal_router, prefix="/internal/v1")
 app.include_router(scim_users_router, prefix="/scim/v2")
 
