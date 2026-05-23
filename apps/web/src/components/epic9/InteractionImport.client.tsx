@@ -5,6 +5,8 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
+import { parseEmail } from "@/lib/parsers/email";
+import { parseMeetingNotes } from "@/lib/parsers/meeting-notes";
 
 const SOURCES = ["manual_import", "meeting_note", "email", "field_note"] as const;
 
@@ -42,19 +44,39 @@ export function InteractionImport({
     setBusy(true);
     try {
       let content: Record<string, unknown>;
-      try {
-        const value: unknown = JSON.parse(raw);
-        content =
-          typeof value === "object" && value !== null && !Array.isArray(value)
-            ? (value as Record<string, unknown>)
-            : { text: raw };
-      } catch {
-        content = { text: raw };
+      let occurredAt: string | undefined;
+      // Phase 6.3.1 / 6.3.2 — parse the paste based on the declared source.
+      // The parsers always preserve the body as `text` (what Cartographer
+      // reads); structured fields like subject / participants / occurred_at
+      // come along for the ride when the source matches a known format.
+      if (source === "email") {
+        const { parsed } = parseEmail(raw);
+        content = { ...parsed };
+        occurredAt = parsed.occurred_at;
+      } else if (source === "meeting_note") {
+        const parsed = parseMeetingNotes(raw);
+        content = { ...parsed };
+        occurredAt = parsed.occurred_at;
+      } else {
+        // JSON-or-plaintext fallback (manual_import / field_note).
+        try {
+          const value: unknown = JSON.parse(raw);
+          content =
+            typeof value === "object" && value !== null && !Array.isArray(value)
+              ? (value as Record<string, unknown>)
+              : { text: raw };
+        } catch {
+          content = { text: raw };
+        }
+      }
+      const payload: Record<string, unknown> = { source, content };
+      if (occurredAt) {
+        payload.occurred_at = occurredAt;
       }
       const r = await fetch(`/api/bff/engagements/${encodeURIComponent(engagementId)}/ingest`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ source, content }),
+        body: JSON.stringify(payload),
       });
       if (!r.ok) {
         toast.error("Could not import interaction", {
@@ -76,8 +98,10 @@ export function InteractionImport({
     <div className="border-border space-y-2 rounded-lg border p-3">
       <h3 className="text-ink-800 text-xs font-semibold">Import an interaction</h3>
       <p className="text-ink-500 text-xs">
-        Paste raw text or a JSON object. The matrix-extraction agent (Phase 6.2) will read it and
-        propose matrix entities citing this event.
+        Paste raw text, a forwarded email, a meeting transcript, or a JSON object. When you pick{" "}
+        <em>Email</em> or <em>Meeting note</em> the headers / speakers / date get parsed out and
+        attached to the event. The matrix-extraction agent (Phase 6.2c) reads it and proposes matrix
+        entities citing this event.
       </p>
       <div className="flex flex-wrap items-end gap-2">
         <div className="grid gap-1">
