@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncIterator, Iterator
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from llm_provider_py.types import CapabilityMatrix, ChatMessage
+from llm_provider_py.util import DEFAULT_CAPS, pseudo_embed
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from control_plane.agents.llm import get_llm_provider
 from control_plane.db import clear_engine_cache
 from control_plane.main import app
 
@@ -465,3 +469,152 @@ async def test_matrix_proposal_list_filters_by_status(e_client: AsyncClient, pos
     assert len(pending.json()) == 1
     accepted = await e_client.get(f"/internal/v1/engagements/{eid}/proposals?tenant_id={tid}&status=accepted")
     assert len(accepted.json()) == 1
+
+
+# --- Phase 6.2c — /extract integration -------------------------------------
+
+
+class _FakeLLM:
+    """Stub LLM that returns a fixed string; counts call invocations."""
+
+    id = "fake"
+
+    def __init__(self, response: str = "[]") -> None:
+        self.response = response
+        self.calls = 0
+
+    def chat_complete(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float | None = None,
+        max_output_tokens: int | None = None,
+    ) -> str:
+        _ = messages, temperature, max_output_tokens
+        self.calls += 1
+        return self.response
+
+    async def chat_stream(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float | None = None,
+        max_output_tokens: int | None = None,
+    ) -> AsyncIterator[str]:
+        _ = messages, temperature, max_output_tokens
+        for chunk in (self.chat_complete(messages),):
+            yield chunk
+
+    def embed(self, text: str) -> list[float]:
+        return pseudo_embed(text, 16)
+
+    def capabilities(self) -> CapabilityMatrix:
+        return {**DEFAULT_CAPS}
+
+
+@pytest.fixture
+def fake_llm() -> Iterator[_FakeLLM]:
+    fake = _FakeLLM("[]")
+    app.dependency_overrides[get_llm_provider] = lambda: fake
+    try:
+        yield fake
+    finally:
+        app.dependency_overrides.pop(get_llm_provider, None)
+
+
+async def _ingest(e_client: AsyncClient, tid: uuid.UUID, eid: str, text_content: str) -> str:
+    r = await e_client.post(
+        f"/internal/v1/engagements/{eid}/ingest?tenant_id={tid}",
+        json={
+            "source": "meeting_note",
+            "occurred_at": "2026-05-09T15:00:00+00:00",
+            "content": {"text": text_content},
+        },
+    )
+    assert r.status_code == 201, r.text
+    return str(r.json()["id"])
+
+
+@pytest.mark.asyncio
+async def test_extract_creates_proposals_from_event(
+    e_client: AsyncClient, postgres_engine: Engine, fake_llm: _FakeLLM
+) -> None:
+    import json as _json
+
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    event_id = await _ingest(e_client, tid, eid, "Decided phased rollout for week 3.")
+
+    fake_llm.response = _json.dumps(
+        [
+            {
+                "kind": "node",
+                "node_type": "decision",
+                "title": "Phased rollout",
+                "rationale": "Team agreed on phasing.",
+            }
+        ]
+    )
+    r = await e_client.post(f"/internal/v1/engagements/{eid}/extract?tenant_id={tid}&event_id={event_id}")
+    assert r.status_code == 201, r.text
+    proposals = r.json()
+    assert len(proposals) == 1
+    p = proposals[0]
+    assert p["proposal_kind"] == "node"
+    assert p["status"] == "pending"
+    assert p["source_event_id"] == event_id
+    assert p["payload"]["title"] == "Phased rollout"
+
+
+@pytest.mark.asyncio
+async def test_extract_is_idempotent_without_force(
+    e_client: AsyncClient, postgres_engine: Engine, fake_llm: _FakeLLM
+) -> None:
+    import json as _json
+
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    event_id = await _ingest(e_client, tid, eid, "Calibration risk on north corridor.")
+
+    fake_llm.response = _json.dumps([{"kind": "node", "node_type": "risk", "title": "Calibration drift"}])
+    first = await e_client.post(f"/internal/v1/engagements/{eid}/extract?tenant_id={tid}&event_id={event_id}")
+    assert first.status_code == 201
+    first_ids = [p["id"] for p in first.json()]
+    calls_after_first = fake_llm.calls
+
+    # Re-run without force: LLM should NOT be called; existing proposals returned.
+    second = await e_client.post(f"/internal/v1/engagements/{eid}/extract?tenant_id={tid}&event_id={event_id}")
+    assert second.status_code == 201
+    second_ids = [p["id"] for p in second.json()]
+    assert sorted(second_ids) == sorted(first_ids)
+    assert fake_llm.calls == calls_after_first
+
+
+@pytest.mark.asyncio
+async def test_extract_force_drops_pending_and_reruns(
+    e_client: AsyncClient, postgres_engine: Engine, fake_llm: _FakeLLM
+) -> None:
+    import json as _json
+
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    event_id = await _ingest(e_client, tid, eid, "Initial note.")
+
+    fake_llm.response = _json.dumps([{"kind": "node", "node_type": "risk", "title": "Old draft"}])
+    first = await e_client.post(f"/internal/v1/engagements/{eid}/extract?tenant_id={tid}&event_id={event_id}")
+    first_ids = {p["id"] for p in first.json()}
+
+    fake_llm.response = _json.dumps([{"kind": "node", "node_type": "decision", "title": "Fresh draft"}])
+    forced = await e_client.post(
+        f"/internal/v1/engagements/{eid}/extract?tenant_id={tid}&event_id={event_id}&force=true"
+    )
+    assert forced.status_code == 201
+    forced_ids = {p["id"] for p in forced.json()}
+    # Old pending proposal id is gone, new pending id is fresh.
+    assert forced_ids.isdisjoint(first_ids)
+    titles = [p["payload"]["title"] for p in forced.json()]
+    assert titles == ["Fresh draft"]
+
+
+@pytest.mark.asyncio
+async def test_extract_unknown_event_404(e_client: AsyncClient, postgres_engine: Engine, fake_llm: _FakeLLM) -> None:
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    r = await e_client.post(f"/internal/v1/engagements/{eid}/extract?tenant_id={tid}&event_id={uuid.uuid4()}")
+    assert r.status_code == 404

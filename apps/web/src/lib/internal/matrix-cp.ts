@@ -157,3 +157,32 @@ export function cpRejectMatrixProposal(
 ): Promise<MatrixProposal> {
   return cpDecideMatrixProposal(tenantId, engagementId, proposalId, "reject", body);
 }
+
+/**
+ * Run the Phase 6.2c Cartographer extractor on one canonical event. Returns
+ * the proposals it produced (or the existing ones, since the endpoint is
+ * idempotent by event id unless `force=true`).
+ */
+export async function cpExtractMatrixProposals(
+  tenantId: string,
+  engagementId: string,
+  eventId: string,
+  opts: { force?: boolean } = {},
+): Promise<MatrixProposal[]> {
+  const params = new URLSearchParams({ tenant_id: tenantId, event_id: eventId });
+  if (opts.force) {
+    params.set("force", "true");
+  }
+  const url =
+    `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}/extract?` +
+    params.toString();
+  const r = await fetch(url, {
+    method: "POST",
+    headers: cpHeaders(),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    throw new Error(`cp matrix extract ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as MatrixProposal[];
+}
