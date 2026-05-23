@@ -8,8 +8,22 @@ import { AXE_WCAG_TAGS } from "../../src/lib/a11y-config";
  * keyboard-smoke checks on `/`. The WCAG tag list is imported from the
  * shared a11y-config module so this spec, Storybook's test-runner, and
  * @axe-core/react all agree on "which WCAG floors we're gating on".
+ *
+ * Post-2026-05-23 cleanup: `/` is a server-side redirect to
+ * `/engagements` (a strategist surface gated on `x-deployai-role`).
+ * Inject the dev role + tenant headers via `test.use` so the audited
+ * page is the rendered portfolio, not the bare 403 response. The
+ * "missing header → 403" coverage lives in
+ * `strategist-command-palette.spec.ts` and stays unaffected because
+ * this describe-scoped header override doesn't leak into other specs.
  */
 test.describe("homepage a11y baseline", () => {
+  test.use({
+    extraHTTPHeaders: {
+      "x-deployai-role": "deployment_strategist",
+      "x-deployai-tenant": "11111111-1111-1111-1111-111111111111",
+    },
+  });
   test("returns 200 and renders a <main> landmark", async ({ page }) => {
     const response = await page.goto("/");
     expect(response?.status(), "homepage returns 200").toBe(200);
