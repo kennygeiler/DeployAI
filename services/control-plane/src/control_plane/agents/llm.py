@@ -63,9 +63,7 @@ async def resolve_tenant_llm_provider(
     already the fake provider, so the override still wins in tests that
     do not seed a ``tenant_llm_configs`` row.
     """
-    r = await session.execute(
-        select(TenantLlmConfig).where(TenantLlmConfig.tenant_id == tenant_id)
-    )
+    r = await session.execute(select(TenantLlmConfig).where(TenantLlmConfig.tenant_id == tenant_id))
     cfg = r.scalar_one_or_none()
     if cfg is None:
         return env_fallback
@@ -76,9 +74,7 @@ def _from_db_config(cfg: TenantLlmConfig) -> LLMProvider:
     if cfg.provider == "anthropic":
         return _anthropic(api_key=cfg.api_key, model=cfg.model_name)
     if cfg.provider == "openai":
-        _log.warning(
-            "tenant_llm_configs.provider=openai but no OpenAIProvider impl yet — using stub."
-        )
+        _log.warning("tenant_llm_configs.provider=openai but no OpenAIProvider impl yet — using stub.")
         return _stub()
     # provider == "stub" → explicit stub selection
     return _stub()
@@ -92,9 +88,7 @@ def _from_env() -> LLMProvider:
         return _anthropic()
     if os.getenv("ANTHROPIC_API_KEY"):
         return _anthropic()
-    _log.info(
-        "get_llm_provider: no DEPLOYAI_LLM_PROVIDER / ANTHROPIC_API_KEY — using stub provider."
-    )
+    _log.info("get_llm_provider: no DEPLOYAI_LLM_PROVIDER / ANTHROPIC_API_KEY — using stub provider.")
     return _stub()
 
 

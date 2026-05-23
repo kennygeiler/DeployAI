@@ -344,9 +344,7 @@ async def test_get_llm_config_returns_null_when_unset(t_client: AsyncClient, pos
 
 
 @pytest.mark.asyncio
-async def test_put_llm_config_creates_then_get_masks_key(
-    t_client: AsyncClient, postgres_engine: Engine
-) -> None:
+async def test_put_llm_config_creates_then_get_masks_key(t_client: AsyncClient, postgres_engine: Engine) -> None:
     tid = _seed_tenant(postgres_engine)
     body = {"provider": "anthropic", "model_name": "claude-opus-4-5", "api_key": "sk-ant-abcdefghijklmnop"}
     r = await t_client.put(f"/internal/v1/tenants/{tid}/llm-config", json=body)
@@ -364,9 +362,7 @@ async def test_put_llm_config_creates_then_get_masks_key(
 
 
 @pytest.mark.asyncio
-async def test_put_llm_config_preserves_key_when_omitted(
-    t_client: AsyncClient, postgres_engine: Engine
-) -> None:
+async def test_put_llm_config_preserves_key_when_omitted(t_client: AsyncClient, postgres_engine: Engine) -> None:
     tid = _seed_tenant(postgres_engine)
     await t_client.put(
         f"/internal/v1/tenants/{tid}/llm-config",
