@@ -99,10 +99,10 @@ dev-verify: env
 	curl -fsS "http://localhost:$(FREETSA_STUB_PORT)/health" | grep -q '"status":"ok"'; \
 	echo "  control-plane → /health"; \
 	curl -fsS "http://localhost:$(CONTROL_PLANE_PORT)/health" | grep -q '"status":"ok"'; \
-	echo "  web → GET /"; \
-	curl -fsS "http://localhost:$(WEB_PORT)/" | grep -qi '<html'; \
-	echo "  web → GET /admin/runs (v1 dev header)"; \
-	curl -fsS -H "x-deployai-role: platform_admin" "http://localhost:$(WEB_PORT)/admin/runs" | grep -q 'Admin'; \
+	echo "  web → GET / (expect 307 → /engagements)"; \
+	curl -fsS -o /dev/null -w '%{http_code}\n' "http://localhost:$(WEB_PORT)/" | grep -q '^307$$'; \
+	echo "  web → GET /engagements (deployment_strategist header)"; \
+	curl -fsS -H "x-deployai-role: deployment_strategist" -H "x-deployai-tenant: 11111111-1111-1111-1111-111111111111" "http://localhost:$(WEB_PORT)/engagements" | grep -qi '<html'; \
 	echo "  seed → fixtures.canonical_events row count ≥ 20"; \
 	count=$$($(DC) exec -T postgres psql -U $${POSTGRES_USER:-deployai} -d $${POSTGRES_DB:-deployai} -tAc "SELECT COUNT(*) FROM fixtures.canonical_events" | tr -d '[:space:]'); \
 	if [ "$$count" -lt 20 ]; then echo "make: seed check failed (events=$$count)" >&2; exit 1; fi; \
