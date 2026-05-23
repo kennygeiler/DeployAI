@@ -4,6 +4,7 @@ import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { InteractionImport } from "@/components/epic9/InteractionImport.client";
 import { MatrixCapture } from "@/components/epic9/MatrixCapture.client";
 import { Button } from "@/components/ui/button";
 import type { Engagement, EngagementMember } from "@/lib/bff/engagement-types";
@@ -301,6 +302,16 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
               </div>
             )}
             <MatrixCapture engagementId={engagementId} nodes={matrixNodes} onChanged={refresh} />
+          </section>
+
+          <section className="space-y-2">
+            <h2 className="text-ink-800 text-sm font-semibold">Interactions</h2>
+            <p className="text-ink-600 text-sm">
+              Drop an email, a meeting summary, a field note — or anything else that happened on
+              this deployment. Each import is captured as a canonical event; the matrix grows from
+              it in Phase 6.2 (extraction).
+            </p>
+            <InteractionImport engagementId={engagementId} onChanged={refresh} />
           </section>
         </>
       ) : null}

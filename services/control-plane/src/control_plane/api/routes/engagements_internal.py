@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from control_plane.config.internal_api import verify_internal_key
 from control_plane.db import get_app_db_session
 from control_plane.domain.app_identity.models import AppTenant, AppUser
+from control_plane.domain.canonical_memory.events import CanonicalMemoryEvent
 from control_plane.domain.canonical_memory.identity import IdentityNode
 from control_plane.domain.canonical_memory.matrix import MatrixEdge, MatrixNode
 from control_plane.domain.engagement import Engagement, EngagementMember
@@ -530,3 +531,81 @@ async def delete_matrix_edge(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="matrix edge not found")
     await session.delete(edge)
     await session.commit()
+
+
+# --- Ingestion (Phase 6, increment 6.1 — universal one-shot import) ---
+#
+# An interaction (email / meeting note / field note / manual import) lands
+# as one canonical_memory_events row, engagement-scoped. Phase 6.2 layers an
+# extraction agent on top that proposes matrix entities citing the event;
+# this increment just establishes the data path. dedup_key is honoured
+# idempotently — re-ingesting the same key returns the existing event.
+
+_INGEST_SOURCES: tuple[str, ...] = ("manual_import", "meeting_note", "email", "field_note")
+
+
+class IngestInteractionCreate(BaseModel):
+    source: str
+    occurred_at: datetime
+    content: dict[str, Any]
+    source_ref: str | None = Field(default=None, max_length=500)
+    dedup_key: str | None = Field(default=None, max_length=500)
+
+
+class IngestedEventRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    engagement_id: uuid.UUID | None
+    event_type: str
+    occurred_at: datetime
+    source_ref: str | None
+    ingestion_dedup_key: str | None
+    payload: dict[str, Any]
+    created_at: datetime
+
+
+@router.post(
+    "/{engagement_id}/ingest",
+    response_model=IngestedEventRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_internal)],
+)
+async def ingest_interaction(
+    engagement_id: uuid.UUID,
+    body: IngestInteractionCreate,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+) -> CanonicalMemoryEvent:
+    await _require_engagement(session, tenant_id, engagement_id)
+    if body.source not in _INGEST_SOURCES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"invalid source: {body.source}",
+        )
+    # Idempotency: same (tenant_id, ingestion_dedup_key) returns the existing
+    # event. App-layer check — no DB unique constraint on dedup_key (FR18
+    # treats the key as advisory).
+    if body.dedup_key is not None:
+        r = await session.execute(
+            select(CanonicalMemoryEvent).where(
+                CanonicalMemoryEvent.tenant_id == tenant_id,
+                CanonicalMemoryEvent.ingestion_dedup_key == body.dedup_key,
+            )
+        )
+        existing = r.scalar_one_or_none()
+        if existing is not None:
+            return existing
+    row = CanonicalMemoryEvent(
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        event_type=f"ingest.{body.source}",
+        occurred_at=body.occurred_at,
+        source_ref=body.source_ref,
+        ingestion_dedup_key=body.dedup_key,
+        payload={"content": body.content},
+    )
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return row
