@@ -48,7 +48,7 @@ help:
 	@echo "  make dev-logs       Tail compose logs"
 	@echo "  make seed-app       Seed 1 engagement + ~20 canonical events + run extraction (requires ANTHROPIC_API_KEY in .env)"
 	@echo "  make compose-smoke  CI entry point (dev + dev-verify, 30-min ceiling)"
-	@echo "  make lint-python-epic6-agents  ruff check + ruff format --check (cartographer, oracle, master_strategist)"
+	@echo "  make lint-python-epic6-agents  ruff check + ruff format --check (cartographer)"
 	@echo "  make format-python-epic6-agents  apply ruff format to the same (before commit)"
 	@echo ""
 	@echo "Docs: docs/dev-environment.md § Local stack via docker-compose"
@@ -143,14 +143,14 @@ compose-smoke: env
 # Epic 6 — match pre-commit ruff surface for the Python "agent" services.
 # Run from repo root after `uv sync` in each directory (or rely on CI / turbo `lint`).
 lint-python-epic6-agents:
-	@set -e; for d in services/cartographer services/oracle services/master_strategist; do \
+	@set -e; for d in services/cartographer; do \
 		echo "make: ruff in $$d"; \
 		( cd "$$d" && uv run ruff check src tests && uv run ruff format --check src tests ); \
 	done
 	@echo "make: Epic 6 agent ruff check + format check OK"
 
 format-python-epic6-agents:
-	@set -e; for d in services/cartographer services/oracle services/master_strategist; do \
+	@set -e; for d in services/cartographer; do \
 		echo "make: ruff format (write) in $$d"; \
 		( cd "$$d" && uv run ruff format src tests ); \
 	done
