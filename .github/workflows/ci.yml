@@ -111,12 +111,10 @@ jobs:
           node-version-file: ".nvmrc"
           cache: "pnpm"
 
-      # Story 1.3 adds three more runtime requirements to the smoke gate:
+      # Story 1.3 adds Python runtime to the smoke gate:
       #   - uv + Python 3.13 → services/control-plane build (uv sync)
-      #   - Go 1.26          → apps/foia-cli build (go build)
-      #   - Rust is NOT installed here: apps/edge-agent#build only runs
-      #     `tsc --noEmit && vite build` (frontend); `cargo check` is
-      #     covered by the dedicated Dockerfile build, not the smoke gate.
+      # Go + Rust toolchains were here for apps/foia-cli + apps/edge-agent,
+      # both deleted in the 2026-05-23 dead-workspace cleanup.
       - name: Install Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
@@ -127,12 +125,6 @@ jobs:
         with:
           version: "0.11.7"
           enable-cache: true
-
-      - name: Install Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
-        with:
-          go-version-file: "apps/foia-cli/go.mod"
-          cache-dependency-path: apps/foia-cli/go.sum
 
       - name: pnpm install
         run: pnpm install --frozen-lockfile

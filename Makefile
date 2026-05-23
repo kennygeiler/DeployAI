@@ -48,7 +48,7 @@ help:
 	@echo "  make dev-logs       Tail compose logs"
 	@echo "  make seed-app       Seed 1 engagement + ~20 canonical events + run extraction (requires ANTHROPIC_API_KEY in .env)"
 	@echo "  make compose-smoke  CI entry point (dev + dev-verify, 30-min ceiling)"
-	@echo "  make lint-python-epic6-agents  ruff check + ruff format --check (cartographer, oracle, master_strategist)"
+	@echo "  make lint-python-epic6-agents  ruff check + ruff format --check (cartographer)"
 	@echo "  make format-python-epic6-agents  apply ruff format to the same (before commit)"
 	@echo ""
 	@echo "Docs: docs/dev-environment.md § Local stack via docker-compose"
@@ -99,10 +99,10 @@ dev-verify: env
 	curl -fsS "http://localhost:$(FREETSA_STUB_PORT)/health" | grep -q '"status":"ok"'; \
 	echo "  control-plane → /health"; \
 	curl -fsS "http://localhost:$(CONTROL_PLANE_PORT)/health" | grep -q '"status":"ok"'; \
-	echo "  web → GET /"; \
-	curl -fsS "http://localhost:$(WEB_PORT)/" | grep -qi '<html'; \
-	echo "  web → GET /admin/runs (v1 dev header)"; \
-	curl -fsS -H "x-deployai-role: platform_admin" "http://localhost:$(WEB_PORT)/admin/runs" | grep -q 'Admin'; \
+	echo "  web → GET / (expect 307 → /engagements)"; \
+	curl -fsS -o /dev/null -w '%{http_code}\n' "http://localhost:$(WEB_PORT)/" | grep -q '^307$$'; \
+	echo "  web → GET /engagements (deployment_strategist header)"; \
+	curl -fsS -H "x-deployai-role: deployment_strategist" -H "x-deployai-tenant: 11111111-1111-1111-1111-111111111111" "http://localhost:$(WEB_PORT)/engagements" | grep -qi '<html'; \
 	echo "  seed → fixtures.canonical_events row count ≥ 20"; \
 	count=$$($(DC) exec -T postgres psql -U $${POSTGRES_USER:-deployai} -d $${POSTGRES_DB:-deployai} -tAc "SELECT COUNT(*) FROM fixtures.canonical_events" | tr -d '[:space:]'); \
 	if [ "$$count" -lt 20 ]; then echo "make: seed check failed (events=$$count)" >&2; exit 1; fi; \
@@ -143,14 +143,14 @@ compose-smoke: env
 # Epic 6 — match pre-commit ruff surface for the Python "agent" services.
 # Run from repo root after `uv sync` in each directory (or rely on CI / turbo `lint`).
 lint-python-epic6-agents:
-	@set -e; for d in services/cartographer services/oracle services/master_strategist; do \
+	@set -e; for d in services/cartographer; do \
 		echo "make: ruff in $$d"; \
 		( cd "$$d" && uv run ruff check src tests && uv run ruff format --check src tests ); \
 	done
 	@echo "make: Epic 6 agent ruff check + format check OK"
 
 format-python-epic6-agents:
-	@set -e; for d in services/cartographer services/oracle services/master_strategist; do \
+	@set -e; for d in services/cartographer; do \
 		echo "make: ruff format (write) in $$d"; \
 		( cd "$$d" && uv run ruff format src tests ); \
 	done
