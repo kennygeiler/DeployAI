@@ -1,10 +1,15 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-import Home from "./page";
+import { describe, expect, it, vi } from "vitest";
+
+const redirectMock = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  redirect: redirectMock,
+}));
 
 describe("Home page", () => {
-  it("renders the DeployAI initializing heading", () => {
-    render(<Home />);
-    expect(screen.getByRole("heading", { name: /DeployAI — initializing/i })).toBeInTheDocument();
+  it("redirects to /engagements", async () => {
+    const { default: Home } = await import("./page");
+    Home();
+    expect(redirectMock).toHaveBeenCalledWith("/engagements");
   });
 });
