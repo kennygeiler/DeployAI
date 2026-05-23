@@ -5,6 +5,7 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { EngagementInsights } from "@/components/epic9/EngagementInsights.client";
+import { EngagementTimeline } from "@/components/epic9/EngagementTimeline.client";
 import { InteractionImport } from "@/components/epic9/InteractionImport.client";
 import { MatrixCapture } from "@/components/epic9/MatrixCapture.client";
 import { MatrixGraph } from "@/components/epic9/MatrixGraph.client";
@@ -275,6 +276,8 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
           </section>
 
           <EngagementInsights engagementId={engagementId} />
+
+          <EngagementTimeline engagementId={engagementId} />
 
           <section className="space-y-2">
             <div className="flex items-center justify-between gap-3">
