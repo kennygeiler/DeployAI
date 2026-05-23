@@ -25,6 +25,33 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from control_plane.domain.base import Base
 
+# Catalogs of valid node_type / edge_type values. Treated as data, not schema:
+# adopting teams add custom types here (or via a future per-tenant catalog
+# table). Single source of truth — imported by the CRUD API, the proposal
+# accept path, and the Phase 6 extraction agent so the prompt drifts together
+# with the schema. See `deployment-matrix-model.md` §6 (extension seam).
+MATRIX_NODE_TYPES: tuple[str, ...] = (
+    "stakeholder",
+    "organization",
+    "system",
+    "decision",
+    "risk",
+    "commitment",
+    "opportunity",
+)
+MATRIX_EDGE_TYPES: tuple[str, ...] = (
+    "belongs_to",
+    "owns",
+    "sponsors",
+    "blocks",
+    "affects",
+    "threatens",
+    "owed_by",
+    "owed_to",
+    "depends_on",
+    "enables",
+)
+
 
 class MatrixNode(Base):
     """One entity in a deployment's matrix — a typed, engagement-scoped node."""

@@ -235,3 +235,7 @@ services/control-plane/artifacts/fuzz/
 .vs/
 .eslintcache
 .stylelintcache
+
+# Local caveman skill install (per-user, not project)
+.agents/
+skills-lock.json

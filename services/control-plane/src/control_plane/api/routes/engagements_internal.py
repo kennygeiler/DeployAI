@@ -9,21 +9,34 @@ section 16 (Phase 1).
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from llm_provider_py.types import LLMProvider
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from control_plane.agents.llm import get_llm_provider
+from control_plane.agents.matrix_extractor import (
+    ExistingNode,
+    extract_matrix_proposals,
+)
 from control_plane.config.internal_api import verify_internal_key
 from control_plane.db import get_app_db_session
 from control_plane.domain.app_identity.models import AppTenant, AppUser
 from control_plane.domain.canonical_memory.events import CanonicalMemoryEvent
 from control_plane.domain.canonical_memory.identity import IdentityNode
-from control_plane.domain.canonical_memory.matrix import MatrixEdge, MatrixNode, MatrixProposal
+from control_plane.domain.canonical_memory.matrix import (
+    MATRIX_EDGE_TYPES,
+    MATRIX_NODE_TYPES,
+    MatrixEdge,
+    MatrixNode,
+    MatrixProposal,
+)
 from control_plane.domain.engagement import Engagement, EngagementMember
 from control_plane.phases.machine import DEPLOYMENT_PHASES, default_phase
 
@@ -250,28 +263,6 @@ async def remove_engagement_member(
 # deployment-matrix-model.md). All filtering is app-layer, same posture as the
 # rest of this internal API.
 
-_MATRIX_NODE_TYPES: tuple[str, ...] = (
-    "stakeholder",
-    "organization",
-    "system",
-    "decision",
-    "risk",
-    "commitment",
-    "opportunity",
-)
-_MATRIX_EDGE_TYPES: tuple[str, ...] = (
-    "belongs_to",
-    "owns",
-    "sponsors",
-    "blocks",
-    "affects",
-    "threatens",
-    "owed_by",
-    "owed_to",
-    "depends_on",
-    "enables",
-)
-
 
 class MatrixNodeCreate(BaseModel):
     node_type: str
@@ -351,7 +342,7 @@ async def create_matrix_node(
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> MatrixNode:
     await _require_engagement(session, tenant_id, engagement_id)
-    if body.node_type not in _MATRIX_NODE_TYPES:
+    if body.node_type not in MATRIX_NODE_TYPES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"invalid node_type: {body.node_type}",
@@ -465,7 +456,7 @@ async def create_matrix_edge(
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> MatrixEdge:
     await _require_engagement(session, tenant_id, engagement_id)
-    if body.edge_type not in _MATRIX_EDGE_TYPES:
+    if body.edge_type not in MATRIX_EDGE_TYPES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"invalid edge_type: {body.edge_type}",
@@ -707,7 +698,7 @@ async def accept_matrix_proposal(
     if proposal.proposal_kind == "node":
         node_type = payload.get("node_type") if isinstance(payload.get("node_type"), str) else ""
         title = payload.get("title") if isinstance(payload.get("title"), str) else ""
-        if not node_type or not title or node_type not in _MATRIX_NODE_TYPES:
+        if not node_type or not title or node_type not in MATRIX_NODE_TYPES:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="proposal payload must include a valid node_type and a title",
@@ -745,7 +736,7 @@ async def accept_matrix_proposal(
         proposal.result_node_id = node.id
     elif proposal.proposal_kind == "edge":
         edge_type = payload.get("edge_type") if isinstance(payload.get("edge_type"), str) else ""
-        if not edge_type or edge_type not in _MATRIX_EDGE_TYPES:
+        if not edge_type or edge_type not in MATRIX_EDGE_TYPES:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="proposal payload must include a valid edge_type",
@@ -819,3 +810,89 @@ async def reject_matrix_proposal(
     await session.commit()
     await session.refresh(proposal)
     return proposal
+
+
+# --- Matrix extraction agent (Phase 6, increment 6.2c — Cartographer) ---
+
+
+@router.post(
+    "/{engagement_id}/extract",
+    response_model=list[MatrixProposalRead],
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_internal)],
+)
+async def extract_engagement_proposals(
+    engagement_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+    event_id: Annotated[uuid.UUID, Query()],
+    llm: Annotated[LLMProvider, Depends(get_llm_provider)],
+    force: Annotated[bool, Query()] = False,
+) -> list[MatrixProposal]:
+    """Run the matrix-extraction agent on one canonical event.
+
+    Idempotent by ``(tenant, event_id)``: if proposals already exist for the
+    event and ``force`` is false, returns them without calling the LLM.
+    ``force=true`` deletes the event's *pending* proposals and re-runs
+    (accepted / rejected proposals are preserved as history).
+    """
+    await _require_engagement(session, tenant_id, engagement_id)
+    event_row = await session.execute(
+        select(CanonicalMemoryEvent).where(
+            CanonicalMemoryEvent.tenant_id == tenant_id,
+            CanonicalMemoryEvent.engagement_id == engagement_id,
+            CanonicalMemoryEvent.id == event_id,
+        )
+    )
+    event = event_row.scalar_one_or_none()
+    if event is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="canonical event not found")
+
+    existing_q = await session.execute(
+        select(MatrixProposal).where(MatrixProposal.source_event_id == event_id).order_by(MatrixProposal.created_at)
+    )
+    existing = list(existing_q.scalars().all())
+
+    if existing and not force:
+        return existing
+    if force:
+        for p in existing:
+            if p.status == "pending":
+                await session.delete(p)
+        await session.flush()
+
+    nodes_q = await session.execute(select(MatrixNode).where(MatrixNode.engagement_id == engagement_id))
+    nodes = list(nodes_q.scalars().all())
+    context = [ExistingNode(id=n.id, title=n.title, node_type=n.node_type) for n in nodes]
+
+    drafts = await asyncio.to_thread(
+        extract_matrix_proposals,
+        event_id=event.id,
+        event_source=event.event_type,
+        event_occurred_at=event.occurred_at,
+        event_payload=event.payload,
+        existing_nodes=context,
+        llm=llm,
+    )
+
+    created: list[MatrixProposal] = []
+    for d in drafts:
+        row = MatrixProposal(
+            tenant_id=tenant_id,
+            engagement_id=engagement_id,
+            source_event_id=event.id,
+            proposal_kind=d.kind,
+            payload=d.payload,
+            rationale=d.rationale,
+        )
+        session.add(row)
+        created.append(row)
+    await session.commit()
+    for r in created:
+        await session.refresh(r)
+    # When force was used, history-preserved (accepted/rejected) rows that
+    # were not deleted should appear alongside the new pending rows.
+    if force:
+        kept = [p for p in existing if p.status != "pending"]
+        return kept + created
+    return created

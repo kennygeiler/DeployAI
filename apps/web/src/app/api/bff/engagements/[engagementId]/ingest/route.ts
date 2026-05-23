@@ -4,6 +4,7 @@ import { decideSync } from "@deployai/authz";
 
 import { getActorFromHeaders } from "@/lib/internal/actor";
 import { cpIngestInteraction } from "@/lib/internal/ingest-cp";
+import { cpExtractMatrixProposals } from "@/lib/internal/matrix-cp";
 import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
 import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strategist-queues-route-guard";
 
@@ -67,16 +68,31 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     typeof parsed.dedup_key === "string" && parsed.dedup_key.trim()
       ? parsed.dedup_key.trim()
       : null;
+  let event: Awaited<ReturnType<typeof cpIngestInteraction>>;
   try {
-    const event = await cpIngestInteraction(tid, engagementId, {
+    event = await cpIngestInteraction(tid, engagementId, {
       source,
       occurred_at: occurredAt,
       content,
       source_ref: sourceRef,
       dedup_key: dedupKey,
     });
-    return NextResponse.json({ event, source: "cp" }, { status: 201 });
   } catch (e) {
     return nextResponseFromStrategistCpFetchError(e);
   }
+  // Phase 6.2c — chain Cartographer extraction on the new event. Best-effort:
+  // failure here MUST NOT fail the ingest (the event is real; the agent is
+  // recoverable). Detail page refreshes the aggregate to surface any new
+  // proposals via the 6.2a review section.
+  let extractError: string | null = null;
+  try {
+    await cpExtractMatrixProposals(tid, engagementId, event.id);
+  } catch (e) {
+    extractError = e instanceof Error ? e.message : String(e);
+    console.warn(
+      `bff/ingest: matrix extraction failed for event ${event.id} (engagement ${engagementId}):`,
+      extractError,
+    );
+  }
+  return NextResponse.json({ event, extract_error: extractError, source: "cp" }, { status: 201 });
 }
