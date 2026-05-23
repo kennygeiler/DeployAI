@@ -9,34 +9,17 @@ import {
 import { stripInboundStrategistHeadersBeforeJwt } from "@/lib/internal/strategist-header-strip-before-jwt";
 import { ensureRequestCorrelationHeader } from "@/lib/internal/correlation-id";
 
-const isAdmin = (p: string) =>
-  p === "/admin/runs" || p === "/admin/adjudication" || p.startsWith("/admin/schema-proposals");
+const isStrategistSurface = (p: string) => p === "/engagements" || p.startsWith("/engagements/");
 
-const isStrategistSurface = (p: string) =>
-  p === "/engagements" ||
-  p.startsWith("/engagements/") ||
-  p === "/digest" ||
-  p === "/in-meeting" ||
-  p === "/phase-tracking" ||
-  p === "/evening" ||
-  p.startsWith("/evidence/") ||
-  p === "/action-queue" ||
-  p === "/validation-queue" ||
-  p === "/solidification-review" ||
-  p === "/overrides" ||
-  p.startsWith("/audit/") ||
-  p === "/settings/integrations";
-
-/** BFF + internal routes the strategist shell polls; need the same actor as pages. */
-const isStrategistApi = (p: string) =>
-  p.startsWith("/api/bff/") || p === "/api/internal/strategist-activity";
+/** BFF routes the strategist shell polls; need the same actor as pages. */
+const isStrategistApi = (p: string) => p.startsWith("/api/bff/");
 
 function strategistPathRequiresTenant(pathname: string): boolean {
   return isStrategistSurface(pathname) || isStrategistApi(pathname);
 }
 
 function shouldRunAuthz(pathname: string): boolean {
-  return isAdmin(pathname) || isStrategistSurface(pathname) || isStrategistApi(pathname);
+  return isStrategistSurface(pathname) || isStrategistApi(pathname);
 }
 
 function parseRole(r: string | null): V1Role | null {
@@ -56,24 +39,12 @@ function parseRole(r: string | null): V1Role | null {
   return (allowed as string[]).includes(r) ? (r as V1Role) : null;
 }
 
-function actionForPath(pathname: string): Action {
-  if (isStrategistSurface(pathname) || isStrategistApi(pathname)) {
-    return "canonical:read";
-  }
-  if (pathname.startsWith("/admin/schema-proposals")) {
-    return "admin:view_schema_proposals";
-  }
-  if (pathname === "/admin/adjudication") {
-    return "eval:view_adjudication";
-  }
-  return "ingest:view_runs";
+function actionForPath(): Action {
+  return "canonical:read";
 }
 
-function resourceForPath(pathname: string): Resource {
-  if (isStrategistSurface(pathname) || isStrategistApi(pathname)) {
-    return { kind: "canonical_memory" };
-  }
-  return { kind: "global" };
+function resourceForPath(): Resource {
+  return { kind: "canonical_memory" };
 }
 
 export async function middleware(request: NextRequest) {
@@ -131,16 +102,13 @@ export async function middleware(request: NextRequest) {
       status: 403,
     });
   }
-  const a = actionForPath(pathname);
-  const r = resourceForPath(pathname);
+  const a = actionForPath();
+  const r = resourceForPath();
   const d = canAccess({ role }, a, r, { skipAudit: true });
   if (!d.allow) {
-    if (
-      role === "external_auditor" &&
-      (isStrategistSurface(pathname) || isStrategistApi(pathname))
-    ) {
+    if (role === "external_auditor") {
       return new NextResponse(
-        "Forbidden: external_auditor cannot access strategist / canonical-memory surfaces (Epic 12 Story 12.3). Use provisioned FOIA export flows — not digest, evidence, or BFF routes.",
+        "Forbidden: external_auditor cannot access engagement / canonical-memory surfaces. Use provisioned export flows instead.",
         { status: 403 },
       );
     }
@@ -162,25 +130,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    "/engagements",
-    "/engagements/:path*",
-    "/digest",
-    "/in-meeting",
-    "/action-queue",
-    "/phase-tracking",
-    "/evening",
-    "/evidence/:path*",
-    "/validation-queue",
-    "/solidification-review",
-    "/overrides",
-    "/audit/:path*",
-    "/settings/integrations",
-    "/api/bff/:path*",
-    "/api/internal/strategist-activity",
-    "/admin/runs",
-    "/admin/adjudication",
-    "/admin/schema-proposals",
-    "/admin/schema-proposals/:path*",
-  ],
+  matcher: ["/engagements", "/engagements/:path*", "/api/bff/:path*"],
 };
