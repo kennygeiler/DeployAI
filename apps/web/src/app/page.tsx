@@ -1,41 +1,12 @@
-import Link from "next/link";
+import { redirect } from "next/navigation";
 
-const surfaces = [
-  { href: "/digest", label: "Morning digest" },
-  { href: "/phase-tracking", label: "Phase & task tracking" },
-  { href: "/evening", label: "Evening synthesis" },
-] as const;
-
+/**
+ * Root → the engagements portfolio. The MVP loop lives entirely on
+ * `/engagements` (portfolio + cross-engagement insights) and
+ * `/engagements/[id]` (per-engagement matrix + insights). The pre-pivot
+ * BMAD preview routes (digest, phase-tracking, evening) are being
+ * retired — see `docs/product/deployai-source-of-truth-spec.md` §16.
+ */
 export default function Home() {
-  return (
-    <main
-      id="main"
-      tabIndex={-1}
-      className="flex flex-1 flex-col items-center justify-center gap-6 p-16 text-center outline-none"
-    >
-      <h1 className="text-display font-semibold tracking-tight text-ink-950">
-        DeployAI — initializing
-      </h1>
-      <p className="max-w-md text-body text-ink-600">
-        Strategist preview routes: in{" "}
-        <code className="text-body bg-paper-200 rounded px-1">next dev</code> a default role is
-        applied. Otherwise set{" "}
-        <code className="text-body bg-paper-200 rounded px-1">x-deployai-role</code> (e.g. for{" "}
-        <code className="text-body bg-paper-200 rounded px-1">next start</code>).
-      </p>
-      <ul className="text-body text-evidence-800 flex max-w-sm flex-col gap-2 text-left">
-        {surfaces.map((s) => (
-          <li key={s.href}>
-            <Link
-              className="font-medium underline-offset-2 hover:underline focus-visible:ring-ring focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-              href={s.href}
-            >
-              {s.label}
-            </Link>
-            <span className="text-ink-500 text-sm"> — {s.href}</span>
-          </li>
-        ))}
-      </ul>
-    </main>
-  );
+  redirect("/engagements");
 }
