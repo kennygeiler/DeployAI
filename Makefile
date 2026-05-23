@@ -35,7 +35,7 @@ WEB_PORT ?= 3000
 
 .DEFAULT_GOAL := help
 
-.PHONY: help dev dev-verify dev-down dev-logs compose-smoke env seed-app \
+.PHONY: help dev dev-verify dev-down dev-logs compose-smoke env init seed-app \
 	lint-python-epic6-agents format-python-epic6-agents
 
 help:
@@ -46,6 +46,7 @@ help:
 	@echo "  make dev-verify     Probe every service's health endpoint"
 	@echo "  make dev-down       Tear down + remove named volumes"
 	@echo "  make dev-logs       Tail compose logs"
+	@echo "  make init           First-run install (tenant + LLM + engagement + member). Pass INIT_ARGS or DEPLOYAI_INIT_* env vars."
 	@echo "  make seed-app       Seed 1 engagement + ~20 canonical events + run extraction (requires ANTHROPIC_API_KEY in .env)"
 	@echo "  make compose-smoke  CI entry point (dev + dev-verify, 30-min ceiling)"
 	@echo "  make lint-python-epic6-agents  ruff check + ruff format --check (cartographer)"
@@ -111,6 +112,20 @@ dev-verify: env
 dev-down:
 	@echo "make: tearing down stack + volumes"
 	$(DC) down -v --remove-orphans
+
+# Sprint 1 inc 3 — headless first-run install. CLI mirror of the
+# browser /onboarding wizard. Creates tenant + LLM config + first
+# engagement + first user + first member, ready for the team to log in.
+# Requires the stack to be up (`make dev` first).
+#
+# Pass values via INIT_ARGS or DEPLOYAI_INIT_* env-vars (see
+# `python3 infra/compose/seed/init.py --help`). Example:
+#   INIT_ARGS="--tenant-name 'Acme' --llm-provider anthropic \\
+#     --llm-api-key $$ANTHROPIC_API_KEY --engagement-name 'Pilot' \\
+#     --user-name kenny --role deployment_strategist" make init
+init: env
+	@echo "make: running first-run install…"
+	@python3 $(COMPOSE_DIR)/seed/init.py $(INIT_ARGS)
 
 # Phase 6.2c — repeatable app-schema seed for manual testing.
 # Creates one realistic gov/policy engagement w/ ~20 events and triggers
