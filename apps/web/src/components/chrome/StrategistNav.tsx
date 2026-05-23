@@ -3,22 +3,23 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase } from "lucide-react";
+import { Briefcase, Settings } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 
 /**
- * MVP nav. Only Engagements (portfolio + per-engagement matrix + insights)
- * is part of the current product. The pre-pivot BMAD surfaces
- * (`/digest`, `/in-meeting`, `/phase-tracking`, `/evening`,
+ * MVP nav: Engagements (portfolio + per-engagement matrix + insights)
+ * and Settings (tenant LLM config — Sprint 1). The pre-pivot BMAD
+ * surfaces (`/digest`, `/in-meeting`, `/phase-tracking`, `/evening`,
  * `/action-queue`, `/validation-queue`, `/overrides`, `/audit/personal`,
  * `/settings/integrations`) are being retired — see
  * `docs/product/deployai-source-of-truth-spec.md` §16.
  */
 const primary: readonly NavItem[] = [
   { href: "/engagements", label: "Engagements", icon: Briefcase },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function StrategistNav() {

@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import TIMESTAMP, Boolean, ForeignKey, Text, func
+from sqlalchemy import TIMESTAMP, Boolean, CheckConstraint, ForeignKey, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -51,3 +51,46 @@ class AppUser(Base):
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
     tenant: Mapped[AppTenant] = relationship("AppTenant", back_populates="users")
+
+
+# Allowed provider values; kept in lock-step with the migration's check constraint
+# and with `agents/llm.py`'s factory logic. Add a value here + a migration before
+# the agent factory can resolve it.
+LLM_PROVIDERS: tuple[str, ...] = ("anthropic", "openai", "stub")
+
+
+class TenantLlmConfig(Base):
+    """Per-tenant LLM provider configuration set via the Settings UI.
+
+    One row per tenant (UNIQUE on tenant_id). When absent, the agent
+    factory falls back to env defaults (`ANTHROPIC_API_KEY` /
+    `DEPLOYAI_LLM_PROVIDER`). API key stored plaintext — acceptable for
+    a self-hosted single-team deployment where the customer owns DB +
+    host. Multi-tenant hosting should encrypt at rest.
+    """
+
+    __tablename__ = "tenant_llm_configs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("deployai_uuid_v7()"),
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("app_tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    provider: Mapped[str] = mapped_column(Text(), nullable=False)
+    model_name: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    api_key: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "provider IN ('anthropic', 'openai', 'stub')",
+            name="ck_tenant_llm_configs_provider",
+        ),
+    )

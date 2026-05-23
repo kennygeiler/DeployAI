@@ -13,5 +13,11 @@ done
 
 pnpm install --frozen-lockfile
 bash scripts/ci-uv-sync-all.sh
+# Mirror the CI `smoke` job step-for-step. `turbo run lint` already calls
+# `ruff format --check` per Python workspace via each `package.json#lint`
+# script — but prettier (--check) lives outside turbo, so call it
+# explicitly here. Without this, contributors can get a green local run
+# and still red-CI on a prettier-only diff.
 pnpm turbo run test lint typecheck build
+pnpm run format:check
 echo "run-turbo-all: done."

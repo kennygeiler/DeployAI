@@ -320,3 +320,113 @@ async def test_list_filters_by_status(t_client: AsyncClient, postgres_engine: En
     assert len(open_listed.json()) == 1
     resolved = await t_client.get(f"/internal/v1/tenants/{tid}/insights?status=resolved")
     assert resolved.json() == []
+
+
+# --- Sprint 1 — per-tenant LLM config endpoints -----------------------------
+
+
+def _seed_tenant(engine: Engine) -> uuid.UUID:
+    tid = uuid.uuid4()
+    with engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO app_tenants (id, name) VALUES (:t, 'llm-cfg-test')"),
+            {"t": str(tid)},
+        )
+    return tid
+
+
+@pytest.mark.asyncio
+async def test_get_llm_config_returns_null_when_unset(t_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid = _seed_tenant(postgres_engine)
+    r = await t_client.get(f"/internal/v1/tenants/{tid}/llm-config")
+    assert r.status_code == 200
+    assert r.json() is None
+
+
+@pytest.mark.asyncio
+async def test_put_llm_config_creates_then_get_masks_key(t_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid = _seed_tenant(postgres_engine)
+    body = {"provider": "anthropic", "model_name": "claude-opus-4-5", "api_key": "sk-ant-abcdefghijklmnop"}
+    r = await t_client.put(f"/internal/v1/tenants/{tid}/llm-config", json=body)
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["provider"] == "anthropic"
+    assert data["model_name"] == "claude-opus-4-5"
+    assert data["has_api_key"] is True
+    assert data["api_key_masked"].startswith("sk-a")
+    assert data["api_key_masked"].endswith("mnop")
+    assert "*" in data["api_key_masked"]
+    # GET round-trip never returns the raw key.
+    g = await t_client.get(f"/internal/v1/tenants/{tid}/llm-config")
+    assert "api_key" not in g.json()
+
+
+@pytest.mark.asyncio
+async def test_put_llm_config_preserves_key_when_omitted(t_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid = _seed_tenant(postgres_engine)
+    await t_client.put(
+        f"/internal/v1/tenants/{tid}/llm-config",
+        json={"provider": "anthropic", "model_name": "m1", "api_key": "sk-original-key-value"},
+    )
+    # Update model only — key omitted, must be preserved on the row.
+    r = await t_client.put(
+        f"/internal/v1/tenants/{tid}/llm-config",
+        json={"provider": "anthropic", "model_name": "m2"},
+    )
+    assert r.status_code == 200
+    assert r.json()["model_name"] == "m2"
+    assert r.json()["has_api_key"] is True
+    # Direct DB check that the original key is still there.
+    with postgres_engine.begin() as c:
+        row = c.execute(
+            text("SELECT api_key FROM tenant_llm_configs WHERE tenant_id = :t"),
+            {"t": str(tid)},
+        ).scalar_one()
+    assert row == "sk-original-key-value"
+
+
+@pytest.mark.asyncio
+async def test_put_llm_config_rejects_unknown_provider(t_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid = _seed_tenant(postgres_engine)
+    r = await t_client.put(
+        f"/internal/v1/tenants/{tid}/llm-config",
+        json={"provider": "made-up", "model_name": "x"},
+    )
+    assert r.status_code == 422
+    assert "invalid provider" in r.text
+
+
+@pytest.mark.asyncio
+async def test_put_llm_config_404_when_tenant_missing(t_client: AsyncClient) -> None:
+    r = await t_client.put(
+        f"/internal/v1/tenants/{uuid.uuid4()}/llm-config",
+        json={"provider": "stub"},
+    )
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_stub_provider_in_db_short_circuits_env_fallback(
+    t_client: AsyncClient, postgres_engine: Engine, fake_llm: _FakeLLM
+) -> None:
+    """Tenant config provider=stub overrides the env-fallback fake_llm.
+
+    The Master Strategist refresh route resolves the provider per-request:
+    when a tenant row exists we use it instead of the Depends fallback.
+    Setting provider=stub means the real stub provider runs (not fake_llm),
+    so fake_llm.calls stays at zero even though a candidate fires.
+    """
+    tid, eid_a = _seed_tenant_and_engagement(postgres_engine, name="A")
+    eid_b = _add_engagement(postgres_engine, tid, name="B")
+    _seed_node(postgres_engine, tid, eid_a, node_type="risk", title="db override risk")
+    _seed_node(postgres_engine, tid, eid_b, node_type="risk", title="db override risk pattern")
+    # Persist the stub override AFTER seeding so the route's resolver picks it up.
+    await t_client.put(
+        f"/internal/v1/tenants/{tid}/llm-config",
+        json={"provider": "stub"},
+    )
+    # Refresh runs the real stub (deterministic [] response from create_stub_provider),
+    # not fake_llm. We accept any 200; key assertion is fake_llm was NOT called.
+    r = await t_client.post(f"/internal/v1/tenants/{tid}/insights/refresh")
+    assert r.status_code == 200
+    assert fake_llm.calls == 0

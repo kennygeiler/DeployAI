@@ -88,7 +88,14 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
   }, [engagementId]);
 
   React.useEffect(() => {
-    const t = window.setTimeout(() => void refresh(), 0);
+    const t = window.setTimeout(() => {
+      // Catch low-level fetch failures (network, AbortError on unmount, test
+      // teardown leaks) so they don't surface as unhandled rejections.
+      // Real BFF errors hit the !r.ok branch inside refresh().
+      refresh().catch((e) => {
+        setErr(e instanceof Error ? e.message : "Could not load engagement.");
+      });
+    }, 0);
     return () => window.clearTimeout(t);
   }, [refresh]);
 

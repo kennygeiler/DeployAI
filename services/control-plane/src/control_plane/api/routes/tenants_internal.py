@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from control_plane.agents.llm import get_llm_provider
+from control_plane.agents.llm import get_llm_provider, resolve_tenant_llm_provider
 from control_plane.agents.master_strategist import (
     MasterStrategistCandidate,
     PortfolioEdge,
@@ -36,7 +36,11 @@ from control_plane.agents.master_strategist import (
 from control_plane.agents.oracle import InsightDraft
 from control_plane.api.routes.engagements_internal import require_internal
 from control_plane.db import get_app_db_session
-from control_plane.domain.app_identity.models import AppTenant
+from control_plane.domain.app_identity.models import (
+    LLM_PROVIDERS,
+    AppTenant,
+    TenantLlmConfig,
+)
 from control_plane.domain.canonical_memory.matrix import (
     INSIGHT_STATUSES,
     MatrixEdge,
@@ -186,6 +190,7 @@ async def refresh_tenant_insights(
     router). Same dedup_key upsert + auto-resolve semantics — see design §11.
     """
     tenant = await _require_tenant(session, tenant_id)
+    llm = await resolve_tenant_llm_provider(session, tenant_id, llm)
 
     # Snapshot: every engagement + its matrix + member roles.
     eng_q = await session.execute(select(Engagement).where(Engagement.tenant_id == tenant_id))
@@ -311,3 +316,112 @@ async def refresh_tenant_insights(
         .order_by(MatrixInsight.severity.desc(), MatrixInsight.created_at.desc())
     )
     return list(final_q.scalars().all())
+
+
+# --- Sprint 1 — per-tenant LLM provider configuration ----------------------
+#
+# Customers running DeployAI self-hosted set their provider + model + key
+# at runtime instead of editing the compose env. One row per tenant; the
+# agent factory (control_plane/agents/llm.py) reads this before falling
+# back to env defaults. The API key is stored plaintext — acceptable for
+# self-hosted single-team deployments where the customer owns the DB.
+
+
+def _mask_api_key(value: str | None) -> str | None:
+    """Return a UI-safe key fingerprint: last 4 chars, rest as asterisks."""
+    if not value:
+        return None
+    if len(value) <= 8:
+        return "*" * len(value)
+    return f"{value[:4]}{'*' * (len(value) - 8)}{value[-4:]}"
+
+
+class TenantLlmConfigRead(BaseModel):
+    """LLM config response. The full ``api_key`` is never returned to the
+    client; only ``api_key_masked`` for UI confirmation."""
+
+    tenant_id: uuid.UUID
+    provider: str
+    model_name: str | None
+    api_key_masked: str | None
+    has_api_key: bool
+    updated_at: datetime
+
+
+class TenantLlmConfigWrite(BaseModel):
+    """Upsert payload. ``api_key`` is optional on PUT — omitting it on an
+    existing row keeps the previously stored key (so the user can change
+    only the model without re-pasting the key)."""
+
+    provider: str = Field(min_length=1)
+    model_name: str | None = Field(default=None, max_length=200)
+    api_key: str | None = Field(default=None, max_length=500)
+
+
+def _to_read(row: TenantLlmConfig) -> TenantLlmConfigRead:
+    return TenantLlmConfigRead(
+        tenant_id=row.tenant_id,
+        provider=row.provider,
+        model_name=row.model_name,
+        api_key_masked=_mask_api_key(row.api_key),
+        has_api_key=bool(row.api_key),
+        updated_at=row.updated_at,
+    )
+
+
+@router.get(
+    "/{tenant_id}/llm-config",
+    response_model=TenantLlmConfigRead | None,
+    dependencies=[Depends(require_internal)],
+)
+async def get_tenant_llm_config(
+    tenant_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+) -> TenantLlmConfigRead | None:
+    """Return the tenant's saved config, or null if none has been set
+    (in which case the agent factory falls back to env defaults)."""
+    await _require_tenant(session, tenant_id)
+    r = await session.execute(select(TenantLlmConfig).where(TenantLlmConfig.tenant_id == tenant_id))
+    row = r.scalar_one_or_none()
+    return _to_read(row) if row else None
+
+
+@router.put(
+    "/{tenant_id}/llm-config",
+    response_model=TenantLlmConfigRead,
+    dependencies=[Depends(require_internal)],
+)
+async def put_tenant_llm_config(
+    tenant_id: uuid.UUID,
+    body: TenantLlmConfigWrite,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+) -> TenantLlmConfigRead:
+    """Upsert the tenant's LLM provider configuration."""
+    await _require_tenant(session, tenant_id)
+    if body.provider not in LLM_PROVIDERS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"invalid provider: {body.provider}",
+        )
+    r = await session.execute(select(TenantLlmConfig).where(TenantLlmConfig.tenant_id == tenant_id))
+    row = r.scalar_one_or_none()
+    now = datetime.now(UTC)
+    if row is None:
+        row = TenantLlmConfig(
+            tenant_id=tenant_id,
+            provider=body.provider,
+            model_name=body.model_name,
+            api_key=body.api_key,
+        )
+        session.add(row)
+    else:
+        row.provider = body.provider
+        row.model_name = body.model_name
+        # Preserve the prior key when the caller omits one (so they can
+        # update model without re-pasting the secret).
+        if body.api_key is not None:
+            row.api_key = body.api_key
+        row.updated_at = now
+    await session.commit()
+    await session.refresh(row)
+    return _to_read(row)
