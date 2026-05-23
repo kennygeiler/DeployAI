@@ -4,6 +4,7 @@ import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { EngagementInsights } from "@/components/epic9/EngagementInsights.client";
 import { InteractionImport } from "@/components/epic9/InteractionImport.client";
 import { MatrixCapture } from "@/components/epic9/MatrixCapture.client";
 import { MatrixProposals } from "@/components/epic9/MatrixProposals.client";
@@ -261,6 +262,8 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
               </div>
             </div>
           </section>
+
+          <EngagementInsights engagementId={engagementId} />
 
           <section className="space-y-2">
             <h2 className="text-ink-800 text-sm font-semibold">Deployment matrix</h2>
