@@ -618,3 +618,187 @@ async def test_extract_unknown_event_404(e_client: AsyncClient, postgres_engine:
     tid, eid = await _new_engagement(e_client, postgres_engine)
     r = await e_client.post(f"/internal/v1/engagements/{eid}/extract?tenant_id={tid}&event_id={uuid.uuid4()}")
     assert r.status_code == 404
+
+
+# --- Phase 7.2 — /insights integration -------------------------------------
+
+
+def _seed_matrix_node(
+    engine: Engine,
+    tenant_id: uuid.UUID,
+    engagement_id: str,
+    *,
+    node_type: str,
+    title: str,
+) -> uuid.UUID:
+    """Insert a matrix_nodes row directly (bypassing the API); return its id."""
+    with engine.begin() as conn:
+        node_id = conn.execute(
+            text(
+                """
+                INSERT INTO matrix_nodes (tenant_id, engagement_id, node_type, title)
+                VALUES (:t, :e, :nt, :title)
+                RETURNING id
+                """
+            ),
+            {"t": str(tenant_id), "e": engagement_id, "nt": node_type, "title": title},
+        ).scalar_one()
+    return node_id
+
+
+@pytest.mark.asyncio
+async def test_insights_refresh_creates_open_insights(
+    e_client: AsyncClient, postgres_engine: Engine, fake_llm: _FakeLLM
+) -> None:
+    import json as _json
+
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    # Seed one commitment (no events → stale, severity=high) and one decision
+    # (no sponsor edge → without_owner). Predicates should flag both.
+    _seed_matrix_node(postgres_engine, tid, eid, node_type="commitment", title="Ship the pilot")
+    _seed_matrix_node(postgres_engine, tid, eid, node_type="decision", title="Pick a vendor")
+
+    fake_llm.response = _json.dumps(
+        [
+            {"title": "Pilot is slipping", "body": "No event in 30+ days. Confirm a date."},
+            {"title": "Vendor decision has no owner", "body": "Assign a sponsor."},
+        ]
+    )
+    r = await e_client.post(f"/internal/v1/engagements/{eid}/insights/refresh?tenant_id={tid}")
+    assert r.status_code == 200, r.text
+    insights = r.json()
+    assert len(insights) == 2
+    assert {i["insight_type"] for i in insights} == {"stale_commitment", "decision_without_owner"}
+    assert all(i["status"] == "open" for i in insights)
+    assert all(i["agent"] == "oracle" for i in insights)
+
+
+@pytest.mark.asyncio
+async def test_insights_refresh_no_candidates_skips_llm(
+    e_client: AsyncClient, postgres_engine: Engine, fake_llm: _FakeLLM
+) -> None:
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    # Empty matrix → no predicates fire.
+
+    r = await e_client.post(f"/internal/v1/engagements/{eid}/insights/refresh?tenant_id={tid}")
+    assert r.status_code == 200
+    assert r.json() == []
+    assert fake_llm.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_insights_dismiss_does_not_resurface_on_refresh(
+    e_client: AsyncClient, postgres_engine: Engine, fake_llm: _FakeLLM
+) -> None:
+    import json as _json
+
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    _seed_matrix_node(postgres_engine, tid, eid, node_type="commitment", title="Ship the pilot")
+
+    fake_llm.response = _json.dumps([{"title": "Stale", "body": "do it"}])
+    first = await e_client.post(f"/internal/v1/engagements/{eid}/insights/refresh?tenant_id={tid}")
+    assert len(first.json()) == 1
+    insight_id = first.json()[0]["id"]
+
+    dismiss = await e_client.post(
+        f"/internal/v1/engagements/{eid}/insights/{insight_id}/dismiss?tenant_id={tid}",
+        json={"actor_id": "test-user"},
+    )
+    assert dismiss.status_code == 200
+    assert dismiss.json()["status"] == "dismissed"
+
+    calls_before = fake_llm.calls
+    second = await e_client.post(f"/internal/v1/engagements/{eid}/insights/refresh?tenant_id={tid}")
+    assert second.json() == []  # dismissed row stays dismissed; never re-surfaces
+    assert fake_llm.calls == calls_before  # no LLM call (dismissed = skip entirely)
+
+
+@pytest.mark.asyncio
+async def test_insights_unchanged_inputs_short_circuit_llm(
+    e_client: AsyncClient, postgres_engine: Engine, fake_llm: _FakeLLM
+) -> None:
+    import json as _json
+
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    _seed_matrix_node(postgres_engine, tid, eid, node_type="commitment", title="Ship the pilot")
+
+    fake_llm.response = _json.dumps([{"title": "Stale", "body": "do it"}])
+    first = await e_client.post(f"/internal/v1/engagements/{eid}/insights/refresh?tenant_id={tid}")
+    assert len(first.json()) == 1
+    calls_after_first = fake_llm.calls
+
+    # Re-run with no input changes: predicate still fires, but input_hash matches
+    # the existing open row → skip LLM, return existing row untouched.
+    second = await e_client.post(f"/internal/v1/engagements/{eid}/insights/refresh?tenant_id={tid}")
+    assert len(second.json()) == 1
+    assert second.json()[0]["id"] == first.json()[0]["id"]
+    assert fake_llm.calls == calls_after_first  # NO additional LLM call
+
+
+@pytest.mark.asyncio
+async def test_insights_auto_resolve_when_predicate_no_longer_fires(
+    e_client: AsyncClient, postgres_engine: Engine, fake_llm: _FakeLLM
+) -> None:
+    import json as _json
+
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    nid = _seed_matrix_node(postgres_engine, tid, eid, node_type="commitment", title="Ship pilot")
+
+    fake_llm.response = _json.dumps([{"title": "Stale", "body": "do it"}])
+    first = await e_client.post(f"/internal/v1/engagements/{eid}/insights/refresh?tenant_id={tid}")
+    first_id = first.json()[0]["id"]
+
+    # Drop the commitment node so the predicate no longer fires.
+    with postgres_engine.begin() as c:
+        c.execute(text("DELETE FROM matrix_nodes WHERE id = :nid"), {"nid": str(nid)})
+
+    second = await e_client.post(f"/internal/v1/engagements/{eid}/insights/refresh?tenant_id={tid}")
+    # Refresh returns the now-empty open list.
+    assert second.json() == []
+
+    # Verify the dropped insight was auto-resolved (still in DB, status=resolved).
+    listed = await e_client.get(f"/internal/v1/engagements/{eid}/insights?tenant_id={tid}&status=resolved")
+    resolved_rows = listed.json()
+    assert len(resolved_rows) == 1
+    assert resolved_rows[0]["id"] == first_id
+    assert resolved_rows[0]["status"] == "resolved"
+    assert resolved_rows[0]["decided_by"] == "auto"
+
+
+@pytest.mark.asyncio
+async def test_insights_resolve_endpoint(e_client: AsyncClient, postgres_engine: Engine, fake_llm: _FakeLLM) -> None:
+    import json as _json
+
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    _seed_matrix_node(postgres_engine, tid, eid, node_type="commitment", title="Ship pilot")
+
+    fake_llm.response = _json.dumps([{"title": "Stale", "body": "do it"}])
+    first = await e_client.post(f"/internal/v1/engagements/{eid}/insights/refresh?tenant_id={tid}")
+    insight_id = first.json()[0]["id"]
+
+    r = await e_client.post(
+        f"/internal/v1/engagements/{eid}/insights/{insight_id}/resolve?tenant_id={tid}",
+        json={"actor_id": "test-user"},
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "resolved"
+    assert r.json()["decided_by"] == "test-user"
+
+
+@pytest.mark.asyncio
+async def test_insights_list_filter_by_status(
+    e_client: AsyncClient, postgres_engine: Engine, fake_llm: _FakeLLM
+) -> None:
+    import json as _json
+
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    _seed_matrix_node(postgres_engine, tid, eid, node_type="commitment", title="Ship pilot")
+
+    fake_llm.response = _json.dumps([{"title": "Stale", "body": "do it"}])
+    first = await e_client.post(f"/internal/v1/engagements/{eid}/insights/refresh?tenant_id={tid}")
+    assert len(first.json()) == 1
+
+    listed_open = await e_client.get(f"/internal/v1/engagements/{eid}/insights?tenant_id={tid}&status=open")
+    assert len(listed_open.json()) == 1
+    listed_resolved = await e_client.get(f"/internal/v1/engagements/{eid}/insights?tenant_id={tid}&status=resolved")
+    assert listed_resolved.json() == []
