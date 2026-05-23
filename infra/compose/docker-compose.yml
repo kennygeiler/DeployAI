@@ -122,6 +122,12 @@ services:
       S3_ENDPOINT: ${CONTROL_PLANE_S3_ENDPOINT:-http://minio:9000}
       TSA_URL: ${CONTROL_PLANE_TSA_URL:-http://freetsa-stub:2020/tsr}
       DEPLOYAI_INTERNAL_API_KEY: ${DEPLOYAI_INTERNAL_API_KEY:-dev-internal-insecure}
+      # Phase 6.2c — Cartographer extraction agent. Falls back to a stub LLM
+      # when ANTHROPIC_API_KEY is absent (keeps local dev green without a key);
+      # set DEPLOYAI_LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY in
+      # infra/compose/.env to get real proposals from /ingest.
+      DEPLOYAI_LLM_PROVIDER: ${DEPLOYAI_LLM_PROVIDER:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
       - "${CONTROL_PLANE_PORT:-8000}:8000"
     depends_on:
@@ -156,6 +162,12 @@ services:
       DEPLOYAI_CONTROL_PLANE_URL: ${DEPLOYAI_CONTROL_PLANE_URL:-http://control-plane:8000}
       DEPLOYAI_INTERNAL_API_KEY: ${DEPLOYAI_INTERNAL_API_KEY:-dev-internal-insecure}
       NODE_ENV: production
+      # Local compose runs the production Next.js build (NODE_ENV inlined to
+      # "production"), so middleware.ts can't gate dev-role injection on
+      # NODE_ENV here. This runtime flag enables the same injection without
+      # rebuilding. NEVER set this in a hosted/pilot deploy — SSO/proxy
+      # supplies the real `x-deployai-role` there.
+      DEPLOYAI_LOCAL_DEV_ROLE_INJECT: "1"
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:
