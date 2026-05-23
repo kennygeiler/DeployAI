@@ -1,10 +1,4 @@
-"""Internal API — engagement timeline (Sprint 4, increment 1).
-
-Read-only view over ``canonical_memory_events`` for one engagement, ordered
-chronologically. Mounted under ``/internal/v1`` alongside the other
-engagement routes. See ``docs/product/deployai-source-of-truth-spec.md``
-section 16.
-"""
+"""Read-only chronological view over ``canonical_memory_events`` for one engagement."""
 
 from __future__ import annotations
 
@@ -47,9 +41,17 @@ class TimelineResponse(BaseModel):
 def _summary_for(event: CanonicalMemoryEvent) -> str:
     payload = event.payload or {}
     if isinstance(payload, dict):
-        text = payload.get("text")
-        if isinstance(text, str):
-            return text[:_SUMMARY_CHARS]
+        # ingest_interaction wraps content as {"content": {"text": "..."}}; some
+        # synthetic producers store {"text": "..."} flat. Probe both before the
+        # json.dumps fallback so real events render readable text, not raw JSON.
+        content = payload.get("content")
+        if isinstance(content, dict):
+            nested_text = content.get("text")
+            if isinstance(nested_text, str):
+                return nested_text[:_SUMMARY_CHARS]
+        flat_text = payload.get("text")
+        if isinstance(flat_text, str):
+            return flat_text[:_SUMMARY_CHARS]
     return json.dumps(payload, default=str, sort_keys=True)[:_SUMMARY_CHARS]
 
 

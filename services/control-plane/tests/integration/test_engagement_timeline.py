@@ -1,4 +1,4 @@
-"""Engagement timeline internal API (integration) — Sprint 4, increment 1."""
+"""Engagement timeline internal API — integration tests."""
 
 from __future__ import annotations
 
@@ -203,6 +203,30 @@ async def test_timeline_falls_back_to_payload_dump_when_no_text(
     assert len(events) == 1
     # JSON dump fallback contains the structural marker.
     assert "sender" in events[0]["summary"]
+
+
+@pytest.mark.asyncio
+async def test_timeline_unwraps_nested_content_text_from_real_ingest(
+    tl_client: AsyncClient, postgres_engine: Engine
+) -> None:
+    # ingest_interaction wraps {"content": <body.content>}, so a real
+    # canonical_memory_events row stores payload["content"]["text"], not
+    # payload["text"]. The summary builder must probe the nested path,
+    # otherwise every real event renders as raw JSON.
+    tid, eid = await _new_engagement(tl_client, postgres_engine)
+    _ins_event(
+        postgres_engine,
+        tid,
+        eid,
+        "ingest.email",
+        datetime.now(UTC) - timedelta(days=1),
+        {"content": {"text": "Real ingestion shape"}},
+    )
+    r = await tl_client.get(f"/internal/v1/engagements/{eid}/timeline?tenant_id={tid}")
+    assert r.status_code == 200, r.text
+    events = r.json()["events"]
+    assert len(events) == 1
+    assert events[0]["summary"] == "Real ingestion shape"
 
 
 @pytest.mark.asyncio

@@ -81,10 +81,6 @@ function formatOccurredAt(iso: string): string {
   });
 }
 
-/**
- * Sprint 4 (increment 1) — chronological timeline of an engagement built
- * from canonical_memory_events. Grouped by ISO week, newest week first.
- */
 export function EngagementTimeline({ engagementId }: { engagementId: string }) {
   const [events, setEvents] = React.useState<TimelineEvent[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -108,8 +104,6 @@ export function EngagementTimeline({ engagementId }: { engagementId: string }) {
         setErr(null);
         setEvents(Array.isArray(body.events) ? body.events : []);
       } catch (e) {
-        // Wrap fetch in try/catch per AGENTS.md §6 — surface low-level
-        // failures as an inline error rather than an unhandled rejection.
         if (!cancelled) {
           setErr(e instanceof Error ? e.message : "Could not load timeline.");
         }
