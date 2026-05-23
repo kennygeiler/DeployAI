@@ -12,6 +12,8 @@ import { ensureRequestCorrelationHeader } from "@/lib/internal/correlation-id";
 const isStrategistSurface = (p: string) =>
   p === "/engagements" ||
   p.startsWith("/engagements/") ||
+  p === "/search" ||
+  p.startsWith("/search/") ||
   p === "/settings" ||
   p.startsWith("/settings/") ||
   p === "/onboarding" ||
@@ -139,6 +141,8 @@ export const config = {
   matcher: [
     "/engagements",
     "/engagements/:path*",
+    "/search",
+    "/search/:path*",
     "/settings",
     "/settings/:path*",
     "/onboarding",

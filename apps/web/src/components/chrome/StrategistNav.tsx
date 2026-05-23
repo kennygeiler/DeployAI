@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, Settings } from "lucide-react";
+import { Briefcase, Search, Settings } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -19,6 +19,7 @@ type NavItem = { href: string; label: string; icon: React.ComponentType<{ classN
  */
 const primary: readonly NavItem[] = [
   { href: "/engagements", label: "Engagements", icon: Briefcase },
+  { href: "/search", label: "Search", icon: Search },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
