@@ -3,6 +3,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 
+import { PastePreview } from "@/components/epic9/PastePreview.client";
 import { Button } from "@/components/ui/button";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 import { parseEmail } from "@/lib/parsers/email";
@@ -35,6 +36,7 @@ export function InteractionImport({
   const [source, setSource] = React.useState<string>("manual_import");
   const [body, setBody] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const [previewMode, setPreviewMode] = React.useState(false);
 
   const submit = React.useCallback(async () => {
     const raw = body.trim();
@@ -95,6 +97,48 @@ export function InteractionImport({
   }, [engagementId, source, body, onChanged]);
 
   return (
+    <div className="space-y-2">
+      <label className="text-ink-600 flex items-center gap-2 text-xs">
+        <input
+          type="checkbox"
+          checked={previewMode}
+          onChange={(e) => setPreviewMode(e.target.checked)}
+          aria-label="Preview before commit"
+        />
+        Preview before commit
+      </label>
+      {previewMode ? (
+        <PastePreview engagementId={engagementId} onChanged={onChanged} />
+      ) : (
+        <DirectImport
+          source={source}
+          setSource={setSource}
+          body={body}
+          setBody={setBody}
+          busy={busy}
+          submit={() => void submit()}
+        />
+      )}
+    </div>
+  );
+}
+
+function DirectImport({
+  source,
+  setSource,
+  body,
+  setBody,
+  busy,
+  submit,
+}: {
+  source: string;
+  setSource: (s: string) => void;
+  body: string;
+  setBody: (s: string) => void;
+  busy: boolean;
+  submit: () => void;
+}) {
+  return (
     <div className="border-border space-y-2 rounded-lg border p-3">
       <h3 className="text-ink-800 text-xs font-semibold">Import an interaction</h3>
       <p className="text-ink-500 text-xs">
@@ -133,12 +177,7 @@ export function InteractionImport({
             onChange={(e) => setBody(e.target.value)}
           />
         </div>
-        <Button
-          type="button"
-          size="sm"
-          disabled={busy || !body.trim()}
-          onClick={() => void submit()}
-        >
+        <Button type="button" size="sm" disabled={busy || !body.trim()} onClick={submit}>
           Import
         </Button>
       </div>
