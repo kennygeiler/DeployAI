@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { EngagementPortfolio } from "@/components/epic9/EngagementPortfolio.client";
+import { PortfolioInsights } from "@/components/epic9/PortfolioInsights.client";
 import { requireCanonicalRead } from "@/lib/internal/strategist-surface";
 
 export const metadata: Metadata = {
@@ -10,5 +11,10 @@ export const metadata: Metadata = {
 
 export default async function EngagementsPage() {
   await requireCanonicalRead();
-  return <EngagementPortfolio />;
+  return (
+    <div className="max-w-5xl space-y-6">
+      <PortfolioInsights />
+      <EngagementPortfolio />
+    </div>
+  );
 }
