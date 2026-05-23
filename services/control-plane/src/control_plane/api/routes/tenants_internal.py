@@ -39,6 +39,7 @@ from control_plane.db import get_app_db_session
 from control_plane.domain.app_identity.models import (
     LLM_PROVIDERS,
     AppTenant,
+    AppUser,
     TenantLlmConfig,
 )
 from control_plane.domain.canonical_memory.matrix import (
@@ -425,3 +426,75 @@ async def put_tenant_llm_config(
     await session.commit()
     await session.refresh(row)
     return _to_read(row)
+
+
+# --- Sprint 1 inc 2 — non-SCIM tenant user provisioning --------------------
+#
+# Self-hosted single-team deployments don't run a SCIM IdP; the first-run
+# wizard needs a way to seed the first AppUser without a bearer token. SCIM
+# (`/scim/v2/Users`) stays the supported path for production IdP-driven
+# provisioning — this internal endpoint is a parallel admin-key seam for
+# bootstrap. It does *not* set `scim_external_id`; SCIM bulk-load from an
+# IdP later will not collide.
+
+
+class AppUserCreate(BaseModel):
+    user_name: str = Field(min_length=1, max_length=200)
+    email: str | None = Field(default=None, max_length=320)
+    given_name: str | None = Field(default=None, max_length=200)
+    family_name: str | None = Field(default=None, max_length=200)
+
+
+class AppUserRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    user_name: str
+    email: str | None
+    given_name: str | None
+    family_name: str | None
+    active: bool
+    created_at: datetime
+
+
+@router.post(
+    "/{tenant_id}/users",
+    response_model=AppUserRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_internal)],
+)
+async def create_tenant_user(
+    tenant_id: uuid.UUID,
+    body: AppUserCreate,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+) -> AppUser:
+    """Create an AppUser via the internal admin key (no SCIM token).
+
+    Used by the first-run onboarding wizard so the team can seed itself
+    without running an IdP. `user_name` must be unique-per-tenant — duplicate
+    returns 409.
+    """
+    await _require_tenant(session, tenant_id)
+    existing = await session.execute(
+        select(AppUser).where(
+            AppUser.tenant_id == tenant_id,
+            AppUser.user_name == body.user_name,
+        )
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"user_name already exists for tenant: {body.user_name}",
+        )
+    row = AppUser(
+        tenant_id=tenant_id,
+        user_name=body.user_name,
+        email=body.email,
+        given_name=body.given_name,
+        family_name=body.family_name,
+    )
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return row
