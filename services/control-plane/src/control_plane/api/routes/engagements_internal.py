@@ -35,6 +35,7 @@ from control_plane.agents.oracle import (
     NodeSnapshot as OracleNodeSnapshot,
 )
 from control_plane.agents.oracle import (
+    OracleCandidate,
     oracle_candidates,
     oracle_phrase,
 )
@@ -1139,7 +1140,7 @@ async def refresh_matrix_insights(
     existing: dict[str, MatrixInsight] = {row.dedup_key: row for row in existing_q.scalars().all()}
 
     # Decide which candidates need the LLM call.
-    to_phrase: list = []
+    to_phrase: list[OracleCandidate] = []
     for c in candidates:
         prev = existing.get(c.dedup_key)
         if prev is None:
