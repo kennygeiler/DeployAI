@@ -56,6 +56,7 @@ from control_plane.api.routes.strategist_pilot_surfaces import (
     router as strategist_pilot_surfaces_internal_router,
 )
 from control_plane.api.routes.strategist_queues_internal import router as strategist_queues_internal_router
+from control_plane.api.routes.tenants_internal import router as tenants_internal_router
 from control_plane.api.routes.upload_artifacts import router as upload_artifacts_router
 
 try:
@@ -101,6 +102,7 @@ app.include_router(strategist_integration_records_internal_router, prefix="/inte
 app.include_router(strategist_queues_internal_router, prefix="/internal/v1")
 app.include_router(edge_agents_internal_router, prefix="/internal/v1")
 app.include_router(engagements_internal_router, prefix="/internal/v1")
+app.include_router(tenants_internal_router, prefix="/internal/v1")
 app.include_router(scim_users_router, prefix="/scim/v2")
 
 

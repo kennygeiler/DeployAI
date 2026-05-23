@@ -47,6 +47,9 @@ ENV_FILE = REPO_ROOT / "infra" / "compose" / ".env"
 # Stable UUIDs — re-running the seed targets the same rows.
 TENANT_ID = "11111111-1111-1111-1111-111111111111"
 ENGAGEMENT_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+# Phase 7.4: second engagement so the Master Strategist agent has cross-
+# engagement patterns to flag (recurring risks, system concentration, etc.).
+ENGAGEMENT_ID_TWO = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
 USER_STRATEGIST_ID = "aaaaaaa1-1111-4111-8111-111111111111"
 USER_FDE_ID = "aaaaaaa2-2222-4222-8222-222222222222"
 USER_BIZDEV_ID = "aaaaaaa3-3333-4333-8333-333333333333"
@@ -54,6 +57,8 @@ USER_BIZDEV_ID = "aaaaaaa3-3333-4333-8333-333333333333"
 TENANT_NAME = "acme-county-pilot"
 ENGAGEMENT_NAME = "Acme County permit-modernization rollout"
 CUSTOMER_ACCOUNT = "Acme County, CA"
+ENGAGEMENT_NAME_TWO = "Bayview City zoning-variance portal"
+CUSTOMER_ACCOUNT_TWO = "Bayview City, CA"
 CURRENT_PHASE = "discovery"
 
 CP_BASE_URL = os.environ.get("DEPLOYAI_CP_BASE_URL", "http://localhost:8000")
@@ -621,6 +626,207 @@ SEED_EVENTS: list[SeedEvent] = [
 ]
 
 
+# Phase 7.4 — second engagement so the Master Strategist agent has real
+# cross-engagement patterns to flag. Themes deliberately overlap with the
+# Acme County set: same vendor (DeployAI), similar risks (data residency,
+# vendor lock-in), and a missing biz_dev member to fire the role-coverage
+# gap predicate.
+
+def _dt2(week: int, day: int = 1, hour: int = 9) -> datetime:
+    """Different start anchor so re-runs are stable but distinct from set 1."""
+    base = datetime(2026, 4, 6, tzinfo=UTC)
+    return base + timedelta(weeks=week - 1, days=day - 1, hours=hour - 9)
+
+
+SEED_EVENTS_TWO: list[SeedEvent] = [
+    SeedEvent(
+        dedup_key="seed2-w1-bd-intro",
+        source="email",
+        occurred_at=_dt2(1, 1, 9),
+        title="BD intro — Sam Lee → Bayview CoS",
+        source_ref="email-101",
+        text=(
+            "From: Sam Lee <sam.lee@deployai.com>\n"
+            "To: Renee Park <renee.park@bayviewcity.gov>\n"
+            "Subject: Zoning-variance modernization — DeployAI follow-up\n\n"
+            "Renee,\n\n"
+            "Following our chat at the League of Cities workshop. You mentioned the "
+            "zoning-variance backlog at Bayview — applications sitting in an Access "
+            "database, only one person maintains it, decisions take 8–10 weeks.\n\n"
+            "We just wrapped a similar engagement at Acme County (permit modernization) "
+            "and the shape rhymes. Could we get a 30-minute scoping call with your "
+            "Planning Director?\n\n"
+            "Sam\n"
+        ),
+    ),
+    SeedEvent(
+        dedup_key="seed2-w2-discovery",
+        source="meeting_note",
+        occurred_at=_dt2(2, 1, 14),
+        title="Bayview discovery call",
+        source_ref="notion://meetings/bayview-discovery",
+        text=(
+            "Discovery call — Bayview City zoning-variance portal\n"
+            "Attendees: Renee Park (CoS), Marisa Lopez (Planning Director), "
+            "Alex Chen (DeployAI strategist), Sam Lee (DeployAI biz dev)\n\n"
+            "Goal: cut variance application-to-decision time from 8–10 weeks to "
+            "4 weeks. Volume is lower than Acme (~120 variances/year) but "
+            "decisions are higher-stakes (each touches a property hearing).\n\n"
+            "Current state: variance applications are submitted on paper at the "
+            "Planning counter, manually keyed into a custom Microsoft Access "
+            "database maintained by Tom Reyes (the same Tom from Acme — Bayview's "
+            "IT staff are county-wide). Hearings calendar in Outlook.\n\n"
+            "Constraints surfaced:\n"
+            "- Same data-residency requirement as Acme: PII must stay US-based\n"
+            "- Bayview counsel (different person, same posture as Yuki at Acme)\n"
+            "- Must integrate with the same legacy ArcGIS Enterprise instance\n"
+            "- Property hearing dates cannot slip; need a hard SLA on decisions\n\n"
+            "Renee: 'I want what Acme is getting, but for variances.'\n"
+        ),
+    ),
+    SeedEvent(
+        dedup_key="seed2-w2-counsel-privacy",
+        source="email",
+        occurred_at=_dt2(2, 3, 10),
+        title="Bayview counsel — data residency",
+        source_ref="email-104",
+        text=(
+            "From: Hannah Kim <hannah.kim@bayviewcity.gov>\n"
+            "To: Alex Chen <alex.chen@deployai.com>\n"
+            "Cc: Renee Park, Marisa Lopez\n"
+            "Subject: Data residency for variance portal — need answers before pilot\n\n"
+            "Alex,\n\n"
+            "Before Bayview commits, three items I need in writing:\n\n"
+            "1. All PII associated with variance applications and hearings must "
+            "remain in US infrastructure. No exceptions.\n\n"
+            "2. Records-retention schedule for our planning records is 25 years "
+            "from decision. Your platform must respect that.\n\n"
+            "3. Exit path: if we end the engagement, how do we get our data back?\n\n"
+            "Hannah Kim, City Counsel\n"
+        ),
+    ),
+    SeedEvent(
+        dedup_key="seed2-w3-tech-walkthrough",
+        source="meeting_note",
+        occurred_at=_dt2(3, 1, 11),
+        title="Bayview IT walkthrough",
+        source_ref="notion://meetings/bayview-tech-walkthrough",
+        text=(
+            "Tech walkthrough — Bayview IT\n"
+            "Attendees: Jordan Park (DeployAI FDE), Tom Reyes (IT, shared w/ Acme), "
+            "Marisa Lopez (Planning Director)\n\n"
+            "Tom confirmed the variance database is the Access app he maintains "
+            "personally. He named his retirement in 18 months as a hard deadline "
+            "for getting off it. Key-person risk is extreme.\n\n"
+            "Integration plan:\n"
+            "- DeployAI variance intake submits to a staging table; reviewers see "
+            "both the new + old (paper) feeds during pilot\n"
+            "- Reuse the ArcGIS adapter Jordan built for Acme — same on-prem instance\n"
+            "- Outlook hearings-calendar integration: Tom will provision a service "
+            "account by week 5\n\n"
+            "Risk logged: the ArcGIS instance is shared with Acme, so an outage "
+            "would halt both engagements simultaneously. Worth a redundancy "
+            "conversation up the chain.\n"
+        ),
+    ),
+    SeedEvent(
+        dedup_key="seed2-w3-vendor-decision",
+        source="manual_import",
+        occurred_at=_dt2(3, 5, 16),
+        title="Bayview vendor decision",
+        source_ref="memo://marisa-vendor-decision",
+        text=(
+            "Decision memo — Bayview variance-portal vendor\n"
+            "Author: Marisa Lopez, Planning Director\n"
+            "Date: 2026-04-24\n\n"
+            "Decision: Bayview will engage DeployAI for a 90-day pilot of their "
+            "platform configured for variance applications, contingent on counsel "
+            "sign-off on data-residency (expected within the week).\n\n"
+            "Pilot scope: parallel intake, ~120 variances over a year (so ~30 "
+            "during the pilot). Hearings calendar integration in scope.\n\n"
+            "Budget: $145k from FY26 modernization fund.\n\n"
+            "Success criteria:\n"
+            "1. Median application-to-decision time reduced from 8 weeks to ≤ 4 weeks\n"
+            "2. Zero PII data leaving US infrastructure\n"
+            "3. Tom Reyes confirms the new system is maintainable without his "
+            "personal heroics\n\n"
+            "/s/ Marisa Lopez\n"
+        ),
+    ),
+    SeedEvent(
+        dedup_key="seed2-w4-kickoff",
+        source="meeting_note",
+        occurred_at=_dt2(4, 1, 9),
+        title="Bayview pilot kickoff",
+        source_ref="notion://meetings/bayview-kickoff",
+        text=(
+            "Pilot kickoff — Bayview City × DeployAI\n"
+            "Attendees: Renee Park, Marisa Lopez, Hannah Kim, Tom Reyes, "
+            "Alex Chen, Jordan Park\n\n"
+            "Hannah signed off on the data-residency commitments in the meeting. "
+            "Marisa restated the three success criteria.\n\n"
+            "Risks logged for tracking:\n"
+            "- Risk: Tom is a single point of failure for the legacy variance "
+            "database (same shape as Maria at Acme).\n"
+            "- Risk: shared ArcGIS dependency means an outage hits both Bayview "
+            "and Acme. Discuss with County IT.\n"
+            "- Risk: vendor lock-in concerns from the Bayview council. Hannah "
+            "asked for explicit exit-path documentation.\n\n"
+            "Next checkpoint: 2026-05-25 (3 weeks in).\n"
+            "\n"
+            "Note: no biz-dev lead assigned to this engagement — Sam Lee made "
+            "the intro and stepped out post-kickoff. To be revisited if the "
+            "pilot extends.\n"
+        ),
+    ),
+    SeedEvent(
+        dedup_key="seed2-w5-hearing-slip-risk",
+        source="field_note",
+        occurred_at=_dt2(5, 2, 11),
+        title="Hearings-calendar risk",
+        source_ref="field://jordan-bayview-2026-05-14",
+        text=(
+            "Field note — Jordan, on-site at Bayview Planning\n\n"
+            "Spent the morning with Tom and Marisa walking through the hearings "
+            "calendar workflow. Discovered: the Outlook hearings calendar is "
+            "manually maintained — there's no system enforcement that a variance "
+            "is on the calendar before its decision deadline. Today they catch "
+            "missed slots by 'Tom remembers.'\n\n"
+            "If the new system doesn't enforce this, missed hearings become a "
+            "much bigger risk because the calendar volume is going up. Logging "
+            "as P0 for the pilot: hard SLA enforcement on decision dates with "
+            "automated alerts to Marisa.\n\n"
+            "Also: while on-site, witnessed Tom field a panicked call from a "
+            "homeowner who'd shown up for a hearing that had been quietly moved. "
+            "Reinforces the value of automated notification.\n"
+        ),
+    ),
+    SeedEvent(
+        dedup_key="seed2-w6-mid-checkpoint",
+        source="meeting_note",
+        occurred_at=_dt2(6, 1, 14),
+        title="Bayview mid-pilot checkpoint",
+        source_ref="notion://meetings/bayview-mid-pilot",
+        text=(
+            "Mid-pilot checkpoint — Bayview City × DeployAI\n"
+            "Attendees: Renee, Marisa, Hannah, Tom, Alex, Jordan\n\n"
+            "Metrics through week 6:\n"
+            "- 14 variance applications received via new intake (vs 8 expected)\n"
+            "- Median application-to-decision time, new path: 3.5 weeks (target ≤4) ✓\n"
+            "- Median, old path (still running in parallel): 7 weeks (baseline 8)\n"
+            "- Zero PII incidents\n\n"
+            "Tom's report: the system is more maintainable than he expected — "
+            "'I could see handing this off and retiring without dread.'\n\n"
+            "Open issue: the council's vendor lock-in concern hasn't been "
+            "addressed yet. Hannah is asking for a written exit-path commitment "
+            "for the post-pilot MSA negotiation. Alex to draft by week 7.\n\n"
+            "Marisa: 'I want to extend this to building permits, but Tom can't "
+            "be the bridge. We need DeployAI's support to scope a transition.'\n"
+        ),
+    ),
+]
+
+
 # ----------------------------------------------------------------------------
 # Helpers
 # ----------------------------------------------------------------------------
@@ -720,16 +926,15 @@ SELECT 'app_users (this tenant)', count(*) FROM app_users WHERE tenant_id = '{TE
     _psql(sql)
 
 
-def seed_engagement() -> None:
-    """Create the engagement at a stable UUID. Idempotent by direct SQL upsert
-    (CP create endpoint does not support a caller-supplied id)."""
+def seed_engagement(eng_id: str, name: str, customer: str) -> None:
+    """Create one engagement at a stable UUID. Idempotent SQL upsert."""
     sql = f"""
 BEGIN;
 INSERT INTO engagements (id, tenant_id, name, customer_account, current_phase, status, created_at, updated_at)
 VALUES (
-  '{ENGAGEMENT_ID}'::uuid, '{TENANT_ID}'::uuid,
-  '{ENGAGEMENT_NAME.replace("'", "''")}',
-  '{CUSTOMER_ACCOUNT.replace("'", "''")}',
+  '{eng_id}'::uuid, '{TENANT_ID}'::uuid,
+  '{name.replace("'", "''")}',
+  '{customer.replace("'", "''")}',
   '{CURRENT_PHASE}', 'active', now(), now()
 )
 ON CONFLICT (id) DO UPDATE SET
@@ -740,23 +945,18 @@ ON CONFLICT (id) DO UPDATE SET
   updated_at = now();
 COMMIT;
 """
-    print("seed: engagement (psql upsert)…")
+    print(f"seed: engagement {name!r} (psql upsert)…")
     _psql(sql)
 
 
-def seed_members() -> None:
-    """Add the three deployment-team members via CP API. 409 on rerun = already member, fine."""
-    print("seed: engagement_members (CP API)…")
-    members = [
-        (USER_STRATEGIST_ID, "deployment_strategist"),
-        (USER_FDE_ID, "fde"),
-        (USER_BIZDEV_ID, "biz_dev"),
-    ]
+def seed_members(eng_id: str, members: list[tuple[str, str]]) -> None:
+    """Add members via CP API. 409 on rerun = already member, fine."""
+    print(f"seed: engagement_members for {eng_id[:8]}… (CP API)")
     for user_id, role in members:
         try:
             _http(
                 "POST",
-                f"/internal/v1/engagements/{ENGAGEMENT_ID}/members?tenant_id={TENANT_ID}",
+                f"/internal/v1/engagements/{eng_id}/members?tenant_id={TENANT_ID}",
                 {"user_id": user_id, "role": role},
             )
             print(f"  added {role} ({user_id[:8]}…)")
@@ -769,10 +969,10 @@ def seed_members() -> None:
                 raise
 
 
-def ingest_and_extract(force_extract: bool) -> None:
+def ingest_and_extract(eng_id: str, events: list[SeedEvent], force_extract: bool) -> None:
     """Ingest each event (idempotent via dedup_key), then call /extract on it."""
-    print(f"seed: ingesting + extracting {len(SEED_EVENTS)} events…")
-    for i, e in enumerate(SEED_EVENTS, start=1):
+    print(f"seed: ingesting + extracting {len(events)} events into {eng_id[:8]}…")
+    for i, e in enumerate(events, start=1):
         body = {
             "source": e.source,
             "occurred_at": e.occurred_at.isoformat(),
@@ -782,7 +982,7 @@ def ingest_and_extract(force_extract: bool) -> None:
         }
         ev = _http(
             "POST",
-            f"/internal/v1/engagements/{ENGAGEMENT_ID}/ingest?tenant_id={TENANT_ID}",
+            f"/internal/v1/engagements/{eng_id}/ingest?tenant_id={TENANT_ID}",
             body,
         )
         assert isinstance(ev, dict)
@@ -790,11 +990,11 @@ def ingest_and_extract(force_extract: bool) -> None:
         force_q = "&force=true" if force_extract else ""
         proposals = _http(
             "POST",
-            f"/internal/v1/engagements/{ENGAGEMENT_ID}/extract?tenant_id={TENANT_ID}"
+            f"/internal/v1/engagements/{eng_id}/extract?tenant_id={TENANT_ID}"
             f"&event_id={event_id}{force_q}",
         )
         n = len(proposals) if isinstance(proposals, list) else 0
-        print(f"  [{i:>2}/{len(SEED_EVENTS)}] {e.source:<14} {e.title[:50]:<50} -> {n} proposals")
+        print(f"  [{i:>2}/{len(events)}] {e.source:<14} {e.title[:50]:<50} -> {n} proposals")
 
 
 def main() -> None:
@@ -811,34 +1011,68 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    print(f"seed: target tenant={TENANT_ID} engagement={ENGAGEMENT_ID}")
+    # Two engagements so the Master Strategist (Phase 7.4) has cross-
+    # engagement patterns to find. Bayview is intentionally missing a
+    # biz_dev member so the role-coverage-gap predicate fires.
+    engagements: list[tuple[str, str, str, list[tuple[str, str]], list[SeedEvent]]] = [
+        (
+            ENGAGEMENT_ID,
+            ENGAGEMENT_NAME,
+            CUSTOMER_ACCOUNT,
+            [
+                (USER_STRATEGIST_ID, "deployment_strategist"),
+                (USER_FDE_ID, "fde"),
+                (USER_BIZDEV_ID, "biz_dev"),
+            ],
+            SEED_EVENTS,
+        ),
+        (
+            ENGAGEMENT_ID_TWO,
+            ENGAGEMENT_NAME_TWO,
+            CUSTOMER_ACCOUNT_TWO,
+            [
+                (USER_STRATEGIST_ID, "deployment_strategist"),
+                (USER_FDE_ID, "fde"),
+                # No biz_dev — role_coverage_gap predicate will fire on this
+                # engagement since the other one has biz_dev coverage.
+            ],
+            SEED_EVENTS_TWO,
+        ),
+    ]
+
+    print(f"seed: target tenant={TENANT_ID}")
+    print(f"seed: engagements = {len(engagements)}")
     print(f"seed: CP base url = {CP_BASE_URL}")
     _wait_for_cp()
     seed_tenant_and_users()
-    seed_engagement()
-    seed_members()
-    if args.skip_extract:
-        print("seed: --skip-extract, ingesting without extraction…")
-        for i, e in enumerate(SEED_EVENTS, start=1):
-            body = {
-                "source": e.source,
-                "occurred_at": e.occurred_at.isoformat(),
-                "content": {"text": e.text},
-                "source_ref": e.source_ref,
-                "dedup_key": e.dedup_key,
-            }
-            _http(
-                "POST",
-                f"/internal/v1/engagements/{ENGAGEMENT_ID}/ingest?tenant_id={TENANT_ID}",
-                body,
-            )
-            print(f"  [{i:>2}/{len(SEED_EVENTS)}] ingested {e.title[:60]}")
-    else:
-        ingest_and_extract(force_extract=args.force_extract)
+
+    for eng_id, name, customer, members, events in engagements:
+        seed_engagement(eng_id, name, customer)
+        seed_members(eng_id, members)
+        if args.skip_extract:
+            print(f"seed: --skip-extract, ingesting {len(events)} events into {eng_id[:8]}…")
+            for i, e in enumerate(events, start=1):
+                body = {
+                    "source": e.source,
+                    "occurred_at": e.occurred_at.isoformat(),
+                    "content": {"text": e.text},
+                    "source_ref": e.source_ref,
+                    "dedup_key": e.dedup_key,
+                }
+                _http(
+                    "POST",
+                    f"/internal/v1/engagements/{eng_id}/ingest?tenant_id={TENANT_ID}",
+                    body,
+                )
+                print(f"  [{i:>2}/{len(events)}] ingested {e.title[:60]}")
+        else:
+            ingest_and_extract(eng_id, events, force_extract=args.force_extract)
 
     print()
     print("seed: done.")
-    print(f"  Open: {WEB_BASE_URL}/engagements/{ENGAGEMENT_ID}")
+    print(f"  Portfolio:        {WEB_BASE_URL}/engagements")
+    print(f"  Acme County:      {WEB_BASE_URL}/engagements/{ENGAGEMENT_ID}")
+    print(f"  Bayview City:     {WEB_BASE_URL}/engagements/{ENGAGEMENT_ID_TWO}")
 
 
 if __name__ == "__main__":

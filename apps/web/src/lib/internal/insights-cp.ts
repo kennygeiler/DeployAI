@@ -108,3 +108,78 @@ export function cpResolveMatrixInsight(
 ): Promise<MatrixInsight> {
   return cpDecideMatrixInsight(tenantId, engagementId, insightId, "resolve", body);
 }
+
+// --- Phase 7.4 — tenant-scoped (Master Strategist) insights ----------------
+
+function tenantInsightsUrl(
+  tenantId: string,
+  status: "open" | "dismissed" | "resolved" | null,
+): string {
+  const base = `${cpBase()}/internal/v1/tenants/${encodeURIComponent(tenantId)}/insights`;
+  return status ? `${base}?status=${encodeURIComponent(status)}` : base;
+}
+
+export async function cpListTenantInsights(
+  tenantId: string,
+  status: "open" | "dismissed" | "resolved" | null = "open",
+): Promise<MatrixInsight[]> {
+  const r = await fetch(tenantInsightsUrl(tenantId, status), {
+    method: "GET",
+    headers: cpHeaders(),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    throw new Error(`cp tenant insights list ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as MatrixInsight[];
+}
+
+export async function cpRefreshTenantInsights(tenantId: string): Promise<MatrixInsight[]> {
+  const url = `${cpBase()}/internal/v1/tenants/${encodeURIComponent(tenantId)}/insights/refresh`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: cpHeaders(),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    throw new Error(`cp tenant insights refresh ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as MatrixInsight[];
+}
+
+async function cpDecideTenantInsight(
+  tenantId: string,
+  insightId: string,
+  decision: "dismiss" | "resolve",
+  body: { actor_id: string | null },
+): Promise<MatrixInsight> {
+  const url =
+    `${cpBase()}/internal/v1/tenants/${encodeURIComponent(tenantId)}` +
+    `/insights/${encodeURIComponent(insightId)}/${decision}`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { ...cpHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    throw new Error(`cp tenant insight ${decision} ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as MatrixInsight;
+}
+
+export function cpDismissTenantInsight(
+  tenantId: string,
+  insightId: string,
+  body: { actor_id: string | null },
+): Promise<MatrixInsight> {
+  return cpDecideTenantInsight(tenantId, insightId, "dismiss", body);
+}
+
+export function cpResolveTenantInsight(
+  tenantId: string,
+  insightId: string,
+  body: { actor_id: string | null },
+): Promise<MatrixInsight> {
+  return cpDecideTenantInsight(tenantId, insightId, "resolve", body);
+}
