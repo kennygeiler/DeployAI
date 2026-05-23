@@ -3,7 +3,7 @@
  * graph lives in Postgres via the CP `/internal/v1/engagements/{id}/matrix`
  * internal API. See `docs/product/deployment-matrix-model.md`.
  */
-import type { MatrixEdge, MatrixNode } from "@/lib/bff/matrix-types";
+import type { MatrixEdge, MatrixNode, MatrixProposal } from "@/lib/bff/matrix-types";
 
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
 
@@ -92,4 +92,68 @@ export async function cpCreateMatrixEdge(
     throw new Error(`cp matrix edge create ${r.status}: ${await r.text()}`);
   }
   return (await r.json()) as MatrixEdge;
+}
+
+function proposalsUrl(tenantId: string, engagementId: string, status?: string | null): string {
+  const base =
+    `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}/proposals` +
+    `?tenant_id=${encodeURIComponent(tenantId)}`;
+  return status ? `${base}&status=${encodeURIComponent(status)}` : base;
+}
+
+export async function cpListMatrixProposals(
+  tenantId: string,
+  engagementId: string,
+  status: string | null = "pending",
+): Promise<MatrixProposal[]> {
+  const r = await fetch(proposalsUrl(tenantId, engagementId, status), {
+    method: "GET",
+    headers: cpHeaders(),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    throw new Error(`cp matrix proposals list ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as MatrixProposal[];
+}
+
+async function cpDecideMatrixProposal(
+  tenantId: string,
+  engagementId: string,
+  proposalId: string,
+  decision: "accept" | "reject",
+  body: { actor_id: string | null },
+): Promise<MatrixProposal> {
+  const url =
+    `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}` +
+    `/proposals/${encodeURIComponent(proposalId)}/${decision}` +
+    `?tenant_id=${encodeURIComponent(tenantId)}`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { ...cpHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    throw new Error(`cp matrix proposal ${decision} ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as MatrixProposal;
+}
+
+export function cpAcceptMatrixProposal(
+  tenantId: string,
+  engagementId: string,
+  proposalId: string,
+  body: { actor_id: string | null },
+): Promise<MatrixProposal> {
+  return cpDecideMatrixProposal(tenantId, engagementId, proposalId, "accept", body);
+}
+
+export function cpRejectMatrixProposal(
+  tenantId: string,
+  engagementId: string,
+  proposalId: string,
+  body: { actor_id: string | null },
+): Promise<MatrixProposal> {
+  return cpDecideMatrixProposal(tenantId, engagementId, proposalId, "reject", body);
 }

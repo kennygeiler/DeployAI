@@ -327,3 +327,141 @@ async def test_ingest_unknown_source_422(e_client: AsyncClient, postgres_engine:
         },
     )
     assert r.status_code == 422
+
+
+def _seed_event_and_proposal(
+    engine: Engine,
+    tenant_id: uuid.UUID,
+    engagement_id: str,
+    proposal_kind: str,
+    payload: dict[str, object],
+) -> uuid.UUID:
+    """Insert a canonical event + a pending matrix_proposals row; return the proposal id."""
+    import json
+
+    with engine.begin() as conn:
+        event_id = conn.execute(
+            text(
+                """
+                INSERT INTO canonical_memory_events (tenant_id, engagement_id, event_type, occurred_at)
+                VALUES (:t, :e, 'ingest.meeting_note', now())
+                RETURNING id
+                """
+            ),
+            {"t": str(tenant_id), "e": engagement_id},
+        ).scalar_one()
+        proposal_id = conn.execute(
+            text(
+                """
+                INSERT INTO matrix_proposals
+                  (tenant_id, engagement_id, source_event_id, proposal_kind, payload, rationale)
+                VALUES
+                  (:t, :e, :ev, :kind, CAST(:payload AS jsonb), :rationale)
+                RETURNING id
+                """
+            ),
+            {
+                "t": str(tenant_id),
+                "e": engagement_id,
+                "ev": str(event_id),
+                "kind": proposal_kind,
+                "payload": json.dumps(payload),
+                "rationale": "test fixture",
+            },
+        ).scalar_one()
+    return proposal_id
+
+
+@pytest.mark.asyncio
+async def test_matrix_proposal_accept_creates_node(e_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    proposal_id = _seed_event_and_proposal(
+        postgres_engine,
+        tid,
+        eid,
+        "node",
+        {"node_type": "system", "title": "LiDAR ingest"},
+    )
+
+    r = await e_client.post(
+        f"/internal/v1/engagements/{eid}/proposals/{proposal_id}/accept?tenant_id={tid}",
+        json={"actor_id": "test-user"},
+    )
+    assert r.status_code == 200, r.text
+    proposal = r.json()
+    assert proposal["status"] == "accepted"
+    assert proposal["decided_by"] == "test-user"
+    assert proposal["result_node_id"] is not None
+
+    listed = await e_client.get(f"/internal/v1/engagements/{eid}/matrix/nodes?tenant_id={tid}")
+    assert listed.status_code == 200
+    nodes = listed.json()
+    assert len(nodes) == 1
+    assert nodes[0]["title"] == "LiDAR ingest"
+    # Evidence: the canonical event that produced this proposal is cited.
+    assert nodes[0]["evidence_event_ids"] == [proposal["source_event_id"]]
+
+
+@pytest.mark.asyncio
+async def test_matrix_proposal_reject_does_not_create_node(e_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    proposal_id = _seed_event_and_proposal(
+        postgres_engine,
+        tid,
+        eid,
+        "node",
+        {"node_type": "risk", "title": "Calibration drift"},
+    )
+
+    r = await e_client.post(
+        f"/internal/v1/engagements/{eid}/proposals/{proposal_id}/reject?tenant_id={tid}",
+        json={"actor_id": "test-user"},
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "rejected"
+
+    listed = await e_client.get(f"/internal/v1/engagements/{eid}/matrix/nodes?tenant_id={tid}")
+    assert listed.json() == []
+
+
+@pytest.mark.asyncio
+async def test_matrix_proposal_double_decision_422(e_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    proposal_id = _seed_event_and_proposal(
+        postgres_engine,
+        tid,
+        eid,
+        "node",
+        {"node_type": "decision", "title": "Phased rollout"},
+    )
+
+    first = await e_client.post(
+        f"/internal/v1/engagements/{eid}/proposals/{proposal_id}/accept?tenant_id={tid}",
+        json={},
+    )
+    assert first.status_code == 200
+    second = await e_client.post(
+        f"/internal/v1/engagements/{eid}/proposals/{proposal_id}/reject?tenant_id={tid}",
+        json={},
+    )
+    assert second.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_matrix_proposal_list_filters_by_status(e_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    pid = _seed_event_and_proposal(postgres_engine, tid, eid, "node", {"node_type": "system", "title": "Pending one"})
+    _seed_event_and_proposal(postgres_engine, tid, eid, "node", {"node_type": "system", "title": "Pending two"})
+
+    listed = await e_client.get(f"/internal/v1/engagements/{eid}/proposals?tenant_id={tid}")
+    assert listed.status_code == 200
+    assert len(listed.json()) == 2
+
+    await e_client.post(
+        f"/internal/v1/engagements/{eid}/proposals/{pid}/accept?tenant_id={tid}",
+        json={},
+    )
+    pending = await e_client.get(f"/internal/v1/engagements/{eid}/proposals?tenant_id={tid}&status=pending")
+    assert len(pending.json()) == 1
+    accepted = await e_client.get(f"/internal/v1/engagements/{eid}/proposals?tenant_id={tid}&status=accepted")
+    assert len(accepted.json()) == 1
