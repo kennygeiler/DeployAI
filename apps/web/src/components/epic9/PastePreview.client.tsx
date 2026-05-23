@@ -8,12 +8,6 @@ import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff
 import { parseEmail } from "@/lib/parsers/email";
 import { parseMeetingNotes } from "@/lib/parsers/meeting-notes";
 
-/**
- * Sprint 2.2 — paste an interaction, see the extractor's drafts live,
- * keep/discard per draft, then commit (which runs the real /ingest →
- * /extract chain). No DB writes happen until Commit.
- */
-
 const SOURCES = ["manual_import", "meeting_note", "email", "field_note"] as const;
 
 const SOURCE_LABEL: Record<string, string> = {
