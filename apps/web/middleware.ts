@@ -13,7 +13,9 @@ const isStrategistSurface = (p: string) =>
   p === "/engagements" ||
   p.startsWith("/engagements/") ||
   p === "/settings" ||
-  p.startsWith("/settings/");
+  p.startsWith("/settings/") ||
+  p === "/onboarding" ||
+  p.startsWith("/onboarding/");
 
 /** BFF routes the strategist shell polls; need the same actor as pages. */
 const isStrategistApi = (p: string) => p.startsWith("/api/bff/");
@@ -139,6 +141,8 @@ export const config = {
     "/engagements/:path*",
     "/settings",
     "/settings/:path*",
+    "/onboarding",
+    "/onboarding/:path*",
     "/api/bff/:path*",
   ],
 };

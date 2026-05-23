@@ -430,3 +430,70 @@ async def test_stub_provider_in_db_short_circuits_env_fallback(
     r = await t_client.post(f"/internal/v1/tenants/{tid}/insights/refresh")
     assert r.status_code == 200
     assert fake_llm.calls == 0
+
+
+# --- Sprint 1 inc 2 — non-SCIM tenant user provisioning --------------------
+
+
+@pytest.mark.asyncio
+async def test_create_tenant_user_minimal(t_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid = _seed_tenant(postgres_engine)
+    r = await t_client.post(
+        f"/internal/v1/tenants/{tid}/users",
+        json={"user_name": "kenny"},
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["user_name"] == "kenny"
+    assert body["tenant_id"] == str(tid)
+    assert body["active"] is True
+    assert body["email"] is None
+
+
+@pytest.mark.asyncio
+async def test_create_tenant_user_full(t_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid = _seed_tenant(postgres_engine)
+    r = await t_client.post(
+        f"/internal/v1/tenants/{tid}/users",
+        json={
+            "user_name": "kenny@deployai",
+            "email": "kenny@deployai.com",
+            "given_name": "Kenny",
+            "family_name": "Geiler",
+        },
+    )
+    assert r.status_code == 201
+    body = r.json()
+    assert body["email"] == "kenny@deployai.com"
+    assert body["given_name"] == "Kenny"
+    assert body["family_name"] == "Geiler"
+
+
+@pytest.mark.asyncio
+async def test_create_tenant_user_duplicate_user_name_conflicts(t_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid = _seed_tenant(postgres_engine)
+    await t_client.post(f"/internal/v1/tenants/{tid}/users", json={"user_name": "dup"})
+    r = await t_client.post(f"/internal/v1/tenants/{tid}/users", json={"user_name": "dup"})
+    assert r.status_code == 409
+    assert "already exists" in r.text
+
+
+@pytest.mark.asyncio
+async def test_create_tenant_user_404_when_tenant_missing(t_client: AsyncClient) -> None:
+    r = await t_client.post(
+        f"/internal/v1/tenants/{uuid.uuid4()}/users",
+        json={"user_name": "kenny"},
+    )
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_tenant_user_same_name_different_tenants_allowed(
+    t_client: AsyncClient, postgres_engine: Engine
+) -> None:
+    tid_a = _seed_tenant(postgres_engine)
+    tid_b = _seed_tenant(postgres_engine)
+    ra = await t_client.post(f"/internal/v1/tenants/{tid_a}/users", json={"user_name": "kenny"})
+    rb = await t_client.post(f"/internal/v1/tenants/{tid_b}/users", json={"user_name": "kenny"})
+    assert ra.status_code == 201
+    assert rb.status_code == 201

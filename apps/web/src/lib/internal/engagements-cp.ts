@@ -31,6 +31,23 @@ export async function cpListEngagements(tenantId: string): Promise<Engagement[]>
   return (await r.json()) as Engagement[];
 }
 
+export async function cpCreateEngagement(
+  tenantId: string,
+  body: { name: string; customer_account?: string | null; current_phase?: string },
+): Promise<Engagement> {
+  const url = `${cpBase()}/internal/v1/engagements?tenant_id=${encodeURIComponent(tenantId)}`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { ...cpHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    throw new Error(`cp engagement create ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as Engagement;
+}
+
 export async function cpGetEngagement(tenantId: string, engagementId: string): Promise<Engagement> {
   const url =
     `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}` +
