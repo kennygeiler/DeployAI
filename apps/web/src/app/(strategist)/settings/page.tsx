@@ -23,6 +23,11 @@ export default async function SettingsPage() {
           your team uses for extraction + synthesis here. The API key is stored in the local
           database.
         </p>
+        <p className="text-ink-600 mt-2 text-sm">
+          <a className="underline" href="/settings/audit">
+            View audit log
+          </a>
+        </p>
       </header>
       <LlmConfigForm />
       <AgentPromptsForm />

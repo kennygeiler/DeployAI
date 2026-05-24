@@ -16,6 +16,7 @@ from fastapi import FastAPI
 
 import control_plane.bootstrap  # noqa: F401  # configure OTel before other control_plane imports
 from control_plane.api.routes.adjudication_queue import router as adjudication_queue_internal_router
+from control_plane.api.routes.audit_internal import router as audit_internal_router
 from control_plane.api.routes.auth import router as auth_router
 from control_plane.api.routes.auth_oidc import auth_entry_router, oidc_router
 from control_plane.api.routes.auth_saml import router as auth_saml_router
@@ -113,6 +114,7 @@ app.include_router(event_search_router, prefix="/internal/v1")
 app.include_router(extract_preview_router, prefix="/internal/v1")
 app.include_router(engagement_timeline_router, prefix="/internal/v1")
 app.include_router(tenants_internal_router, prefix="/internal/v1")
+app.include_router(audit_internal_router, prefix="/internal/v1")
 app.include_router(webhooks_internal_router, prefix="/internal/v1")
 app.include_router(meetings_internal_router, prefix="/internal/v1")
 app.include_router(scim_users_router, prefix="/scim/v2")
