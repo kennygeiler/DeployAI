@@ -54,7 +54,6 @@ from control_plane.domain.canonical_memory.identity import IdentityNode
 from control_plane.domain.canonical_memory.matrix import (
     INSIGHT_STATUSES,
     MATRIX_EDGE_TYPES,
-    MATRIX_NODE_TYPES,
     MatrixEdge,
     MatrixInsight,
     MatrixNode,
@@ -724,7 +723,8 @@ async def accept_matrix_proposal(
     if proposal.proposal_kind == "node":
         node_type = payload.get("node_type") if isinstance(payload.get("node_type"), str) else ""
         title = payload.get("title") if isinstance(payload.get("title"), str) else ""
-        if not node_type or not title or node_type not in MATRIX_NODE_TYPES:
+        allowed = await resolve_allowed_node_types(session, tenant_id)
+        if not node_type or not title or node_type not in allowed:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="proposal payload must include a valid node_type and a title",

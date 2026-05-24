@@ -407,6 +407,46 @@ async def test_matrix_proposal_accept_creates_node(e_client: AsyncClient, postgr
 
 
 @pytest.mark.asyncio
+async def test_matrix_proposal_accept_honors_tenant_custom_node_type(
+    e_client: AsyncClient, postgres_engine: Engine
+) -> None:
+    tid, eid = await _new_engagement(e_client, postgres_engine)
+    with postgres_engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO tenant_node_types (tenant_id, name, label)
+                VALUES (:t, 'stakeholder_persona', 'Stakeholder Persona')
+                """
+            ),
+            {"t": str(tid)},
+        )
+    proposal_id = _seed_event_and_proposal(
+        postgres_engine,
+        tid,
+        eid,
+        "node",
+        {"node_type": "stakeholder_persona", "title": "City CIO"},
+    )
+
+    r = await e_client.post(
+        f"/internal/v1/engagements/{eid}/proposals/{proposal_id}/accept?tenant_id={tid}",
+        json={"actor_id": "test-user"},
+    )
+    assert r.status_code == 200, r.text
+    proposal = r.json()
+    assert proposal["status"] == "accepted"
+    assert proposal["result_node_id"] is not None
+
+    listed = await e_client.get(f"/internal/v1/engagements/{eid}/matrix/nodes?tenant_id={tid}")
+    assert listed.status_code == 200
+    nodes = listed.json()
+    assert len(nodes) == 1
+    assert nodes[0]["node_type"] == "stakeholder_persona"
+    assert nodes[0]["title"] == "City CIO"
+
+
+@pytest.mark.asyncio
 async def test_matrix_proposal_reject_does_not_create_node(e_client: AsyncClient, postgres_engine: Engine) -> None:
     tid, eid = await _new_engagement(e_client, postgres_engine)
     proposal_id = _seed_event_and_proposal(
