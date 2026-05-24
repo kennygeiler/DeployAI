@@ -30,6 +30,7 @@ import uuid
 from typing import Any
 
 from llm_provider_py.anthropic import AnthropicProvider
+from llm_provider_py.failover import FailoverProvider, create_failover_from_env
 from llm_provider_py.openai import OpenAIProvider
 from llm_provider_py.stub import create_stub_provider
 from llm_provider_py.types import LLMProvider
@@ -83,6 +84,8 @@ def _from_db_config(cfg: TenantLlmConfig) -> LLMProvider:
 
 def _from_env() -> LLMProvider:
     choice = os.getenv("DEPLOYAI_LLM_PROVIDER", "").strip().lower()
+    if choice == "failover":
+        return _failover()
     if choice == "stub":
         return _stub()
     if choice == "anthropic":
@@ -95,7 +98,10 @@ def _from_env() -> LLMProvider:
         return _anthropic()
     if os.getenv("OPENAI_API_KEY"):
         return _openai()
-    _log.info("get_llm_provider: no DEPLOYAI_LLM_PROVIDER / ANTHROPIC_API_KEY / OPENAI_API_KEY — using stub provider.")
+    _log.info(
+        "get_llm_provider: no DEPLOYAI_LLM_PROVIDER / LLM_PRIMARY_PROVIDER / "
+        "ANTHROPIC_API_KEY / OPENAI_API_KEY — using stub provider."
+    )
     return _stub()
 
 
@@ -111,4 +117,9 @@ def _openai(api_key: str | None = None, model: str | None = None) -> LLMProvider
 
 def _stub() -> LLMProvider:
     provider: Any = create_stub_provider()
+    return provider
+
+
+def _failover() -> LLMProvider:
+    provider: FailoverProvider = create_failover_from_env()
     return provider
