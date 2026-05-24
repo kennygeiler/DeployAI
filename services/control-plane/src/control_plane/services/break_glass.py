@@ -10,12 +10,20 @@ from deployai_authz import AuthActor, can_access
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from control_plane.audit import emit_audit_event
 from control_plane.domain.break_glass.models import BreakGlassSession
 from control_plane.exceptions import NotFoundError
 
 logger = logging.getLogger(__name__)
 
 _BG_TTL = timedelta(hours=4)
+
+
+def _try_uuid(sub: str) -> uuid.UUID | None:
+    try:
+        return uuid.UUID(sub)
+    except ValueError:
+        return None
 
 
 def _require_break_glass_tenant(actor: AuthActor, tenant_id: uuid.UUID) -> None:
@@ -56,6 +64,22 @@ async def create_request(
         requested_scope=requested_scope,
     )
     session.add(row)
+    await session.flush()
+    actor_uuid = _try_uuid(initiator_sub)
+    if actor_uuid is not None:
+        await emit_audit_event(
+            session,
+            tenant_id=tenant_id,
+            actor_id=actor_uuid,
+            category="break_glass.requested",
+            summary="break-glass session requested",
+            detail={
+                "session_id": str(row.id),
+                "initiator_sub": initiator_sub,
+                "requested_scope": requested_scope,
+            },
+            ref_id=row.id,
+        )
     await session.commit()
     await session.refresh(row)
     logger.info(
@@ -87,6 +111,21 @@ async def approve(
     row.approved_at = now
     row.status = "active"
     row.expires_at = now + _BG_TTL
+    actor_uuid = _try_uuid(approver_sub)
+    if actor_uuid is not None:
+        await emit_audit_event(
+            session,
+            tenant_id=row.tenant_id,
+            actor_id=actor_uuid,
+            category="break_glass.approved",
+            summary="break-glass session approved",
+            detail={
+                "session_id": str(row.id),
+                "initiator_sub": row.initiator_sub,
+                "approver_sub": approver_sub,
+            },
+            ref_id=row.id,
+        )
     await session.commit()
     await session.refresh(row)
     logger.info(
@@ -121,6 +160,21 @@ async def revoke(
     else:
         row.status = "expired"
     row.revoked_at = now
+    actor_uuid = _try_uuid(actor_sub)
+    if actor_uuid is not None:
+        await emit_audit_event(
+            session,
+            tenant_id=row.tenant_id,
+            actor_id=actor_uuid,
+            category="break_glass.revoked",
+            summary="break-glass session revoked",
+            detail={
+                "session_id": str(row.id),
+                "actor_sub": actor_sub,
+                "final_status": row.status,
+            },
+            ref_id=row.id,
+        )
     await session.commit()
     logger.info(
         "audit_events.break_glass.revoked",
