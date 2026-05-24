@@ -10,10 +10,12 @@ import { InteractionImport } from "@/components/epic9/InteractionImport.client";
 import { MatrixCapture } from "@/components/epic9/MatrixCapture.client";
 import { MatrixGraph } from "@/components/epic9/MatrixGraph.client";
 import { MatrixProposals } from "@/components/epic9/MatrixProposals.client";
+import { RoleLensFilter } from "@/components/epic9/RoleLensFilter.client";
 import { Button } from "@/components/ui/button";
 import type { Engagement, EngagementMember } from "@/lib/bff/engagement-types";
 import type { MatrixEdge, MatrixNode, MatrixProposal } from "@/lib/bff/matrix-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
+import { applyRoleLens, type RoleLens } from "@/lib/matrix/role-lens";
 
 const PHASE_LABEL: Record<string, string> = {
   P1_pre_engagement: "Pre-engagement",
@@ -151,13 +153,18 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
     [engagementId, refresh],
   );
 
-  const matrixNodes = data?.matrix?.nodes ?? [];
-  const matrixEdges = data?.matrix?.edges ?? [];
+  const allMatrixNodes = React.useMemo(() => data?.matrix?.nodes ?? [], [data]);
+  const allMatrixEdges = React.useMemo(() => data?.matrix?.edges ?? [], [data]);
   const matrixProposals = data?.matrix?.proposals ?? [];
-  const nodeTitleById = new Map(matrixNodes.map((n) => [n.id, n.title] as const));
   // Sprint 2 inc 1 — view toggle. Defaults to table (the old surface) so
   // returning users see the familiar shape; graph is one click away.
   const [matrixView, setMatrixView] = React.useState<"table" | "graph">("table");
+  const [roleLens, setRoleLens] = React.useState<RoleLens>("all");
+  const { nodes: matrixNodes, edges: matrixEdges } = React.useMemo(
+    () => applyRoleLens(allMatrixNodes, allMatrixEdges, roleLens),
+    [allMatrixNodes, allMatrixEdges, roleLens],
+  );
+  const nodeTitleById = new Map(matrixNodes.map((n) => [n.id, n.title] as const));
 
   return (
     <div className="max-w-5xl space-y-5">
@@ -280,38 +287,48 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
           <EngagementTimeline engagementId={engagementId} />
 
           <section className="space-y-2">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-ink-800 text-sm font-semibold">Deployment matrix</h2>
-              <div className="inline-flex gap-1" role="group" aria-label="Matrix view mode">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={matrixView === "table" ? "default" : "outline"}
-                  aria-pressed={matrixView === "table"}
-                  onClick={() => setMatrixView("table")}
-                  className="h-7 px-3 text-xs"
-                >
-                  Table
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={matrixView === "graph" ? "default" : "outline"}
-                  aria-pressed={matrixView === "graph"}
-                  onClick={() => setMatrixView("graph")}
-                  className="h-7 px-3 text-xs"
-                >
-                  Graph
-                </Button>
+              <div className="flex flex-wrap items-center gap-3">
+                <RoleLensFilter value={roleLens} onChange={setRoleLens} />
+                <div className="inline-flex gap-1" role="group" aria-label="Matrix view mode">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={matrixView === "table" ? "default" : "outline"}
+                    aria-pressed={matrixView === "table"}
+                    onClick={() => setMatrixView("table")}
+                    className="h-7 px-3 text-xs"
+                  >
+                    Table
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={matrixView === "graph" ? "default" : "outline"}
+                    aria-pressed={matrixView === "graph"}
+                    onClick={() => setMatrixView("graph")}
+                    className="h-7 px-3 text-xs"
+                  >
+                    Graph
+                  </Button>
+                </div>
               </div>
             </div>
             {matrixView === "graph" ? (
               <MatrixGraph nodes={matrixNodes} edges={matrixEdges} />
             ) : matrixNodes.length === 0 ? (
-              <p className="text-ink-600 text-sm">
-                No matrix entities yet — add the first one below, or let ingestion (Phase 6)
-                populate the map.
-              </p>
+              roleLens !== "all" && allMatrixNodes.length > 0 ? (
+                <p className="text-ink-600 text-sm">
+                  No matrix entities visible for the {ROLE_LABEL[roleLens] ?? roleLens} lens —
+                  switch to All or pick a different role.
+                </p>
+              ) : (
+                <p className="text-ink-600 text-sm">
+                  No matrix entities yet — add the first one below, or let ingestion (Phase 6)
+                  populate the map.
+                </p>
+              )
             ) : (
               <div className="space-y-3">
                 {MATRIX_NODE_TYPES.map((t) => {
@@ -350,7 +367,7 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
                 })}
               </div>
             )}
-            <MatrixCapture engagementId={engagementId} nodes={matrixNodes} onChanged={refresh} />
+            <MatrixCapture engagementId={engagementId} nodes={allMatrixNodes} onChanged={refresh} />
           </section>
 
           <section className="space-y-2">
@@ -358,7 +375,7 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
             <MatrixProposals
               engagementId={engagementId}
               proposals={matrixProposals}
-              nodes={matrixNodes}
+              nodes={allMatrixNodes}
               onChanged={refresh}
             />
           </section>
