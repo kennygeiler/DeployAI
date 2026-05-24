@@ -15,6 +15,7 @@ See ``docs/product/synthesis-agents.md`` §4, §11.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -33,13 +34,25 @@ from control_plane.agents.master_strategist import (
     master_strategist_candidates,
     master_strategist_phrase,
 )
+from control_plane.agents.master_strategist import (
+    default_system_prompt as master_strategist_default_prompt,
+)
+from control_plane.agents.matrix_extractor import (
+    default_system_prompt as matrix_extractor_default_prompt,
+)
 from control_plane.agents.oracle import InsightDraft
+from control_plane.agents.oracle import (
+    default_system_prompt as oracle_default_prompt,
+)
+from control_plane.agents.prompts import resolve_tenant_prompt
 from control_plane.api.routes.engagements_internal import require_internal
 from control_plane.db import get_app_db_session
 from control_plane.domain.app_identity.models import (
+    AGENT_PROMPT_NAMES,
     LLM_PROVIDERS,
     AppTenant,
     AppUser,
+    TenantAgentPrompt,
     TenantLlmConfig,
 )
 from control_plane.domain.canonical_memory.matrix import (
@@ -49,6 +62,12 @@ from control_plane.domain.canonical_memory.matrix import (
     MatrixNode,
 )
 from control_plane.domain.engagement import Engagement, EngagementMember
+
+_AGENT_DEFAULT_PROMPTS: dict[str, Callable[[], str]] = {
+    "cartographer": matrix_extractor_default_prompt,
+    "oracle": oracle_default_prompt,
+    "master_strategist": master_strategist_default_prompt,
+}
 
 router = APIRouter(prefix="/tenants", tags=["internal-tenants"])
 
@@ -192,6 +211,9 @@ async def refresh_tenant_insights(
     """
     tenant = await _require_tenant(session, tenant_id)
     llm = await resolve_tenant_llm_provider(session, tenant_id, llm)
+    strategist_prompt = await resolve_tenant_prompt(
+        session, tenant_id, "master_strategist", master_strategist_default_prompt()
+    )
 
     # Snapshot: every engagement + its matrix + member roles.
     eng_q = await session.execute(select(Engagement).where(Engagement.tenant_id == tenant_id))
@@ -262,6 +284,7 @@ async def refresh_tenant_insights(
             engagements=portfolio,
             candidates=to_phrase,
             llm=llm,
+            system_prompt=strategist_prompt,
         )
 
     drafts_by_key = {d.dedup_key: d for d in drafts}
@@ -498,3 +521,123 @@ async def create_tenant_user(
     await session.commit()
     await session.refresh(row)
     return row
+
+
+# --- Sprint 5 — per-tenant agent prompt overrides --------------------------
+#
+# Customers can edit the Cartographer / Oracle / Master Strategist system
+# prompts for their tenant from the Settings UI. One row per (tenant,
+# agent_name); when no row exists the agent uses the baked-in default
+# (resolved via ``resolve_tenant_prompt`` in each refresh / extract route).
+
+
+class AgentPromptEntry(BaseModel):
+    """One agent's resolved prompt + whether it's the default."""
+
+    value: str
+    is_default: bool
+
+
+class AgentPromptsRead(BaseModel):
+    """Map of agent_name -> resolved prompt + default flag."""
+
+    prompts: dict[str, AgentPromptEntry]
+
+
+class AgentPromptWrite(BaseModel):
+    prompt_text: str = Field(min_length=1)
+
+
+def _check_agent_name(agent_name: str) -> None:
+    if agent_name not in AGENT_PROMPT_NAMES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"invalid agent_name: {agent_name}",
+        )
+
+
+@router.get(
+    "/{tenant_id}/agent-prompts",
+    response_model=AgentPromptsRead,
+    dependencies=[Depends(require_internal)],
+)
+async def list_tenant_agent_prompts(
+    tenant_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+) -> AgentPromptsRead:
+    """Return every supported agent's resolved prompt + default flag."""
+    await _require_tenant(session, tenant_id)
+    r = await session.execute(select(TenantAgentPrompt).where(TenantAgentPrompt.tenant_id == tenant_id))
+    overrides: dict[str, str] = {row.agent_name: row.prompt_text for row in r.scalars().all()}
+    entries: dict[str, AgentPromptEntry] = {}
+    for name in AGENT_PROMPT_NAMES:
+        default = _AGENT_DEFAULT_PROMPTS[name]()
+        if name in overrides:
+            entries[name] = AgentPromptEntry(value=overrides[name], is_default=False)
+        else:
+            entries[name] = AgentPromptEntry(value=default, is_default=True)
+    return AgentPromptsRead(prompts=entries)
+
+
+@router.put(
+    "/{tenant_id}/agent-prompts/{agent_name}",
+    response_model=AgentPromptEntry,
+    dependencies=[Depends(require_internal)],
+)
+async def put_tenant_agent_prompt(
+    tenant_id: uuid.UUID,
+    agent_name: str,
+    body: AgentPromptWrite,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+) -> AgentPromptEntry:
+    """Upsert the tenant's prompt override for one agent."""
+    await _require_tenant(session, tenant_id)
+    _check_agent_name(agent_name)
+    r = await session.execute(
+        select(TenantAgentPrompt).where(
+            TenantAgentPrompt.tenant_id == tenant_id,
+            TenantAgentPrompt.agent_name == agent_name,
+        )
+    )
+    row = r.scalar_one_or_none()
+    now = datetime.now(UTC)
+    if row is None:
+        row = TenantAgentPrompt(
+            tenant_id=tenant_id,
+            agent_name=agent_name,
+            prompt_text=body.prompt_text,
+        )
+        session.add(row)
+    else:
+        row.prompt_text = body.prompt_text
+        row.updated_at = now
+    await session.commit()
+    await session.refresh(row)
+    return AgentPromptEntry(value=row.prompt_text, is_default=False)
+
+
+@router.delete(
+    "/{tenant_id}/agent-prompts/{agent_name}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_internal)],
+)
+async def delete_tenant_agent_prompt(
+    tenant_id: uuid.UUID,
+    agent_name: str,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+) -> None:
+    """Remove the tenant's override so the agent falls back to the default."""
+    await _require_tenant(session, tenant_id)
+    _check_agent_name(agent_name)
+    r = await session.execute(
+        select(TenantAgentPrompt).where(
+            TenantAgentPrompt.tenant_id == tenant_id,
+            TenantAgentPrompt.agent_name == agent_name,
+        )
+    )
+    row = r.scalar_one_or_none()
+    if row is None:
+        return None
+    await session.delete(row)
+    await session.commit()
+    return None
