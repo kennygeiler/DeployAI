@@ -36,7 +36,7 @@ WEB_PORT ?= 3000
 .DEFAULT_GOAL := help
 
 .PHONY: help dev dev-verify dev-down dev-logs compose-smoke env init seed-app \
-	lint-python-epic6-agents format-python-epic6-agents backup
+	lint-python-epic6-agents format-python-epic6-agents backup restore
 
 help:
 	@echo "DeployAI local stack — Story 1.7"
@@ -49,6 +49,7 @@ help:
 	@echo "  make init           First-run install (tenant + LLM + engagement + member). Pass INIT_ARGS or DEPLOYAI_INIT_* env vars. Add --template {gov,healthcare,saas,sales} to seed a vertical bundle."
 	@echo "  make seed-app       Seed 1 engagement + ~20 canonical events + run extraction (requires ANTHROPIC_API_KEY in .env)"
 	@echo "  make backup         pg_dump + tenant-DEK metadata to S3/MinIO (requires S3_BUCKET; see docs/ops/backup.md)"
+	@echo "  make restore        Restore pg_dump from BACKUP=s3://... (requires DEPLOYAI_RESTORE_CONFIRM=YES; see docs/ops/backup.md)"
 	@echo "  make compose-smoke  CI entry point (dev + dev-verify, 30-min ceiling)"
 	@echo "  make lint-python-epic6-agents  ruff check + ruff format --check (cartographer)"
 	@echo "  make format-python-epic6-agents  apply ruff format to the same (before commit)"
@@ -145,6 +146,18 @@ seed-app: env
 # (S3_BUCKET is mandatory; S3_ENDPOINT_URL targets MinIO for local dev).
 backup:
 	@bash scripts/backup.sh
+
+# Phase C inc 12.2 — restore pg_dump from S3 (or MinIO) into Postgres.
+# DESTRUCTIVE: overwrites the live DB. Requires DEPLOYAI_RESTORE_CONFIRM=YES
+# in the environment; refuses to clobber a non-empty DB unless
+# DEPLOYAI_RESTORE_FORCE_OVERWRITE=YES is also set. See docs/ops/backup.md
+# § Restore procedure.
+restore:
+	@if [ -z "$(BACKUP)" ]; then \
+		echo "make: BACKUP=s3://bucket/prefix/<TIMESTAMP>/ is required" >&2; \
+		exit 2; \
+	fi
+	@bash scripts/restore.sh "$(BACKUP)"
 
 dev-logs:
 	$(DC) logs -f --tail=200

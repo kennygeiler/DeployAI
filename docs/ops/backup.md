@@ -103,3 +103,84 @@ that an operator should run by hand:
 - The script refuses to start without `S3_BUCKET` so a missing prod env
   var fails loud instead of writing to `/tmp` or a default local path.
 - No outbound telemetry. No third-party logging.
+
+## Restore procedure
+
+`make restore` is the automated companion to `make backup`. It pulls
+the dump + DEK manifest from an S3 prefix and replays the dump into
+the running control-plane Postgres. **This overwrites the live DB** —
+the script is wrapped in two opt-in env-var gates that you must set
+deliberately each time.
+
+### Safety gates
+
+| Var                                | Required when                                                  | Effect                                                                                  |
+|------------------------------------|----------------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| `DEPLOYAI_RESTORE_CONFIRM=YES`     | **always**                                                     | Acknowledges that the run will overwrite the target DB. Restore refuses without this.   |
+| `DEPLOYAI_RESTORE_FORCE_OVERWRITE=YES` | target DB already has rows in `app_tenants`                | Second opt-in for the "I really mean it" case. Refuses to clobber populated state otherwise. |
+
+The double gate is intentional: a naive operator who runs `make
+restore` against the wrong stack hits a hard wall *twice* before any
+data is destroyed.
+
+### Required env vars
+
+| Var                       | Required | Default               | Notes                                                          |
+|---------------------------|----------|-----------------------|----------------------------------------------------------------|
+| `BACKUP`                  | **yes**  | —                     | `s3://bucket/prefix/<TIMESTAMP>/` written by `make backup`.    |
+| `AWS_ACCESS_KEY_ID`       | yes      | —                     | Standard AWS env. For MinIO use the `MINIO_ROOT_USER` value.   |
+| `AWS_SECRET_ACCESS_KEY`   | yes      | —                     | Standard AWS env. For MinIO use the `MINIO_ROOT_PASSWORD`.     |
+| `S3_ENDPOINT_URL`         | no       | (empty → real AWS)    | Set to `http://localhost:9000` for the dev MinIO container.    |
+| `AWS_REGION`              | no       | `us-east-1`           | Forwarded to `aws s3 cp --region`.                             |
+| `POSTGRES_USER`           | no       | `deployai`            | DB role passed to `pg_restore`.                                |
+| `POSTGRES_DB`             | no       | `deployai`            | DB name passed to `pg_restore`.                                |
+
+### Verify-then-confirm flow
+
+1. **Pull the artifacts** from S3 into a temp dir. The script aborts
+   if `postgres.dump` is zero bytes (an empty dump would silently
+   truncate the target DB on restore).
+2. **Print the DEK manifest to stderr** so the operator can eyeball
+   the tenant set they're about to clobber and `Ctrl-C` if the wrong
+   prefix was supplied. The destructive step has not happened yet.
+3. **Probe the target DB** for existing rows in `app_tenants`. If any
+   rows exist and `DEPLOYAI_RESTORE_FORCE_OVERWRITE=YES` is *not* set,
+   the script exits 2 with a clear message and changes nothing.
+4. **Replay the dump** via `pg_restore --single-transaction
+   --clean --if-exists`. The `--single-transaction` flag is
+   load-bearing: any failure mid-restore rolls the whole thing back
+   so the target DB is never left in a half-restored state.
+
+### Example
+
+```bash
+make dev                                 # stack must be up
+
+export BACKUP=s3://deployai-dev-backups/deployai/backups/20260524T172500Z/
+export S3_ENDPOINT_URL=http://localhost:9000
+export AWS_ACCESS_KEY_ID=deployai
+export AWS_SECRET_ACCESS_KEY=deployai-local-dev
+export DEPLOYAI_RESTORE_CONFIRM=YES
+# Only needed when the target DB already has data:
+# export DEPLOYAI_RESTORE_FORCE_OVERWRITE=YES
+
+make restore BACKUP="$BACKUP"
+```
+
+After restore, run `make dev-verify` to smoke the restored stack
+before directing traffic at it.
+
+### Restore security envelope
+
+- Refuses to run without `DEPLOYAI_RESTORE_CONFIRM=YES`. This is the
+  loudest possible guard because the operation overwrites live data.
+- Refuses to clobber a non-empty target DB without a second opt-in
+  via `DEPLOYAI_RESTORE_FORCE_OVERWRITE=YES`.
+- Verifies the pulled dump file is non-empty before invoking the
+  destructive step; an empty dump would otherwise silently truncate.
+- Prints the DEK manifest **before** the destructive step so the
+  operator can `Ctrl-C` on a wrong-tenant-set surprise.
+- Uses `pg_restore --single-transaction` so any failure mid-restore
+  rolls the whole transaction back; the target DB never observes a
+  partial restore.
+- No outbound telemetry. No phone-home on restore completion.
