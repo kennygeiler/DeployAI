@@ -10,6 +10,7 @@ import { InteractionImport } from "@/components/epic9/InteractionImport.client";
 import { MatrixCapture } from "@/components/epic9/MatrixCapture.client";
 import { MatrixGraph } from "@/components/epic9/MatrixGraph.client";
 import { MatrixProposals } from "@/components/epic9/MatrixProposals.client";
+import { RecommendationsPanel } from "@/components/epic9/RecommendationsPanel.client";
 import { RoleLensFilter } from "@/components/epic9/RoleLensFilter.client";
 import { Button } from "@/components/ui/button";
 import type { Engagement, EngagementMember } from "@/lib/bff/engagement-types";
@@ -285,6 +286,8 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
           <EngagementInsights engagementId={engagementId} />
 
           <EngagementTimeline engagementId={engagementId} />
+
+          <RecommendationsPanel engagementId={engagementId} />
 
           <section className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-3">
