@@ -1,14 +1,3 @@
-/**
- * Sprint 5 — per-tenant agent prompt overrides client.
- *
- * Wraps `GET /internal/v1/tenants/{tenant_id}/agent-prompts`,
- * `PUT /internal/v1/tenants/{tenant_id}/agent-prompts/{agent_name}`,
- * and `DELETE /internal/v1/tenants/{tenant_id}/agent-prompts/{agent_name}`.
- *
- * The GET always returns one entry per supported agent — value is the
- * resolved prompt (override if present, baked-in default otherwise) and
- * `is_default` tells the UI whether to show "Reset to default".
- */
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
 
 export type AgentName = "cartographer" | "oracle" | "master_strategist";

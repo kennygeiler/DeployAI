@@ -29,7 +29,10 @@ async function guard() {
 }
 
 function parseAgentName(raw: string): AgentName | null {
-  return (AGENT_NAMES as readonly string[]).includes(raw) ? (raw as AgentName) : null;
+  for (const name of AGENT_NAMES) {
+    if (name === raw) return name;
+  }
+  return null;
 }
 
 export async function PUT(req: Request, ctx: { params: Promise<{ agentName: string }> }) {

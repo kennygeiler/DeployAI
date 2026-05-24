@@ -13,15 +13,6 @@ import {
   type AgentPromptsRead,
 } from "@/lib/internal/agent-prompts-cp";
 
-/**
- * Sprint 5 — per-tenant agent prompt overrides settings form.
- *
- * Three textareas (Cartographer / Oracle / Master Strategist). Each one
- * shows the resolved prompt (override if present, baked-in default
- * otherwise) and offers Save / Reset to default. "Reset" only enables
- * for an override (not for a default).
- */
-
 const AGENT_LABELS: Record<AgentName, string> = {
   cartographer: "Cartographer (matrix extractor)",
   oracle: "Oracle (per-engagement insights)",
@@ -97,6 +88,10 @@ export function AgentPromptsForm() {
         const body = (await r.json()) as { entry: AgentPromptEntry };
         setSaved((prev) => (prev ? { ...prev, [name]: body.entry } : prev));
         toast.success(`${AGENT_LABELS[name]} prompt saved`);
+      } catch (e) {
+        toast.error("Could not save prompt", {
+          description: e instanceof Error ? e.message : "network error",
+        });
       } finally {
         setBusy(null);
       }
@@ -111,14 +106,17 @@ export function AgentPromptsForm() {
         const r = await fetch(`/api/bff/tenant/agent-prompts/${encodeURIComponent(name)}`, {
           method: "DELETE",
         });
-        if (!r.ok && r.status !== 204) {
+        if (!r.ok) {
           const text = await r.text();
           toast.error("Could not reset prompt", { description: text.slice(0, 240) });
           return;
         }
-        // Re-fetch the list so the textarea snaps to the baked-in default.
         await load();
         toast.success(`${AGENT_LABELS[name]} prompt reset to default`);
+      } catch (e) {
+        toast.error("Could not reset prompt", {
+          description: e instanceof Error ? e.message : "network error",
+        });
       } finally {
         setBusy(null);
       }

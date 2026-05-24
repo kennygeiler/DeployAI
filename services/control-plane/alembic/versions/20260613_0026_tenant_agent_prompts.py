@@ -1,10 +1,4 @@
-"""Sprint 5 — per-tenant agent prompt overrides.
-
-Customers running DeployAI self-hosted edit the Cartographer / Oracle /
-Master Strategist system prompts for their tenant from the Settings
-page. One row per (tenant, agent_name); when no row exists, the agent
-falls back to the baked-in default prompt.
-"""
+"""Per-tenant overrides for the Cartographer / Oracle / Master Strategist system prompts."""
 
 from __future__ import annotations
 

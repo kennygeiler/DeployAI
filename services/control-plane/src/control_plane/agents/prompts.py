@@ -1,17 +1,4 @@
-"""Per-tenant agent prompt resolver (Sprint 5).
-
-Resolution order:
-1. Per-tenant DB row (``tenant_agent_prompts``) keyed by (tenant_id,
-   agent_name) — the customer-edited override.
-2. The default prompt the agent module ships with — passed in as
-   ``default_prompt`` so the resolver stays a pure helper that does not
-   need to import agent modules.
-
-Mirrors the shape of ``resolve_tenant_llm_provider`` in
-``control_plane/agents/llm.py``: route handlers call this after pulling
-``tenant_id`` from the path and pass the agent's
-``_system_prompt()`` as ``default_prompt``.
-"""
+"""Per-tenant agent system-prompt resolver — DB override wins, otherwise caller-provided default."""
 
 from __future__ import annotations
 

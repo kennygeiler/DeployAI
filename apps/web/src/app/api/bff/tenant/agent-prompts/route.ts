@@ -7,14 +7,6 @@ import { cpGetTenantAgentPrompts } from "@/lib/internal/agent-prompts-cp";
 import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
 import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strategist-queues-route-guard";
 
-/**
- * Sprint 5 — per-tenant agent prompt overrides.
- *
- * Reuses the same `canonical:read` gate as the rest of the strategist
- * surface BFF (V1 self-hosted single-team install — same posture as
- * /llm-config). Promote to admin-tier when customer_admin gating lands.
- */
-
 async function guard() {
   const actor = await getActorFromHeaders();
   if (!actor) {
