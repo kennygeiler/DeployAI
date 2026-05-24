@@ -45,6 +45,7 @@ from control_plane.api.routes.integrations_slack import (
 )
 from control_plane.api.routes.internal_metrics import router as internal_metrics_router
 from control_plane.api.routes.internal_session import router as internal_session_router
+from control_plane.api.routes.meetings_internal import router as meetings_internal_router
 from control_plane.api.routes.phase_transitions import router as phase_transitions_internal_router
 from control_plane.api.routes.platform import router as platform_router
 from control_plane.api.routes.schema_proposals import router as schema_proposals_internal_router
@@ -113,6 +114,7 @@ app.include_router(extract_preview_router, prefix="/internal/v1")
 app.include_router(engagement_timeline_router, prefix="/internal/v1")
 app.include_router(tenants_internal_router, prefix="/internal/v1")
 app.include_router(webhooks_internal_router, prefix="/internal/v1")
+app.include_router(meetings_internal_router, prefix="/internal/v1")
 app.include_router(scim_users_router, prefix="/scim/v2")
 
 
