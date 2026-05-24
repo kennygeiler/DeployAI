@@ -4,6 +4,7 @@ import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { CitationPanel } from "@/components/epic9/CitationPanel.client";
 import { EngagementInsights } from "@/components/epic9/EngagementInsights.client";
 import { EngagementTimeline } from "@/components/epic9/EngagementTimeline.client";
 import { InteractionImport } from "@/components/epic9/InteractionImport.client";
@@ -161,6 +162,21 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
   // returning users see the familiar shape; graph is one click away.
   const [matrixView, setMatrixView] = React.useState<"table" | "graph">("table");
   const [roleLens, setRoleLens] = React.useState<RoleLens>("all");
+  const [citation, setCitation] = React.useState<{
+    open: boolean;
+    title: string;
+    ids: string[];
+  }>({ open: false, title: "", ids: [] });
+  const openCitation = React.useCallback((node: MatrixNode) => {
+    setCitation({
+      open: true,
+      title: node.title,
+      ids: node.evidence_event_ids ?? [],
+    });
+  }, []);
+  const closeCitation = React.useCallback(() => {
+    setCitation((c) => ({ ...c, open: false }));
+  }, []);
   const { nodes: matrixNodes, edges: matrixEdges } = React.useMemo(
     () => applyRoleLens(allMatrixNodes, allMatrixEdges, roleLens),
     [allMatrixNodes, allMatrixEdges, roleLens],
@@ -319,7 +335,7 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
               </div>
             </div>
             {matrixView === "graph" ? (
-              <MatrixGraph nodes={matrixNodes} edges={matrixEdges} />
+              <MatrixGraph nodes={matrixNodes} edges={matrixEdges} onNodeClick={openCitation} />
             ) : matrixNodes.length === 0 ? (
               roleLens !== "all" && allMatrixNodes.length > 0 ? (
                 <p className="text-ink-600 text-sm">
@@ -371,6 +387,13 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
               </div>
             )}
             <MatrixCapture engagementId={engagementId} nodes={allMatrixNodes} onChanged={refresh} />
+            <CitationPanel
+              engagementId={engagementId}
+              ids={citation.ids}
+              title={citation.title}
+              open={citation.open}
+              onClose={closeCitation}
+            />
           </section>
 
           <section className="space-y-2">

@@ -117,9 +117,36 @@ function buildEdges(matrixEdges: MatrixEdge[]): Edge[] {
   }));
 }
 
-export function MatrixGraph({ nodes, edges }: { nodes: MatrixNode[]; edges: MatrixEdge[] }) {
+export function MatrixGraph({
+  nodes,
+  edges,
+  onNodeClick,
+}: {
+  nodes: MatrixNode[];
+  edges: MatrixEdge[];
+  onNodeClick?: (node: MatrixNode) => void;
+}) {
   const rfNodes = React.useMemo(() => buildNodes(nodes), [nodes]);
   const rfEdges = React.useMemo(() => buildEdges(edges), [edges]);
+  const nodesById = React.useMemo(() => {
+    const m = new Map<string, MatrixNode>();
+    for (const n of nodes) m.set(n.id, n);
+    return m;
+  }, [nodes]);
+
+  const handleNodeClick = React.useCallback(
+    (_e: React.MouseEvent, n: Node) => {
+      if (!onNodeClick) return;
+      // Header pseudo-nodes are non-interactive column markers, not real
+      // matrix entities — they have no evidence to drill into.
+      if (n.id.startsWith("header-")) return;
+      const matched = nodesById.get(n.id);
+      if (matched) {
+        onNodeClick(matched);
+      }
+    },
+    [onNodeClick, nodesById],
+  );
 
   if (nodes.length === 0) {
     return (
@@ -144,6 +171,7 @@ export function MatrixGraph({ nodes, edges }: { nodes: MatrixNode[]; edges: Matr
         nodesConnectable={false}
         edgesFocusable={false}
         defaultEdgeOptions={{ type: "smoothstep" }}
+        onNodeClick={handleNodeClick}
       >
         <Background gap={20} />
         <Controls position="bottom-right" showInteractive={false} />
