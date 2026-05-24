@@ -36,7 +36,7 @@ WEB_PORT ?= 3000
 .DEFAULT_GOAL := help
 
 .PHONY: help dev dev-verify dev-down dev-logs compose-smoke env init seed-app \
-	lint-python-epic6-agents format-python-epic6-agents
+	lint-python-epic6-agents format-python-epic6-agents backup
 
 help:
 	@echo "DeployAI local stack — Story 1.7"
@@ -48,6 +48,7 @@ help:
 	@echo "  make dev-logs       Tail compose logs"
 	@echo "  make init           First-run install (tenant + LLM + engagement + member). Pass INIT_ARGS or DEPLOYAI_INIT_* env vars. Add --template {gov,healthcare,saas,sales} to seed a vertical bundle."
 	@echo "  make seed-app       Seed 1 engagement + ~20 canonical events + run extraction (requires ANTHROPIC_API_KEY in .env)"
+	@echo "  make backup         pg_dump + tenant-DEK metadata to S3/MinIO (requires S3_BUCKET; see docs/ops/backup.md)"
 	@echo "  make compose-smoke  CI entry point (dev + dev-verify, 30-min ceiling)"
 	@echo "  make lint-python-epic6-agents  ruff check + ruff format --check (cartographer)"
 	@echo "  make format-python-epic6-agents  apply ruff format to the same (before commit)"
@@ -138,6 +139,12 @@ init: env
 seed-app: env
 	@echo "make: seeding app schema (1 engagement + ~20 events + extraction)…"
 	@python3 $(COMPOSE_DIR)/seed/seed_app.py $(SEED_APP_ARGS)
+
+# Phase C inc 12.1 — pg_dump + tenant-DEK metadata to S3 (or MinIO).
+# Requires the stack to be up. See docs/ops/backup.md for env vars
+# (S3_BUCKET is mandatory; S3_ENDPOINT_URL targets MinIO for local dev).
+backup:
+	@bash scripts/backup.sh
 
 dev-logs:
 	$(DC) logs -f --tail=200
