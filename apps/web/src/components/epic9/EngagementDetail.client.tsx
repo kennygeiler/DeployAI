@@ -35,7 +35,7 @@ const ROLE_LABEL: Record<string, string> = {
   biz_dev: "Business development",
 };
 
-const MEMBER_ROLES = ["fde", "deployment_strategist", "biz_dev"] as const;
+type MemberRoleOption = { name: string; label: string };
 
 const MATRIX_NODE_TYPES = [
   "stakeholder",
@@ -86,6 +86,11 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
   const [newUserId, setNewUserId] = React.useState("");
   const [newRole, setNewRole] = React.useState<string>("fde");
   const [busy, setBusy] = React.useState(false);
+  const [memberRoleOptions, setMemberRoleOptions] = React.useState<MemberRoleOption[]>([
+    { name: "fde", label: ROLE_LABEL.fde! },
+    { name: "deployment_strategist", label: ROLE_LABEL.deployment_strategist! },
+    { name: "biz_dev", label: ROLE_LABEL.biz_dev! },
+  ]);
 
   const refresh = React.useCallback(async () => {
     const r = await fetch(`/api/bff/engagements/${encodeURIComponent(engagementId)}`, {
@@ -111,6 +116,30 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
     }, 0);
     return () => window.clearTimeout(t);
   }, [refresh]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await fetch("/api/bff/tenant/member-roles", { method: "GET" });
+        if (!r.ok || cancelled) return;
+        const body = (await r.json()) as {
+          builtin: MemberRoleOption[];
+          custom: MemberRoleOption[];
+        };
+        if (cancelled) return;
+        const merged = [...body.builtin, ...body.custom];
+        if (merged.length > 0) {
+          setMemberRoleOptions(merged);
+        }
+      } catch {
+        // Builtin defaults remain in state; member-add still works.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const addMember = React.useCallback(async () => {
     const userId = newUserId.trim();
@@ -246,7 +275,11 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
                   <li key={m.id} className="flex items-center justify-between gap-3 px-3 py-2">
                     <span className="font-mono text-xs">{m.user_id}</span>
                     <div className="flex items-center gap-3">
-                      <span className="text-ink-700">{ROLE_LABEL[m.role] ?? m.role}</span>
+                      <span className="text-ink-700">
+                        {memberRoleOptions.find((o) => o.name === m.role)?.label ??
+                          ROLE_LABEL[m.role] ??
+                          m.role}
+                      </span>
                       <Button
                         type="button"
                         variant="outline"
@@ -287,9 +320,9 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
                     value={newRole}
                     onChange={(e) => setNewRole(e.target.value)}
                   >
-                    {MEMBER_ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {ROLE_LABEL[r]}
+                    {memberRoleOptions.map((r) => (
+                      <option key={r.name} value={r.name}>
+                        {r.label}
                       </option>
                     ))}
                   </select>

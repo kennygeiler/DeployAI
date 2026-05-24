@@ -67,7 +67,8 @@ from control_plane.domain.canonical_memory.node_types import (
     BUILTIN_NODE_TYPES,
     list_tenant_node_types,
 )
-from control_plane.domain.engagement import Engagement, EngagementMember
+from control_plane.domain.engagement import Engagement, EngagementMember, TenantMemberRole
+from control_plane.domain.member_roles import BUILTIN_MEMBER_ROLES, list_tenant_member_roles
 
 _AGENT_DEFAULT_PROMPTS: dict[str, Callable[[], str]] = {
     "cartographer": matrix_extractor_default_prompt,
@@ -842,6 +843,175 @@ async def delete_node_type(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"node type is in use by one or more matrix nodes: {row.name}",
+        )
+    await session.delete(row)
+    await session.commit()
+
+
+# --- Tenant-scoped custom engagement-member roles --------------------------
+
+_BUILTIN_MEMBER_ROLE_LABELS: dict[str, str] = {
+    "fde": "Forward-deployed engineer",
+    "deployment_strategist": "Deployment strategist",
+    "biz_dev": "Business development",
+}
+
+_MEMBER_ROLE_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,49}$")
+
+
+class BuiltinMemberRoleRead(BaseModel):
+    name: str
+    label: str
+
+
+class CustomMemberRoleRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    label: str
+    description: str | None
+
+
+class MemberRolesRead(BaseModel):
+    builtin: list[BuiltinMemberRoleRead]
+    custom: list[CustomMemberRoleRead]
+
+
+class MemberRoleCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=50)
+    label: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=500)
+
+
+class MemberRoleUpdate(BaseModel):
+    label: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=500)
+
+
+def _validate_member_role_name(name: str) -> None:
+    if not _MEMBER_ROLE_NAME_RE.match(name):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(f"invalid name (lowercase letters, digits, underscores; must start with letter): {name}"),
+        )
+    if name in BUILTIN_MEMBER_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"name collides with a built-in member role: {name}",
+        )
+
+
+@router.get(
+    "/{tenant_id}/member-roles",
+    response_model=MemberRolesRead,
+    dependencies=[Depends(require_internal)],
+)
+async def list_member_roles(
+    tenant_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+) -> MemberRolesRead:
+    await _require_tenant(session, tenant_id)
+    custom_rows = await list_tenant_member_roles(session, tenant_id)
+    builtin = [BuiltinMemberRoleRead(name=n, label=_BUILTIN_MEMBER_ROLE_LABELS[n]) for n in BUILTIN_MEMBER_ROLES]
+    custom = [CustomMemberRoleRead.model_validate(row) for row in custom_rows]
+    return MemberRolesRead(builtin=builtin, custom=custom)
+
+
+@router.post(
+    "/{tenant_id}/member-roles",
+    response_model=CustomMemberRoleRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_internal)],
+)
+async def create_member_role(
+    tenant_id: uuid.UUID,
+    body: MemberRoleCreate,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+) -> CustomMemberRoleRead:
+    await _require_tenant(session, tenant_id)
+    _validate_member_role_name(body.name)
+    existing = await session.execute(
+        select(TenantMemberRole).where(
+            TenantMemberRole.tenant_id == tenant_id,
+            TenantMemberRole.name == body.name,
+        )
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"member role already exists: {body.name}",
+        )
+    row = TenantMemberRole(
+        tenant_id=tenant_id,
+        name=body.name,
+        label=body.label,
+        description=body.description,
+    )
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return CustomMemberRoleRead.model_validate(row)
+
+
+async def _require_member_role(session: AsyncSession, tenant_id: uuid.UUID, role_id: uuid.UUID) -> TenantMemberRole:
+    r = await session.execute(
+        select(TenantMemberRole).where(
+            TenantMemberRole.tenant_id == tenant_id,
+            TenantMemberRole.id == role_id,
+        )
+    )
+    row = r.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="member role not found")
+    return row
+
+
+@router.put(
+    "/{tenant_id}/member-roles/{role_id}",
+    response_model=CustomMemberRoleRead,
+    dependencies=[Depends(require_internal)],
+)
+async def update_member_role(
+    tenant_id: uuid.UUID,
+    role_id: uuid.UUID,
+    body: MemberRoleUpdate,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+) -> CustomMemberRoleRead:
+    await _require_tenant(session, tenant_id)
+    row = await _require_member_role(session, tenant_id, role_id)
+    data = body.model_dump(exclude_unset=True)
+    if "label" in data and data["label"] is not None:
+        row.label = data["label"]
+    if "description" in data:
+        row.description = data["description"]
+    row.updated_at = datetime.now(UTC)
+    await session.commit()
+    await session.refresh(row)
+    return CustomMemberRoleRead.model_validate(row)
+
+
+@router.delete(
+    "/{tenant_id}/member-roles/{role_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_internal)],
+)
+async def delete_member_role(
+    tenant_id: uuid.UUID,
+    role_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+) -> None:
+    await _require_tenant(session, tenant_id)
+    row = await _require_member_role(session, tenant_id, role_id)
+    in_use = await session.execute(
+        select(EngagementMember.id)
+        .where(EngagementMember.tenant_id == tenant_id, EngagementMember.role == row.name)
+        .limit(1)
+    )
+    if in_use.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"member role is in use by one or more engagement members: {row.name}",
         )
     await session.delete(row)
     await session.commit()

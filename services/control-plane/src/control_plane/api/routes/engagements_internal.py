@@ -61,6 +61,7 @@ from control_plane.domain.canonical_memory.matrix import (
 )
 from control_plane.domain.canonical_memory.node_types import resolve_allowed_node_types
 from control_plane.domain.engagement import Engagement, EngagementMember
+from control_plane.domain.member_roles import resolve_allowed_member_roles
 from control_plane.phases.machine import DEPLOYMENT_PHASES, default_phase
 from control_plane.webhooks.dispatcher import dispatch as dispatch_webhook
 
@@ -221,7 +222,8 @@ async def add_engagement_member(
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> EngagementMember:
     await _require_engagement(session, tenant_id, engagement_id)
-    if body.role not in _ENGAGEMENT_MEMBER_ROLES:
+    allowed_roles = await resolve_allowed_member_roles(session, tenant_id)
+    if body.role not in allowed_roles:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"invalid role: {body.role}",

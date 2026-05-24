@@ -102,4 +102,10 @@ describe("applyRoleLens", () => {
     expect(NODES).toEqual(nodesCopy);
     expect(EDGES).toEqual(edgesCopy);
   });
+
+  it("returns everything for a custom role with no node-type mapping", () => {
+    const r = applyRoleLens(NODES, EDGES, "clinical_lead", [{ name: "clinical_lead" }]);
+    expect(r.nodes).toHaveLength(NODES.length);
+    expect(r.edges).toHaveLength(EDGES.length);
+  });
 });
