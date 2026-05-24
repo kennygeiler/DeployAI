@@ -58,8 +58,8 @@ export async function POST(req: Request) {
   }
   try {
     const created = await cpCreateMemberRole(g.tid, {
-      name: body.name,
-      label: body.label,
+      name: body.name.trim(),
+      label: body.label.trim(),
       ...(body.description !== undefined ? { description: body.description } : {}),
     });
     return NextResponse.json({ member_role: created }, { status: 201 });
