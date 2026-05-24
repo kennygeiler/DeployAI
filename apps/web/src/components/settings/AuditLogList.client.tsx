@@ -1,23 +1,16 @@
 "use client";
 
 import * as React from "react";
+import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { zAuditEvent } from "@/lib/internal/audit-cp";
 
-type AuditEventDTO = {
-  id: string;
-  tenant_id: string;
-  actor_id: string;
-  category: string;
-  summary: string;
-  detail: Record<string, unknown>;
-  ref_id: string | null;
-  created_at: string;
-};
+type AuditEventDTO = z.infer<typeof zAuditEvent>;
 
-type ListResponse = { events: AuditEventDTO[] };
+const zListResponse = z.object({ events: z.array(zAuditEvent) });
 
 const DEFAULT_LIMIT = 50;
 
@@ -58,9 +51,13 @@ export function AuditLogList() {
       return;
     }
     setErr(null);
-    const body = (await r.json()) as ListResponse;
-    setEvents(body.events);
-    setExhausted(body.events.length < filters.limit);
+    const parsed = zListResponse.safeParse(await r.json());
+    if (!parsed.success) {
+      setErr("Could not parse audit events response");
+      return;
+    }
+    setEvents(parsed.data.events);
+    setExhausted(parsed.data.events.length < filters.limit);
   }, [filters]);
 
   React.useEffect(() => {
@@ -100,9 +97,13 @@ export function AuditLogList() {
         return;
       }
       setErr(null);
-      const body = (await r.json()) as ListResponse;
-      setEvents((prev) => [...prev, ...body.events]);
-      setExhausted(body.events.length < filters.limit);
+      const parsed = zListResponse.safeParse(await r.json());
+      if (!parsed.success) {
+        setErr("Could not parse audit events response");
+        return;
+      }
+      setEvents((prev) => [...prev, ...parsed.data.events]);
+      setExhausted(parsed.data.events.length < filters.limit);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not load older events.");
     } finally {

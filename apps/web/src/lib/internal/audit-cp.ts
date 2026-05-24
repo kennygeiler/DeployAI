@@ -20,7 +20,7 @@ export type AuditListOpts = {
   kind?: string;
 };
 
-const zAuditEvent = z.object({
+export const zAuditEvent = z.object({
   id: z.string(),
   tenant_id: z.string(),
   actor_id: z.string(),

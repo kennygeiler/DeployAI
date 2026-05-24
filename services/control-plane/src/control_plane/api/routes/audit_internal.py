@@ -1,9 +1,4 @@
-"""Internal API — tenant-scoped strategist activity log (Phase C inc 11.2).
-
-Read-only listing over the existing ``strategist_activity_events`` table
-(Epic 10 / Story 10.7). Backs the Settings > Audit log UI; sibling
-write-paths populate the table.
-"""
+"""Internal read-only API: tenant-scoped strategist activity log over ``strategist_activity_events``."""
 
 from __future__ import annotations
 
@@ -52,7 +47,7 @@ async def list_audit_events(
     before: Annotated[datetime | None, Query()] = None,
     actor: Annotated[uuid.UUID | None, Query()] = None,
     kind: Annotated[str | None, Query(max_length=200)] = None,
-) -> list[StrategistActivityEvent]:
+) -> list[AuditEventRead]:
     tenant = await session.get(AppTenant, tenant_id)
     if tenant is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="tenant not found")
@@ -65,4 +60,4 @@ async def list_audit_events(
         stmt = stmt.where(StrategistActivityEvent.category == kind)
     stmt = stmt.order_by(StrategistActivityEvent.created_at.desc()).limit(limit)
     r = await session.execute(stmt)
-    return list(r.scalars().all())
+    return [AuditEventRead.model_validate(row) for row in r.scalars().all()]
