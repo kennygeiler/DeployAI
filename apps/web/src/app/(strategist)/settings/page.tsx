@@ -27,6 +27,10 @@ export default async function SettingsPage() {
           <a className="underline" href="/settings/audit">
             View audit log
           </a>
+          {" · "}
+          <a className="underline" href="/settings/email-import">
+            Email paste-import
+          </a>
         </p>
       </header>
       <LlmConfigForm />

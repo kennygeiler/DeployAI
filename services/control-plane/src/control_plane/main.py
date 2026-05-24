@@ -21,6 +21,7 @@ from control_plane.api.routes.auth import router as auth_router
 from control_plane.api.routes.auth_oidc import auth_entry_router, oidc_router
 from control_plane.api.routes.auth_saml import router as auth_saml_router
 from control_plane.api.routes.break_glass import router as break_glass_router
+from control_plane.api.routes.emails_internal import router as emails_internal_router
 from control_plane.api.routes.engagement_events import router as engagement_events_router
 from control_plane.api.routes.engagement_recommendations import router as engagement_recommendations_router
 from control_plane.api.routes.engagement_timeline import router as engagement_timeline_router
@@ -117,6 +118,7 @@ app.include_router(tenants_internal_router, prefix="/internal/v1")
 app.include_router(audit_internal_router, prefix="/internal/v1")
 app.include_router(webhooks_internal_router, prefix="/internal/v1")
 app.include_router(meetings_internal_router, prefix="/internal/v1")
+app.include_router(emails_internal_router, prefix="/internal/v1")
 app.include_router(scim_users_router, prefix="/scim/v2")
 
 
