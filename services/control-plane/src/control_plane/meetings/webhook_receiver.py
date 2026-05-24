@@ -47,13 +47,7 @@ class ParsedMeetingEvent:
 
 
 def parse_webhook_payload(source: str, payload: dict[str, Any]) -> ParsedMeetingEvent:
-    """Normalise a raw webhook payload into ``ParsedMeetingEvent``.
-
-    Unknown sources fall back to a best-effort parse against a flat shape
-    (the manual-paste convention). The slice intentionally does not raise
-    on unknown sources — the raw row is still recorded so a future
-    increment can re-parse it once the source is supported.
-    """
+    """Normalise raw payload to ``ParsedMeetingEvent``; unknown sources fall through to manual-paste."""
     if source == "zoom":
         return _parse_zoom(payload)
     if source == "gmeet":
