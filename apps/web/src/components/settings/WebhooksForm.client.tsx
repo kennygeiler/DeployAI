@@ -115,7 +115,7 @@ export function WebhooksForm() {
       const r = await fetch(`/api/bff/tenant/webhooks/${encodeURIComponent(id)}`, {
         method: "DELETE",
       });
-      if (!r.ok && r.status !== 204) {
+      if (!r.ok) {
         toast.error("Could not delete webhook");
         return;
       }

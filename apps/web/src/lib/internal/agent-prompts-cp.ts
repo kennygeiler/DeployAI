@@ -62,7 +62,7 @@ export async function cpDeleteTenantAgentPrompt(
 ): Promise<void> {
   const url = `${cpBase()}/internal/v1/tenants/${encodeURIComponent(tenantId)}/agent-prompts/${encodeURIComponent(agentName)}`;
   const r = await fetch(url, { method: "DELETE", headers: cpHeaders(), cache: "no-store" });
-  if (!r.ok && r.status !== 204) {
+  if (!r.ok) {
     throw new Error(`cp agent-prompts delete ${r.status}: ${await r.text()}`);
   }
 }

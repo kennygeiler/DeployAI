@@ -98,7 +98,7 @@ export function NodeTypesForm() {
         });
         return;
       }
-      if (!r.ok && r.status !== 204) {
+      if (!r.ok) {
         toast.error("Could not delete node type");
         return;
       }
