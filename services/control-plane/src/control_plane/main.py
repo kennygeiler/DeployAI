@@ -62,6 +62,7 @@ from control_plane.api.routes.strategist_pilot_surfaces import (
 from control_plane.api.routes.strategist_queues_internal import router as strategist_queues_internal_router
 from control_plane.api.routes.tenants_internal import router as tenants_internal_router
 from control_plane.api.routes.upload_artifacts import router as upload_artifacts_router
+from control_plane.api.routes.webhooks_internal import router as webhooks_internal_router
 
 try:
     _version = metadata.version("control-plane")
@@ -111,6 +112,7 @@ app.include_router(event_search_router, prefix="/internal/v1")
 app.include_router(extract_preview_router, prefix="/internal/v1")
 app.include_router(engagement_timeline_router, prefix="/internal/v1")
 app.include_router(tenants_internal_router, prefix="/internal/v1")
+app.include_router(webhooks_internal_router, prefix="/internal/v1")
 app.include_router(scim_users_router, prefix="/scim/v2")
 
 
