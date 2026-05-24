@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import type { Engagement, EngagementMember } from "@/lib/bff/engagement-types";
 import type { MatrixEdge, MatrixNode, MatrixProposal } from "@/lib/bff/matrix-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
+import type { MemberRolesRead } from "@/lib/internal/member-roles-cp";
 import { applyRoleLens, type RoleLens } from "@/lib/matrix/role-lens";
 
 const PHASE_LABEL: Record<string, string> = {
@@ -34,8 +35,6 @@ const ROLE_LABEL: Record<string, string> = {
   deployment_strategist: "Deployment strategist",
   biz_dev: "Business development",
 };
-
-const MEMBER_ROLES = ["fde", "deployment_strategist", "biz_dev"] as const;
 
 const MATRIX_NODE_TYPES = [
   "stakeholder",
@@ -79,6 +78,7 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
   const [newUserId, setNewUserId] = React.useState("");
   const [newRole, setNewRole] = React.useState<string>("fde");
   const [busy, setBusy] = React.useState(false);
+  const [memberRoles, setMemberRoles] = React.useState<MemberRolesRead | null>(null);
 
   const refresh = React.useCallback(async () => {
     const r = await fetch(`/api/bff/engagements/${encodeURIComponent(engagementId)}`, {
@@ -104,6 +104,46 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
     }, 0);
     return () => window.clearTimeout(t);
   }, [refresh]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await fetch("/api/bff/tenant/member-roles", { cache: "no-store" });
+        if (!r.ok) return;
+        const body = (await r.json()) as MemberRolesRead;
+        if (cancelled) return;
+        if (Array.isArray(body?.builtin) && Array.isArray(body?.custom)) {
+          setMemberRoles(body);
+        }
+      } catch {
+        // Non-fatal — member-add falls back to the built-in trio.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const memberRoleOptions = React.useMemo(() => {
+    if (memberRoles) {
+      return [...memberRoles.builtin, ...memberRoles.custom];
+    }
+    return [
+      { name: "fde", label: "Forward-deployed engineer" },
+      { name: "deployment_strategist", label: "Deployment strategist" },
+      { name: "biz_dev", label: "Business development" },
+    ];
+  }, [memberRoles]);
+  const memberRoleLabel = React.useCallback(
+    (name: string) => {
+      const direct = ROLE_LABEL[name];
+      if (direct) return direct;
+      const custom = memberRoles?.custom.find((c) => c.name === name);
+      return custom?.label ?? name;
+    },
+    [memberRoles],
+  );
 
   const addMember = React.useCallback(async () => {
     const userId = newUserId.trim();
@@ -239,7 +279,7 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
                   <li key={m.id} className="flex items-center justify-between gap-3 px-3 py-2">
                     <span className="font-mono text-xs">{m.user_id}</span>
                     <div className="flex items-center gap-3">
-                      <span className="text-ink-700">{ROLE_LABEL[m.role] ?? m.role}</span>
+                      <span className="text-ink-700">{memberRoleLabel(m.role)}</span>
                       <Button
                         type="button"
                         variant="outline"
@@ -280,9 +320,9 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
                     value={newRole}
                     onChange={(e) => setNewRole(e.target.value)}
                   >
-                    {MEMBER_ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {ROLE_LABEL[r]}
+                    {memberRoleOptions.map((r) => (
+                      <option key={r.name} value={r.name}>
+                        {r.label}
                       </option>
                     ))}
                   </select>

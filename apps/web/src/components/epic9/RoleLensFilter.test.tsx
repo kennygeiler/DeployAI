@@ -66,6 +66,23 @@ describe("RoleLensFilter", () => {
     expect(onChange).toHaveBeenCalledWith("fde");
   });
 
+  it("renders custom-role options after the built-ins", () => {
+    render(
+      <RoleLensFilter
+        value="all"
+        onChange={() => {}}
+        customRoles={[{ name: "clinical_lead", label: "Clinical lead" }]}
+      />,
+    );
+    const selectEl = screen.getByLabelText("Role lens");
+    if (!(selectEl instanceof HTMLSelectElement)) {
+      throw new Error("expected role-lens control to be a <select>");
+    }
+    const select = selectEl;
+    const options = Array.from(select.options).map((o) => o.value);
+    expect(options).toEqual(["all", "fde", "deployment_strategist", "biz_dev", "clinical_lead"]);
+  });
+
   it("default 'all' shows every node; switching to 'fde' hides stakeholders; switching back restores them", async () => {
     const user = userEvent.setup();
     render(<Harness />);

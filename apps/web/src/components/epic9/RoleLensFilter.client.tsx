@@ -4,19 +4,26 @@ import * as React from "react";
 
 import { isRoleLens, ROLE_LENS_VALUES, type RoleLens } from "@/lib/matrix/role-lens";
 
-const LABEL: Record<RoleLens, string> = {
+const BUILTIN_LABEL: Record<string, string> = {
   all: "All roles",
   fde: "Forward-deployed engineer",
   deployment_strategist: "Deployment strategist",
   biz_dev: "Business development",
 };
 
+export type CustomRoleOption = {
+  name: string;
+  label: string;
+};
+
 export function RoleLensFilter({
   value,
   onChange,
+  customRoles,
 }: {
   value: RoleLens;
   onChange: (next: RoleLens) => void;
+  customRoles?: readonly CustomRoleOption[];
 }) {
   const id = React.useId();
   return (
@@ -38,7 +45,12 @@ export function RoleLensFilter({
       >
         {ROLE_LENS_VALUES.map((r) => (
           <option key={r} value={r}>
-            {LABEL[r]}
+            {BUILTIN_LABEL[r]}
+          </option>
+        ))}
+        {customRoles?.map((r) => (
+          <option key={r.name} value={r.name}>
+            {r.label}
           </option>
         ))}
       </select>

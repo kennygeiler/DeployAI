@@ -102,4 +102,18 @@ describe("applyRoleLens", () => {
     expect(NODES).toEqual(nodesCopy);
     expect(EDGES).toEqual(edgesCopy);
   });
+
+  it("passes through unknown custom roles with no mapping (shows everything)", () => {
+    const r = applyRoleLens(NODES, EDGES, "clinical_lead");
+    expect(r.nodes).toHaveLength(NODES.length);
+    expect(r.edges).toHaveLength(EDGES.length);
+  });
+
+  it("filters by an explicit custom-role nodeTypes mapping", () => {
+    const r = applyRoleLens(NODES, EDGES, "clinical_lead", [
+      { name: "clinical_lead", nodeTypes: ["stakeholder", "risk"] },
+    ]);
+    const types = new Set(r.nodes.map((n) => n.node_type));
+    expect(types).toEqual(new Set(["stakeholder", "risk"]));
+  });
 });
