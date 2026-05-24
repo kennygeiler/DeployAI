@@ -1,14 +1,4 @@
-"""Sprint 3.2 — deterministic next-action recommendations for an engagement.
-
-Pure predicates over the engagement's matrix (nodes + edges) plus recent
-canonical events. No LLM. Each recommendation is tagged with a *role*
-(``fde`` / ``deployment_strategist`` / ``biz_dev``) and a *priority*
-(``high`` / ``medium`` / ``low``), plus the matrix-node / matrix-edge
-citations that back it. Cards have a stable ``id`` per predicate-instance
-(hash of predicate-name + node/edge ids) so the UI can dedupe across
-refreshes. The matrix mutation hooks land elsewhere; this endpoint is
-read-only.
-"""
+"""Deterministic next-action recommendations over an engagement's matrix."""
 
 from __future__ import annotations
 
