@@ -53,12 +53,17 @@ import urllib.request
 import uuid
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from templates import TEMPLATES, Template
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 COMPOSE_FILE = REPO_ROOT / "infra" / "compose" / "docker-compose.yml"
 ENV_FILE = REPO_ROOT / "infra" / "compose" / ".env"
 
 VALID_PROVIDERS = ("anthropic", "openai", "stub")
 VALID_ROLES = ("deployment_strategist", "fde", "biz_dev")
+VALID_TEMPLATES = tuple(TEMPLATES.keys())
 
 
 def _load_env_file() -> dict[str, str]:
@@ -185,11 +190,15 @@ def step_llm_config(tenant_id: str, provider: str, model: str | None, api_key: s
     _http("PUT", f"/internal/v1/tenants/{tenant_id}/llm-config", body)
 
 
-def step_engagement(tenant_id: str, name: str, customer: str | None) -> str:
+def step_engagement(
+    tenant_id: str, name: str, customer: str | None, phase: str | None = None
+) -> str:
     print(f"init: engagement '{name}'")
     body: dict = {"name": name}
     if customer:
         body["customer_account"] = customer
+    if phase:
+        body["current_phase"] = phase
     r = _http("POST", f"/internal/v1/engagements?tenant_id={tenant_id}", body)
     assert isinstance(r, dict), f"engagement create returned {type(r)}"
     return str(r["id"])
@@ -216,6 +225,46 @@ def step_member(tenant_id: str, engagement_id: str, user_id: str, role: str) -> 
         f"/internal/v1/engagements/{engagement_id}/members?tenant_id={tenant_id}",
         {"user_id": user_id, "role": role},
     )
+
+
+def step_starter_nodes(
+    tenant_id: str, engagement_id: str, starter_nodes: list[dict]
+) -> None:
+    """POST a template's starter matrix nodes onto the new engagement."""
+    print(f"init: seeding {len(starter_nodes)} starter matrix node(s)")
+    for spec in starter_nodes:
+        body = {
+            "node_type": spec["node_type"],
+            "title": spec["title"],
+            "attributes": spec.get("attributes", {}),
+        }
+        node_status = spec.get("status")
+        if node_status is not None:
+            body["status"] = node_status
+        _http(
+            "POST",
+            f"/internal/v1/engagements/{engagement_id}/matrix/nodes?tenant_id={tenant_id}",
+            body,
+        )
+
+
+def step_template_prompts(tenant_id: str, agent_prompts: dict[str, str]) -> None:
+    """PUT per-agent prompt overrides; tolerate 404 when the endpoint isn't deployed yet."""
+    if not agent_prompts:
+        return
+    for agent_name, prompt_suffix in agent_prompts.items():
+        path = f"/internal/v1/tenants/{tenant_id}/agent-prompts/{agent_name}"
+        try:
+            _http("PUT", path, {"prompt_suffix": prompt_suffix})
+            print(f"init: prompt override saved for agent={agent_name}")
+        except SystemExit as e:
+            if "HTTP 404" in str(e):
+                print(
+                    f"init: skipped agent={agent_name} — "
+                    "prompt endpoint not yet available"
+                )
+                continue
+            raise
 
 
 # ---------------------------------------------------------------------------
@@ -266,23 +315,44 @@ def main(argv: list[str] | None = None) -> int:
         default=_env("DEPLOYAI_INIT_ROLE") or "deployment_strategist",
         choices=VALID_ROLES,
     )
+    parser.add_argument(
+        "--template",
+        default=_env("DEPLOYAI_INIT_TEMPLATE"),
+        choices=VALID_TEMPLATES,
+        help="Industry template to seed: fills engagement/customer/phase defaults, "
+        "creates a small starter set of matrix nodes, and saves vertical-tuned "
+        "agent-prompt overrides. Explicit --engagement-name / --customer-account "
+        "still win over the template's defaults.",
+    )
     args = parser.parse_args(argv)
 
     tenant_name = _required(args.tenant_name, "tenant-name", "DEPLOYAI_INIT_TENANT_NAME")
     llm_provider = _required(args.llm_provider, "llm-provider", "DEPLOYAI_INIT_LLM_PROVIDER")
+
+    template: Template | None = TEMPLATES[args.template] if args.template else None
+
+    engagement_name = args.engagement_name or (template.default_engagement_name if template else None)
     engagement_name = _required(
-        args.engagement_name, "engagement-name", "DEPLOYAI_INIT_ENGAGEMENT_NAME"
+        engagement_name, "engagement-name", "DEPLOYAI_INIT_ENGAGEMENT_NAME"
     )
+    customer_account = args.customer_account or (
+        template.default_customer_account if template else None
+    )
+    engagement_phase = template.default_phase if template else None
+
     user_name = _required(args.user_name, "user-name", "DEPLOYAI_INIT_USER_NAME")
 
     tenant_id = args.tenant_id or str(uuid.uuid4())
 
     step_tenant(tenant_id, tenant_name)
     step_llm_config(tenant_id, llm_provider, args.llm_model, args.llm_api_key)
-    engagement_id = step_engagement(tenant_id, engagement_name, args.customer_account)
+    engagement_id = step_engagement(tenant_id, engagement_name, customer_account, engagement_phase)
     user_id = step_user(tenant_id, user_name, args.user_email)
     if user_id is not None:
         step_member(tenant_id, engagement_id, user_id, args.role)
+    if template is not None:
+        step_starter_nodes(tenant_id, engagement_id, template.starter_nodes)
+        step_template_prompts(tenant_id, template.agent_prompts)
 
     print()
     print("init: done. Next steps:")
