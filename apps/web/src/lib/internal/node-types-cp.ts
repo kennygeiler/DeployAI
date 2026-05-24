@@ -1,10 +1,3 @@
-/**
- * Control-plane per-tenant matrix node-type registry client (Sprint 6 inc 1).
- *
- * Wraps `GET/POST/PUT/DELETE /internal/v1/tenants/{tid}/node-types`. The
- * baked-in catalog (`stakeholder`, `organization`, …) is read-only and
- * surfaced as a parallel block alongside the tenant's custom rows.
- */
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
 
 export type BuiltinNodeType = {

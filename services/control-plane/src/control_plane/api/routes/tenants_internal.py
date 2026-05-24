@@ -649,7 +649,7 @@ async def delete_tenant_agent_prompt(
     return None
 
 
-# --- Sprint 6 inc 1 — tenant-scoped custom matrix node types ---------------
+# --- Tenant-scoped custom matrix node types --------------------------------
 #
 # Tenants extend the baked-in matrix node types (stakeholder /
 # organization / system / decision / risk / commitment / opportunity)

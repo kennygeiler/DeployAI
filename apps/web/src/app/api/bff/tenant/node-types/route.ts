@@ -11,11 +11,6 @@ import {
 import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
 import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strategist-queues-route-guard";
 
-/**
- * Sprint 6 inc 1 — per-tenant custom matrix node-type registry UI.
- *
- * List (builtin + custom) and create.
- */
 async function guard() {
   const actor = await getActorFromHeaders();
   if (!actor) {

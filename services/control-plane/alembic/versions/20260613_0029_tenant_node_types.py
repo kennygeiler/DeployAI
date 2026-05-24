@@ -1,11 +1,4 @@
-"""Sprint 6 inc 1 — tenant-scoped custom matrix node-type registry.
-
-A vertical install (healthcare → ``patient_journey``) or a SaaS install
-(``feature_flag``) can register custom node types that extend the
-baked-in catalog (``stakeholder``, ``organization``, etc.) without a
-schema change. ``name`` is the slug; ``label`` is the human display;
-``color`` and ``description`` are optional UI / extractor hints.
-"""
+"""Tenant-scoped custom matrix node-type registry."""
 
 from __future__ import annotations
 

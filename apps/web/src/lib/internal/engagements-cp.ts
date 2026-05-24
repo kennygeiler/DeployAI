@@ -107,11 +107,6 @@ export async function cpRemoveEngagementMember(
   }
 }
 
-/**
- * Sprint 6 inc 1 — pull the tenant's custom matrix node types so the
- * engagement-detail BFF aggregate can hand them to MatrixGraph in the
- * same payload (one round-trip).
- */
 export type TenantNodeType = {
   name: string;
   label: string;

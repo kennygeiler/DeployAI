@@ -12,13 +12,6 @@ import type {
   NodeTypesResponse,
 } from "@/lib/internal/node-types-cp";
 
-/**
- * Sprint 6 inc 1 — per-tenant custom matrix node-type registry form.
- *
- * Builtins (stakeholder, organization, …) are read-only; tenants add
- * custom slugs (patient_journey, feature_flag) with an optional color +
- * description. Delete is blocked when matrix nodes reference the slug.
- */
 export function NodeTypesForm() {
   const [builtin, setBuiltin] = React.useState<BuiltinNodeType[]>([]);
   const [custom, setCustom] = React.useState<CustomNodeType[]>([]);
