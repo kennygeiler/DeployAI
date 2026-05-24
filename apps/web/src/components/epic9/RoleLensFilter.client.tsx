@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { ROLE_LENS_VALUES, type RoleLens } from "@/lib/matrix/role-lens";
+import { isRoleLens, ROLE_LENS_VALUES, type RoleLens } from "@/lib/matrix/role-lens";
 
 const LABEL: Record<RoleLens, string> = {
   all: "All roles",
@@ -28,7 +28,12 @@ export function RoleLensFilter({
         id={id}
         className="border-border rounded-md border px-2 py-1 text-xs"
         value={value}
-        onChange={(e) => onChange(e.target.value as RoleLens)}
+        onChange={(e) => {
+          const next = e.target.value;
+          if (isRoleLens(next)) {
+            onChange(next);
+          }
+        }}
         aria-label="Role lens"
       >
         {ROLE_LENS_VALUES.map((r) => (

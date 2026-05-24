@@ -29,12 +29,7 @@ const ALL_NODES: MatrixNode[] = [
   mkNode("n3", "risk", "Calibration slip"),
 ];
 
-/**
- * Harness mirroring how `EngagementDetail` wires the lens: the
- * `RoleLensFilter` drives state and `applyRoleLens` filters the nodes
- * that get rendered. Exercises the integration without coupling to the
- * full engagement-detail page.
- */
+// Mirrors how EngagementDetail wires the lens: filter drives state, applyRoleLens filters.
 function Harness() {
   const [role, setRole] = React.useState<RoleLens>("all");
   const { nodes } = applyRoleLens(ALL_NODES, [], role);
@@ -53,7 +48,11 @@ function Harness() {
 describe("RoleLensFilter", () => {
   it("renders all four role options with the current value", () => {
     render(<RoleLensFilter value="all" onChange={() => {}} />);
-    const select = screen.getByLabelText("Role lens") as HTMLSelectElement;
+    const selectEl = screen.getByLabelText("Role lens");
+    if (!(selectEl instanceof HTMLSelectElement)) {
+      throw new Error("expected role-lens control to be a <select>");
+    }
+    const select = selectEl;
     expect(select.value).toBe("all");
     const options = Array.from(select.options).map((o) => o.value);
     expect(options).toEqual(["all", "fde", "deployment_strategist", "biz_dev"]);

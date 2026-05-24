@@ -9,6 +9,10 @@ export const ROLE_LENS_VALUES: readonly RoleLens[] = [
   "biz_dev",
 ] as const;
 
+export function isRoleLens(value: string): value is RoleLens {
+  return (ROLE_LENS_VALUES as readonly string[]).includes(value);
+}
+
 // Static node-type relevance per role. Provenance-based filtering (using the
 // author/agent that produced each event) is a future slice — canonical events
 // carry no author_role today.
