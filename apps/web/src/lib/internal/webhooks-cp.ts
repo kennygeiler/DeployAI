@@ -114,7 +114,7 @@ export async function cpUpdateWebhook(
 export async function cpDeleteWebhook(tenantId: string, webhookId: string): Promise<void> {
   const url = `${cpBase()}/internal/v1/webhooks/${encodeURIComponent(webhookId)}?tenant_id=${encodeURIComponent(tenantId)}`;
   const r = await fetch(url, { method: "DELETE", headers: cpHeaders(), cache: "no-store" });
-  if (!r.ok && r.status !== 204) {
+  if (!r.ok) {
     throw new Error(`cp webhooks delete ${r.status}: ${await r.text()}`);
   }
 }

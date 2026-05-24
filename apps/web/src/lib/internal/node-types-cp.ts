@@ -102,7 +102,7 @@ export async function cpUpdateNodeType(
 export async function cpDeleteNodeType(tenantId: string, nodeTypeId: string): Promise<void> {
   const url = `${cpBase()}/internal/v1/tenants/${encodeURIComponent(tenantId)}/node-types/${encodeURIComponent(nodeTypeId)}`;
   const r = await fetch(url, { method: "DELETE", headers: cpHeaders(), cache: "no-store" });
-  if (!r.ok && r.status !== 204) {
+  if (!r.ok) {
     throw new Error(`cp node-types delete ${r.status}: ${await r.text()}`);
   }
 }
