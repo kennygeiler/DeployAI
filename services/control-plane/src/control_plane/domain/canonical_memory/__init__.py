@@ -28,7 +28,12 @@ from control_plane.domain.canonical_memory.learnings import (
     LearningState,
     SolidifiedLearning,
 )
-from control_plane.domain.canonical_memory.matrix import MatrixEdge, MatrixNode, MatrixProposal
+from control_plane.domain.canonical_memory.matrix import (
+    MatrixEdge,
+    MatrixNode,
+    MatrixProposal,
+    TenantNodeType,
+)
 from control_plane.domain.canonical_memory.proposals import SchemaProposal
 from control_plane.domain.canonical_memory.tombstones import Tombstone
 
@@ -45,5 +50,6 @@ __all__ = [
     "MatrixProposal",
     "SchemaProposal",
     "SolidifiedLearning",
+    "TenantNodeType",
     "Tombstone",
 ]

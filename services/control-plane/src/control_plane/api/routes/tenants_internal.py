@@ -14,6 +14,7 @@ See ``docs/product/synthesis-agents.md`` §4, §11.
 
 from __future__ import annotations
 
+import re
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -60,6 +61,11 @@ from control_plane.domain.canonical_memory.matrix import (
     MatrixEdge,
     MatrixInsight,
     MatrixNode,
+    TenantNodeType,
+)
+from control_plane.domain.canonical_memory.node_types import (
+    BUILTIN_NODE_TYPES,
+    list_tenant_node_types,
 )
 from control_plane.domain.engagement import Engagement, EngagementMember
 
@@ -641,3 +647,201 @@ async def delete_tenant_agent_prompt(
     await session.delete(row)
     await session.commit()
     return None
+
+
+# --- Tenant-scoped custom matrix node types --------------------------------
+#
+# Tenants extend the baked-in matrix node types (stakeholder /
+# organization / system / decision / risk / commitment / opportunity)
+# with custom slugs — ``patient_journey`` for a healthcare vertical,
+# ``feature_flag`` for a SaaS team. The slug is immutable so existing
+# matrix_nodes referencing it stay valid; label / color / description are
+# mutable. Delete is blocked while any matrix_node row uses the slug.
+
+_BUILTIN_NODE_TYPE_LABELS: dict[str, str] = {
+    "stakeholder": "Stakeholder",
+    "organization": "Organization",
+    "system": "System",
+    "decision": "Decision",
+    "risk": "Risk",
+    "commitment": "Commitment",
+    "opportunity": "Opportunity",
+}
+
+_NODE_TYPE_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,49}$")
+_NODE_TYPE_COLOR_RE = re.compile(r"^#[0-9a-f]{6}$")
+
+
+class BuiltinNodeTypeRead(BaseModel):
+    name: str
+    label: str
+
+
+class CustomNodeTypeRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    label: str
+    color: str | None
+    description: str | None
+
+
+class NodeTypesRead(BaseModel):
+    builtin: list[BuiltinNodeTypeRead]
+    custom: list[CustomNodeTypeRead]
+
+
+class NodeTypeCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=50)
+    label: str = Field(min_length=1, max_length=200)
+    color: str | None = Field(default=None, max_length=7)
+    description: str | None = Field(default=None, max_length=500)
+
+
+class NodeTypeUpdate(BaseModel):
+    label: str | None = Field(default=None, min_length=1, max_length=200)
+    color: str | None = Field(default=None, max_length=7)
+    description: str | None = Field(default=None, max_length=500)
+
+
+def _validate_node_type_name(name: str) -> None:
+    if not _NODE_TYPE_NAME_RE.match(name):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(f"invalid name (lowercase letters, digits, underscores; must start with letter): {name}"),
+        )
+    if name in BUILTIN_NODE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"name collides with a built-in node type: {name}",
+        )
+
+
+def _validate_node_type_color(color: str | None) -> None:
+    if color is None:
+        return
+    if not _NODE_TYPE_COLOR_RE.match(color):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"invalid color (expected #rrggbb hex, lowercase): {color}",
+        )
+
+
+@router.get(
+    "/{tenant_id}/node-types",
+    response_model=NodeTypesRead,
+    dependencies=[Depends(require_internal)],
+)
+async def list_node_types(
+    tenant_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+) -> NodeTypesRead:
+    await _require_tenant(session, tenant_id)
+    custom_rows = await list_tenant_node_types(session, tenant_id)
+    builtin = [BuiltinNodeTypeRead(name=n, label=_BUILTIN_NODE_TYPE_LABELS[n]) for n in BUILTIN_NODE_TYPES]
+    custom = [CustomNodeTypeRead.model_validate(row) for row in custom_rows]
+    return NodeTypesRead(builtin=builtin, custom=custom)
+
+
+@router.post(
+    "/{tenant_id}/node-types",
+    response_model=CustomNodeTypeRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_internal)],
+)
+async def create_node_type(
+    tenant_id: uuid.UUID,
+    body: NodeTypeCreate,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+) -> CustomNodeTypeRead:
+    await _require_tenant(session, tenant_id)
+    _validate_node_type_name(body.name)
+    _validate_node_type_color(body.color)
+    existing = await session.execute(
+        select(TenantNodeType).where(
+            TenantNodeType.tenant_id == tenant_id,
+            TenantNodeType.name == body.name,
+        )
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"node type already exists: {body.name}",
+        )
+    row = TenantNodeType(
+        tenant_id=tenant_id,
+        name=body.name,
+        label=body.label,
+        color=body.color,
+        description=body.description,
+    )
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return CustomNodeTypeRead.model_validate(row)
+
+
+async def _require_node_type(session: AsyncSession, tenant_id: uuid.UUID, node_type_id: uuid.UUID) -> TenantNodeType:
+    r = await session.execute(
+        select(TenantNodeType).where(
+            TenantNodeType.tenant_id == tenant_id,
+            TenantNodeType.id == node_type_id,
+        )
+    )
+    row = r.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="node type not found")
+    return row
+
+
+@router.put(
+    "/{tenant_id}/node-types/{node_type_id}",
+    response_model=CustomNodeTypeRead,
+    dependencies=[Depends(require_internal)],
+)
+async def update_node_type(
+    tenant_id: uuid.UUID,
+    node_type_id: uuid.UUID,
+    body: NodeTypeUpdate,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+) -> CustomNodeTypeRead:
+    await _require_tenant(session, tenant_id)
+    row = await _require_node_type(session, tenant_id, node_type_id)
+    data = body.model_dump(exclude_unset=True)
+    if "color" in data:
+        _validate_node_type_color(data["color"])
+    if "label" in data and data["label"] is not None:
+        row.label = data["label"]
+    if "color" in data:
+        row.color = data["color"]
+    if "description" in data:
+        row.description = data["description"]
+    row.updated_at = datetime.now(UTC)
+    await session.commit()
+    await session.refresh(row)
+    return CustomNodeTypeRead.model_validate(row)
+
+
+@router.delete(
+    "/{tenant_id}/node-types/{node_type_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_internal)],
+)
+async def delete_node_type(
+    tenant_id: uuid.UUID,
+    node_type_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+) -> None:
+    await _require_tenant(session, tenant_id)
+    row = await _require_node_type(session, tenant_id, node_type_id)
+    in_use = await session.execute(
+        select(MatrixNode.id).where(MatrixNode.tenant_id == tenant_id, MatrixNode.node_type == row.name).limit(1)
+    )
+    if in_use.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"node type is in use by one or more matrix nodes: {row.name}",
+        )
+    await session.delete(row)
+    await session.commit()

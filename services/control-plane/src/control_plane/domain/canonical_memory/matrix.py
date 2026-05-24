@@ -19,7 +19,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import ForeignKey, Index, text
+from sqlalchemy import ForeignKey, Index, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -51,6 +51,43 @@ MATRIX_EDGE_TYPES: tuple[str, ...] = (
     "depends_on",
     "enables",
 )
+
+
+class TenantNodeType(Base):
+    """A tenant-registered custom matrix node type — extends MATRIX_NODE_TYPES."""
+
+    __tablename__ = "tenant_node_types"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("deployai_uuid_v7()"),
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("app_tenants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(nullable=False)
+    label: Mapped[str] = mapped_column(nullable=False)
+    color: Mapped[str | None] = mapped_column(nullable=True)
+    description: Mapped[str | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+        onupdate=text("now()"),
+    )
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "name", name="uq_tenant_node_types_tenant_name"),
+        Index("idx_tenant_node_types_tenant_id", "tenant_id"),
+    )
 
 
 class MatrixNode(Base):

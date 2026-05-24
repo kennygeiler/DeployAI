@@ -107,4 +107,16 @@ describe("MatrixGraph", () => {
     expect(screen.queryByText(/Systems/)).toBeNull();
     expect(screen.queryByText(/Decisions/)).toBeNull();
   });
+
+  it("renders a custom-type column when the tenant has one registered", () => {
+    render(
+      <MatrixGraph
+        nodes={[mkNode({ node_type: "patient_journey", title: "Surgery prep" })]}
+        edges={[]}
+        customTypes={[{ name: "patient_journey", label: "Patient journeys", color: "#fde68a" }]}
+      />,
+    );
+    expect(screen.getByText("Surgery prep")).toBeTruthy();
+    expect(screen.getByText(/Patient journeys/)).toBeTruthy();
+  });
 });

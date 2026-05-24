@@ -57,6 +57,12 @@ const NODE_TYPE_LABEL: Record<string, string> = {
   opportunity: "Opportunities",
 };
 
+type CustomNodeTypeFromDetail = {
+  name: string;
+  label: string;
+  color: string | null;
+};
+
 type DetailResponse = {
   engagement: Engagement;
   members: EngagementMember[];
@@ -64,6 +70,7 @@ type DetailResponse = {
     nodes: MatrixNode[];
     edges: MatrixEdge[];
     proposals?: MatrixProposal[];
+    node_types?: CustomNodeTypeFromDetail[];
   };
 };
 
@@ -335,7 +342,12 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
               </div>
             </div>
             {matrixView === "graph" ? (
-              <MatrixGraph nodes={matrixNodes} edges={matrixEdges} onNodeClick={openCitation} />
+              <MatrixGraph
+                nodes={matrixNodes}
+                edges={matrixEdges}
+                customTypes={data.matrix?.node_types ?? []}
+                onNodeClick={openCitation}
+              />
             ) : matrixNodes.length === 0 ? (
               roleLens !== "all" && allMatrixNodes.length > 0 ? (
                 <p className="text-ink-600 text-sm">

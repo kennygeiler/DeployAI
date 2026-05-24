@@ -67,14 +67,22 @@ def extract_matrix_proposals(
     existing_nodes: list[ExistingNode],
     llm: LLMProvider,
     system_prompt: str | None = None,
+    allowed_node_types: set[str] | None = None,
 ) -> list[ProposalDraft]:
-    """Run one extraction pass for one canonical event."""
+    """Run one extraction pass for one canonical event.
+
+    ``allowed_node_types`` is the per-tenant union of baked-in +
+    custom-registered node-type slugs; default ``None`` falls back to
+    ``MATRIX_NODE_TYPES``.
+    """
+    node_types = allowed_node_types if allowed_node_types is not None else set(MATRIX_NODE_TYPES)
     messages = _build_messages(
         event_source=event_source,
         event_occurred_at=event_occurred_at,
         event_payload=event_payload,
         existing_nodes=existing_nodes,
         system_prompt=system_prompt,
+        allowed_node_types=node_types,
     )
     try:
         raw = llm.chat_complete(
@@ -89,7 +97,7 @@ def extract_matrix_proposals(
     if items is None:
         _log.warning("matrix_extractor: could not parse LLM response for event %s", event_id)
         return []
-    return _validate(items, existing_nodes)
+    return _validate(items, existing_nodes, node_types)
 
 
 # --- prompt -----------------------------------------------------------------
@@ -102,6 +110,7 @@ def _build_messages(
     event_payload: dict[str, Any],
     existing_nodes: list[ExistingNode],
     system_prompt: str | None = None,
+    allowed_node_types: set[str],
 ) -> list[ChatMessage]:
     return [
         {"role": "system", "content": system_prompt if system_prompt is not None else _system_prompt()},
@@ -112,6 +121,7 @@ def _build_messages(
                 event_occurred_at=event_occurred_at,
                 event_payload=event_payload,
                 existing_nodes=existing_nodes,
+                allowed_node_types=allowed_node_types,
             ),
         },
     ]
@@ -161,12 +171,24 @@ def _user_prompt(
     event_occurred_at: datetime,
     event_payload: dict[str, Any],
     existing_nodes: list[ExistingNode],
+    allowed_node_types: set[str],
 ) -> str:
     nodes_block = "\n".join(f"- {n.title} ({n.node_type})" for n in existing_nodes) if existing_nodes else "(none yet)"
     content_text = _content_to_text(event_payload)
     if len(content_text) > _MAX_CONTENT_CHARS:
         content_text = content_text[:_MAX_CONTENT_CHARS] + "\n…[truncated]"
+    # Custom-only types (not in the baked-in list) get surfaced separately
+    # so the LLM knows it can emit them in addition to the system-prompt set.
+    extra = sorted(allowed_node_types - set(MATRIX_NODE_TYPES))
+    extra_block = ""
+    if extra:
+        extra_block = (
+            "Additional tenant-registered node_type values you may use:\n"
+            + "\n".join(f'- "{t}"' for t in extra)
+            + "\n\n"
+        )
     return (
+        f"{extra_block}"
         f"Existing matrix nodes for this engagement:\n{nodes_block}\n\n"
         f"Interaction:\n"
         f"- source: {event_source}\n"
@@ -207,7 +229,11 @@ def _parse_response(raw: str) -> list[dict[str, Any]] | None:
     return out[:_MAX_PROPOSALS]
 
 
-def _validate(items: list[dict[str, Any]], existing_nodes: list[ExistingNode]) -> list[ProposalDraft]:
+def _validate(
+    items: list[dict[str, Any]],
+    existing_nodes: list[ExistingNode],
+    allowed_node_types: set[str],
+) -> list[ProposalDraft]:
     by_title: dict[str, uuid.UUID] = {n.title: n.id for n in existing_nodes}
     drafts: list[ProposalDraft] = []
     for item in items:
@@ -218,7 +244,7 @@ def _validate(items: list[dict[str, Any]], existing_nodes: list[ExistingNode]) -
             title = item.get("title")
             if (
                 not isinstance(node_type, str)
-                or node_type not in MATRIX_NODE_TYPES
+                or node_type not in allowed_node_types
                 or not isinstance(title, str)
                 or not title.strip()
             ):

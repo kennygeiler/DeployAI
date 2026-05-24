@@ -106,3 +106,22 @@ export async function cpRemoveEngagementMember(
     throw new Error(`cp engagement member remove ${r.status}: ${await r.text()}`);
   }
 }
+
+export type TenantNodeType = {
+  name: string;
+  label: string;
+  color: string | null;
+};
+
+export async function cpListTenantNodeTypesForGraph(tenantId: string): Promise<TenantNodeType[]> {
+  const url = `${cpBase()}/internal/v1/tenants/${encodeURIComponent(tenantId)}/node-types`;
+  const r = await fetch(url, { method: "GET", headers: cpHeaders(), cache: "no-store" });
+  if (!r.ok) {
+    throw new Error(`cp node-types list ${r.status}: ${await r.text()}`);
+  }
+  const body = (await r.json()) as {
+    builtin: Array<{ name: string; label: string }>;
+    custom: Array<{ name: string; label: string; color: string | null }>;
+  };
+  return body.custom.map((c) => ({ name: c.name, label: c.label, color: c.color }));
+}

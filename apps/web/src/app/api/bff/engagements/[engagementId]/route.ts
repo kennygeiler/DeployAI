@@ -3,7 +3,11 @@ import { type NextRequest, NextResponse } from "next/server";
 import { decideSync } from "@deployai/authz";
 
 import { getActorFromHeaders } from "@/lib/internal/actor";
-import { cpGetEngagement, cpListEngagementMembers } from "@/lib/internal/engagements-cp";
+import {
+  cpGetEngagement,
+  cpListEngagementMembers,
+  cpListTenantNodeTypesForGraph,
+} from "@/lib/internal/engagements-cp";
 import {
   cpListMatrixEdges,
   cpListMatrixNodes,
@@ -37,11 +41,12 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
   const tid = actor.tenantId!.trim();
   try {
     const engagement = await cpGetEngagement(tid, engagementId);
-    const [members, matrixNodes, matrixEdges, matrixProposals] = await Promise.all([
+    const [members, matrixNodes, matrixEdges, matrixProposals, nodeTypes] = await Promise.all([
       cpListEngagementMembers(tid, engagementId),
       cpListMatrixNodes(tid, engagementId),
       cpListMatrixEdges(tid, engagementId),
       cpListMatrixProposals(tid, engagementId, "pending"),
+      cpListTenantNodeTypesForGraph(tid),
     ]);
     return NextResponse.json(
       {
@@ -51,6 +56,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
           nodes: matrixNodes,
           edges: matrixEdges,
           proposals: matrixProposals,
+          node_types: nodeTypes,
         },
         source: "cp",
       },
