@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
 
 export type BuiltinMemberRole = {
@@ -17,16 +19,19 @@ export type MemberRolesResponse = {
   custom: CustomMemberRole[];
 };
 
-export type MemberRoleCreate = {
-  name: string;
-  label: string;
-  description?: string | null;
-};
+export const zMemberRoleCreate = z.object({
+  name: z.string().min(1).max(50),
+  label: z.string().min(1).max(200),
+  description: z.string().max(500).nullish(),
+});
 
-export type MemberRoleUpdate = {
-  label?: string;
-  description?: string | null;
-};
+export const zMemberRoleUpdate = z.object({
+  label: z.string().min(1).max(200).optional(),
+  description: z.string().max(500).nullish(),
+});
+
+export type MemberRoleCreate = z.infer<typeof zMemberRoleCreate>;
+export type MemberRoleUpdate = z.infer<typeof zMemberRoleUpdate>;
 
 function cpHeaders(): Record<string, string> {
   const key = getControlPlaneInternalKey();

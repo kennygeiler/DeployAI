@@ -6,6 +6,7 @@ import { getActorFromHeaders } from "@/lib/internal/actor";
 import {
   cpDeleteNodeType,
   cpUpdateNodeType,
+  zNodeTypeUpdate,
   type NodeTypeUpdate,
 } from "@/lib/internal/node-types-cp";
 import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
@@ -31,12 +32,21 @@ export async function PUT(req: Request, { params }: { params: Promise<{ nodeType
   const g = await guard();
   if ("error" in g) return g.error;
   const { nodeTypeId } = await params;
-  let body: NodeTypeUpdate;
-  try {
-    body = (await req.json()) as NodeTypeUpdate;
-  } catch {
-    return new NextResponse("Bad Request: invalid JSON", { status: 400 });
+  const raw: unknown = await req.json().catch(() => null);
+  const parsed = zNodeTypeUpdate.safeParse(raw);
+  if (!parsed.success) {
+    return new NextResponse("Bad Request: invalid update payload", { status: 400 });
   }
+  const body: NodeTypeUpdate = {};
+  if (parsed.data.label !== undefined) {
+    const label = parsed.data.label.trim();
+    if (!label) {
+      return new NextResponse("Bad Request: label must not be empty", { status: 400 });
+    }
+    body.label = label;
+  }
+  if (parsed.data.color !== undefined) body.color = parsed.data.color;
+  if (parsed.data.description !== undefined) body.description = parsed.data.description;
   try {
     const updated = await cpUpdateNodeType(g.tid, nodeTypeId, body);
     return NextResponse.json({ node_type: updated }, { status: 200 });

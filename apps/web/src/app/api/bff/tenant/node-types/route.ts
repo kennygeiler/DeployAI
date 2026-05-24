@@ -3,11 +3,7 @@ import { NextResponse } from "next/server";
 import { decideSync } from "@deployai/authz";
 
 import { getActorFromHeaders } from "@/lib/internal/actor";
-import {
-  cpCreateNodeType,
-  cpListNodeTypes,
-  type NodeTypeCreate,
-} from "@/lib/internal/node-types-cp";
+import { cpCreateNodeType, cpListNodeTypes, zNodeTypeCreate } from "@/lib/internal/node-types-cp";
 import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
 import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strategist-queues-route-guard";
 
@@ -41,25 +37,21 @@ export async function GET() {
 export async function POST(req: Request) {
   const g = await guard();
   if ("error" in g) return g.error;
-  let body: NodeTypeCreate;
-  try {
-    body = (await req.json()) as NodeTypeCreate;
-  } catch {
-    return new NextResponse("Bad Request: invalid JSON", { status: 400 });
+  const raw: unknown = await req.json().catch(() => null);
+  const parsed = zNodeTypeCreate.safeParse(raw);
+  if (!parsed.success) {
+    return new NextResponse("Bad Request: name and label are required", { status: 400 });
   }
-  if (
-    !body ||
-    typeof body.name !== "string" ||
-    !body.name.trim() ||
-    typeof body.label !== "string" ||
-    !body.label.trim()
-  ) {
+  const body = parsed.data;
+  const name = body.name.trim();
+  const label = body.label.trim();
+  if (!name || !label) {
     return new NextResponse("Bad Request: name and label are required", { status: 400 });
   }
   try {
     const created = await cpCreateNodeType(g.tid, {
-      name: body.name,
-      label: body.label,
+      name,
+      label,
       ...(body.color !== undefined ? { color: body.color } : {}),
       ...(body.description !== undefined ? { description: body.description } : {}),
     });
