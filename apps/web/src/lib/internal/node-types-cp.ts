@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
 
 export type BuiltinNodeType = {
@@ -18,18 +20,24 @@ export type NodeTypesResponse = {
   custom: CustomNodeType[];
 };
 
-export type NodeTypeCreate = {
-  name: string;
-  label: string;
-  color?: string | null;
-  description?: string | null;
-};
+const NODE_TYPE_NAME_RE = /^[a-z][a-z0-9_]{0,49}$/;
+const NODE_TYPE_COLOR_RE = /^#[0-9a-f]{6}$/;
 
-export type NodeTypeUpdate = {
-  label?: string;
-  color?: string | null;
-  description?: string | null;
-};
+export const zNodeTypeCreate = z.object({
+  name: z.string().regex(NODE_TYPE_NAME_RE),
+  label: z.string().min(1).max(200),
+  color: z.string().regex(NODE_TYPE_COLOR_RE).nullish(),
+  description: z.string().max(500).nullish(),
+});
+
+export const zNodeTypeUpdate = z.object({
+  label: z.string().min(1).max(200).optional(),
+  color: z.string().regex(NODE_TYPE_COLOR_RE).nullish(),
+  description: z.string().max(500).nullish(),
+});
+
+export type NodeTypeCreate = z.infer<typeof zNodeTypeCreate>;
+export type NodeTypeUpdate = z.infer<typeof zNodeTypeUpdate>;
 
 function cpHeaders(): Record<string, string> {
   const key = getControlPlaneInternalKey();

@@ -6,6 +6,7 @@ import { getActorFromHeaders } from "@/lib/internal/actor";
 import {
   cpDeleteMemberRole,
   cpUpdateMemberRole,
+  zMemberRoleUpdate,
   type MemberRoleUpdate,
 } from "@/lib/internal/member-roles-cp";
 import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
@@ -31,12 +32,20 @@ export async function PUT(req: Request, { params }: { params: Promise<{ roleId: 
   const g = await guard();
   if ("error" in g) return g.error;
   const { roleId } = await params;
-  let body: MemberRoleUpdate;
-  try {
-    body = (await req.json()) as MemberRoleUpdate;
-  } catch {
-    return new NextResponse("Bad Request: invalid JSON", { status: 400 });
+  const raw: unknown = await req.json().catch(() => null);
+  const parsed = zMemberRoleUpdate.safeParse(raw);
+  if (!parsed.success) {
+    return new NextResponse("Bad Request: invalid update payload", { status: 400 });
   }
+  const body: MemberRoleUpdate = {};
+  if (parsed.data.label !== undefined) {
+    const label = parsed.data.label.trim();
+    if (!label) {
+      return new NextResponse("Bad Request: label must not be empty", { status: 400 });
+    }
+    body.label = label;
+  }
+  if (parsed.data.description !== undefined) body.description = parsed.data.description;
   try {
     const updated = await cpUpdateMemberRole(g.tid, roleId, body);
     return NextResponse.json({ member_role: updated }, { status: 200 });

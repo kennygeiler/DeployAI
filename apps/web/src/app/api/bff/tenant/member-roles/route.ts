@@ -6,7 +6,7 @@ import { getActorFromHeaders } from "@/lib/internal/actor";
 import {
   cpCreateMemberRole,
   cpListMemberRoles,
-  type MemberRoleCreate,
+  zMemberRoleCreate,
 } from "@/lib/internal/member-roles-cp";
 import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
 import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strategist-queues-route-guard";
@@ -41,25 +41,21 @@ export async function GET() {
 export async function POST(req: Request) {
   const g = await guard();
   if ("error" in g) return g.error;
-  let body: MemberRoleCreate;
-  try {
-    body = (await req.json()) as MemberRoleCreate;
-  } catch {
-    return new NextResponse("Bad Request: invalid JSON", { status: 400 });
+  const raw: unknown = await req.json().catch(() => null);
+  const parsed = zMemberRoleCreate.safeParse(raw);
+  if (!parsed.success) {
+    return new NextResponse("Bad Request: name and label are required", { status: 400 });
   }
-  if (
-    !body ||
-    typeof body.name !== "string" ||
-    !body.name.trim() ||
-    typeof body.label !== "string" ||
-    !body.label.trim()
-  ) {
+  const body = parsed.data;
+  const name = body.name.trim();
+  const label = body.label.trim();
+  if (!name || !label) {
     return new NextResponse("Bad Request: name and label are required", { status: 400 });
   }
   try {
     const created = await cpCreateMemberRole(g.tid, {
-      name: body.name.trim(),
-      label: body.label.trim(),
+      name,
+      label,
       ...(body.description !== undefined ? { description: body.description } : {}),
     });
     return NextResponse.json({ member_role: created }, { status: 201 });
