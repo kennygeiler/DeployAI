@@ -24,6 +24,7 @@ from typing import Any
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import SQLAlchemyError
 
 
 def _coerce_sync_url(url: str) -> str:
@@ -66,7 +67,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         payload = collect(args.database_url)
-    except Exception as exc:
+    except SQLAlchemyError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
