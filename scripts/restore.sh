@@ -111,10 +111,20 @@ echo "--- END dek_metadata.json ---" >&2
 # non-zero count means the operator is about to clobber populated state
 # and must opt in a SECOND time via DEPLOYAI_RESTORE_FORCE_OVERWRITE.
 echo "restore: probing target DB for existing rows ..." >&2
-existing_rows=$(docker compose "${compose_args[@]}" exec -T postgres \
+# Probe table existence first so a fresh DB (table missing) counts as 0 rows
+# without masking a real psql/docker failure as the always-empty case.
+table_exists=$(docker compose "${compose_args[@]}" exec -T postgres \
   psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
-  "SELECT COALESCE((SELECT COUNT(*) FROM app_tenants), 0)" 2>/dev/null \
-  | tr -d '[:space:]' || echo "0")
+  "SELECT to_regclass('public.app_tenants') IS NOT NULL" \
+  | tr -d '[:space:]')
+if [[ "$table_exists" == "t" ]]; then
+  existing_rows=$(docker compose "${compose_args[@]}" exec -T postgres \
+    psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
+    "SELECT COUNT(*) FROM app_tenants" \
+    | tr -d '[:space:]')
+else
+  existing_rows=0
+fi
 
 if [[ -z "$existing_rows" ]]; then
   existing_rows=0
