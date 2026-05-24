@@ -62,6 +62,7 @@ from control_plane.domain.canonical_memory.matrix import (
 )
 from control_plane.domain.engagement import Engagement, EngagementMember
 from control_plane.phases.machine import DEPLOYMENT_PHASES, default_phase
+from control_plane.webhooks.dispatcher import dispatch as dispatch_webhook
 
 # Roles a user can hold on an engagement — the cross-functional team.
 _ENGAGEMENT_MEMBER_ROLES: tuple[str, ...] = ("fde", "deployment_strategist", "biz_dev")
@@ -918,6 +919,28 @@ async def extract_engagement_proposals(
     await session.commit()
     for r in created:
         await session.refresh(r)
+    for r in created:
+        await dispatch_webhook(
+            session,
+            tenant_id,
+            "proposal.added",
+            {
+                "engagement_id": str(engagement_id),
+                "proposal_id": str(r.id),
+                "proposal_kind": r.proposal_kind,
+                "source_event_id": str(r.source_event_id),
+            },
+        )
+    await dispatch_webhook(
+        session,
+        tenant_id,
+        "extraction.completed",
+        {
+            "engagement_id": str(engagement_id),
+            "event_id": str(event.id),
+            "proposal_count": len(created),
+        },
+    )
     # When force was used, history-preserved (accepted/rejected) rows that
     # were not deleted should appear alongside the new pending rows.
     if force:
@@ -1181,6 +1204,7 @@ async def refresh_matrix_insights(
 
     # Apply drafts: upsert by dedup_key.
     drafts_by_key = {d.dedup_key: d for d in drafts}
+    newly_created: list[MatrixInsight] = []
     for c in to_phrase:
         d = drafts_by_key.get(c.dedup_key)
         if d is None:
@@ -1205,6 +1229,7 @@ async def refresh_matrix_insights(
                 input_hash=d.input_hash,
             )
             session.add(row)
+            newly_created.append(row)
         else:
             prev.severity = d.severity
             prev.title = d.title
@@ -1229,6 +1254,20 @@ async def refresh_matrix_insights(
             prev.decided_by = "auto"
 
     await session.commit()
+
+    for row in newly_created:
+        await dispatch_webhook(
+            session,
+            tenant_id,
+            "insight.created",
+            {
+                "engagement_id": str(engagement_id),
+                "insight_id": str(row.id),
+                "insight_type": row.insight_type,
+                "severity": row.severity,
+                "title": row.title,
+            },
+        )
 
     # Return open rows for the engagement, severity desc then created desc.
     final_q = await session.execute(
