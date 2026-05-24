@@ -11,16 +11,6 @@ import {
 } from "@/components/ui/sheet";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 
-/**
- * Sprint 3 inc 1 — citation drill-down. Renders the canonical_memory_events
- * behind a matrix node's `evidence_event_ids` (or an insight's
- * `citation_event_ids`) in a right-side sheet. Controlled by the parent;
- * the parent decides what to title it and which ids to show.
- *
- * Trust calibration: the user sees WHY an entity exists by reading the
- * source events the agent (or themselves) cited when creating it.
- */
-
 type CitationEvent = {
   id: string;
   occurred_at: string;

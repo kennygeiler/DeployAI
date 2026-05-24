@@ -1,12 +1,4 @@
-"""Batched event lookup for citation drill-down (Sprint 3, increment 1).
-
-Returns a small batch of ``canonical_memory_events`` rows by id, scoped
-to one engagement, so the web UI can render the source events behind a
-matrix node's ``evidence_event_ids`` or an insight's
-``citation_event_ids``. Read-only; mirrors the ``_summary_for`` shape
-used by the engagement timeline so the drill-down panel reads the same
-text users see in the timeline card.
-"""
+"""Batched read of canonical_memory_events by id for citation drill-down."""
 
 from __future__ import annotations
 
