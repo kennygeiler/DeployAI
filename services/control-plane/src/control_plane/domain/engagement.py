@@ -12,7 +12,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import TIMESTAMP, ForeignKey, Text, UniqueConstraint, func
+from sqlalchemy import TIMESTAMP, ForeignKey, Index, Text, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -58,6 +58,32 @@ class EngagementMember(Base):
     )
     role: Mapped[str] = mapped_column(Text(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+
+class TenantMemberRole(Base):
+    """A tenant-registered custom engagement-member role — extends the baked-in trio."""
+
+    __tablename__ = "tenant_member_roles"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "name", name="uq_tenant_member_roles_tenant_name"),
+        Index("idx_tenant_member_roles_tenant_id", "tenant_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("deployai_uuid_v7()"),
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("app_tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(Text(), nullable=False)
+    label: Mapped[str] = mapped_column(Text(), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
 
 
 # Phase 5 (increment 5.5): the EngagementLogEntry / engagement_log_entries
