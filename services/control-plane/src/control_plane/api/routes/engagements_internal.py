@@ -25,6 +25,9 @@ from control_plane.agents.matrix_extractor import (
     ExistingNode,
     extract_matrix_proposals,
 )
+from control_plane.agents.matrix_extractor import (
+    default_system_prompt as matrix_extractor_default_prompt,
+)
 from control_plane.agents.oracle import (
     EdgeSnapshot as OracleEdgeSnapshot,
 )
@@ -39,6 +42,10 @@ from control_plane.agents.oracle import (
     oracle_candidates,
     oracle_phrase,
 )
+from control_plane.agents.oracle import (
+    default_system_prompt as oracle_default_prompt,
+)
+from control_plane.agents.prompts import resolve_tenant_prompt
 from control_plane.config.internal_api import verify_internal_key
 from control_plane.db import get_app_db_session
 from control_plane.domain.app_identity.models import AppTenant, AppUser
@@ -854,6 +861,9 @@ async def extract_engagement_proposals(
     """
     await _require_engagement(session, tenant_id, engagement_id)
     llm = await resolve_tenant_llm_provider(session, tenant_id, llm)
+    extractor_prompt = await resolve_tenant_prompt(
+        session, tenant_id, "cartographer", matrix_extractor_default_prompt()
+    )
     event_row = await session.execute(
         select(CanonicalMemoryEvent).where(
             CanonicalMemoryEvent.tenant_id == tenant_id,
@@ -890,6 +900,7 @@ async def extract_engagement_proposals(
         event_payload=event.payload,
         existing_nodes=context,
         llm=llm,
+        system_prompt=extractor_prompt,
     )
 
     created: list[MatrixProposal] = []
@@ -1078,6 +1089,7 @@ async def refresh_matrix_insights(
     """
     engagement = await _require_engagement(session, tenant_id, engagement_id)
     llm = await resolve_tenant_llm_provider(session, tenant_id, llm)
+    oracle_prompt = await resolve_tenant_prompt(session, tenant_id, "oracle", oracle_default_prompt())
 
     nodes_q = await session.execute(select(MatrixNode).where(MatrixNode.engagement_id == engagement_id))
     nodes = list(nodes_q.scalars().all())
@@ -1164,6 +1176,7 @@ async def refresh_matrix_insights(
             edges=edge_snapshots,
             candidates=to_phrase,
             llm=llm,
+            system_prompt=oracle_prompt,
         )
 
     # Apply drafts: upsert by dedup_key.

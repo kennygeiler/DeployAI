@@ -66,6 +66,7 @@ def extract_matrix_proposals(
     event_payload: dict[str, Any],
     existing_nodes: list[ExistingNode],
     llm: LLMProvider,
+    system_prompt: str | None = None,
 ) -> list[ProposalDraft]:
     """Run one extraction pass for one canonical event."""
     messages = _build_messages(
@@ -73,6 +74,7 @@ def extract_matrix_proposals(
         event_occurred_at=event_occurred_at,
         event_payload=event_payload,
         existing_nodes=existing_nodes,
+        system_prompt=system_prompt,
     )
     try:
         raw = llm.chat_complete(
@@ -99,9 +101,10 @@ def _build_messages(
     event_occurred_at: datetime,
     event_payload: dict[str, Any],
     existing_nodes: list[ExistingNode],
+    system_prompt: str | None = None,
 ) -> list[ChatMessage]:
     return [
-        {"role": "system", "content": _system_prompt()},
+        {"role": "system", "content": system_prompt if system_prompt is not None else _system_prompt()},
         {
             "role": "user",
             "content": _user_prompt(
@@ -112,6 +115,15 @@ def _build_messages(
             ),
         },
     ]
+
+
+def default_system_prompt() -> str:
+    """Public accessor for the baked-in system prompt (Sprint 5).
+
+    Route handlers pass this as the ``default_prompt`` to
+    ``resolve_tenant_prompt`` so a tenant override can swap it in.
+    """
+    return _system_prompt()
 
 
 def _system_prompt() -> str:

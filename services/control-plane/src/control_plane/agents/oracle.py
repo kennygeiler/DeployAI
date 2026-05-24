@@ -193,6 +193,7 @@ def oracle_phrase(
     edges: list[EdgeSnapshot],
     candidates: list[OracleCandidate],
     llm: LLMProvider,
+    system_prompt: str | None = None,
 ) -> list[InsightDraft]:
     """Single LLM call to phrase title + body for each candidate.
 
@@ -223,6 +224,7 @@ def oracle_phrase(
         nodes=nodes,
         edges=edges,
         candidates=internal,
+        system_prompt=system_prompt,
     )
     try:
         raw = llm.chat_complete(
@@ -250,6 +252,7 @@ def run_oracle(
     recent_events: list[EventSnapshot],
     llm: LLMProvider,
     now: datetime | None = None,
+    system_prompt: str | None = None,
 ) -> list[InsightDraft]:
     """Convenience wrapper: predicates + LLM in one call (no short-circuit).
 
@@ -271,6 +274,7 @@ def run_oracle(
         edges=edges,
         candidates=candidates,
         llm=llm,
+        system_prompt=system_prompt,
     )
 
 
@@ -482,14 +486,20 @@ def _build_messages(
     nodes: list[NodeSnapshot],
     edges: list[EdgeSnapshot],
     candidates: list[_Candidate],
+    system_prompt: str | None = None,
 ) -> list[ChatMessage]:
     return [
-        {"role": "system", "content": _system_prompt()},
+        {"role": "system", "content": system_prompt if system_prompt is not None else _system_prompt()},
         {
             "role": "user",
             "content": _user_prompt(engagement_name, engagement_phase, nodes, edges, candidates),
         },
     ]
+
+
+def default_system_prompt() -> str:
+    """Public accessor for the baked-in Oracle system prompt (Sprint 5)."""
+    return _system_prompt()
 
 
 def _system_prompt() -> str:

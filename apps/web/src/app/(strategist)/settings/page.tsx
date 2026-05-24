@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { AgentPromptsForm } from "@/components/settings/AgentPromptsForm.client";
 import { LlmConfigForm } from "@/components/settings/LlmConfigForm.client";
 import { requireCanonicalRead } from "@/lib/internal/strategist-surface";
 
@@ -21,6 +22,7 @@ export default async function SettingsPage() {
         </p>
       </header>
       <LlmConfigForm />
+      <AgentPromptsForm />
     </div>
   );
 }

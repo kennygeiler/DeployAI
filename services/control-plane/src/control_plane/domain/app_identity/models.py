@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import TIMESTAMP, Boolean, CheckConstraint, ForeignKey, Text, func, text
+from sqlalchemy import TIMESTAMP, Boolean, CheckConstraint, ForeignKey, Text, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -93,4 +93,44 @@ class TenantLlmConfig(Base):
             "provider IN ('anthropic', 'openai', 'stub')",
             name="ck_tenant_llm_configs_provider",
         ),
+    )
+
+
+# Allowed agent names for per-tenant prompt overrides; kept in lock-step with
+# the migration's check constraint and the resolver in
+# `agents/prompts.py`.
+AGENT_PROMPT_NAMES: tuple[str, ...] = ("cartographer", "oracle", "master_strategist")
+
+
+class TenantAgentPrompt(Base):
+    """Per-tenant override of an agent's baked-in system prompt.
+
+    One row per (tenant, agent_name). When absent for a given agent, the
+    resolver falls back to the default prompt baked into the agent
+    module.
+    """
+
+    __tablename__ = "tenant_agent_prompts"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("deployai_uuid_v7()"),
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("app_tenants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    agent_name: Mapped[str] = mapped_column(Text(), nullable=False)
+    prompt_text: Mapped[str] = mapped_column(Text(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "agent_name IN ('cartographer', 'oracle', 'master_strategist')",
+            name="ck_tenant_agent_prompts_agent_name",
+        ),
+        UniqueConstraint("tenant_id", "agent_name", name="uq_tenant_agent_prompts_tenant_agent"),
     )

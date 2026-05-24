@@ -127,12 +127,18 @@ def master_strategist_phrase(
     engagements: list[PortfolioEngagement],
     candidates: list[MasterStrategistCandidate],
     llm: LLMProvider,
+    system_prompt: str | None = None,
 ) -> list[InsightDraft]:
     """One LLM call to phrase title + body for each candidate."""
     if not candidates:
         return []
     engagements = _apply_caps(engagements)
-    messages = _build_messages(tenant_name=tenant_name, engagements=engagements, candidates=candidates)
+    messages = _build_messages(
+        tenant_name=tenant_name,
+        engagements=engagements,
+        candidates=candidates,
+        system_prompt=system_prompt,
+    )
     try:
         raw = llm.chat_complete(
             messages,
@@ -155,10 +161,17 @@ def run_master_strategist(
     tenant_name: str,
     engagements: list[PortfolioEngagement],
     llm: LLMProvider,
+    system_prompt: str | None = None,
 ) -> list[InsightDraft]:
     """Convenience wrapper: predicates + LLM. No short-circuit."""
     candidates = master_strategist_candidates(tenant_id=tenant_id, engagements=engagements)
-    return master_strategist_phrase(tenant_name=tenant_name, engagements=engagements, candidates=candidates, llm=llm)
+    return master_strategist_phrase(
+        tenant_name=tenant_name,
+        engagements=engagements,
+        candidates=candidates,
+        llm=llm,
+        system_prompt=system_prompt,
+    )
 
 
 # --- caps --------------------------------------------------------------------
@@ -407,14 +420,20 @@ def _build_messages(
     tenant_name: str,
     engagements: list[PortfolioEngagement],
     candidates: list[MasterStrategistCandidate],
+    system_prompt: str | None = None,
 ) -> list[ChatMessage]:
     return [
-        {"role": "system", "content": _system_prompt()},
+        {"role": "system", "content": system_prompt if system_prompt is not None else _system_prompt()},
         {
             "role": "user",
             "content": _user_prompt(tenant_name, engagements, candidates),
         },
     ]
+
+
+def default_system_prompt() -> str:
+    """Public accessor for the baked-in Master Strategist system prompt (Sprint 5)."""
+    return _system_prompt()
 
 
 def _system_prompt() -> str:
