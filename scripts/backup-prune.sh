@@ -76,12 +76,14 @@ PREFIX_TRIMMED="${S3_PREFIX%/}"
 # exactly once rather than every uploaded object. CommonPrefixes returns the
 # full key prefix including the parent; the leaf timestamp is the parsed unit.
 echo "backup-prune: listing s3://${S3_BUCKET}/${PREFIX_TRIMMED}/ ..." >&2
+# Don't swallow aws errors: missing bucket / access denied / network failure
+# must abort. Empty-bucket case naturally returns "None" (no CommonPrefixes).
 list_output=$(aws "${aws_args[@]}" s3api list-objects-v2 \
   --bucket "$S3_BUCKET" \
   --prefix "${PREFIX_TRIMMED}/" \
   --delimiter "/" \
   --query 'CommonPrefixes[].Prefix' \
-  --output text 2>/dev/null || true)
+  --output text)
 
 if [[ -z "$list_output" || "$list_output" == "None" ]]; then
   echo "backup-prune: no backup folders found under s3://${S3_BUCKET}/${PREFIX_TRIMMED}/" >&2
