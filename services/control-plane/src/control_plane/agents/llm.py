@@ -89,6 +89,8 @@ def _from_env() -> LLMProvider:
         return _anthropic()
     if choice == "openai":
         return _openai()
+    # Key-presence fallback: Anthropic wins when both keys are set, preserving
+    # pre-OpenAI-wiring behavior. Use DEPLOYAI_LLM_PROVIDER to override.
     if os.getenv("ANTHROPIC_API_KEY"):
         return _anthropic()
     if os.getenv("OPENAI_API_KEY"):

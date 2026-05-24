@@ -123,3 +123,13 @@ def test_get_llm_provider_picks_openai_from_api_key_env(monkeypatch: pytest.Monk
     monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test")
     p = get_llm_provider()
     assert isinstance(p, OpenAIProvider)
+
+
+def test_get_llm_provider_prefers_anthropic_when_both_keys_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    from llm_provider_py.anthropic import AnthropicProvider
+
+    monkeypatch.delenv("DEPLOYAI_LLM_PROVIDER", raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-anthropic-test")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test")
+    p = get_llm_provider()
+    assert isinstance(p, AnthropicProvider)
