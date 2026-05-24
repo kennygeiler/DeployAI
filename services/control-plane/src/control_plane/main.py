@@ -20,6 +20,7 @@ from control_plane.api.routes.auth import router as auth_router
 from control_plane.api.routes.auth_oidc import auth_entry_router, oidc_router
 from control_plane.api.routes.auth_saml import router as auth_saml_router
 from control_plane.api.routes.break_glass import router as break_glass_router
+from control_plane.api.routes.engagement_recommendations import router as engagement_recommendations_router
 from control_plane.api.routes.engagement_timeline import router as engagement_timeline_router
 from control_plane.api.routes.engagements_internal import router as engagements_internal_router
 from control_plane.api.routes.event_search import router as event_search_router
@@ -103,6 +104,7 @@ app.include_router(strategist_overrides_internal_router, prefix="/internal/v1")
 app.include_router(strategist_integration_records_internal_router, prefix="/internal/v1")
 app.include_router(strategist_queues_internal_router, prefix="/internal/v1")
 app.include_router(engagements_internal_router, prefix="/internal/v1")
+app.include_router(engagement_recommendations_router, prefix="/internal/v1")
 app.include_router(event_search_router, prefix="/internal/v1")
 app.include_router(extract_preview_router, prefix="/internal/v1")
 app.include_router(engagement_timeline_router, prefix="/internal/v1")
