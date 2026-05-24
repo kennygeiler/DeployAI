@@ -46,7 +46,7 @@ help:
 	@echo "  make dev-verify     Probe every service's health endpoint"
 	@echo "  make dev-down       Tear down + remove named volumes"
 	@echo "  make dev-logs       Tail compose logs"
-	@echo "  make init           First-run install (tenant + LLM + engagement + member). Pass INIT_ARGS or DEPLOYAI_INIT_* env vars."
+	@echo "  make init           First-run install (tenant + LLM + engagement + member). Pass INIT_ARGS or DEPLOYAI_INIT_* env vars. Add --template {gov,healthcare,saas,sales} to seed a vertical bundle."
 	@echo "  make seed-app       Seed 1 engagement + ~20 canonical events + run extraction (requires ANTHROPIC_API_KEY in .env)"
 	@echo "  make compose-smoke  CI entry point (dev + dev-verify, 30-min ceiling)"
 	@echo "  make lint-python-epic6-agents  ruff check + ruff format --check (cartographer)"
