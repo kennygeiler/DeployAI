@@ -1,0 +1,107 @@
+/**
+ * Control-plane per-tenant matrix node-type registry client (Sprint 6 inc 1).
+ *
+ * Wraps `GET/POST/PUT/DELETE /internal/v1/tenants/{tid}/node-types`. The
+ * baked-in catalog (`stakeholder`, `organization`, …) is read-only and
+ * surfaced as a parallel block alongside the tenant's custom rows.
+ */
+import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
+
+export type BuiltinNodeType = {
+  name: string;
+  label: string;
+};
+
+export type CustomNodeType = {
+  id: string;
+  name: string;
+  label: string;
+  color: string | null;
+  description: string | null;
+};
+
+export type NodeTypesResponse = {
+  builtin: BuiltinNodeType[];
+  custom: CustomNodeType[];
+};
+
+export type NodeTypeCreate = {
+  name: string;
+  label: string;
+  color?: string | null;
+  description?: string | null;
+};
+
+export type NodeTypeUpdate = {
+  label?: string;
+  color?: string | null;
+  description?: string | null;
+};
+
+function cpHeaders(): Record<string, string> {
+  const key = getControlPlaneInternalKey();
+  if (!key) {
+    throw new Error("DEPLOYAI_INTERNAL_API_KEY not set");
+  }
+  return { "X-DeployAI-Internal-Key": key };
+}
+
+function cpBase(): string {
+  const base = getControlPlaneBaseUrl()?.replace(/\/$/, "");
+  if (!base) {
+    throw new Error("DEPLOYAI_CONTROL_PLANE_URL not set");
+  }
+  return base;
+}
+
+export async function cpListNodeTypes(tenantId: string): Promise<NodeTypesResponse> {
+  const url = `${cpBase()}/internal/v1/tenants/${encodeURIComponent(tenantId)}/node-types`;
+  const r = await fetch(url, { method: "GET", headers: cpHeaders(), cache: "no-store" });
+  if (!r.ok) {
+    throw new Error(`cp node-types list ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as NodeTypesResponse;
+}
+
+export async function cpCreateNodeType(
+  tenantId: string,
+  body: NodeTypeCreate,
+): Promise<CustomNodeType> {
+  const url = `${cpBase()}/internal/v1/tenants/${encodeURIComponent(tenantId)}/node-types`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { ...cpHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    throw new Error(`cp node-types create ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as CustomNodeType;
+}
+
+export async function cpUpdateNodeType(
+  tenantId: string,
+  nodeTypeId: string,
+  body: NodeTypeUpdate,
+): Promise<CustomNodeType> {
+  const url = `${cpBase()}/internal/v1/tenants/${encodeURIComponent(tenantId)}/node-types/${encodeURIComponent(nodeTypeId)}`;
+  const r = await fetch(url, {
+    method: "PUT",
+    headers: { ...cpHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    throw new Error(`cp node-types update ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as CustomNodeType;
+}
+
+export async function cpDeleteNodeType(tenantId: string, nodeTypeId: string): Promise<void> {
+  const url = `${cpBase()}/internal/v1/tenants/${encodeURIComponent(tenantId)}/node-types/${encodeURIComponent(nodeTypeId)}`;
+  const r = await fetch(url, { method: "DELETE", headers: cpHeaders(), cache: "no-store" });
+  if (!r.ok && r.status !== 204) {
+    throw new Error(`cp node-types delete ${r.status}: ${await r.text()}`);
+  }
+}

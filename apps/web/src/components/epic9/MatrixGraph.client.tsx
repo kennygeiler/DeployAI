@@ -15,16 +15,14 @@ import type { MatrixEdge, MatrixNode } from "@/lib/bff/matrix-types";
  * `node_type` and edges labelled by `edge_type`.
  *
  * Layout: columnar, deterministic. Columns = node types (left to right
- * in `TYPE_ORDER`); rows within a column = the nodes of that type
- * stacked vertically. No force-directed sim — predictable layout is
- * more readable than a wiggly graph for a deployment-team UI, and it
- * doesn't reflow when the user drags.
- *
- * Data contract is exactly the existing `MatrixNode` + `MatrixEdge`
- * rows shipped by the engagement-detail BFF — we add no new fields.
+ * in `BUILTIN_TYPE_ORDER` then any tenant-registered custom types);
+ * rows within a column = the nodes of that type stacked vertically. No
+ * force-directed sim — predictable layout is more readable than a
+ * wiggly graph for a deployment-team UI, and it doesn't reflow when the
+ * user drags.
  */
 
-const TYPE_ORDER = [
+const BUILTIN_TYPE_ORDER = [
   "stakeholder",
   "organization",
   "system",
@@ -34,9 +32,9 @@ const TYPE_ORDER = [
   "opportunity",
 ] as const;
 
-type NodeTypeKey = (typeof TYPE_ORDER)[number];
+type BuiltinTypeKey = (typeof BUILTIN_TYPE_ORDER)[number];
 
-const TYPE_LABEL: Record<NodeTypeKey, string> = {
+const BUILTIN_TYPE_LABEL: Record<BuiltinTypeKey, string> = {
   stakeholder: "Stakeholders",
   organization: "Organizations",
   system: "Systems",
@@ -46,33 +44,86 @@ const TYPE_LABEL: Record<NodeTypeKey, string> = {
   opportunity: "Opportunities",
 };
 
-// Subtle background colour per node type. Tailwind-resolved so the
-// graph reads on both light and dark surfaces.
-const TYPE_BG: Record<NodeTypeKey, string> = {
-  stakeholder: "#fde68a", // amber-200
-  organization: "#bfdbfe", // blue-200
-  system: "#bbf7d0", // green-200
-  decision: "#ddd6fe", // violet-200
-  risk: "#fecaca", // red-200
-  commitment: "#fbcfe8", // pink-200
-  opportunity: "#a7f3d0", // emerald-200
+const BUILTIN_TYPE_BG: Record<BuiltinTypeKey, string> = {
+  stakeholder: "#fde68a",
+  organization: "#bfdbfe",
+  system: "#bbf7d0",
+  decision: "#ddd6fe",
+  risk: "#fecaca",
+  commitment: "#fbcfe8",
+  opportunity: "#a7f3d0",
 };
+
+const DEFAULT_CUSTOM_BG = "#e5e7eb";
 
 const COLUMN_X = 240;
 const ROW_Y = 90;
 const COLUMN_HEADER_Y = -50;
 
-function buildNodes(matrixNodes: MatrixNode[]): Node[] {
+export type CustomNodeTypeDescriptor = {
+  name: string;
+  label?: string | null;
+  color?: string | null;
+};
+
+function buildTypeOrder(
+  matrixNodes: MatrixNode[],
+  customTypes: CustomNodeTypeDescriptor[],
+): string[] {
+  const order: string[] = [...BUILTIN_TYPE_ORDER];
+  const seen = new Set(order);
+  for (const c of customTypes) {
+    if (!seen.has(c.name)) {
+      order.push(c.name);
+      seen.add(c.name);
+    }
+  }
+  for (const n of matrixNodes) {
+    if (!seen.has(n.node_type)) {
+      order.push(n.node_type);
+      seen.add(n.node_type);
+    }
+  }
+  return order;
+}
+
+function buildLabelMap(customTypes: CustomNodeTypeDescriptor[]): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const k of BUILTIN_TYPE_ORDER) {
+    m.set(k, BUILTIN_TYPE_LABEL[k]);
+  }
+  for (const c of customTypes) {
+    m.set(c.name, c.label ?? c.name);
+  }
+  return m;
+}
+
+function buildBgMap(customTypes: CustomNodeTypeDescriptor[]): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const k of BUILTIN_TYPE_ORDER) {
+    m.set(k, BUILTIN_TYPE_BG[k]);
+  }
+  for (const c of customTypes) {
+    m.set(c.name, c.color ?? DEFAULT_CUSTOM_BG);
+  }
+  return m;
+}
+
+function buildNodes(
+  matrixNodes: MatrixNode[],
+  typeOrder: string[],
+  labelMap: Map<string, string>,
+  bgMap: Map<string, string>,
+): Node[] {
   const out: Node[] = [];
-  for (let col = 0; col < TYPE_ORDER.length; col++) {
-    const t = TYPE_ORDER[col]!;
+  for (let col = 0; col < typeOrder.length; col++) {
+    const t = typeOrder[col]!;
     const nodesOfType = matrixNodes.filter((n) => n.node_type === t);
     if (nodesOfType.length === 0) continue;
-    // Column header — a non-interactive marker node.
     out.push({
       id: `header-${t}`,
       position: { x: col * COLUMN_X, y: COLUMN_HEADER_Y },
-      data: { label: TYPE_LABEL[t] },
+      data: { label: labelMap.get(t) ?? t },
       draggable: false,
       selectable: false,
       style: {
@@ -81,7 +132,7 @@ function buildNodes(matrixNodes: MatrixNode[]): Node[] {
         fontSize: 11,
         fontWeight: 600,
         textTransform: "uppercase",
-        color: "#52525b", // ink-600-ish
+        color: "#52525b",
         padding: 0,
       },
     });
@@ -92,7 +143,7 @@ function buildNodes(matrixNodes: MatrixNode[]): Node[] {
         position: { x: col * COLUMN_X, y: row * ROW_Y },
         data: { label: n.title },
         style: {
-          background: TYPE_BG[t],
+          background: bgMap.get(t) ?? DEFAULT_CUSTOM_BG,
           border: "1px solid #71717a",
           borderRadius: 8,
           padding: 8,
@@ -120,13 +171,22 @@ function buildEdges(matrixEdges: MatrixEdge[]): Edge[] {
 export function MatrixGraph({
   nodes,
   edges,
+  customTypes,
   onNodeClick,
 }: {
   nodes: MatrixNode[];
   edges: MatrixEdge[];
+  customTypes?: CustomNodeTypeDescriptor[];
   onNodeClick?: (node: MatrixNode) => void;
 }) {
-  const rfNodes = React.useMemo(() => buildNodes(nodes), [nodes]);
+  const custom = React.useMemo(() => customTypes ?? [], [customTypes]);
+  const typeOrder = React.useMemo(() => buildTypeOrder(nodes, custom), [nodes, custom]);
+  const labelMap = React.useMemo(() => buildLabelMap(custom), [custom]);
+  const bgMap = React.useMemo(() => buildBgMap(custom), [custom]);
+  const rfNodes = React.useMemo(
+    () => buildNodes(nodes, typeOrder, labelMap, bgMap),
+    [nodes, typeOrder, labelMap, bgMap],
+  );
   const rfEdges = React.useMemo(() => buildEdges(edges), [edges]);
   const nodesById = React.useMemo(() => {
     const m = new Map<string, MatrixNode>();
@@ -137,8 +197,6 @@ export function MatrixGraph({
   const handleNodeClick = React.useCallback(
     (_e: React.MouseEvent, n: Node) => {
       if (!onNodeClick) return;
-      // Header pseudo-nodes are non-interactive column markers, not real
-      // matrix entities — they have no evidence to drill into.
       if (n.id.startsWith("header-")) return;
       const matched = nodesById.get(n.id);
       if (matched) {

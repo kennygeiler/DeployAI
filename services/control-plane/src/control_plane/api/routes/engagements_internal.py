@@ -60,6 +60,7 @@ from control_plane.domain.canonical_memory.matrix import (
     MatrixNode,
     MatrixProposal,
 )
+from control_plane.domain.canonical_memory.node_types import resolve_allowed_node_types
 from control_plane.domain.engagement import Engagement, EngagementMember
 from control_plane.phases.machine import DEPLOYMENT_PHASES, default_phase
 from control_plane.webhooks.dispatcher import dispatch as dispatch_webhook
@@ -366,7 +367,8 @@ async def create_matrix_node(
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> MatrixNode:
     await _require_engagement(session, tenant_id, engagement_id)
-    if body.node_type not in MATRIX_NODE_TYPES:
+    allowed = await resolve_allowed_node_types(session, tenant_id)
+    if body.node_type not in allowed:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"invalid node_type: {body.node_type}",
@@ -892,6 +894,7 @@ async def extract_engagement_proposals(
     nodes_q = await session.execute(select(MatrixNode).where(MatrixNode.engagement_id == engagement_id))
     nodes = list(nodes_q.scalars().all())
     context = [ExistingNode(id=n.id, title=n.title, node_type=n.node_type) for n in nodes]
+    allowed_node_types = await resolve_allowed_node_types(session, tenant_id)
 
     drafts = await asyncio.to_thread(
         extract_matrix_proposals,
@@ -902,6 +905,7 @@ async def extract_engagement_proposals(
         existing_nodes=context,
         llm=llm,
         system_prompt=extractor_prompt,
+        allowed_node_types=allowed_node_types,
     )
 
     created: list[MatrixProposal] = []
