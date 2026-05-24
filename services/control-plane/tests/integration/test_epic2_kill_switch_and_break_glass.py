@@ -10,13 +10,14 @@ import pytest
 import pytest_asyncio
 from deployai_authz import AuthActor
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from control_plane.auth.jwt_tokens import clear_jwt_key_cache
 from control_plane.config.settings import clear_settings_cache
 from control_plane.db import clear_engine_cache
+from control_plane.domain.strategist_personal import StrategistActivityEvent
 from control_plane.infra.redis_client import clear_redis_client, close_async_redis
 from control_plane.main import app
 from control_plane.services.break_glass import approve, create_request, revoke
@@ -293,5 +294,99 @@ async def test_break_glass_service_revoke_rejects_cross_tenant_non_platform_acto
             other = AuthActor(role="customer_admin", tenant_id=str(tb))
             with pytest.raises(PermissionError, match=_CROSSTENANT_REASON):
                 await revoke(session, session_id=row.id, actor_sub="x", auth_actor=other)
+    finally:
+        await eng.dispose()
+
+
+@pytest.mark.asyncio
+async def test_break_glass_writes_audit_rows_for_uuid_subs(postgres_engine: Engine) -> None:
+    tid = uuid.uuid4()
+    with postgres_engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO app_tenants (id, name) VALUES (:t, 'BG Audit')"),
+            {"t": tid},
+        )
+    initiator = uuid.uuid4()
+    approver = uuid.uuid4()
+    eng, mk = _make_async_session_factory(postgres_engine)
+    try:
+        pa = AuthActor(role="platform_admin", tenant_id=str(tid))
+        async with mk() as session:
+            row = await create_request(
+                session,
+                tenant_id=tid,
+                initiator_sub=str(initiator),
+                requested_scope="tenant_data_read",
+                auth_actor=pa,
+            )
+        async with mk() as session:
+            await approve(
+                session,
+                session_id=row.id,
+                approver_sub=str(approver),
+                auth_actor=pa,
+            )
+        async with mk() as session:
+            await revoke(
+                session,
+                session_id=row.id,
+                actor_sub=str(approver),
+                auth_actor=pa,
+            )
+        async with mk() as session:
+            rows = (
+                (
+                    await session.execute(
+                        select(StrategistActivityEvent)
+                        .where(StrategistActivityEvent.tenant_id == tid)
+                        .order_by(StrategistActivityEvent.created_at)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        cats = [r.category for r in rows]
+        assert cats == [
+            "break_glass.requested",
+            "break_glass.approved",
+            "break_glass.revoked",
+        ]
+        assert rows[0].actor_id == initiator
+        assert rows[0].ref_id == row.id
+        assert rows[0].detail["session_id"] == str(row.id)
+        assert rows[1].actor_id == approver
+        assert rows[1].detail["approver_sub"] == str(approver)
+        assert rows[2].actor_id == approver
+        assert rows[2].detail["final_status"] == "expired"
+    finally:
+        await eng.dispose()
+
+
+@pytest.mark.asyncio
+async def test_break_glass_skips_audit_for_non_uuid_subs(postgres_engine: Engine) -> None:
+    tid = uuid.uuid4()
+    with postgres_engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO app_tenants (id, name) VALUES (:t, 'BG Audit Skip')"),
+            {"t": tid},
+        )
+    eng, mk = _make_async_session_factory(postgres_engine)
+    try:
+        pa = AuthActor(role="platform_admin", tenant_id=str(tid))
+        async with mk() as session:
+            await create_request(
+                session,
+                tenant_id=tid,
+                initiator_sub="not-a-uuid",
+                requested_scope="s",
+                auth_actor=pa,
+            )
+        async with mk() as session:
+            rows = (
+                (await session.execute(select(StrategistActivityEvent).where(StrategistActivityEvent.tenant_id == tid)))
+                .scalars()
+                .all()
+            )
+        assert rows == []
     finally:
         await eng.dispose()
