@@ -62,8 +62,8 @@ export function AuditLogList() {
 
   React.useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     void (async () => {
+      if (!cancelled) setLoading(true);
       try {
         await load();
       } catch (e) {
