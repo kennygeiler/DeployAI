@@ -1,10 +1,4 @@
-"""Sprint 8 — per-tenant webhook dispatcher.
-
-Looks up active webhooks subscribed to the event, records a delivery row
-per webhook, then POSTs the JSON payload signed with HMAC-SHA256 in a
-background task. Failures are recorded and retried once after 30s
-(best-effort v1).
-"""
+"""Per-tenant webhook dispatcher — HMAC-signed POST with one retry, best-effort."""
 
 from __future__ import annotations
 
