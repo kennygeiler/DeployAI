@@ -1,7 +1,7 @@
 """Unit tests for control_plane.agents.llm.
 
 Covers:
-- ``get_llm_provider`` env-default resolution (stub vs anthropic).
+- ``get_llm_provider`` env-default resolution (stub vs anthropic vs openai).
 - ``resolve_tenant_llm_provider`` falls back to ``env_fallback`` when no
   ``tenant_llm_configs`` row exists, and prefers the DB row when present.
 """
@@ -35,7 +35,7 @@ def _fake_session_returning(cfg: TenantLlmConfig | None) -> AsyncMock:
 async def test_resolve_returns_fallback_when_no_db_row() -> None:
     fallback = object()  # opaque sentinel — resolver must not introspect it
     session = _fake_session_returning(None)
-    out = await resolve_tenant_llm_provider(session, uuid.uuid4(), fallback)  # type: ignore[arg-type]
+    out = await resolve_tenant_llm_provider(session, uuid.uuid4(), fallback)
     assert out is fallback
 
 
@@ -44,7 +44,7 @@ async def test_resolve_returns_stub_when_db_provider_stub() -> None:
     fallback = object()
     cfg = TenantLlmConfig(tenant_id=uuid.uuid4(), provider="stub")
     session = _fake_session_returning(cfg)
-    out = await resolve_tenant_llm_provider(session, cfg.tenant_id, fallback)  # type: ignore[arg-type]
+    out = await resolve_tenant_llm_provider(session, cfg.tenant_id, fallback)
     # Stub provider has chat_complete / embed; cheapest assertion is that the
     # resolver did NOT return the env fallback.
     assert out is not fallback
@@ -61,26 +61,33 @@ async def test_resolve_returns_anthropic_when_db_provider_anthropic() -> None:
         api_key="sk-test-key",
     )
     session = _fake_session_returning(cfg)
-    out = await resolve_tenant_llm_provider(session, cfg.tenant_id, fallback)  # type: ignore[arg-type]
+    out = await resolve_tenant_llm_provider(session, cfg.tenant_id, fallback)
     assert out is not fallback
     # AnthropicProvider exposes the standard LLMProvider surface.
     assert hasattr(out, "chat_complete")
 
 
 @pytest.mark.asyncio
-async def test_resolve_openai_falls_back_to_stub_no_impl() -> None:
-    """No OpenAI provider implementation yet — resolver logs + returns stub."""
+async def test_resolve_returns_openai_when_db_provider_openai() -> None:
+    from llm_provider_py.openai import OpenAIProvider
+
     fallback = object()
-    cfg = TenantLlmConfig(tenant_id=uuid.uuid4(), provider="openai", api_key="sk-x")
+    cfg = TenantLlmConfig(
+        tenant_id=uuid.uuid4(),
+        provider="openai",
+        model_name="gpt-4o",
+        api_key="sk-test-key",
+    )
     session = _fake_session_returning(cfg)
-    out = await resolve_tenant_llm_provider(session, cfg.tenant_id, fallback)  # type: ignore[arg-type]
+    out = await resolve_tenant_llm_provider(session, cfg.tenant_id, fallback)
     assert out is not fallback
-    assert hasattr(out, "chat_complete")
+    assert isinstance(out, OpenAIProvider)
 
 
 def test_get_llm_provider_uses_stub_when_no_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("DEPLOYAI_LLM_PROVIDER", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     p = get_llm_provider()
     assert hasattr(p, "chat_complete")
 
@@ -96,3 +103,23 @@ def test_get_llm_provider_honors_explicit_stub_choice(monkeypatch: pytest.Monkey
     # the protocol surface.
     assert not isinstance(p, AnthropicProvider)
     assert hasattr(p, "chat_complete")
+
+
+def test_get_llm_provider_honors_explicit_openai_choice(monkeypatch: pytest.MonkeyPatch) -> None:
+    from llm_provider_py.openai import OpenAIProvider
+
+    monkeypatch.setenv("DEPLOYAI_LLM_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    p = get_llm_provider()
+    assert isinstance(p, OpenAIProvider)
+
+
+def test_get_llm_provider_picks_openai_from_api_key_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    from llm_provider_py.openai import OpenAIProvider
+
+    monkeypatch.delenv("DEPLOYAI_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test")
+    p = get_llm_provider()
+    assert isinstance(p, OpenAIProvider)

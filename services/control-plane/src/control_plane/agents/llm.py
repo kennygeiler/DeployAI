@@ -4,8 +4,9 @@ Resolution order:
 1. Per-tenant DB config (``tenant_llm_configs``) when the route is
    tenant-scoped — looked up via ``resolve_tenant_llm_provider`` from
    inside the route handler.
-2. Env defaults (``DEPLOYAI_LLM_PROVIDER`` + ``ANTHROPIC_API_KEY``) —
-   what ``get_llm_provider`` (the FastAPI ``Depends`` factory) returns.
+2. Env defaults (``DEPLOYAI_LLM_PROVIDER`` + ``ANTHROPIC_API_KEY`` /
+   ``OPENAI_API_KEY``) — what ``get_llm_provider`` (the FastAPI
+   ``Depends`` factory) returns.
 3. Stub — when nothing else resolves, keeps local dev / CI green.
 
 Why two functions: FastAPI ``Depends`` happens once per request at
@@ -29,6 +30,7 @@ import uuid
 from typing import Any
 
 from llm_provider_py.anthropic import AnthropicProvider
+from llm_provider_py.openai import OpenAIProvider
 from llm_provider_py.stub import create_stub_provider
 from llm_provider_py.types import LLMProvider
 from sqlalchemy import select
@@ -74,8 +76,7 @@ def _from_db_config(cfg: TenantLlmConfig) -> LLMProvider:
     if cfg.provider == "anthropic":
         return _anthropic(api_key=cfg.api_key, model=cfg.model_name)
     if cfg.provider == "openai":
-        _log.warning("tenant_llm_configs.provider=openai but no OpenAIProvider impl yet — using stub.")
-        return _stub()
+        return _openai(api_key=cfg.api_key, model=cfg.model_name)
     # provider == "stub" → explicit stub selection
     return _stub()
 
@@ -86,14 +87,23 @@ def _from_env() -> LLMProvider:
         return _stub()
     if choice == "anthropic":
         return _anthropic()
+    if choice == "openai":
+        return _openai()
     if os.getenv("ANTHROPIC_API_KEY"):
         return _anthropic()
-    _log.info("get_llm_provider: no DEPLOYAI_LLM_PROVIDER / ANTHROPIC_API_KEY — using stub provider.")
+    if os.getenv("OPENAI_API_KEY"):
+        return _openai()
+    _log.info("get_llm_provider: no DEPLOYAI_LLM_PROVIDER / ANTHROPIC_API_KEY / OPENAI_API_KEY — using stub provider.")
     return _stub()
 
 
 def _anthropic(api_key: str | None = None, model: str | None = None) -> LLMProvider:
     provider: Any = AnthropicProvider(api_key=api_key, model=model)
+    return provider
+
+
+def _openai(api_key: str | None = None, model: str | None = None) -> LLMProvider:
+    provider: Any = OpenAIProvider(api_key=api_key, chat_model=model)
     return provider
 
 
