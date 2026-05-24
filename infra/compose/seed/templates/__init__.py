@@ -1,15 +1,4 @@
-"""Industry templates for `make init`.
-
-Each template seeds a vertical-specific bundle into a freshly-created tenant:
-default engagement name + customer account + phase, a small starter set of
-matrix nodes typical of the vertical, and prompt overrides that nudge the
-agents (Cartographer / Oracle / Master Strategist) toward vertical-aware
-extraction and synthesis.
-
-Templates are pure data — no DB / HTTP work happens here. `init.py` is the
-caller that translates the dataclass into POST/PUT calls against the existing
-internal CP API.
-"""
+"""Vertical-specific seed bundles for the `make init` `--template` flag."""
 
 from __future__ import annotations
 

@@ -249,8 +249,7 @@ def step_starter_nodes(
 
 
 def step_template_prompts(tenant_id: str, agent_prompts: dict[str, str]) -> None:
-    """PUT template prompt overrides per agent. Forward-compat: a 404 means
-    sibling B1.1's agent-prompts endpoint is not merged yet — log and skip."""
+    """PUT per-agent prompt overrides; tolerate 404 when the endpoint isn't deployed yet."""
     if not agent_prompts:
         return
     for agent_name, prompt_suffix in agent_prompts.items():
