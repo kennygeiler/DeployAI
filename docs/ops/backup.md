@@ -184,3 +184,73 @@ before directing traffic at it.
   rolls the whole transaction back; the target DB never observes a
   partial restore.
 - No outbound telemetry. No phone-home on restore completion.
+
+## Retention pruning
+
+`make backup-prune` deletes timestamped folders under
+`s3://${S3_BUCKET}/${S3_PREFIX}/` older than `BACKUP_RETENTION_DAYS`
+(default 30). It is meant to be run on a schedule (cron / scheduled
+GitHub Action / etc.) so the bucket doesn't grow without bound, but the
+operator runs it manually as needed.
+
+The script only ever touches folders whose name matches the exact
+backup.sh timestamp format (`YYYYMMDDTHHMMSSZ`). Anything else under
+the prefix is logged as "unrecognized prefix, skipping" and left alone
+-- the script will never delete a folder whose name it does not
+understand.
+
+### Safety gate
+
+| Var                            | Required when    | Effect                                                                         |
+|--------------------------------|------------------|--------------------------------------------------------------------------------|
+| `DEPLOYAI_PRUNE_CONFIRM=YES`   | for any deletion | Without it the script runs DRY: lists the would-delete set, exits 0, no calls. |
+
+The dry-run default mirrors `make restore`: a naive operator who runs
+`make backup-prune` against the wrong bucket sees what *would* happen
+before anything is destroyed. The script also refuses on `S3_BUCKET`
+unset (exit 2) and on `BACKUP_RETENTION_DAYS` that is non-numeric or
+`< 1` (exit 2).
+
+### Required env vars
+
+| Var                       | Required | Default               | Notes                                                          |
+|---------------------------|----------|-----------------------|----------------------------------------------------------------|
+| `S3_BUCKET`               | **yes**  | —                     | Script refuses to run unset.                                   |
+| `AWS_ACCESS_KEY_ID`       | yes      | —                     | Standard AWS env. For MinIO use the `MINIO_ROOT_USER` value.   |
+| `AWS_SECRET_ACCESS_KEY`   | yes      | —                     | Standard AWS env. For MinIO use the `MINIO_ROOT_PASSWORD`.     |
+| `BACKUP_RETENTION_DAYS`   | no       | `30`                  | Positive integer; folders older than this many days are pruned.|
+| `S3_PREFIX`               | no       | `deployai/backups`    | Must match the prefix `make backup` is writing under.          |
+| `S3_ENDPOINT_URL`         | no       | (empty → real AWS)    | Set to `http://localhost:9000` for the dev MinIO container.    |
+| `AWS_REGION`              | no       | `us-east-1`           | Forwarded to `aws s3 / s3api --region`.                        |
+
+### Cron example
+
+```cron
+# Sundays at 03:00 UTC -- prune backups older than 30 days.
+0 3 * * 0 cd /opt/deployai && DEPLOYAI_PRUNE_CONFIRM=YES make backup-prune
+```
+
+### Restore impact
+
+`make restore` reads the timestamped folder you point `BACKUP` at.
+**Folders deleted by `make backup-prune` cannot be restored from** --
+they are gone from S3 and there is no soft-delete tier in this script.
+Lower the cutoff (`BACKUP_RETENTION_DAYS=60`) or extend the retention
+window before pruning if you need a longer recovery horizon.
+
+### Prune security envelope
+
+- Dry-run is the default. The destructive code path is only entered
+  when `DEPLOYAI_PRUNE_CONFIRM=YES` is set in the environment.
+- Refuses to run without `S3_BUCKET` (exit 2) so a missing prod env var
+  fails loud rather than silently no-op'ing on a different default
+  bucket.
+- Refuses to run with `BACKUP_RETENTION_DAYS < 1` or non-numeric
+  (exit 2) -- prevents a `BACKUP_RETENTION_DAYS=0` keystroke from
+  becoming "delete every backup".
+- Only deletes folders whose name parses as the exact backup.sh
+  timestamp format. Any other prefix under `$S3_PREFIX/` (manual test
+  uploads, mis-named objects, sibling tooling) is logged and skipped.
+- Never deletes the bucket itself; only objects under
+  `$S3_PREFIX/<ts>/`.
+- No outbound telemetry. No upload of the deletion list anywhere.

@@ -36,7 +36,7 @@ WEB_PORT ?= 3000
 .DEFAULT_GOAL := help
 
 .PHONY: help dev dev-verify dev-down dev-logs compose-smoke env init seed-app \
-	lint-python-epic6-agents format-python-epic6-agents backup restore
+	lint-python-epic6-agents format-python-epic6-agents backup restore backup-prune
 
 help:
 	@echo "DeployAI local stack — Story 1.7"
@@ -50,6 +50,7 @@ help:
 	@echo "  make seed-app       Seed 1 engagement + ~20 canonical events + run extraction (requires ANTHROPIC_API_KEY in .env)"
 	@echo "  make backup         pg_dump + tenant-DEK metadata to S3/MinIO (requires S3_BUCKET; see docs/ops/backup.md)"
 	@echo "  make restore        Restore pg_dump from BACKUP=s3://... (requires DEPLOYAI_RESTORE_CONFIRM=YES; see docs/ops/backup.md)"
+	@echo "  make backup-prune   Delete S3 backup folders older than BACKUP_RETENTION_DAYS (dry-run unless DEPLOYAI_PRUNE_CONFIRM=YES)"
 	@echo "  make compose-smoke  CI entry point (dev + dev-verify, 30-min ceiling)"
 	@echo "  make lint-python-epic6-agents  ruff check + ruff format --check (cartographer)"
 	@echo "  make format-python-epic6-agents  apply ruff format to the same (before commit)"
@@ -158,6 +159,12 @@ restore:
 		exit 2; \
 	fi
 	@bash scripts/restore.sh "$(BACKUP)"
+
+# Phase C inc 12.3 -- retention sweep for S3 backups written by `make backup`.
+# Dry-run by default; set DEPLOYAI_PRUNE_CONFIRM=YES to actually delete.
+# Operator runs manually or wires into cron (see docs/ops/backup.md § Retention).
+backup-prune:
+	@bash scripts/backup-prune.sh
 
 dev-logs:
 	$(DC) logs -f --tail=200
