@@ -1,11 +1,4 @@
-"""Sprint 6 inc 2 — tenant-scoped custom engagement-member roles.
-
-A healthcare team adds ``clinical_lead``; a B2B SaaS team adds
-``sales_engineer``. Custom roles extend the baked-in trio (``fde``,
-``deployment_strategist``, ``biz_dev``) without a schema change. ``name``
-is the slug (lowercase + underscores); ``label`` is the human display;
-``description`` is an optional hint.
-"""
+"""Tenant-scoped custom engagement-member roles."""
 
 from __future__ import annotations
 

@@ -645,7 +645,7 @@ async def delete_tenant_agent_prompt(
     return None
 
 
-# --- Sprint 6 inc 2 — tenant-scoped custom engagement-member roles ---------
+# --- Tenant-scoped custom engagement-member roles --------------------------
 #
 # Tenants extend the baked-in role trio (fde / deployment_strategist /
 # biz_dev) with custom names — ``clinical_lead`` for a healthcare team,

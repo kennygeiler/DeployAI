@@ -91,7 +91,7 @@ export async function cpUpdateMemberRole(
 export async function cpDeleteMemberRole(tenantId: string, roleId: string): Promise<void> {
   const url = `${cpBase()}/internal/v1/tenants/${encodeURIComponent(tenantId)}/member-roles/${encodeURIComponent(roleId)}`;
   const r = await fetch(url, { method: "DELETE", headers: cpHeaders(), cache: "no-store" });
-  if (!r.ok && r.status !== 204) {
+  if (!r.ok) {
     throw new Error(`cp member-roles delete ${r.status}: ${await r.text()}`);
   }
 }

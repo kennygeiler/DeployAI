@@ -90,7 +90,7 @@ export function MemberRolesForm() {
       const r = await fetch(`/api/bff/tenant/member-roles/${encodeURIComponent(id)}`, {
         method: "DELETE",
       });
-      if (!r.ok && r.status !== 204) {
+      if (!r.ok) {
         const text = await r.text();
         toast.error("Could not delete role", { description: text.slice(0, 240) });
         return;
