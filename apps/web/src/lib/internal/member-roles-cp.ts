@@ -19,8 +19,10 @@ export type MemberRolesResponse = {
   custom: CustomMemberRole[];
 };
 
+const MEMBER_ROLE_NAME_RE = /^[a-z][a-z0-9_]{0,49}$/;
+
 export const zMemberRoleCreate = z.object({
-  name: z.string().min(1).max(50),
+  name: z.string().regex(MEMBER_ROLE_NAME_RE),
   label: z.string().min(1).max(200),
   description: z.string().max(500).nullish(),
 });

@@ -20,16 +20,19 @@ export type NodeTypesResponse = {
   custom: CustomNodeType[];
 };
 
+const NODE_TYPE_NAME_RE = /^[a-z][a-z0-9_]{0,49}$/;
+const NODE_TYPE_COLOR_RE = /^#[0-9a-f]{6}$/;
+
 export const zNodeTypeCreate = z.object({
-  name: z.string().min(1).max(50),
+  name: z.string().regex(NODE_TYPE_NAME_RE),
   label: z.string().min(1).max(200),
-  color: z.string().max(7).nullish(),
+  color: z.string().regex(NODE_TYPE_COLOR_RE).nullish(),
   description: z.string().max(500).nullish(),
 });
 
 export const zNodeTypeUpdate = z.object({
   label: z.string().min(1).max(200).optional(),
-  color: z.string().max(7).nullish(),
+  color: z.string().regex(NODE_TYPE_COLOR_RE).nullish(),
   description: z.string().max(500).nullish(),
 });
 
