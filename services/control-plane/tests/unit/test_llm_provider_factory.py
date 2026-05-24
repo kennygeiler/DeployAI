@@ -133,3 +133,25 @@ def test_get_llm_provider_prefers_anthropic_when_both_keys_set(monkeypatch: pyte
     monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test")
     p = get_llm_provider()
     assert isinstance(p, AnthropicProvider)
+
+
+def test_get_llm_provider_honors_explicit_failover_choice(monkeypatch: pytest.MonkeyPatch) -> None:
+    from llm_provider_py.failover import FailoverProvider
+
+    monkeypatch.setenv("DEPLOYAI_LLM_PROVIDER", "failover")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-anthropic-test")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test")
+    p = get_llm_provider()
+    assert isinstance(p, FailoverProvider)
+
+
+def test_failover_routes_to_primary_per_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
+    from llm_provider_py.failover import FailoverProvider
+
+    monkeypatch.setenv("DEPLOYAI_LLM_PROVIDER", "failover")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-anthropic-test")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test")
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "openai")
+    p = get_llm_provider()
+    assert isinstance(p, FailoverProvider)
+    assert p.last_active_id() == "openai"
