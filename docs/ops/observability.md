@@ -111,3 +111,57 @@ that don't match any route fall back to `route="unknown"`.
   week's same window).
 - **Audit emit failure**: `increase(deployai_audit_emit_failures_total[5m]) > 0`
   — any failure is page-worthy; compliance writes must not silently drop.
+
+## Request correlation
+
+Every HTTP request flowing through the control-plane app gets a UUID
+correlation id, surfaced three ways:
+
+- **Response header `X-Request-ID`** — echoed on every response so callers
+  (browsers, sibling services, k8s probes) can stamp it into their own logs.
+- **JSON log field `request_id`** — when `LOG_FORMAT=json`, every record
+  emitted while a request is in scope carries the same id at the top level.
+- **Text log prefix `[req=<short>]`** — for the default `text` formatter,
+  the first 8 chars of the UUID are prepended so humans can eyeball-group
+  lines without an external log aggregator.
+
+The middleware accepts an inbound `X-Request-ID` header **only if it parses
+as a UUID**. Anything else (empty, malformed, non-UUID) is replaced with a
+freshly generated `uuid4()` to keep the id space uniform and to prevent
+clients smuggling unbounded strings into log indices.
+
+### Setting your own correlation id
+
+When a sibling service or a job runner originates the request, generate a
+UUID upstream and pass it through:
+
+```bash
+curl -H "X-Request-ID: $(uuidgen)" https://cp.deployai.internal/healthz
+```
+
+The same id appears in the response header and in every log record the
+request emits.
+
+### Filtering logs by request id
+
+In JSON mode, grep by the field. With `jq`:
+
+```bash
+kubectl logs deploy/control-plane | jq -c 'select(.request_id == "<uuid>")'
+```
+
+In text mode, grep by the short prefix:
+
+```bash
+kubectl logs deploy/control-plane | grep '\[req=ab12cd34\]'
+```
+
+### Correlating with Prometheus + traces
+
+`request_id` is intentionally not a Prometheus label — UUIDs blow up label
+cardinality. To go from a slow request to its logs, query the histogram by
+route + method + status to find the slow window, then `grep` the JSON logs
+for `request_id` records inside that window. When OTel tracing is enabled
+(`OTEL_EXPORTER_OTLP_ENDPOINT` set), the same `request_id` field appears
+alongside the trace/span ids the OTel SDK injects, so a single log line is
+sufficient to jump from logs → traces → metrics.
