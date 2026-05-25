@@ -41,8 +41,13 @@ class JsonFormatter(logging.Formatter):
     """Emit one JSON object per record. Extra fields passed via ``extra={...}`` are merged in."""
 
     def format(self, record: logging.LogRecord) -> str:
+        # strftime doesn't understand %03d, so build the millis suffix manually
+        # from record.msecs (set by the logging module).
+        base_ts = self.formatTime(record, "%Y-%m-%dT%H:%M:%S")
+        millis = f".{int(record.msecs):03d}"
+        tz_suffix = self.formatTime(record, "%z")
         payload: dict[str, Any] = {
-            "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S.%03d%z"),
+            "ts": f"{base_ts}{millis}{tz_suffix}",
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
