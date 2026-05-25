@@ -1,0 +1,57 @@
+# {{ engagement.name }}
+
+- **ID:** {{ engagement.id }}
+- **Customer account:** {{ engagement.customer_account or "—" }}
+- **Current phase:** {{ engagement.current_phase }}
+- **Created at:** {{ engagement.created_at or "—" }}
+
+## Members
+
+{% if members %}
+{% for m in members %}
+- {{ m.role }} — user {{ m.user_id }} (member {{ m.id }})
+{% endfor %}
+{% else %}
+- _no members_
+{% endif %}
+
+## Matrix nodes
+
+{% if matrix_nodes %}
+{% for n in matrix_nodes %}
+- **[{{ n.node_type }}]** {{ n.title }}{% if n.status %} — status: {{ n.status }}{% endif %} ({{ n.id }})
+{% endfor %}
+{% else %}
+- _no nodes_
+{% endif %}
+
+## Matrix edges
+
+{% if matrix_edges %}
+{% for e in matrix_edges %}
+- **[{{ e.edge_type }}]** {{ e.from_node_id }} → {{ e.to_node_id }} ({{ e.id }})
+{% endfor %}
+{% else %}
+- _no edges_
+{% endif %}
+
+## Insights
+
+{% if insights %}
+{% for i in insights %}
+- **[{{ i.severity }}/{{ i.agent }}]** {{ i.title }} — {{ i.status }}
+  - {{ i.body }}
+{% endfor %}
+{% else %}
+- _no insights_
+{% endif %}
+
+## Recent activity
+
+{% if recent_activity_events %}
+{% for a in recent_activity_events %}
+- {{ a.created_at or "—" }} — **{{ a.category }}** by {{ a.actor_id }}: {{ a.summary }}
+{% endfor %}
+{% else %}
+- _no recent activity_
+{% endif %}
