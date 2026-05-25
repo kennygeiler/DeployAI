@@ -367,7 +367,15 @@ def run(
                 "already_present": len(existing),
             }
 
-        todo.sort(key=lambda e: (e.occurred_at, e.source_kind))
+        # Sort so the CREATE half of a paired source_ref always lands first
+        # when both halves share an occurred_at (alphabetical source_kind would
+        # otherwise put `insight_closed` before `insight_opened`, breaking the
+        # cause-edge lookup on the next pass).
+        def _sort_key(e: _PendingEvent) -> tuple[Any, int, str]:
+            is_create = 0 if e.source_kind in _CREATE_KINDS else 1
+            return (e.occurred_at, is_create, e.source_kind)
+
+        todo.sort(key=_sort_key)
         written: dict[str, int] = {}
         with engine.begin() as conn:
             existing_index = _index_by_source_ref(conn, tenant_id)
