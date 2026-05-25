@@ -4,7 +4,6 @@ import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
 
-import { CitationPanel } from "@/components/epic9/CitationPanel.client";
 import { EngagementInsights } from "@/components/epic9/EngagementInsights.client";
 import { EngagementTimeline } from "@/components/epic9/EngagementTimeline.client";
 import { InteractionImport } from "@/components/epic9/InteractionImport.client";
@@ -13,6 +12,7 @@ import { MatrixGraph } from "@/components/epic9/MatrixGraph.client";
 import { MatrixProposals } from "@/components/epic9/MatrixProposals.client";
 import { RecommendationsPanel } from "@/components/epic9/RecommendationsPanel.client";
 import { RoleLensFilter } from "@/components/epic9/RoleLensFilter.client";
+import { MatrixNodeDetail } from "@/components/engagements/MatrixNodeDetail.client";
 import { Button } from "@/components/ui/button";
 import type { Engagement, EngagementMember } from "@/lib/bff/engagement-types";
 import type { MatrixEdge, MatrixNode, MatrixProposal } from "@/lib/bff/matrix-types";
@@ -202,12 +202,14 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
     open: boolean;
     title: string;
     ids: string[];
-  }>({ open: false, title: "", ids: [] });
+    nodeId: string | null;
+  }>({ open: false, title: "", ids: [], nodeId: null });
   const openCitation = React.useCallback((node: MatrixNode) => {
     setCitation({
       open: true,
       title: node.title,
       ids: node.evidence_event_ids ?? [],
+      nodeId: node.id,
     });
   }, []);
   const closeCitation = React.useCallback(() => {
@@ -432,10 +434,11 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
               </div>
             )}
             <MatrixCapture engagementId={engagementId} nodes={allMatrixNodes} onChanged={refresh} />
-            <CitationPanel
+            <MatrixNodeDetail
               engagementId={engagementId}
-              ids={citation.ids}
+              nodeId={citation.nodeId}
               title={citation.title}
+              evidenceEventIds={citation.ids}
               open={citation.open}
               onClose={closeCitation}
             />

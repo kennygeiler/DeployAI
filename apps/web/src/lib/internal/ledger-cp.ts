@@ -2,6 +2,32 @@ import { z } from "zod";
 
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
 
+// Mirrors the CP source_kind enum (docs/design/timeline-ledger.md §3.1 + §4.3).
+// Sibling F1.d list route declares the same set locally; we redeclare here so
+// the chain BFF route can validate response nodes without cross-route coupling.
+export const ALLOWED_SOURCE_KINDS: ReadonlySet<string> = new Set([
+  "email_ingest",
+  "meeting_webhook",
+  "manual_capture",
+  "llm_proposal_created",
+  "proposal_accepted",
+  "proposal_rejected",
+  "matrix_node_created",
+  "matrix_node_updated",
+  "matrix_node_deleted",
+  "matrix_edge_created",
+  "matrix_edge_deleted",
+  "insight_opened",
+  "insight_closed",
+  "recommendation_emitted",
+  "recommendation_actioned",
+  "engagement_phase_change",
+  "member_added",
+  "member_removed",
+  "settings_change",
+  "audit_other",
+]);
+
 export const zLedgerEventAffect = z.object({
   entity_kind: z.string(),
   entity_id: z.string(),
@@ -118,4 +144,58 @@ export async function cpGetLedgerEvent(
   }
   const raw: unknown = await r.json();
   return zLedgerEvent.parse(raw);
+}
+
+export const zChainNode = z.object({
+  id: z.string(),
+  occurredAt: z.string(),
+  sourceKind: z.string(),
+  summary: z.string(),
+  actorKind: z.string(),
+  depth: z.number().int().nonnegative(),
+  truncated: z.boolean(),
+});
+
+export type ChainNode = z.infer<typeof zChainNode>;
+
+export const zChainEdge = z.object({
+  fromEventId: z.string(),
+  toEventId: z.string(),
+});
+
+export type ChainEdge = z.infer<typeof zChainEdge>;
+
+export const zChainResponse = z.object({
+  rootEventId: z.string(),
+  nodes: z.array(zChainNode),
+  edges: z.array(zChainEdge),
+  truncatedAtDepth: z.number().int().nonnegative().nullable(),
+  truncatedNodeCount: z.number().int().nonnegative().nullable(),
+});
+
+export type ChainResponse = z.infer<typeof zChainResponse>;
+
+export type ChainOpts = {
+  direction?: "backward" | "forward" | "both";
+  max_depth?: number;
+};
+
+export async function cpFetchChain(
+  tenantId: string,
+  engagementId: string,
+  eventId: string,
+  opts: ChainOpts = {},
+): Promise<ChainResponse> {
+  const qs = new URLSearchParams({ tenant_id: tenantId });
+  if (opts.direction) qs.set("direction", opts.direction);
+  if (opts.max_depth !== undefined) qs.set("max_depth", String(opts.max_depth));
+  const url =
+    `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}/ledger/` +
+    `${encodeURIComponent(eventId)}/chain?${qs.toString()}`;
+  const r = await fetch(url, { method: "GET", headers: cpHeaders(), cache: "no-store" });
+  if (!r.ok) {
+    throw new Error(`cp ledger chain ${r.status}: ${await r.text()}`);
+  }
+  const raw: unknown = await r.json();
+  return zChainResponse.parse(raw);
 }
