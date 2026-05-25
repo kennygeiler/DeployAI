@@ -18,7 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from control_plane.domain.ledger import TemporalInsight
 from control_plane.intelligence.base import Analyzer, TemporalInsightWrite
 from control_plane.intelligence.decision_cycle_slowdown import DecisionCycleSlowdownAnalyzer
+from control_plane.intelligence.decision_provenance_summary import DecisionProvenanceSummaryAnalyzer
 from control_plane.intelligence.engagement_silence import EngagementSilenceAnalyzer
+from control_plane.intelligence.extractor_acceptance_drift import ExtractorAcceptanceDriftAnalyzer
 from control_plane.intelligence.risk_open_rate import RiskOpenRateAnalyzer
 from control_plane.intelligence.stakeholder_churn import StakeholderChurnAnalyzer
 
@@ -29,6 +31,8 @@ def builtin_analyzers() -> list[Analyzer]:
         DecisionCycleSlowdownAnalyzer(),
         RiskOpenRateAnalyzer(),
         EngagementSilenceAnalyzer(),
+        ExtractorAcceptanceDriftAnalyzer(),
+        DecisionProvenanceSummaryAnalyzer(),
     ]
 
 
