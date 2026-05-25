@@ -88,6 +88,10 @@ jobs:
       # shape; this flag gates the AC-minimum run behind CI alone so local
       # `pytest -m fuzz` stays fast.
       FUZZ_GATE_MODE: "production"
+      # Ryuk reaps the testcontainer mid-run on long suites in CI
+      # (per-module Postgres lifecycles cross the 10s reconnect window).
+      # CI runners are ephemeral, so disable Ryuk entirely.
+      TESTCONTAINERS_RYUK_DISABLED: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0

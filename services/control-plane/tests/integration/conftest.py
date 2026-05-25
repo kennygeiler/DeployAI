@@ -34,44 +34,32 @@ def _ensure_sso_pending_tenant(postgres_engine: Engine) -> Generator[None]:
 
 @pytest.fixture(autouse=True)
 def _clean_tenant_rows(postgres_engine: Engine) -> Generator[None]:
-    """Wipe canonical-memory rows between tests so each test owns a clean slate.
+    """Wipe every user-data row between tests so each test owns a clean slate.
 
-    Uses `session_replication_role='replica'` to temporarily bypass the
-    `canonical_memory_events_append_only` trigger so DELETE is allowed
-    during test teardown — the trigger is the system under test, not a
-    test-harness obstacle.
+    Discovers tables via `pg_tables` rather than a hand-rolled list so newly
+    added migrations don't silently leak rows across tests. Uses
+    `session_replication_role='replica'` to bypass the
+    `canonical_memory_events_append_only` trigger (the trigger is the system
+    under test, not a test-harness obstacle).
     """
     yield
 
     with postgres_engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT tablename FROM pg_tables "
+                "WHERE schemaname = 'public' "
+                "AND tablename NOT LIKE 'alembic_%' "
+                "AND tablename NOT LIKE 'pg_%'"
+            )
+        )
+        tables = [row[0] for row in result]
+        if not tables:
+            return
+        joined = ", ".join(tables)
         conn.execute(text("SET session_replication_role = 'replica'"))
-        for table in _TEARDOWN_ORDER:
-            conn.execute(text(f"TRUNCATE TABLE {table} CASCADE"))
+        conn.execute(text(f"TRUNCATE TABLE {joined} CASCADE"))
         conn.execute(text("SET session_replication_role = 'origin'"))
-
-
-_TEARDOWN_ORDER: tuple[str, ...] = (
-    "solidification_review_queue",
-    "edge_agents",
-    "private_override_annotations",
-    "strategist_activity_events",
-    "learning_lifecycle_states",
-    "solidified_learnings",
-    "identity_supersessions",
-    "identity_attribute_history",
-    "identity_nodes",
-    "canonical_memory_events",
-    "ingestion_runs",
-    "adjudication_queue_items",
-    "phase_transition_proposals",
-    "tenant_deployment_phases",
-    "tombstones",
-    "schema_proposals",
-    "break_glass_sessions",
-    "integrations",
-    "app_users",
-    "app_tenants",
-)
 
 
 @pytest.fixture()
