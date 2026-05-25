@@ -239,3 +239,4 @@ services/control-plane/artifacts/fuzz/
 # Local caveman skill install (per-user, not project)
 .agents/
 skills-lock.json
+.claude/worktrees/

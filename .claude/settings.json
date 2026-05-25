@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PROJECT_ROOT}/.claude/hooks/pre_write_cwd_guard.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "note": "Hook fires only when DEPLOYAI_AGENT_WORKTREE env var is set in the subagent run. Main-thread + human runs are unaffected. See .claude/hooks/pre_write_cwd_guard.sh."
+}

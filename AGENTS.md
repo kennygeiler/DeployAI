@@ -274,3 +274,25 @@ returned to you for fixup.
 - New migrations that chain off a sibling's revision (see §4)
 - Skipping gates ("CI will catch it")
 - `--no-verify` on commit or `--no-edit` on rebase
+
+---
+
+## §13 Brief discipline
+
+A subagent spawn-brief gives you what to build, the file list you own,
+the migration slot (if any), and the gates. Anything more than that is
+process bloat that increases stall risk + dilutes the rules above.
+
+- **Cap: 80 lines.** If a brief is longer, the slice is too big — split
+  before spawning.
+- **No "go read these 6 files first."** Reference one canonical doc
+  (this file, ORCHESTRATOR.md, a design doc) and let the agent fetch
+  what it needs. Pre-flight context-reads inflate input tokens + slow
+  startup.
+- **The cwd CHECK preamble is the only context the brief MUST contain
+  verbatim.** Trust the hook (`.claude/hooks/pre_write_cwd_guard.sh`)
+  to catch mis-roots; the preamble is the backup.
+- **Briefs live in `briefs/`.** Reuse a template instead of hand-rolling.
+- **Briefs ban negotiation.** "You may push back on X" → agent burns
+  tokens deliberating. "Do X. If X is impossible, return without
+  committing and flag in §10 return." → agent ships or stops.
