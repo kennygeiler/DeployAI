@@ -1,0 +1,28 @@
+{
+  "realm": "deployai",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 300,
+  "clients": [
+    {
+      "clientId": "deployai-web",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:3000/api/auth/callback/oidc"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:3000"
+      }
+    }
+  ]
+}

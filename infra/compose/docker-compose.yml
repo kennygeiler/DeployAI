@@ -91,6 +91,25 @@ services:
       timeout: 3s
       retries: 10
 
+  # Phase D inc 1b — Keycloak OIDC issuer for local development.
+  # Stub scope: the realm export at ./keycloak/realm-export.json is imported
+  # on start so a `deployai-web` client + redirect URIs are pre-configured.
+  # Wiring the apps to actually call it is owner-credentialed and lands in
+  # a follow-up slice; see docs/auth/oidc.md.
+  # ADMIN credentials below are dev-only; override for any non-local env.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    ports:
+      - "${KEYCLOAK_PORT:-8090}:8080"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - keycloak_data:/opt/keycloak/data
+
   # One-shot: applies Alembic migrations to the application schema, then exits.
   # control-plane waits for this to complete, so it never serves against an
   # unmigrated database.
@@ -188,3 +207,4 @@ volumes:
   pg_data:
   redis_data:
   minio_data:
+  keycloak_data:

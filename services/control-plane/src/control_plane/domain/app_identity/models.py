@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import TIMESTAMP, Boolean, CheckConstraint, ForeignKey, Text, UniqueConstraint, func, text
+from sqlalchemy import TIMESTAMP, Boolean, CheckConstraint, ForeignKey, String, Text, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -85,6 +85,9 @@ class TenantLlmConfig(Base):
     provider: Mapped[str] = mapped_column(Text(), nullable=False)
     model_name: Mapped[str | None] = mapped_column(Text(), nullable=True)
     api_key: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    secondary_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    secondary_api_key: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    secondary_model_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 

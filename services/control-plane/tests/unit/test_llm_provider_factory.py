@@ -155,3 +155,40 @@ def test_failover_routes_to_primary_per_env_var(monkeypatch: pytest.MonkeyPatch)
     p = get_llm_provider()
     assert isinstance(p, FailoverProvider)
     assert p.last_active_id() == "openai"
+
+
+@pytest.mark.asyncio
+async def test_resolve_composes_failover_when_secondary_set() -> None:
+    from llm_provider_py.failover import FailoverProvider
+
+    fallback = object()
+    cfg = TenantLlmConfig(
+        tenant_id=uuid.uuid4(),
+        provider="anthropic",
+        model_name="claude-opus-4-5",
+        api_key="sk-ant-primary",
+        secondary_provider="openai",
+        secondary_api_key="sk-openai-secondary",
+        secondary_model_name="gpt-4o",
+    )
+    session = _fake_session_returning(cfg)
+    out = await resolve_tenant_llm_provider(session, cfg.tenant_id, fallback)
+    assert isinstance(out, FailoverProvider)
+
+
+@pytest.mark.asyncio
+async def test_resolve_skips_failover_when_secondary_null() -> None:
+    from llm_provider_py.anthropic import AnthropicProvider
+    from llm_provider_py.failover import FailoverProvider
+
+    fallback = object()
+    cfg = TenantLlmConfig(
+        tenant_id=uuid.uuid4(),
+        provider="anthropic",
+        model_name="claude-opus-4-5",
+        api_key="sk-ant-primary",
+    )
+    session = _fake_session_returning(cfg)
+    out = await resolve_tenant_llm_provider(session, cfg.tenant_id, fallback)
+    assert isinstance(out, AnthropicProvider)
+    assert not isinstance(out, FailoverProvider)
