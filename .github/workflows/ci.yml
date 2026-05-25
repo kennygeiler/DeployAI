@@ -194,6 +194,10 @@ jobs:
         working-directory: services/control-plane
         env:
           PYTEST_ADDOPTS: ""
+          # Ryuk reaps the testcontainer mid-run on long suites in CI
+          # (per-module Postgres lifecycles cross the 10s reconnect window).
+          # CI runners are ephemeral, so disable Ryuk entirely.
+          TESTCONTAINERS_RYUK_DISABLED: "true"
         run: |
           uv sync
           uv run pytest tests/integration/ -m integration -q

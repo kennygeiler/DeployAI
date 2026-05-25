@@ -42,13 +42,18 @@ def _docker_available() -> bool:
         return False
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def postgres_engine() -> Generator[Engine]:
-    """Module-scoped engine bound to a fresh Postgres 16 + pgvector container.
+    """Session-scoped engine bound to a fresh Postgres 16 + pgvector container.
 
-    Spun up once per test module, migrated to head, then yielded. Skips when
-    Docker is unreachable so `pytest -m 'not integration and not fuzz'` stays
-    clean on Docker-less dev boxes.
+    One container per pytest session is reused across every test module so we
+    don't pay the ~5s container-start + ~3s alembic-upgrade cost per module
+    and we don't exhaust Docker's NAT port range on long CI runs. Per-test
+    isolation is provided by the autouse TRUNCATE fixture in
+    `tests/integration/conftest.py`.
+
+    Skips when Docker is unreachable so `pytest -m 'not integration and not
+    fuzz'` stays clean on Docker-less dev boxes.
     """
     if PostgresContainer is None:
         pytest.skip("testcontainers[postgres] not installed")
