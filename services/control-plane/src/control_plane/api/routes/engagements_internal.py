@@ -64,7 +64,9 @@ from control_plane.domain.canonical_memory.node_types import (
     resolve_allowed_node_types,
 )
 from control_plane.domain.engagement import Engagement, EngagementMember
+from control_plane.domain.ledger import LedgerEvent
 from control_plane.domain.member_roles import resolve_allowed_member_roles
+from control_plane.ledger import emit_ledger_event
 from control_plane.phases.machine import DEPLOYMENT_PHASES, default_phase
 from control_plane.webhooks.dispatcher import dispatch as dispatch_webhook
 
@@ -395,6 +397,20 @@ async def create_matrix_node(
         evidence_event_ids=body.evidence_event_ids,
     )
     session.add(row)
+    await session.flush()
+    await emit_ledger_event(
+        session,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        occurred_at=datetime.now(UTC),
+        actor_kind="user",
+        actor_id=None,
+        source_kind="matrix_node_created",
+        source_ref=row.id,
+        summary=f"node created: {row.title}"[:500],
+        detail={"node_type": row.node_type, "title": row.title},
+        affects=[("matrix_node", row.id)],
+    )
     await session.commit()
     await session.refresh(row)
     return row
@@ -448,8 +464,23 @@ async def update_matrix_node(
 ) -> MatrixNode:
     await _require_engagement(session, tenant_id, engagement_id)
     node = await _require_matrix_node(session, engagement_id, node_id)
-    for key, value in body.model_dump(exclude_unset=True).items():
+    changes = body.model_dump(exclude_unset=True)
+    for key, value in changes.items():
         setattr(node, key, value)
+    await session.flush()
+    await emit_ledger_event(
+        session,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        occurred_at=datetime.now(UTC),
+        actor_kind="user",
+        actor_id=None,
+        source_kind="matrix_node_updated",
+        source_ref=node.id,
+        summary=f"node updated: {node.title}"[:500],
+        detail={"node_type": node.node_type, "fields_changed": sorted(changes.keys())},
+        affects=[("matrix_node", node.id)],
+    )
     await session.commit()
     await session.refresh(node)
     return node
@@ -468,8 +499,24 @@ async def delete_matrix_node(
 ) -> None:
     await _require_engagement(session, tenant_id, engagement_id)
     node = await _require_matrix_node(session, engagement_id, node_id)
+    node_title = node.title
+    node_type = node.node_type
+    deleted_id = node.id
     # Edges referencing the node are removed by the ON DELETE CASCADE FK.
     await session.delete(node)
+    await session.flush()
+    await emit_ledger_event(
+        session,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        occurred_at=datetime.now(UTC),
+        actor_kind="user",
+        actor_id=None,
+        source_kind="matrix_node_deleted",
+        source_ref=deleted_id,
+        summary=f"node deleted: {node_title}"[:500],
+        detail={"node_type": node_type, "title": node_title},
+    )
     await session.commit()
 
 
@@ -510,6 +557,24 @@ async def create_matrix_edge(
         evidence_event_ids=body.evidence_event_ids,
     )
     session.add(row)
+    await session.flush()
+    await emit_ledger_event(
+        session,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        occurred_at=datetime.now(UTC),
+        actor_kind="user",
+        actor_id=None,
+        source_kind="matrix_edge_created",
+        source_ref=row.id,
+        summary=f"edge created: {row.edge_type}"[:500],
+        detail={
+            "edge_type": row.edge_type,
+            "from_node_id": str(row.from_node_id),
+            "to_node_id": str(row.to_node_id),
+        },
+        affects=[("matrix_edge", row.id)],
+    )
     await session.commit()
     await session.refresh(row)
     return row
@@ -550,7 +615,28 @@ async def delete_matrix_edge(
     edge = r.scalar_one_or_none()
     if edge is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="matrix edge not found")
+    edge_type = edge.edge_type
+    from_id = edge.from_node_id
+    to_id = edge.to_node_id
+    deleted_id = edge.id
     await session.delete(edge)
+    await session.flush()
+    await emit_ledger_event(
+        session,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        occurred_at=datetime.now(UTC),
+        actor_kind="user",
+        actor_id=None,
+        source_kind="matrix_edge_deleted",
+        source_ref=deleted_id,
+        summary=f"edge deleted: {edge_type}"[:500],
+        detail={
+            "edge_type": edge_type,
+            "from_node_id": str(from_id),
+            "to_node_id": str(to_id),
+        },
+    )
     await session.commit()
 
 
@@ -662,6 +748,22 @@ class MatrixProposalDecision(BaseModel):
     """Optional metadata for accept / reject — the BFF passes the actor id."""
 
     actor_id: str | None = Field(default=None, max_length=200)
+
+
+async def _proposal_created_event_ids(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    proposal_id: uuid.UUID,
+) -> list[uuid.UUID]:
+    """IDs of `llm_proposal_created` ledger rows for this proposal — usually one."""
+    rows = await session.execute(
+        select(LedgerEvent.id).where(
+            LedgerEvent.tenant_id == tenant_id,
+            LedgerEvent.source_kind == "llm_proposal_created",
+            LedgerEvent.source_ref == proposal_id,
+        )
+    )
+    return [r for (r,) in rows.all()]
 
 
 async def _require_proposal(session: AsyncSession, engagement_id: uuid.UUID, proposal_id: uuid.UUID) -> MatrixProposal:
@@ -811,6 +913,31 @@ async def accept_matrix_proposal(
     proposal.status = "accepted"
     proposal.decided_at = datetime.now(UTC)
     proposal.decided_by = body.actor_id
+    await session.flush()
+    affects: list[tuple[str, uuid.UUID]] = []
+    if proposal.result_node_id is not None:
+        affects.append(("matrix_node", proposal.result_node_id))
+    if proposal.result_edge_id is not None:
+        affects.append(("matrix_edge", proposal.result_edge_id))
+    caused_by = await _proposal_created_event_ids(session, tenant_id, proposal.id)
+    await emit_ledger_event(
+        session,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        occurred_at=datetime.now(UTC),
+        actor_kind="user",
+        actor_id=body.actor_id,
+        source_kind="proposal_accepted",
+        source_ref=proposal.id,
+        summary=f"proposal accepted: {proposal.proposal_kind}"[:500],
+        detail={
+            "proposal_kind": proposal.proposal_kind,
+            "result_node_id": str(proposal.result_node_id) if proposal.result_node_id else None,
+            "result_edge_id": str(proposal.result_edge_id) if proposal.result_edge_id else None,
+        },
+        caused_by=caused_by,
+        affects=affects,
+    )
     await session.commit()
     await session.refresh(proposal)
     return proposal
@@ -838,6 +965,21 @@ async def reject_matrix_proposal(
     proposal.status = "rejected"
     proposal.decided_at = datetime.now(UTC)
     proposal.decided_by = body.actor_id
+    await session.flush()
+    caused_by = await _proposal_created_event_ids(session, tenant_id, proposal.id)
+    await emit_ledger_event(
+        session,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        occurred_at=datetime.now(UTC),
+        actor_kind="user",
+        actor_id=body.actor_id,
+        source_kind="proposal_rejected",
+        source_ref=proposal.id,
+        summary=f"proposal rejected: {proposal.proposal_kind}"[:500],
+        detail={"proposal_kind": proposal.proposal_kind},
+        caused_by=caused_by,
+    )
     await session.commit()
     await session.refresh(proposal)
     return proposal
@@ -925,6 +1067,24 @@ async def extract_engagement_proposals(
         )
         session.add(row)
         created.append(row)
+    if created:
+        await session.flush()
+        for r in created:
+            await emit_ledger_event(
+                session,
+                tenant_id=tenant_id,
+                engagement_id=engagement_id,
+                occurred_at=datetime.now(UTC),
+                actor_kind="agent:matrix_extractor",
+                actor_id="cartographer",
+                source_kind="llm_proposal_created",
+                source_ref=r.id,
+                summary=f"proposal drafted: {r.proposal_kind}"[:500],
+                detail={
+                    "proposal_kind": r.proposal_kind,
+                    "source_event_id": str(r.source_event_id),
+                },
+            )
     await session.commit()
     for r in created:
         await session.refresh(r)
@@ -1067,6 +1227,25 @@ async def _decide_insight(
     row.status = new_status
     row.decided_at = datetime.now(UTC)
     row.decided_by = actor_id
+    await session.flush()
+    await emit_ledger_event(
+        session,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        occurred_at=datetime.now(UTC),
+        actor_kind="user",
+        actor_id=actor_id,
+        source_kind="insight_closed",
+        source_ref=row.id,
+        summary=f"insight {new_status}: {row.title}"[:500],
+        detail={
+            "insight_type": row.insight_type,
+            "severity": row.severity,
+            "status": new_status,
+            "agent": row.agent,
+        },
+        affects=[("insight", row.id)],
+    )
     await session.commit()
     await session.refresh(row)
     return row
@@ -1256,11 +1435,54 @@ async def refresh_matrix_insights(
 
     # Auto-resolve open rows whose dedup_key no longer fires.
     candidate_keys = {c.dedup_key for c in candidates}
+    auto_resolved: list[MatrixInsight] = []
     for key, prev in existing.items():
         if prev.status == "open" and key not in candidate_keys:
             prev.status = "resolved"
             prev.decided_at = datetime.now(UTC)
             prev.decided_by = "auto"
+            auto_resolved.append(prev)
+
+    if newly_created or auto_resolved:
+        await session.flush()
+        for row in newly_created:
+            await emit_ledger_event(
+                session,
+                tenant_id=tenant_id,
+                engagement_id=engagement_id,
+                occurred_at=datetime.now(UTC),
+                actor_kind="agent:oracle",
+                actor_id="oracle",
+                source_kind="insight_opened",
+                source_ref=row.id,
+                summary=f"insight opened: {row.title}"[:500],
+                detail={
+                    "insight_type": row.insight_type,
+                    "severity": row.severity,
+                    "agent": row.agent,
+                },
+                affects=[("insight", row.id)],
+            )
+        for row in auto_resolved:
+            await emit_ledger_event(
+                session,
+                tenant_id=tenant_id,
+                engagement_id=engagement_id,
+                occurred_at=datetime.now(UTC),
+                actor_kind="system",
+                actor_id="auto",
+                source_kind="insight_closed",
+                source_ref=row.id,
+                summary=f"insight auto-resolved: {row.title}"[:500],
+                detail={
+                    "insight_type": row.insight_type,
+                    "severity": row.severity,
+                    "status": "resolved",
+                    "agent": row.agent,
+                    "reason": "predicate_no_longer_fires",
+                },
+                affects=[("insight", row.id)],
+            )
 
     await session.commit()
 
