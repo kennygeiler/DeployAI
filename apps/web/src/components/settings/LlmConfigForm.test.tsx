@@ -13,6 +13,10 @@ function mkCfg(overrides: Partial<TenantLlmConfig> = {}): TenantLlmConfig {
     model_name: "claude-opus-4-5",
     api_key_masked: "sk-a****wxyz",
     has_api_key: true,
+    secondary_provider: null,
+    secondary_model_name: null,
+    secondary_api_key_masked: null,
+    has_secondary_api_key: false,
     updated_at: "2026-05-23T12:00:00Z",
     ...overrides,
   };
@@ -83,6 +87,15 @@ describe("LlmConfigForm", () => {
     const put = calls.find((c) => c.method === "PUT")!;
     expect((put.body as { model_name: string }).model_name).toBe("claude-haiku-4-5");
     expect("api_key" in (put.body as object)).toBe(false);
+    // Failover stays off → secondary trio is all nulls (toggle off contract).
+    const sent = put.body as {
+      secondary_provider: unknown;
+      secondary_model_name: unknown;
+      secondary_api_key: unknown;
+    };
+    expect(sent.secondary_provider).toBeNull();
+    expect(sent.secondary_model_name).toBeNull();
+    expect(sent.secondary_api_key).toBeNull();
   });
 
   it("PUTs api_key when user types a new key, then clears the input on success", async () => {
@@ -101,5 +114,99 @@ describe("LlmConfigForm", () => {
     expect((put.body as { api_key: string }).api_key).toBe("sk-new-key-value");
     // After save the input is cleared and the masked placeholder reflects the new key.
     await waitFor(() => expect(key.value).toBe(""));
+  });
+
+  it("does not render the failover inputs until the toggle is on", async () => {
+    mockFetch({ get: () => ({ config: mkCfg() }) });
+    render(<LlmConfigForm />);
+    await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
+    expect(screen.getByLabelText("Enable failover")).toBeTruthy();
+    expect(screen.queryByLabelText("Secondary provider")).toBeNull();
+    expect(screen.queryByLabelText("Secondary model")).toBeNull();
+    expect(screen.queryByLabelText("Secondary API key")).toBeNull();
+  });
+
+  it("prefills failover inputs from a saved config and masks the secondary key", async () => {
+    mockFetch({
+      get: () => ({
+        config: mkCfg({
+          secondary_provider: "openai",
+          secondary_model_name: "gpt-4o",
+          secondary_api_key_masked: "sk-o****9876",
+          has_secondary_api_key: true,
+        }),
+      }),
+    });
+    render(<LlmConfigForm />);
+    await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
+    const toggle = screen.getByLabelText("Enable failover") as HTMLInputElement;
+    expect(toggle.checked).toBe(true);
+    const secondaryProvider = screen.getByLabelText("Secondary provider") as HTMLSelectElement;
+    expect(secondaryProvider.value).toBe("openai");
+    const secondaryModel = screen.getByLabelText("Secondary model") as HTMLInputElement;
+    expect(secondaryModel.value).toBe("gpt-4o");
+    const secondaryKey = screen.getByLabelText("Secondary API key") as HTMLInputElement;
+    expect(secondaryKey.placeholder).toBe("sk-o****9876");
+    expect(secondaryKey.value).toBe("");
+  });
+
+  it("PUTs the full secondary trio when the user enables failover", async () => {
+    const calls = mockFetch({
+      get: () => ({ config: mkCfg() }),
+      put: () => ({
+        config: mkCfg({
+          secondary_provider: "openai",
+          secondary_model_name: "gpt-4o",
+          secondary_api_key_masked: "sk-o****9876",
+          has_secondary_api_key: true,
+        }),
+      }),
+    });
+    render(<LlmConfigForm />);
+    await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText("Enable failover"));
+    await user.type(screen.getByLabelText("Secondary model"), "gpt-4o");
+    await user.type(screen.getByLabelText("Secondary API key"), "sk-openai-secret");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true));
+    const put = calls.find((c) => c.method === "PUT")!;
+    const sent = put.body as {
+      secondary_provider: string;
+      secondary_model_name: string;
+      secondary_api_key: string;
+    };
+    expect(sent.secondary_provider).toBe("openai");
+    expect(sent.secondary_model_name).toBe("gpt-4o");
+    expect(sent.secondary_api_key).toBe("sk-openai-secret");
+  });
+
+  it("PUTs null secondary fields when the user disables failover after it was on", async () => {
+    const calls = mockFetch({
+      get: () => ({
+        config: mkCfg({
+          secondary_provider: "openai",
+          secondary_model_name: "gpt-4o",
+          secondary_api_key_masked: "sk-o****9876",
+          has_secondary_api_key: true,
+        }),
+      }),
+      put: () => ({ config: mkCfg() }),
+    });
+    render(<LlmConfigForm />);
+    await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText("Enable failover"));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true));
+    const put = calls.find((c) => c.method === "PUT")!;
+    const sent = put.body as {
+      secondary_provider: unknown;
+      secondary_model_name: unknown;
+      secondary_api_key: unknown;
+    };
+    expect(sent.secondary_provider).toBeNull();
+    expect(sent.secondary_model_name).toBeNull();
+    expect(sent.secondary_api_key).toBeNull();
   });
 });
