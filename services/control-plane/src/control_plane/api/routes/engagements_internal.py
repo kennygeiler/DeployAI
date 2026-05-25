@@ -10,8 +10,9 @@ section 16 (Phase 1).
 from __future__ import annotations
 
 import asyncio
+import re
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
@@ -65,6 +66,7 @@ from control_plane.domain.canonical_memory.node_types import (
 )
 from control_plane.domain.engagement import Engagement, EngagementMember
 from control_plane.domain.ledger import LedgerEvent
+from control_plane.domain.matrix_snapshot import MatrixSnapshot
 from control_plane.domain.member_roles import resolve_allowed_member_roles
 from control_plane.ledger import emit_ledger_event
 from control_plane.phases.machine import DEPLOYMENT_PHASES, default_phase
@@ -1625,3 +1627,64 @@ async def get_engagement_detail(
         insights=[MatrixInsightRead.model_validate(i) for i in insights],
         recent_activity_events=[RecentActivityEventRead.model_validate(a) for a in activity],
     )
+
+
+# --- Phase F3.b — matrix snapshot read endpoint ------------------------------
+#
+# Returns the nearest-prior matrix_snapshots row for the requested UTC date.
+# Powers the F3.c web time slider. See docs/design/timeline-ledger.md §11.
+
+_AT_DATE_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+class MatrixSnapshotRead(BaseModel):
+    captured_at: datetime
+    nodes: list[dict[str, Any]]
+    edges: list[dict[str, Any]]
+
+
+def _parse_at_date(raw: str) -> date:
+    # Strict YYYY-MM-DD only — reject ISO datetimes and slash-separated forms.
+    if not _AT_DATE_PATTERN.fullmatch(raw):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="at must be YYYY-MM-DD",
+        )
+    try:
+        return date.fromisoformat(raw)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="at must be YYYY-MM-DD",
+        ) from e
+
+
+@router.get(
+    "/{engagement_id}/matrix-snapshot",
+    response_model=MatrixSnapshotRead,
+    dependencies=[Depends(require_internal)],
+)
+async def get_matrix_snapshot(
+    engagement_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+    at: Annotated[str, Query()],
+) -> MatrixSnapshotRead:
+    target_day = _parse_at_date(at)
+    # Window upper bound is end-of-day UTC so a snapshot captured later on the
+    # requested day still matches.
+    upper = datetime.combine(target_day, datetime.max.time(), tzinfo=UTC)
+    r = await session.execute(
+        select(MatrixSnapshot)
+        .where(
+            MatrixSnapshot.tenant_id == tenant_id,
+            MatrixSnapshot.engagement_id == engagement_id,
+            MatrixSnapshot.captured_at <= upper,
+        )
+        .order_by(MatrixSnapshot.captured_at.desc())
+        .limit(1)
+    )
+    row = r.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="no snapshot at or before requested date")
+    return MatrixSnapshotRead(captured_at=row.captured_at, nodes=row.nodes, edges=row.edges)
