@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { decideSync } from "@deployai/authz";
 
-import { getActorFromHeaders } from "@/lib/internal/actor";
+import { getActorFromHeaders, getActorIdFromHeaders } from "@/lib/internal/actor";
+import { emitTenantAuditEventBackground } from "@/lib/internal/audit-emit";
 import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
 import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strategist-queues-route-guard";
 import { cpDeleteWebhook, cpUpdateWebhook, type WebhookUpdate } from "@/lib/internal/webhooks-cp";
@@ -35,6 +36,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ webhookI
   }
   try {
     const updated = await cpUpdateWebhook(g.tid, webhookId, body);
+    emitTenantAuditEventBackground(
+      g.tid,
+      await getActorIdFromHeaders(),
+      "tenant.webhook.updated",
+      `updated webhook ${updated.name}`,
+      { webhook_id: webhookId },
+      webhookId,
+    );
     return NextResponse.json({ webhook: updated }, { status: 200 });
   } catch (e) {
     return nextResponseFromStrategistCpFetchError(e);
@@ -50,6 +59,14 @@ export async function DELETE(
   const { webhookId } = await params;
   try {
     await cpDeleteWebhook(g.tid, webhookId);
+    emitTenantAuditEventBackground(
+      g.tid,
+      await getActorIdFromHeaders(),
+      "tenant.webhook.deleted",
+      `deleted webhook ${webhookId}`,
+      { webhook_id: webhookId },
+      webhookId,
+    );
     return new NextResponse(null, { status: 204 });
   } catch (e) {
     return nextResponseFromStrategistCpFetchError(e);

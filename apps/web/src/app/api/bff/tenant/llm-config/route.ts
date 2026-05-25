@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { decideSync } from "@deployai/authz";
 
-import { getActorFromHeaders } from "@/lib/internal/actor";
+import { getActorFromHeaders, getActorIdFromHeaders } from "@/lib/internal/actor";
+import { emitTenantAuditEventBackground } from "@/lib/internal/audit-emit";
 import {
   cpGetTenantLlmConfig,
   cpPutTenantLlmConfig,
@@ -72,6 +73,13 @@ export async function PUT(req: Request) {
         ? { api_key: body.api_key }
         : {}),
     });
+    emitTenantAuditEventBackground(
+      g.tid,
+      await getActorIdFromHeaders(),
+      "tenant.llm_config.updated",
+      `updated tenant LLM config (${body.provider})`,
+      { provider: body.provider, model_name: body.model_name ?? null },
+    );
     return NextResponse.json({ config: cfg }, { status: 200 });
   } catch (e) {
     return nextResponseFromStrategistCpFetchError(e);

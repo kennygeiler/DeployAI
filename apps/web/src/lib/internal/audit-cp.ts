@@ -49,6 +49,28 @@ function cpBase(): string {
   return base;
 }
 
+export type AuditEventCreate = {
+  actor_id: string;
+  category: string;
+  summary: string;
+  detail: Record<string, unknown>;
+  ref_id?: string | null;
+};
+
+export async function cpEmitAuditEvent(tenantId: string, body: AuditEventCreate): Promise<void> {
+  const qs = new URLSearchParams({ tenant_id: tenantId });
+  const url = `${cpBase()}/internal/v1/audit-events?${qs.toString()}`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { ...cpHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    throw new Error(`cp audit-events emit ${r.status}: ${await r.text()}`);
+  }
+}
+
 export async function cpListAuditEvents(
   tenantId: string,
   opts: AuditListOpts = {},
