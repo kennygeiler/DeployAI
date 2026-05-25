@@ -12,6 +12,7 @@ import base64
 import binascii
 import json
 import uuid
+from collections import deque
 from datetime import datetime
 from typing import Annotated, Any
 
@@ -28,6 +29,10 @@ router = APIRouter(prefix="/engagements", tags=["internal-ledger"])
 
 _DEFAULT_LIMIT = 100
 _MAX_LIMIT = 500
+_DEFAULT_CHAIN_DEPTH = 3
+_MAX_CHAIN_DEPTH = 10
+_DEFAULT_CHAIN_NODES = 200
+_MAX_CHAIN_NODES = 500
 
 
 class LedgerEventRead(BaseModel):
@@ -152,6 +157,157 @@ async def get_ledger_event(
         **base.model_dump(),
         caused_by=causes,
         affects=[LedgerEventAffectsRead(entity_kind=a.entity_kind, entity_id=a.entity_id) for a in affects_rows],
+    )
+
+
+class LedgerChainNode(BaseModel):
+    id: uuid.UUID
+    occurred_at: datetime
+    source_kind: str
+    summary: str
+    actor_kind: str
+    depth: int
+    truncated: bool
+
+
+class LedgerChainEdge(BaseModel):
+    from_event_id: uuid.UUID
+    to_event_id: uuid.UUID
+
+
+class LedgerChainResponse(BaseModel):
+    root_event_id: uuid.UUID
+    nodes: list[LedgerChainNode]
+    edges: list[LedgerChainEdge]
+    truncated_at_depth: int | None
+    truncated_node_count: int | None
+
+
+@router.get(
+    "/{engagement_id}/ledger/{event_id}/chain",
+    response_model=LedgerChainResponse,
+    dependencies=[Depends(require_internal)],
+)
+async def get_ledger_event_chain(
+    engagement_id: uuid.UUID,
+    event_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+    direction: Annotated[str, Query(pattern="^(upstream|downstream|both)$")] = "both",
+    max_depth: Annotated[int, Query(ge=1, le=_MAX_CHAIN_DEPTH)] = _DEFAULT_CHAIN_DEPTH,
+    max_nodes: Annotated[int, Query(ge=1, le=_MAX_CHAIN_NODES)] = _DEFAULT_CHAIN_NODES,
+) -> LedgerChainResponse:
+    await _require_engagement(session, tenant_id, engagement_id)
+    root = (
+        await session.execute(
+            select(LedgerEvent).where(
+                LedgerEvent.tenant_id == tenant_id,
+                LedgerEvent.engagement_id == engagement_id,
+                LedgerEvent.id == event_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if root is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ledger event not found")
+
+    walk_upstream = direction in ("upstream", "both")
+    walk_downstream = direction in ("downstream", "both")
+
+    nodes: dict[uuid.UUID, LedgerEvent] = {root.id: root}
+    depths: dict[uuid.UUID, int] = {root.id: 0}
+    edges: set[tuple[uuid.UUID, uuid.UUID]] = set()
+    truncated_ids: set[uuid.UUID] = set()
+    truncated_at_depth: int | None = None
+    truncated_node_count: int | None = None
+
+    queue: deque[tuple[uuid.UUID, int]] = deque([(root.id, 0)])
+    visited: set[uuid.UUID] = {root.id}
+
+    while queue:
+        current_id, depth = queue.popleft()
+        up_rows: list[uuid.UUID] = []
+        down_rows: list[uuid.UUID] = []
+        if walk_upstream:
+            up_rows = list(
+                (
+                    await session.execute(
+                        select(LedgerEventCause.caused_by_id).where(LedgerEventCause.event_id == current_id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        if walk_downstream:
+            down_rows = list(
+                (
+                    await session.execute(
+                        select(LedgerEventCause.event_id).where(LedgerEventCause.caused_by_id == current_id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        neighbor_ids: list[uuid.UUID] = [*up_rows, *down_rows]
+
+        if depth >= max_depth:
+            if any(n not in visited for n in neighbor_ids):
+                truncated_ids.add(current_id)
+                if truncated_at_depth is None or depth < truncated_at_depth:
+                    truncated_at_depth = depth
+            continue
+
+        for cid in up_rows:
+            edges.add((current_id, cid))
+        for cid in down_rows:
+            edges.add((cid, current_id))
+
+        for neighbor_id in neighbor_ids:
+            if neighbor_id in visited:
+                continue
+            visited.add(neighbor_id)
+            row = (
+                await session.execute(
+                    select(LedgerEvent).where(
+                        LedgerEvent.tenant_id == tenant_id,
+                        LedgerEvent.id == neighbor_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if row is None:
+                continue
+            if len(nodes) >= max_nodes:
+                if truncated_node_count is None:
+                    truncated_node_count = 0
+                truncated_node_count += 1
+                continue
+            nodes[neighbor_id] = row
+            depths[neighbor_id] = depth + 1
+            queue.append((neighbor_id, depth + 1))
+
+    edges_filtered = [
+        LedgerChainEdge(from_event_id=src, to_event_id=dst) for (src, dst) in edges if src in nodes and dst in nodes
+    ]
+
+    chain_nodes = [
+        LedgerChainNode(
+            id=ev.id,
+            occurred_at=ev.occurred_at,
+            source_kind=ev.source_kind,
+            summary=ev.summary,
+            actor_kind=ev.actor_kind,
+            depth=depths[ev.id],
+            truncated=ev.id in truncated_ids,
+        )
+        for ev in nodes.values()
+    ]
+    chain_nodes.sort(key=lambda n: (n.depth, n.occurred_at, str(n.id)))
+
+    return LedgerChainResponse(
+        root_event_id=root.id,
+        nodes=chain_nodes,
+        edges=edges_filtered,
+        truncated_at_depth=truncated_at_depth,
+        truncated_node_count=truncated_node_count,
     )
 
 
