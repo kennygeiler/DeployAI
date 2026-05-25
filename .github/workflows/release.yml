@@ -196,11 +196,14 @@ jobs:
         run: cosign version
 
       - name: Sign release artifacts (keyless)
+        # cosign v3 defaults to the new bundle format and rejects
+        # --output-signature/--output-certificate. One Sigstore bundle per
+        # artifact carries cert + signature + rekor entry together.
         run: |
           shopt -s nullglob
           for f in dist/*.tar.gz dist/*.json; do
             echo "Signing $f"
-            cosign sign-blob --yes --output-signature "$f.sig" --output-certificate "$f.pem" "$f"
+            cosign sign-blob --yes --bundle "$f.sigstore.json" "$f"
           done
 
       - name: Generate SLSA v1.0 build-provenance attestation
