@@ -1,6 +1,6 @@
 {
   "name": "@deployai/authz",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "AuthzResolver contract — Epic 2 expands; Story 1-16 uses the stub in apps/web (Story 1-14).",

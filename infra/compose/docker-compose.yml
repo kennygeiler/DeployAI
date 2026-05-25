@@ -37,7 +37,7 @@ services:
       start_period: 10s
 
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
@@ -53,7 +53,7 @@ services:
   minio:
     # Latest tag that publishes linux/amd64 + linux/arm64 manifests. MinIO
     # paused new image releases in mid-2025; this pin is intentional.
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
