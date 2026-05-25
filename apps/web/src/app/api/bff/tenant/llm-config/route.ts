@@ -74,6 +74,15 @@ export async function PUT(req: Request) {
     touchesSecondary &&
     typeof body.secondary_provider === "string" &&
     body.secondary_provider.trim().length > 0;
+  if (
+    secondaryEnabled &&
+    !["anthropic", "openai", "stub"].includes(body.secondary_provider!.trim())
+  ) {
+    return new NextResponse(
+      "Bad Request: secondary_provider must be one of anthropic, openai, stub",
+      { status: 400 },
+    );
+  }
   try {
     const cfg = await cpPutTenantLlmConfig(g.tid, {
       provider: body.provider,

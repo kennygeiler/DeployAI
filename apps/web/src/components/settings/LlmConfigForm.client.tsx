@@ -25,6 +25,10 @@ import type { TenantLlmConfig } from "@/lib/internal/llm-config-cp";
 type ProviderChoice = "anthropic" | "openai" | "stub";
 const PROVIDERS: readonly ProviderChoice[] = ["anthropic", "openai", "stub"];
 
+function asProviderChoice(value: string): ProviderChoice | null {
+  return (PROVIDERS as readonly string[]).includes(value) ? (value as ProviderChoice) : null;
+}
+
 export function LlmConfigForm() {
   const [cfg, setCfg] = React.useState<TenantLlmConfig | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -229,7 +233,10 @@ export function LlmConfigForm() {
                 id="secondary_provider"
                 name="secondary_provider"
                 value={secondaryProvider}
-                onChange={(e) => setSecondaryProvider(e.target.value as ProviderChoice)}
+                onChange={(e) => {
+                  const next = asProviderChoice(e.target.value);
+                  if (next !== null) setSecondaryProvider(next);
+                }}
                 className="border-border focus-visible:ring-ring h-9 w-full rounded-md border px-3 text-sm focus-visible:outline-none focus-visible:ring-2"
               >
                 {PROVIDERS.map((p) => (
