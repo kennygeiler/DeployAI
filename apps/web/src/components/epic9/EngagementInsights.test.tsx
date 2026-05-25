@@ -86,6 +86,40 @@ describe("EngagementInsights", () => {
     expect(post.url).toContain("/api/bff/engagements/e1/insights/refresh");
   });
 
+  it("refresh clears a stale error banner on success", async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    const fetchMock = vi.fn((url: string, init?: { method?: string }) => {
+      const method = init?.method ?? "GET";
+      calls.push({ url, method });
+      if (method === "POST" && url.includes("/insights/refresh")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ insights: [mkInsight({ title: "After refresh" })] }),
+        });
+      }
+      // First GET fails so the err banner shows.
+      return Promise.resolve({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ detail: "boom" }),
+        text: () => Promise.resolve("boom"),
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<EngagementInsights engagementId="e1" />);
+    await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
+    // Error banner is visible after the failed mount fetch.
+    await waitFor(() => expect(screen.getByText(/boom|Could not load/)).toBeTruthy());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /refresh insights/i }));
+
+    await waitFor(() => expect(screen.getByText("After refresh")).toBeTruthy());
+    // Stale error banner must be gone after a successful refresh.
+    expect(screen.queryByText(/boom|Could not load/)).toBeNull();
+  });
+
   it("dismiss button POSTs and re-fetches the list", async () => {
     let listCallCount = 0;
     const calls = mockFetch({
