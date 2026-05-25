@@ -116,3 +116,32 @@ for phase in [A, B, C, D]:
   prompt logging to remote services).
 - Apply a destructive migration to a populated DB.
 - Set or rotate any production credential.
+
+## §9 Sibling-dependency policy (parallel vs serial)
+
+Parallel-N is for orthogonal slices only — slices whose owned-file lists
+do not depend on each other's new files. When slice B imports from slice
+A's new module, B MUST wait for A to merge.
+
+Classification done at scoping time, before spawn:
+
+| Class | Spawn pattern | Example |
+|---|---|---|
+| **Orthogonal** | All N in parallel | F1.a (CP schema) + E2 (CI workflow) — different files entirely |
+| **Foundation + leaves** | A first; on A's notification, spawn B/C/D in parallel | F1.a ORM + F1.b/c/d that import it |
+| **Strict chain** | A → B → C serial (rare; usually means slices are too small) | Migration that depends on a model that depends on a route |
+
+Cost of getting this wrong: parallel-spawned dependents either
+(a) duplicate the foundation work (collision at merge), or
+(b) ship type errors that block CI until rebased.
+
+When in doubt: spawn the foundation slice alone, wait for its
+notification, then fan-out the leaves. The extra wall-clock is cheaper
+than the rebase chain.
+
+## §10 Brief discipline (cross-ref AGENTS.md §13)
+
+Main thread MUST cap each spawn-brief at 80 lines + use
+`briefs/_template.md` as the scaffold. Long briefs correlate with
+agent stalls (600s watchdog) — the cause is input-context bloat at
+startup. Trim or split, don't pad.
