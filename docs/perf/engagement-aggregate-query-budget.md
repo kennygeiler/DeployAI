@@ -53,10 +53,9 @@ is not licensed to make.
 
 Alarm when the engagement-detail page load exceeds:
 
-- **> 8 DB statements observed in CP logs** for one request id (today's
-  steady state is 10–11; this leaves room only for trimming, not
-  growth). If a future change pushes it over 11, that's a hard
-  regression and the new statement must be justified or eager-loaded.
+- **> 11 DB statements observed in CP logs** for one request id (today's
+  steady state is 10–11). Going over this means a new statement
+  appeared; the new statement must be justified or eager-loaded.
 - **> 6 outbound HTTP calls from the BFF route to CP** (today's count).
   Any new call added here without justification should fail review.
 
