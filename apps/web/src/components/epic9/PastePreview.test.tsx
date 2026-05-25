@@ -102,6 +102,7 @@ describe("PastePreview", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Preview" })).not.toBeDisabled());
     expect(screen.queryByText(/draft\(s\) kept/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Commit all kept" })).not.toBeInTheDocument();
+    expect(await screen.findByText(/Service unavailable/)).toBeInTheDocument();
   });
 
   it("discarding a draft commits only the kept ones (and discard removes them from the kept count)", async () => {

@@ -165,3 +165,135 @@ for `request_id` records inside that window. When OTel tracing is enabled
 (`OTEL_EXPORTER_OTLP_ENDPOINT` set), the same `request_id` field appears
 alongside the trace/span ids the OTel SDK injects, so a single log line is
 sufficient to jump from logs → traces → metrics.
+## Recommended alert rules
+
+Concrete `prometheus.rules.yml` snippets that operationalise the budgets above.
+Drop into a Prometheus rule group (`groups: [{ name: deployai-control-plane,
+rules: [...] }]`) and reload. Each rule pairs a severity with a `for:` delay so
+transient spikes don't page; the runbook link is a placeholder — point it at
+your team's incident-response doc once the URLs settle.
+
+```yaml
+groups:
+  - name: deployai-control-plane
+    rules:
+      - alert: DeployAIControlPlaneDown
+        expr: up{job="deployai-control-plane"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Control-plane scrape target is down"
+          description: |
+            Prometheus failed to scrape the control-plane /metrics endpoint
+            for more than 1 minute. The service is either crashed, deadlocked,
+            or unreachable from the scraper.
+          runbook_url: "https://runbooks.example.com/deployai/control-plane-down"
+
+      - alert: DeployAISlowRequestRate
+        expr: rate(deployai_slow_request_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 10% of requests exceed the 1s budget"
+          description: |
+            The slow-request counter is firing on > 0.1 requests/sec averaged
+            over 5 minutes, which means roughly one in ten requests is breaching
+            the per-request perf budget. Inspect /metrics for which route is
+            hot; cross-reference deployai_db_statements_total for n+1 drift.
+          runbook_url: "https://runbooks.example.com/deployai/slow-requests"
+
+      - alert: DeployAIHttpLatencyP95High
+        expr: |
+          histogram_quantile(
+            0.95,
+            rate(deployai_http_request_duration_seconds_bucket[5m])
+          ) > 1.0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Control-plane p95 latency > 1s for 10 minutes"
+          description: |
+            The 95th-percentile request duration has been above the 1s budget
+            for at least 10 minutes. This is the moving-window twin of the
+            slow-request rate alert and catches sustained regressions even when
+            the per-request count is low (e.g. low-traffic windows).
+          runbook_url: "https://runbooks.example.com/deployai/p95-latency"
+
+      - alert: DeployAIDbStatementBudgetHigh
+        # D3.b will add per-route labels back; until then this is the
+        # tenant-wide average statements/request and only catches monorepo-
+        # level n+1 regressions, not per-route drift.
+        expr: |
+          rate(deployai_db_statements_total[1m])
+            /
+          rate(deployai_http_request_duration_seconds_count[1m])
+            > 12
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Avg SQL statements per request > 12 (budget is 11)"
+          description: |
+            Average SQL statement count per HTTP request has exceeded the 11
+            budget for at least 10 minutes. Likely culprits: an aggregate route
+            regressed into an n+1, or a new endpoint shipped without query
+            consolidation. D3.b will re-label db_statements_total with route +
+            method so this alert can be made per-route; until then it fires on
+            the tenant-wide average.
+          runbook_url: "https://runbooks.example.com/deployai/db-budget"
+
+      - alert: DeployAIAuditEmitFailure
+        expr: rate(deployai_audit_emit_failures_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Audit emit failure — compliance writes are dropping"
+          description: |
+            The audit-event emitter raised an exception in the last 5 minutes.
+            Audit rows back the compliance log; any drop must be investigated
+            immediately. Check control-plane logs for the originating handler
+            and the exception class.
+          runbook_url: "https://runbooks.example.com/deployai/audit-emit-failure"
+```
+
+### Alertmanager routing snippet
+
+Route DeployAI alerts to the on-call channel and page on `severity=critical`.
+The `group_by` keeps related alerts collapsed so a single multi-rule incident
+posts one thread, not five.
+
+```yaml
+route:
+  receiver: deployai-default
+  group_by: [alertname, job]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers:
+        - job="deployai-control-plane"
+        - severity="critical"
+      receiver: deployai-pager
+      continue: true
+    - matchers:
+        - job="deployai-control-plane"
+      receiver: deployai-default
+
+receivers:
+  - name: deployai-default
+    slack_configs:
+      - channel: "#deployai-alerts"
+        send_resolved: true
+        title: "{{ .GroupLabels.alertname }} ({{ .Status }})"
+        text: "{{ range .Alerts }}{{ .Annotations.description }}\n{{ end }}"
+
+  - name: deployai-pager
+    pagerduty_configs:
+      - routing_key: "<pagerduty-integration-key>"
+        severity: "critical"
+        description: "{{ .GroupLabels.alertname }}"
+```
