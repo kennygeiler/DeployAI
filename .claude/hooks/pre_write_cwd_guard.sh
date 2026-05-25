@@ -2,9 +2,13 @@
 # Pre-write cwd guard. Refuses Write/Edit (and bash output redirects) when
 # the target path escapes the agent's assigned worktree.
 #
-# Activation: a subagent's spawn-env sets DEPLOYAI_AGENT_WORKTREE to the
-# absolute path of its worktree. When unset (main thread or human run),
-# the guard is permissive — it only fires when the env var is set.
+# Activation: self-activates by inspecting `git rev-parse --show-toplevel`.
+# If the toplevel lives under `.claude/worktrees/agent-*`, the hook enforces
+# confinement to that toplevel. Otherwise (main-thread run inside the main
+# repo, or any run outside a git repo) the hook stays permissive. This
+# avoids the previous env-var dependency that the Claude Agent SDK's
+# `isolation: "worktree"` does not set, which let sub-agents silently
+# escape their worktree.
 #
 # Hook contract: reads tool_use JSON from stdin, writes a decision JSON
 # to stdout. Exits 0 always; rejection is via {"decision":"block",...}.
@@ -13,21 +17,27 @@
 
 set -euo pipefail
 
-if [ -z "${DEPLOYAI_AGENT_WORKTREE:-}" ]; then
-  # Not a subagent run; let the call through.
+toplevel="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -z "$toplevel" ]; then
+  # Not inside a git repo — nothing to confine to.
   cat <<EOF
 {"decision":"allow"}
 EOF
   exit 0
 fi
 
-# Resolve the worktree prefix once; refuse if it's not absolute.
-worktree="$(cd "$DEPLOYAI_AGENT_WORKTREE" 2>/dev/null && pwd)" || {
-  cat <<EOF
-{"decision":"block","reason":"DEPLOYAI_AGENT_WORKTREE=$DEPLOYAI_AGENT_WORKTREE does not exist"}
+case "$toplevel" in
+  */.claude/worktrees/agent-*) ;;
+  *)
+    # Main repo, sibling repo, or unrelated checkout — leave alone.
+    cat <<EOF
+{"decision":"allow"}
 EOF
-  exit 0
-}
+    exit 0
+    ;;
+esac
+
+worktree="$toplevel"
 
 payload="$(cat)"
 tool="$(printf '%s' "$payload" | jq -r '.tool_name // empty')"
