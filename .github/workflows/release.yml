@@ -10,11 +10,17 @@
 #   - Packages each workspace's build output into tarballs under dist/.
 #   - Installs cosign v3.0.6 via sigstore/cosign-installer.
 #   - Keyless-signs every tarball using GitHub OIDC + Sigstore (NFR63).
+#     cosign v3 emits a single `.sigstore.json` bundle per artifact
+#     (cert + signature + rekor entry together) — the old separate
+#     `.sig` + `.pem` files are gone.
 #   - Produces a SLSA v1.0 build-provenance attestation for each tarball
 #     via actions/attest-build-provenance (NFR64 — SLSA Level 2 V1;
 #     we upgrade to L3 post-StateRAMP per the architecture doc).
-#   - Uploads tarballs + .sig + .pem + SBOM artifacts to the GitHub
-#     Release created by the tag.
+#   - Creates the GitHub Release for the tag (idempotent) and uploads
+#     tarballs + `.sigstore.json` bundles + SBOM artifacts to it.
+#   - Builds + pushes versioned + `:latest` OCI images for
+#     `services/control-plane` and `apps/web` to ghcr.io, with
+#     build-provenance attestations attached to each image digest.
 #
 # Fork-PR safety (AC11): this workflow is tag-triggered (only
 # collaborators with push/tag permission can invoke it) and its
@@ -133,7 +139,6 @@ jobs:
       contents: write # To attach assets to the Release
       id-token: write # OIDC for cosign keyless + attestations
       attestations: write # Publish SLSA provenance to the repo
-      packages: write # (Future) push OCI images signed in-place
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
@@ -210,3 +215,114 @@ jobs:
         uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4.0.0
         with:
           subject-path: "dist/*"
+
+      - name: Create GitHub Release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "Release ${GITHUB_REF_NAME} already exists; will upload missing assets."
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              --title "DeployAI ${GITHUB_REF_NAME}" \
+              --notes-file CHANGELOG.md \
+              --verify-tag
+          fi
+
+      - name: Upload signed artifacts to Release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          assets=(dist/*.tar.gz dist/*.sigstore.json dist/release-sbom-*.json)
+          if (( ${#assets[@]} == 0 )); then
+            echo "No assets to upload" >&2
+            exit 1
+          fi
+          gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber
+
+  # ------------------------------------------------------------------
+  # images — build + push versioned OCI images to ghcr.io on tag.
+  # Matrix over the two shipped Dockerfiles (control-plane, web).
+  # Build context is repo root because both Dockerfiles copy sibling
+  # workspace paths (services/_shared, packages/*, pnpm workspace
+  # graph). Tag-triggered only — workflow_dispatch must not publish.
+  # ------------------------------------------------------------------
+  images:
+    name: Build + push OCI image (${{ matrix.image }})
+    needs: [build-and-sign, guard-artifacts]
+    if: |
+      needs.guard-artifacts.outputs.has_artifacts == 'true'
+      && github.event_name == 'push'
+      && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write # push to ghcr.io
+      id-token: write # OIDC for build-provenance attestation
+      attestations: write # publish image provenance to repo
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: control-plane
+            dockerfile: services/control-plane/Dockerfile
+          - image: web
+            dockerfile: apps/web/Dockerfile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Verify Dockerfile exists
+        id: dockerfile
+        run: |
+          if [ ! -f "${{ matrix.dockerfile }}" ]; then
+            echo "::warning::${{ matrix.dockerfile }} not found — skipping ${{ matrix.image }} image build."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.dockerfile.outputs.present == 'true'
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Log in to GitHub Container Registry
+        if: steps.dockerfile.outputs.present == 'true'
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build + push image
+        if: steps.dockerfile.outputs.present == 'true'
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ghcr.io/kennygeiler/deployai/${{ matrix.image }}:${{ github.ref_name }}
+            ghcr.io/kennygeiler/deployai/${{ matrix.image }}:latest
+          provenance: true
+          sbom: false
+
+      - name: Echo image digest
+        if: steps.dockerfile.outputs.present == 'true'
+        run: |
+          echo "Pushed ghcr.io/kennygeiler/deployai/${{ matrix.image }}@${{ steps.build.outputs.digest }}"
+
+      - name: Generate build-provenance attestation for image
+        if: steps.dockerfile.outputs.present == 'true'
+        uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4.0.0
+        with:
+          subject-name: ghcr.io/kennygeiler/deployai/${{ matrix.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
