@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import markdown as md
+import markdown as md  # type: ignore[import-untyped]
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -30,7 +30,7 @@ def render_pdf(markdown_text: str) -> bytes:
     # which is brittle on macOS dev machines. Importing inside the function
     # lets the rest of the module load (and tests for render_markdown run)
     # even when those system libs are missing.
-    from weasyprint import HTML
+    from weasyprint import HTML  # type: ignore[import-untyped]
 
     html_body = md.markdown(markdown_text, extensions=["tables"])
     result = HTML(string=html_body).write_pdf()
