@@ -3,6 +3,7 @@
  * Postgres via the CP `/internal/v1/engagements` internal API.
  */
 import type { Engagement, EngagementMember } from "@/lib/bff/engagement-types";
+import type { MatrixEdge, MatrixInsight, MatrixNode, MatrixProposal } from "@/lib/bff/matrix-types";
 
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
 
@@ -124,4 +125,41 @@ export async function cpListTenantNodeTypesForGraph(tenantId: string): Promise<T
     custom: Array<{ name: string; label: string; color: string | null }>;
   };
   return body.custom.map((c) => ({ name: c.name, label: c.label, color: c.color }));
+}
+
+/**
+ * Phase D D3.a — engagement-detail aggregate. One CP round-trip carrying the
+ * full packet (engagement + members + matrix nodes/edges + pending proposals
+ * + tenant custom node types + open insights + recent activity events) that
+ * the BFF used to assemble from six sequential calls. See
+ * `docs/perf/engagement-aggregate-query-budget.md`.
+ */
+export type EngagementDetailAggregate = {
+  engagement: Engagement;
+  members: EngagementMember[];
+  matrix_nodes: MatrixNode[];
+  matrix_edges: MatrixEdge[];
+  matrix_proposals: MatrixProposal[];
+  custom_node_types: TenantNodeType[];
+  insights: MatrixInsight[];
+  recent_activity_events: Array<{
+    id: string;
+    occurred_at: string;
+    event_type: string;
+    source_ref: string | null;
+  }>;
+};
+
+export async function cpGetEngagementDetail(
+  tenantId: string,
+  engagementId: string,
+): Promise<EngagementDetailAggregate> {
+  const url =
+    `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}/detail` +
+    `?tenant_id=${encodeURIComponent(tenantId)}`;
+  const r = await fetch(url, { method: "GET", headers: cpHeaders(), cache: "no-store" });
+  if (!r.ok) {
+    throw new Error(`cp engagement detail ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as EngagementDetailAggregate;
 }
