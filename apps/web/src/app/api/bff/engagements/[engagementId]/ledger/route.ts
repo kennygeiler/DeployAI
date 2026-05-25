@@ -12,6 +12,32 @@ type Ctx = { params: Promise<{ engagementId: string }> };
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 500;
 
+// Mirrors the CP source_kind enum (docs/design/timeline-ledger.md §3.1 + §4.3).
+// Validate at the BFF boundary so unknown values 400 here instead of silent-empty
+// at CP.
+const ALLOWED_SOURCE_KINDS = new Set([
+  "email_ingest",
+  "meeting_webhook",
+  "manual_capture",
+  "llm_proposal_created",
+  "proposal_accepted",
+  "proposal_rejected",
+  "matrix_node_created",
+  "matrix_node_updated",
+  "matrix_node_deleted",
+  "matrix_edge_created",
+  "matrix_edge_deleted",
+  "insight_opened",
+  "insight_closed",
+  "recommendation_emitted",
+  "recommendation_actioned",
+  "engagement_phase_change",
+  "member_added",
+  "member_removed",
+  "settings_change",
+  "audit_other",
+]);
+
 function parseLimit(raw: string | null): number | { error: NextResponse } {
   if (raw === null) return DEFAULT_LIMIT;
   const parsed = Number(raw);
@@ -59,10 +85,18 @@ export async function GET(request: NextRequest, ctx: Ctx) {
   if (typeof to === "string") opts.to = to;
   const sourceKindRaw = sp.get("source_kind");
   if (sourceKindRaw) {
-    opts.source_kind = sourceKindRaw
+    const kinds = sourceKindRaw
       .split(",")
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
+    const invalid = kinds.filter((k) => !ALLOWED_SOURCE_KINDS.has(k));
+    if (invalid.length > 0) {
+      return NextResponse.json(
+        { error: `unknown source_kind value(s): ${invalid.join(", ")}` },
+        { status: 400 },
+      );
+    }
+    opts.source_kind = kinds;
   }
   const actorId = sp.get("actor_id");
   if (actorId) opts.actor_id = actorId;

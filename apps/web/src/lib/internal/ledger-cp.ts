@@ -7,6 +7,28 @@ export const zLedgerEventAffect = z.object({
   entity_id: z.string(),
 });
 
+// Defense-in-depth: CP `emit_ledger_event` strips known secret keys
+// before insert, but we also strip on the BFF→client hop so a CP-side
+// regression can't leak credentials into the timeline UI.
+const SECRET_DETAIL_KEYS = new Set([
+  "api_key",
+  "signing_secret",
+  "webhook_url",
+  "secondary_api_key",
+  "secret",
+  "token",
+  "password",
+]);
+
+function stripSecretKeys(obj: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (SECRET_DETAIL_KEYS.has(k.toLowerCase())) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
 export const zLedgerEvent = z.object({
   id: z.string(),
   engagement_id: z.string().nullable(),
@@ -17,7 +39,7 @@ export const zLedgerEvent = z.object({
   source_kind: z.string(),
   source_ref: z.string().nullable(),
   summary: z.string(),
-  detail: z.record(z.string(), z.unknown()),
+  detail: z.record(z.string(), z.unknown()).transform(stripSecretKeys),
   caused_by_ids: z.array(z.string()).default([]),
   affects: z.array(zLedgerEventAffect).default([]),
 });
