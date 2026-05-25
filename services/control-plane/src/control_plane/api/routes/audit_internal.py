@@ -1,4 +1,4 @@
-"""Internal read-only API: tenant-scoped strategist activity log over ``strategist_activity_events``."""
+"""Internal API: tenant-scoped strategist activity log over ``strategist_activity_events``."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.api.routes.engagements_internal import require_internal
+from control_plane.audit import emit_audit_event
 from control_plane.db import get_app_db_session
 from control_plane.domain.app_identity.models import AppTenant
 from control_plane.domain.strategist_personal import StrategistActivityEvent
@@ -33,6 +34,14 @@ class AuditEventRead(BaseModel):
     detail: dict[str, Any]
     ref_id: uuid.UUID | None
     created_at: datetime
+
+
+class AuditEventCreate(BaseModel):
+    actor_id: uuid.UUID
+    category: str
+    summary: str
+    detail: dict[str, Any]
+    ref_id: uuid.UUID | None = None
 
 
 @router.get(
@@ -61,3 +70,33 @@ async def list_audit_events(
     stmt = stmt.order_by(StrategistActivityEvent.created_at.desc()).limit(limit)
     r = await session.execute(stmt)
     return [AuditEventRead.model_validate(row) for row in r.scalars().all()]
+
+
+@router.post(
+    "",
+    response_model=AuditEventRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_internal)],
+)
+async def create_audit_event(
+    body: AuditEventCreate,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+) -> AuditEventRead:
+    tenant = await session.get(AppTenant, tenant_id)
+    if tenant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="tenant not found")
+    try:
+        row = await emit_audit_event(
+            session,
+            tenant_id=tenant_id,
+            actor_id=body.actor_id,
+            category=body.category,
+            summary=body.summary,
+            detail=body.detail,
+            ref_id=body.ref_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    await session.commit()
+    return AuditEventRead.model_validate(row)
