@@ -186,7 +186,7 @@ jobs:
                 echo "::notice title=Skipped::${stem}: ${src} missing or empty (no build output)."
                 return 0
               fi
-              tar -czf "$out" -C "$src" .
+              tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -czf "$out" -C "$src" .
               echo "Packed $out ($(du -h "$out" | cut -f1))"
               return 0
             fi
@@ -208,7 +208,7 @@ jobs:
               rm -rf "$staging"
               return 0
             fi
-            tar -czf "$out" -C "$staging" .
+            tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -czf "$out" -C "$staging" .
             rm -rf "$staging"
             echo "Packed $out ($(du -h "$out" | cut -f1))"
           }
@@ -222,7 +222,7 @@ jobs:
             mkdir -p "$staging/apps/web/.next"
             [ -d apps/web/.next/static ] && cp -R apps/web/.next/static "$staging/apps/web/.next/static"
             [ -d apps/web/public ] && cp -R apps/web/public "$staging/apps/web/public"
-            tar -czf "dist/apps-web-${tag}.tar.gz" -C "$staging" .
+            tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -czf "dist/apps-web-${tag}.tar.gz" -C "$staging" .
             rm -rf "$staging"
             echo "Packed dist/apps-web-${tag}.tar.gz"
           else
@@ -230,45 +230,40 @@ jobs:
           fi
 
           # services/control-plane — full workspace (src + alembic +
-          # migrations + .venv + pyproject + uv.lock) so receivers can
-          # either `uv sync` against the lockfile or use the prebuilt
-          # .venv directly.
+          # migrations + pyproject + uv.lock + alembic.ini + README).
+          # NOTE: .venv is intentionally NOT included — it's
+          # platform-specific (Linux x86_64 wheels won't run on the
+          # operator's arm64 macOS) and large. Receiver runs
+          # `uv sync --frozen` against the bundled uv.lock.
           pack services-control-plane \
             services/control-plane/src \
             services/control-plane/alembic \
             services/control-plane/migrations \
             services/control-plane/pyproject.toml \
             services/control-plane/uv.lock \
-            services/control-plane/.venv \
             services/control-plane/alembic.ini \
             services/control-plane/README.md
 
-          # services/ingest — Python service.
+          # services/ingest — Python service (.venv excluded; uv sync).
           pack services-ingest \
             services/ingest/src \
             services/ingest/migrations \
             services/ingest/pyproject.toml \
             services/ingest/uv.lock \
-            services/ingest/.venv \
             services/ingest/README.md
 
-          # services/cartographer — Python service.
+          # services/cartographer — Python service (.venv excluded; uv sync).
           pack services-cartographer \
             services/cartographer/src \
             services/cartographer/pyproject.toml \
-            services/cartographer/uv.lock \
-            services/cartographer/.venv
+            services/cartographer/uv.lock
 
-          # services/_shared/* — library workspaces. `pnpm turbo build`
-          # runs `uv sync --frozen` on each, so .venv may or may not be
-          # populated depending on dependency graph; pack helper skips
-          # silently when no sources exist.
+          # services/_shared/* — library workspaces (.venv excluded).
           for shared in authz checkpointer citation runtime tenancy tsa; do
             pack "services-_shared-${shared}" \
               "services/_shared/${shared}/src" \
               "services/_shared/${shared}/pyproject.toml" \
               "services/_shared/${shared}/uv.lock" \
-              "services/_shared/${shared}/.venv" \
               "services/_shared/${shared}/README.md"
           done
 
