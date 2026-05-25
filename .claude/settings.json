@@ -12,5 +12,5 @@
       }
     ]
   },
-  "note": "Hook fires only when DEPLOYAI_AGENT_WORKTREE env var is set in the subagent run. Main-thread + human runs are unaffected. See .claude/hooks/pre_write_cwd_guard.sh."
+  "note": "Hook self-activates when cwd's git toplevel is under .claude/worktrees/agent-*. Sub-agents in worktrees get confined; main-thread and human runs in the main repo pass through. No env-var dependency. See .claude/hooks/pre_write_cwd_guard.sh."
 }
