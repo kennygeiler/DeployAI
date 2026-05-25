@@ -64,6 +64,25 @@ export async function PUT(req: Request) {
   if (!body || typeof body.provider !== "string" || !body.provider.trim()) {
     return new NextResponse("Bad Request: provider is required", { status: 400 });
   }
+  // The secondary trio is opt-in: when the caller doesn't mention any of
+  // the secondary fields, leave the CP row's failover side untouched.
+  // When the caller mentions `secondary_provider` (even as null), forward
+  // the full trio so CP can clear or update it atomically.
+  const touchesSecondary =
+    "secondary_provider" in body || "secondary_model_name" in body || "secondary_api_key" in body;
+  const secondaryEnabled =
+    touchesSecondary &&
+    typeof body.secondary_provider === "string" &&
+    body.secondary_provider.trim().length > 0;
+  if (
+    secondaryEnabled &&
+    !["anthropic", "openai", "stub"].includes(body.secondary_provider!.trim())
+  ) {
+    return new NextResponse(
+      "Bad Request: secondary_provider must be one of anthropic, openai, stub",
+      { status: 400 },
+    );
+  }
   try {
     const cfg = await cpPutTenantLlmConfig(g.tid, {
       provider: body.provider,
@@ -72,13 +91,31 @@ export async function PUT(req: Request) {
       ...(body.api_key !== undefined && body.api_key !== null && body.api_key !== ""
         ? { api_key: body.api_key }
         : {}),
+      ...(touchesSecondary
+        ? {
+            secondary_provider: secondaryEnabled ? body.secondary_provider! : null,
+            secondary_model_name: secondaryEnabled ? (body.secondary_model_name ?? null) : null,
+            // Preserve prior secondary key on no-op edits (same rule as primary):
+            // forward the value only when the caller supplied a non-empty string.
+            secondary_api_key:
+              secondaryEnabled &&
+              typeof body.secondary_api_key === "string" &&
+              body.secondary_api_key.length > 0
+                ? body.secondary_api_key
+                : null,
+          }
+        : {}),
     });
     emitTenantAuditEventBackground(
       g.tid,
       await getActorIdFromHeaders(),
       "tenant.llm_config.updated",
       `updated tenant LLM config (${body.provider})`,
-      { provider: body.provider, model_name: body.model_name ?? null },
+      {
+        provider: body.provider,
+        model_name: body.model_name ?? null,
+        secondary_enabled: secondaryEnabled,
+      },
     );
     return NextResponse.json({ config: cfg }, { status: 200 });
   } catch (e) {

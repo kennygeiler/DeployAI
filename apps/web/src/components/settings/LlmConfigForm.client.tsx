@@ -25,6 +25,10 @@ import type { TenantLlmConfig } from "@/lib/internal/llm-config-cp";
 type ProviderChoice = "anthropic" | "openai" | "stub";
 const PROVIDERS: readonly ProviderChoice[] = ["anthropic", "openai", "stub"];
 
+function asProviderChoice(value: string): ProviderChoice | null {
+  return (PROVIDERS as readonly string[]).includes(value) ? (value as ProviderChoice) : null;
+}
+
 export function LlmConfigForm() {
   const [cfg, setCfg] = React.useState<TenantLlmConfig | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -34,6 +38,11 @@ export function LlmConfigForm() {
   const [provider, setProvider] = React.useState<ProviderChoice>("anthropic");
   const [modelName, setModelName] = React.useState("");
   const [apiKey, setApiKey] = React.useState("");
+
+  const [failoverEnabled, setFailoverEnabled] = React.useState(false);
+  const [secondaryProvider, setSecondaryProvider] = React.useState<ProviderChoice>("openai");
+  const [secondaryModelName, setSecondaryModelName] = React.useState("");
+  const [secondaryApiKey, setSecondaryApiKey] = React.useState("");
 
   const load = React.useCallback(async () => {
     const r = await fetch("/api/bff/tenant/llm-config", { method: "GET" });
@@ -50,6 +59,12 @@ export function LlmConfigForm() {
         setProvider(c.provider as ProviderChoice);
       }
       setModelName(c.model_name ?? "");
+      const hasSecondary = c.secondary_provider !== null;
+      setFailoverEnabled(hasSecondary);
+      if (hasSecondary && PROVIDERS.includes(c.secondary_provider as ProviderChoice)) {
+        setSecondaryProvider(c.secondary_provider as ProviderChoice);
+      }
+      setSecondaryModelName(c.secondary_model_name ?? "");
     }
   }, []);
 
@@ -86,6 +101,15 @@ export function LlmConfigForm() {
             // Send the api_key only if the user typed one in this session.
             // Empty string preserves the previously stored key server-side.
             ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}),
+            // Always send the secondary trio so the BFF + CP can mirror
+            // the toggle state. Nulls clear the failover side; values
+            // enable it. A blank secondary_api_key while enabled is
+            // treated as "preserve the stored secret" (same rule as the
+            // primary key).
+            secondary_provider: failoverEnabled ? secondaryProvider : null,
+            secondary_model_name: failoverEnabled ? secondaryModelName.trim() || null : null,
+            secondary_api_key:
+              failoverEnabled && secondaryApiKey.trim() ? secondaryApiKey.trim() : null,
           }),
         });
         if (!r.ok) {
@@ -96,12 +120,21 @@ export function LlmConfigForm() {
         const body = (await r.json()) as { config: TenantLlmConfig };
         setCfg(body.config);
         setApiKey(""); // never echo back; mask shows the stored fingerprint
+        setSecondaryApiKey("");
         toast.success("LLM config saved");
       } finally {
         setSaving(false);
       }
     },
-    [provider, modelName, apiKey],
+    [
+      provider,
+      modelName,
+      apiKey,
+      failoverEnabled,
+      secondaryProvider,
+      secondaryModelName,
+      secondaryApiKey,
+    ],
   );
 
   if (loading) {
@@ -171,6 +204,89 @@ export function LlmConfigForm() {
             ? "Leave blank to keep the stored key. Type a new value to replace it."
             : "Required for the chosen provider unless the server has one in the environment."}
         </p>
+      </div>
+
+      <div className="border-border space-y-3 border-t pt-4">
+        <div className="flex items-center gap-2">
+          <input
+            id="failover_enabled"
+            name="failover_enabled"
+            type="checkbox"
+            checked={failoverEnabled}
+            onChange={(e) => setFailoverEnabled(e.target.checked)}
+            className="border-border h-4 w-4 rounded"
+          />
+          <Label htmlFor="failover_enabled" className="cursor-pointer">
+            Enable failover
+          </Label>
+        </div>
+        <p className="text-ink-600 text-xs">
+          When the primary provider errors out, agents retry on the secondary before bubbling the
+          failure up.
+        </p>
+
+        {failoverEnabled ? (
+          <div className="space-y-4 pl-1">
+            <div className="space-y-2">
+              <Label htmlFor="secondary_provider">Secondary provider</Label>
+              <select
+                id="secondary_provider"
+                name="secondary_provider"
+                value={secondaryProvider}
+                onChange={(e) => {
+                  const next = asProviderChoice(e.target.value);
+                  if (next !== null) setSecondaryProvider(next);
+                }}
+                className="border-border focus-visible:ring-ring h-9 w-full rounded-md border px-3 text-sm focus-visible:outline-none focus-visible:ring-2"
+              >
+                {PROVIDERS.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="secondary_model_name">Secondary model</Label>
+              <Input
+                id="secondary_model_name"
+                name="secondary_model_name"
+                value={secondaryModelName}
+                onChange={(e) => setSecondaryModelName(e.target.value)}
+                placeholder={
+                  secondaryProvider === "anthropic" ? "claude-opus-4-5" : "(provider default)"
+                }
+                autoComplete="off"
+              />
+              <p className="text-ink-600 text-xs">
+                Leave blank to use the provider library&apos;s default model.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="secondary_api_key">Secondary API key</Label>
+              <Input
+                id="secondary_api_key"
+                name="secondary_api_key"
+                type="password"
+                value={secondaryApiKey}
+                onChange={(e) => setSecondaryApiKey(e.target.value)}
+                placeholder={
+                  cfg?.has_secondary_api_key
+                    ? (cfg.secondary_api_key_masked ?? "•••• stored")
+                    : "(none stored)"
+                }
+                autoComplete="off"
+              />
+              <p className="text-ink-600 text-xs">
+                {cfg?.has_secondary_api_key
+                  ? "Leave blank to keep the stored key. Type a new value to replace it."
+                  : "Required for the chosen provider unless the server has one in the environment."}
+              </p>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="flex items-center gap-3">

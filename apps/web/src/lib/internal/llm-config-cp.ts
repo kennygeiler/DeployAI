@@ -17,6 +17,10 @@ export type TenantLlmConfig = {
   model_name: string | null;
   api_key_masked: string | null;
   has_api_key: boolean;
+  secondary_provider: string | null;
+  secondary_model_name: string | null;
+  secondary_api_key_masked: string | null;
+  has_secondary_api_key: boolean;
   updated_at: string;
 };
 
@@ -24,6 +28,9 @@ export type TenantLlmConfigWrite = {
   provider: string;
   model_name?: string | null;
   api_key?: string | null;
+  secondary_provider?: string | null;
+  secondary_model_name?: string | null;
+  secondary_api_key?: string | null;
 };
 
 function cpHeaders(): Record<string, string> {

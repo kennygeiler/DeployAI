@@ -369,24 +369,34 @@ def _mask_api_key(value: str | None) -> str | None:
 
 class TenantLlmConfigRead(BaseModel):
     """LLM config response. The full ``api_key`` is never returned to the
-    client; only ``api_key_masked`` for UI confirmation."""
+    client; only ``api_key_masked`` for UI confirmation. The secondary
+    (failover) trio mirrors the primary: the raw secondary_api_key is
+    never returned, only ``secondary_api_key_masked`` + ``has_secondary_api_key``."""
 
     tenant_id: uuid.UUID
     provider: str
     model_name: str | None
     api_key_masked: str | None
     has_api_key: bool
+    secondary_provider: str | None
+    secondary_model_name: str | None
+    secondary_api_key_masked: str | None
+    has_secondary_api_key: bool
     updated_at: datetime
 
 
 class TenantLlmConfigWrite(BaseModel):
     """Upsert payload. ``api_key`` is optional on PUT — omitting it on an
     existing row keeps the previously stored key (so the user can change
-    only the model without re-pasting the key)."""
+    only the model without re-pasting the key). The secondary trio is
+    optional + nullable: passing explicit nulls clears the failover side."""
 
     provider: str = Field(min_length=1)
     model_name: str | None = Field(default=None, max_length=200)
     api_key: str | None = Field(default=None, max_length=500)
+    secondary_provider: str | None = Field(default=None, max_length=50)
+    secondary_model_name: str | None = Field(default=None, max_length=200)
+    secondary_api_key: str | None = Field(default=None, max_length=500)
 
 
 def _to_read(row: TenantLlmConfig) -> TenantLlmConfigRead:
@@ -396,6 +406,10 @@ def _to_read(row: TenantLlmConfig) -> TenantLlmConfigRead:
         model_name=row.model_name,
         api_key_masked=_mask_api_key(row.api_key),
         has_api_key=bool(row.api_key),
+        secondary_provider=row.secondary_provider,
+        secondary_model_name=row.secondary_model_name,
+        secondary_api_key_masked=_mask_api_key(row.secondary_api_key),
+        has_secondary_api_key=bool(row.secondary_api_key),
         updated_at=row.updated_at,
     )
 
@@ -434,15 +448,24 @@ async def put_tenant_llm_config(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"invalid provider: {body.provider}",
         )
+    if body.secondary_provider is not None and body.secondary_provider not in LLM_PROVIDERS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"invalid secondary_provider: {body.secondary_provider}",
+        )
     r = await session.execute(select(TenantLlmConfig).where(TenantLlmConfig.tenant_id == tenant_id))
     row = r.scalar_one_or_none()
     now = datetime.now(UTC)
+    fields = body.model_dump(exclude_unset=True)
     if row is None:
         row = TenantLlmConfig(
             tenant_id=tenant_id,
             provider=body.provider,
             model_name=body.model_name,
             api_key=body.api_key,
+            secondary_provider=body.secondary_provider,
+            secondary_model_name=body.secondary_model_name,
+            secondary_api_key=body.secondary_api_key,
         )
         session.add(row)
     else:
@@ -452,6 +475,20 @@ async def put_tenant_llm_config(
         # update model without re-pasting the secret).
         if body.api_key is not None:
             row.api_key = body.api_key
+        # secondary_provider=null clears the whole failover side; only
+        # touch the secondary columns when the field key was sent.
+        if "secondary_provider" in fields:
+            row.secondary_provider = body.secondary_provider
+            if body.secondary_provider is None:
+                row.secondary_model_name = None
+                row.secondary_api_key = None
+            else:
+                if "secondary_model_name" in fields:
+                    row.secondary_model_name = body.secondary_model_name
+                # Mirror primary preservation: only overwrite the secret
+                # when the caller actually sent a non-null value.
+                if body.secondary_api_key is not None:
+                    row.secondary_api_key = body.secondary_api_key
         row.updated_at = now
     await session.commit()
     await session.refresh(row)

@@ -406,6 +406,143 @@ async def test_put_llm_config_404_when_tenant_missing(t_client: AsyncClient) -> 
 
 
 @pytest.mark.asyncio
+async def test_put_llm_config_get_returns_secondary_nulls_when_unset(
+    t_client: AsyncClient, postgres_engine: Engine
+) -> None:
+    """Primary-only writes leave secondary fields null + has_secondary_api_key=False."""
+    tid = _seed_tenant(postgres_engine)
+    await t_client.put(
+        f"/internal/v1/tenants/{tid}/llm-config",
+        json={"provider": "anthropic", "model_name": "m1", "api_key": "sk-primary"},
+    )
+    g = await t_client.get(f"/internal/v1/tenants/{tid}/llm-config")
+    data = g.json()
+    assert data["secondary_provider"] is None
+    assert data["secondary_model_name"] is None
+    assert data["secondary_api_key_masked"] is None
+    assert data["has_secondary_api_key"] is False
+
+
+@pytest.mark.asyncio
+async def test_put_llm_config_creates_with_secondary_failover(t_client: AsyncClient, postgres_engine: Engine) -> None:
+    """Creating a config with the full secondary trio round-trips + masks the secret."""
+    tid = _seed_tenant(postgres_engine)
+    r = await t_client.put(
+        f"/internal/v1/tenants/{tid}/llm-config",
+        json={
+            "provider": "anthropic",
+            "model_name": "claude-opus-4-5",
+            "api_key": "sk-ant-primarykey1234",
+            "secondary_provider": "openai",
+            "secondary_model_name": "gpt-4o",
+            "secondary_api_key": "sk-openai-secondarykey9876",
+        },
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["secondary_provider"] == "openai"
+    assert data["secondary_model_name"] == "gpt-4o"
+    assert data["has_secondary_api_key"] is True
+    assert data["secondary_api_key_masked"].startswith("sk-o")
+    assert data["secondary_api_key_masked"].endswith("9876")
+    assert "*" in data["secondary_api_key_masked"]
+    # GET never returns the raw secondary key.
+    g = await t_client.get(f"/internal/v1/tenants/{tid}/llm-config")
+    assert "secondary_api_key" not in g.json()
+
+
+@pytest.mark.asyncio
+async def test_put_llm_config_secondary_provider_null_clears_failover(
+    t_client: AsyncClient, postgres_engine: Engine
+) -> None:
+    """Sending secondary_provider=null wipes the trio (UI failover toggle off)."""
+    tid = _seed_tenant(postgres_engine)
+    await t_client.put(
+        f"/internal/v1/tenants/{tid}/llm-config",
+        json={
+            "provider": "anthropic",
+            "api_key": "sk-prim",
+            "secondary_provider": "openai",
+            "secondary_model_name": "gpt-4o",
+            "secondary_api_key": "sk-sec-original",
+        },
+    )
+    r = await t_client.put(
+        f"/internal/v1/tenants/{tid}/llm-config",
+        json={
+            "provider": "anthropic",
+            "secondary_provider": None,
+            "secondary_model_name": None,
+            "secondary_api_key": None,
+        },
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["secondary_provider"] is None
+    assert data["secondary_model_name"] is None
+    assert data["has_secondary_api_key"] is False
+    # Direct DB check that secondary columns are NULL.
+    with postgres_engine.begin() as c:
+        row = c.execute(
+            text(
+                "SELECT secondary_provider, secondary_model_name, secondary_api_key "
+                "FROM tenant_llm_configs WHERE tenant_id = :t"
+            ),
+            {"t": str(tid)},
+        ).one()
+    assert row == (None, None, None)
+
+
+@pytest.mark.asyncio
+async def test_put_llm_config_preserves_secondary_key_when_omitted(
+    t_client: AsyncClient, postgres_engine: Engine
+) -> None:
+    """Toggle stays on; user edits only secondary_model_name. Key must persist."""
+    tid = _seed_tenant(postgres_engine)
+    await t_client.put(
+        f"/internal/v1/tenants/{tid}/llm-config",
+        json={
+            "provider": "anthropic",
+            "api_key": "sk-prim",
+            "secondary_provider": "openai",
+            "secondary_model_name": "gpt-4o",
+            "secondary_api_key": "sk-sec-original-1234",
+        },
+    )
+    r = await t_client.put(
+        f"/internal/v1/tenants/{tid}/llm-config",
+        json={
+            "provider": "anthropic",
+            "secondary_provider": "openai",
+            "secondary_model_name": "gpt-4o-mini",
+            "secondary_api_key": None,
+        },
+    )
+    assert r.status_code == 200
+    assert r.json()["secondary_model_name"] == "gpt-4o-mini"
+    assert r.json()["has_secondary_api_key"] is True
+    with postgres_engine.begin() as c:
+        secret = c.execute(
+            text("SELECT secondary_api_key FROM tenant_llm_configs WHERE tenant_id = :t"),
+            {"t": str(tid)},
+        ).scalar_one()
+    assert secret == "sk-sec-original-1234"
+
+
+@pytest.mark.asyncio
+async def test_put_llm_config_rejects_unknown_secondary_provider(
+    t_client: AsyncClient, postgres_engine: Engine
+) -> None:
+    tid = _seed_tenant(postgres_engine)
+    r = await t_client.put(
+        f"/internal/v1/tenants/{tid}/llm-config",
+        json={"provider": "anthropic", "secondary_provider": "made-up"},
+    )
+    assert r.status_code == 422
+    assert "invalid secondary_provider" in r.text
+
+
+@pytest.mark.asyncio
 async def test_stub_provider_in_db_short_circuits_env_fallback(
     t_client: AsyncClient, postgres_engine: Engine, fake_llm: _FakeLLM
 ) -> None:
