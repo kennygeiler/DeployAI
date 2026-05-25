@@ -77,3 +77,37 @@ readinessProbe:
   periodSeconds: 5
   failureThreshold: 3
 ```
+
+## Metrics catalog
+
+D1.d defined a per-request perf budget of **11 SQL statements / 6 roundtrips
+/ < 1 s wall-clock**. D2.d turns that budget into Prometheus signals so a
+breach is observable, not just documented. All metrics live in the default
+`prometheus_client` registry and ship via `/metrics`.
+
+| Metric                                          | Type      | Labels                  | Fires when                                                                 |
+|-------------------------------------------------|-----------|-------------------------|----------------------------------------------------------------------------|
+| `deployai_db_statements_total`                  | Counter   | `route`, `method`       | Each SQLAlchemy `after_cursor_execute` on the app engine.                  |
+| `deployai_http_request_duration_seconds`        | Histogram | `route`, `method`, `status` | Once per HTTP request, observed in the Prometheus middleware.          |
+| `deployai_audit_emit_failures_total`            | Counter   | (none)                  | Any exception raised inside `emit_audit_event` (validation or flush).      |
+| `deployai_slow_request_total`                   | Counter   | `route`                 | A request's wall-clock duration exceeds 1 s.                               |
+
+`route` is always the FastAPI route *template* (e.g.
+`/internal/v1/engagements/{engagement_id}`), never the raw URL — that keeps
+label cardinality bounded as new engagements / tenants are created. Requests
+that don't match any route fall back to `route="unknown"`.
+
+### Recommended scrape + alert config
+
+- **Scrape interval**: 15 s — fast enough to catch a deploy regression in the
+  next on-call sweep, slow enough that the histogram bucket churn is cheap.
+- **Slow-request alert**: `rate(deployai_slow_request_total[5m]) > 0.1` —
+  more than 10 % of requests breaching the 1 s budget over 5 minutes.
+- **Statement-budget alert**:
+  `histogram_quantile(0.95, sum by (le, route) (rate(deployai_db_statements_total[5m]))) > 11`
+  is the moral check, but `db_statements_total` is a counter not a histogram,
+  so the practical alert is on a per-route rate increase relative to the
+  baseline (compare `rate(deployai_db_statements_total[5m])` to the prior
+  week's same window).
+- **Audit emit failure**: `increase(deployai_audit_emit_failures_total[5m]) > 0`
+  — any failure is page-worthy; compliance writes must not silently drop.

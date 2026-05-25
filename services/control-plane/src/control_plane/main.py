@@ -69,6 +69,7 @@ from control_plane.api.routes.strategist_queues_internal import router as strate
 from control_plane.api.routes.tenants_internal import router as tenants_internal_router
 from control_plane.api.routes.upload_artifacts import router as upload_artifacts_router
 from control_plane.api.routes.webhooks_internal import router as webhooks_internal_router
+from control_plane.infra.metrics import PrometheusMiddleware
 
 try:
     _version = metadata.version("control-plane")
@@ -78,8 +79,11 @@ except metadata.PackageNotFoundError:  # editable/unbuilt installs
 
 @asynccontextmanager
 async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
+    from control_plane.db import get_engine
+    from control_plane.infra.metrics import install_db_statement_listener
     from control_plane.otel import shutdown_opentelemetry
 
+    install_db_statement_listener(get_engine())
     try:
         yield
     finally:
@@ -87,6 +91,7 @@ async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="DeployAI Control Plane", version=_version, lifespan=_lifespan)
+app.add_middleware(PrometheusMiddleware)
 app.include_router(auth_router)
 app.include_router(oidc_router)
 app.include_router(auth_entry_router)
