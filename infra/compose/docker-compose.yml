@@ -91,6 +91,37 @@ services:
       timeout: 3s
       retries: 10
 
+  # Phase D inc 1b — Keycloak OIDC issuer for local development.
+  # Stub scope: the realm export at ./keycloak/realm-export.json is imported
+  # on start so a `deployai-web` client + redirect URIs are pre-configured.
+  # Wiring the apps to actually call it is owner-credentialed and lands in
+  # a follow-up slice; see docs/auth/oidc.md.
+  # ADMIN credentials below are dev-only; override for any non-local env.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm", "--health-enabled=true"]
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "${KEYCLOAK_PORT:-8090}:8080"
+      - "${KEYCLOAK_MGMT_PORT:-9090}:9000"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - keycloak_data:/opt/keycloak/data
+    healthcheck:
+      # Keycloak 25+ exposes /health/ready on the management port (9000).
+      # Use bash /dev/tcp so we don't need curl in the image.
+      test:
+        - "CMD-SHELL"
+        - "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q '\"status\": \"UP\"' <&3"
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
   # One-shot: applies Alembic migrations to the application schema, then exits.
   # control-plane waits for this to complete, so it never serves against an
   # unmigrated database.
@@ -188,3 +219,4 @@ volumes:
   pg_data:
   redis_data:
   minio_data:
+  keycloak_data:

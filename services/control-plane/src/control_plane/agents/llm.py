@@ -74,11 +74,28 @@ async def resolve_tenant_llm_provider(
 
 
 def _from_db_config(cfg: TenantLlmConfig) -> LLMProvider:
-    if cfg.provider == "anthropic":
-        return _anthropic(api_key=cfg.api_key, model=cfg.model_name)
-    if cfg.provider == "openai":
-        return _openai(api_key=cfg.api_key, model=cfg.model_name)
-    # provider == "stub" → explicit stub selection
+    primary = _primary_from_db_config(cfg)
+    if cfg.secondary_provider:
+        secondary = _build_provider(
+            cfg.secondary_provider,
+            api_key=cfg.secondary_api_key,
+            model=cfg.secondary_model_name,
+        )
+        provider: Any = FailoverProvider(primary=primary, secondary=secondary)
+        return provider
+    return primary
+
+
+def _primary_from_db_config(cfg: TenantLlmConfig) -> LLMProvider:
+    return _build_provider(cfg.provider, api_key=cfg.api_key, model=cfg.model_name)
+
+
+def _build_provider(name: str, *, api_key: str | None, model: str | None) -> LLMProvider:
+    if name == "anthropic":
+        return _anthropic(api_key=api_key, model=model)
+    if name == "openai":
+        return _openai(api_key=api_key, model=model)
+    # name == "stub" → explicit stub selection
     return _stub()
 
 
