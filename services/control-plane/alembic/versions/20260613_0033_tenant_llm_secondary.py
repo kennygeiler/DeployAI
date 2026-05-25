@@ -39,9 +39,15 @@ def upgrade() -> None:
         "tenant_llm_configs",
         sa.Column("secondary_model_name", sa.String(length=200), nullable=True),
     )
+    op.create_check_constraint(
+        "ck_tenant_llm_configs_secondary_provider",
+        "tenant_llm_configs",
+        "secondary_provider IS NULL OR secondary_provider IN ('anthropic', 'openai', 'stub')",
+    )
 
 
 def downgrade() -> None:
+    op.drop_constraint("ck_tenant_llm_configs_secondary_provider", "tenant_llm_configs", type_="check")
     op.drop_column("tenant_llm_configs", "secondary_model_name")
     op.drop_column("tenant_llm_configs", "secondary_api_key")
     op.drop_column("tenant_llm_configs", "secondary_provider")

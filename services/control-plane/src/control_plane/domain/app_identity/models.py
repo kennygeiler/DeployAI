@@ -96,6 +96,10 @@ class TenantLlmConfig(Base):
             "provider IN ('anthropic', 'openai', 'stub')",
             name="ck_tenant_llm_configs_provider",
         ),
+        CheckConstraint(
+            "secondary_provider IS NULL OR secondary_provider IN ('anthropic', 'openai', 'stub')",
+            name="ck_tenant_llm_configs_secondary_provider",
+        ),
     )
 
 
