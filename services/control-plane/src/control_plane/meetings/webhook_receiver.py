@@ -29,6 +29,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.domain.meeting_events import MeetingWebhookEvent
+from control_plane.ledger import emit_ledger_event
 
 ALLOWED_SOURCES: frozenset[str] = frozenset({"zoom", "gmeet", "teams", "manual_paste"})
 
@@ -158,6 +159,26 @@ async def record_webhook_event(
         payload=payload,
     )
     session.add(row)
+    await session.flush()
+    occurred_at = parsed.start_ts or datetime.now(UTC)
+    summary = (parsed.title or f"meeting webhook from {source}")[:500]
+    await emit_ledger_event(
+        session,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        occurred_at=occurred_at,
+        actor_kind="system",
+        actor_id=None,
+        source_kind="meeting_webhook",
+        source_ref=row.id,
+        summary=summary,
+        detail={
+            "source": source,
+            "external_event_id": parsed.source_event_id,
+            "title": parsed.title,
+            "attendees": list(parsed.attendees),
+        },
+    )
     await session.commit()
     await session.refresh(row)
     return row

@@ -69,6 +69,7 @@ from control_plane.domain.canonical_memory.node_types import (
 )
 from control_plane.domain.engagement import Engagement, EngagementMember, TenantMemberRole
 from control_plane.domain.member_roles import BUILTIN_MEMBER_ROLES, list_tenant_member_roles
+from control_plane.ledger import emit_ledger_event
 
 _AGENT_DEFAULT_PROMPTS: dict[str, Callable[[], str]] = {
     "cartographer": matrix_extractor_default_prompt,
@@ -167,6 +168,25 @@ async def _decide_tenant_insight(
     row.status = new_status
     row.decided_at = datetime.now(UTC)
     row.decided_by = actor_id
+    await session.flush()
+    await emit_ledger_event(
+        session,
+        tenant_id=tenant_id,
+        engagement_id=None,
+        occurred_at=datetime.now(UTC),
+        actor_kind="user",
+        actor_id=actor_id,
+        source_kind="recommendation_actioned",
+        source_ref=row.id,
+        summary=f"recommendation {new_status}: {row.title}"[:500],
+        detail={
+            "insight_type": row.insight_type,
+            "severity": row.severity,
+            "status": new_status,
+            "agent": row.agent,
+        },
+        affects=[("recommendation", row.id)],
+    )
     await session.commit()
     await session.refresh(row)
     return row
@@ -295,6 +315,7 @@ async def refresh_tenant_insights(
         )
 
     drafts_by_key = {d.dedup_key: d for d in drafts}
+    newly_created: list[MatrixInsight] = []
     for c in to_phrase:
         d = drafts_by_key.get(c.dedup_key)
         if d is None:
@@ -316,6 +337,7 @@ async def refresh_tenant_insights(
                 input_hash=d.input_hash,
             )
             session.add(row)
+            newly_created.append(row)
         else:
             prev.severity = d.severity
             prev.title = d.title
@@ -329,11 +351,54 @@ async def refresh_tenant_insights(
                 prev.decided_by = None
 
     candidate_keys = {c.dedup_key for c in candidates}
+    auto_resolved: list[MatrixInsight] = []
     for key, prev in existing.items():
         if prev.status == "open" and key not in candidate_keys:
             prev.status = "resolved"
             prev.decided_at = datetime.now(UTC)
             prev.decided_by = "auto"
+            auto_resolved.append(prev)
+
+    if newly_created or auto_resolved:
+        await session.flush()
+        for new_row in newly_created:
+            await emit_ledger_event(
+                session,
+                tenant_id=tenant_id,
+                engagement_id=None,
+                occurred_at=datetime.now(UTC),
+                actor_kind="agent:master_strategist",
+                actor_id="master_strategist",
+                source_kind="recommendation_emitted",
+                source_ref=new_row.id,
+                summary=f"recommendation emitted: {new_row.title}"[:500],
+                detail={
+                    "insight_type": new_row.insight_type,
+                    "severity": new_row.severity,
+                    "agent": new_row.agent,
+                },
+                affects=[("recommendation", new_row.id)],
+            )
+        for closed_row in auto_resolved:
+            await emit_ledger_event(
+                session,
+                tenant_id=tenant_id,
+                engagement_id=None,
+                occurred_at=datetime.now(UTC),
+                actor_kind="system",
+                actor_id="auto",
+                source_kind="recommendation_actioned",
+                source_ref=closed_row.id,
+                summary=f"recommendation auto-resolved: {closed_row.title}"[:500],
+                detail={
+                    "insight_type": closed_row.insight_type,
+                    "severity": closed_row.severity,
+                    "status": "resolved",
+                    "agent": closed_row.agent,
+                    "reason": "predicate_no_longer_fires",
+                },
+                affects=[("recommendation", closed_row.id)],
+            )
 
     await session.commit()
 

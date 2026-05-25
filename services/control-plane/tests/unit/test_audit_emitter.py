@@ -1,7 +1,9 @@
 """Unit tests for the ``emit_audit_event`` helper.
 
 Validation and session.add/flush wiring are exercised against an
-AsyncMock session — no DB needed.
+AsyncMock session — no DB needed. Phase F1.b dual-emit semantics
+(audit row + ledger row in one transaction) live in
+``tests/integration/test_ledger_dual_emit.py``.
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from control_plane.audit import emit_audit_event
+from control_plane.domain.ledger import LedgerEvent
 from control_plane.domain.strategist_personal import StrategistActivityEvent
 
 
@@ -40,8 +43,10 @@ async def test_writes_row_to_session() -> None:
     assert row.summary == "bg requested"
     assert row.detail == {"session_id": "abc"}
     assert row.ref_id is None
-    s.add.assert_called_once_with(row)
-    s.flush.assert_awaited_once()
+    added = [c.args[0] for c in s.add.call_args_list]
+    assert any(isinstance(a, StrategistActivityEvent) for a in added)
+    assert any(isinstance(a, LedgerEvent) for a in added)
+    s.flush.assert_awaited()
 
 
 @pytest.mark.asyncio
