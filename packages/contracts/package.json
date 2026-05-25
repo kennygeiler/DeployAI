@@ -1,6 +1,6 @@
 {
   "name": "@deployai/contracts",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "DeployAI cross-language schema contracts (citation envelope v0.1, FR27, NFR55).",
   "type": "module",
