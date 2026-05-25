@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from contextvars import ContextVar
 from typing import Any
 
 from prometheus_client import Counter, Histogram
@@ -17,17 +18,22 @@ from starlette.types import ASGIApp
 SLOW_REQUEST_SECONDS = 1.0
 
 _UNKNOWN_ROUTE = "unknown"
+_UNKNOWN_METHOD = "UNKNOWN"
 
-# Unlabelled: the SQLAlchemy after_cursor_execute event fires in a worker
-# thread; FastAPI request-scope ContextVars set in the middleware aren't
-# visible there, so attaching route/method labels would always emit defaults.
-# Aggregate counter + the per-request histogram (with labels) together cover
-# the budget: scrape both, divide statements-rate by request-rate for an
-# average. If per-route attribution becomes a real need, the proper fix is
-# to set the route on the connection via `engine_connect` event hook.
+# ContextVars set by PrometheusMiddleware for the duration of each request.
+# The `engine_connect` listener copies them onto `connection.info`, which the
+# `after_cursor_execute` listener reads — `connection.info` is the only state
+# guaranteed to be visible inside SQLAlchemy's cursor worker thread.
+_route_var: ContextVar[str] = ContextVar("deployai_route", default=_UNKNOWN_ROUTE)
+_method_var: ContextVar[str] = ContextVar("deployai_method", default=_UNKNOWN_METHOD)
+
+_CONN_INFO_ROUTE_KEY = "deployai_route"
+_CONN_INFO_METHOD_KEY = "deployai_method"
+
 db_statements_total = Counter(
     "deployai_db_statements_total",
-    "SQLAlchemy statements executed across all requests + background jobs.",
+    "SQLAlchemy statements executed, labelled by request route + method.",
+    ("route", "method"),
 )
 
 http_request_duration_seconds = Histogram(
@@ -76,6 +82,8 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
     ) -> Response:
         route = _resolve_route_template(request)
         method = request.method
+        route_token = _route_var.set(route)
+        method_token = _method_var.set(method)
         start = time.perf_counter()
         status_code = 500
         try:
@@ -91,6 +99,15 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
             ).observe(duration)
             if duration > SLOW_REQUEST_SECONDS:
                 slow_request_total.labels(route=route).inc()
+            _route_var.reset(route_token)
+            _method_var.reset(method_token)
+
+
+def _on_engine_connect(connection: Any) -> None:
+    # Pooled connections retain `info` across checkouts; overwrite on every
+    # checkout so a previous request's labels never bleed into the next one.
+    connection.info[_CONN_INFO_ROUTE_KEY] = _route_var.get()
+    connection.info[_CONN_INFO_METHOD_KEY] = _method_var.get()
 
 
 def _after_cursor_execute(
@@ -98,10 +115,13 @@ def _after_cursor_execute(
     _cursor: Any,
     _statement: str,
     _parameters: Any,
-    _context: Any,
+    context: Any,
     _executemany: bool,
 ) -> None:
-    db_statements_total.inc()
+    info = context.connection.info if context is not None else {}
+    route = info.get(_CONN_INFO_ROUTE_KEY, _UNKNOWN_ROUTE)
+    method = info.get(_CONN_INFO_METHOD_KEY, _UNKNOWN_METHOD)
+    db_statements_total.labels(route=route, method=method).inc()
 
 
 def install_db_statement_listener(engine: Engine | Any) -> None:
@@ -111,6 +131,7 @@ def install_db_statement_listener(engine: Engine | Any) -> None:
     fires inside the worker thread that actually runs the cursor.
     """
     target = getattr(engine, "sync_engine", engine)
-    if event.contains(target, "after_cursor_execute", _after_cursor_execute):
-        return
-    event.listen(target, "after_cursor_execute", _after_cursor_execute)
+    if not event.contains(target, "engine_connect", _on_engine_connect):
+        event.listen(target, "engine_connect", _on_engine_connect)
+    if not event.contains(target, "after_cursor_execute", _after_cursor_execute):
+        event.listen(target, "after_cursor_execute", _after_cursor_execute)

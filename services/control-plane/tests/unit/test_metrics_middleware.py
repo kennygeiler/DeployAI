@@ -10,6 +10,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from control_plane.infra import metrics as metrics_mod
 
@@ -105,7 +107,6 @@ async def test_audit_emit_failure_increments_counter() -> None:
 @pytest.mark.asyncio
 async def test_install_db_statement_listener_is_idempotent() -> None:
     from sqlalchemy import event
-    from sqlalchemy.ext.asyncio import create_async_engine
 
     engine = create_async_engine("postgresql+psycopg://stub:stub@localhost/stub")
     try:
@@ -116,14 +117,100 @@ async def test_install_db_statement_listener_is_idempotent() -> None:
             "after_cursor_execute",
             metrics_mod._after_cursor_execute,
         )
+        assert event.contains(
+            engine.sync_engine,
+            "engine_connect",
+            metrics_mod._on_engine_connect,
+        )
     finally:
         await engine.dispose()
 
 
-def test_after_cursor_execute_increments_unlabelled_counter() -> None:
-    before = _counter_value(metrics_mod.db_statements_total)
-    metrics_mod._after_cursor_execute(None, None, "SELECT 1", None, None, False)
-    after = _counter_value(metrics_mod.db_statements_total)
+def test_after_cursor_execute_uses_connection_info_labels() -> None:
+    route = "/internal/v1/test-route"
+    method = "POST"
+    before = _counter_value(metrics_mod.db_statements_total, route=route, method=method)
+
+    fake_conn = MagicMock()
+    fake_conn.info = {
+        "deployai_route": route,
+        "deployai_method": method,
+    }
+    fake_context = MagicMock()
+    fake_context.connection = fake_conn
+
+    metrics_mod._after_cursor_execute(None, None, "SELECT 1", None, fake_context, False)
+
+    after = _counter_value(metrics_mod.db_statements_total, route=route, method=method)
+    assert after == before + 1
+
+
+def test_after_cursor_execute_falls_back_to_unknown_labels_without_info() -> None:
+    before = _counter_value(metrics_mod.db_statements_total, route="unknown", method="UNKNOWN")
+
+    fake_conn = MagicMock()
+    fake_conn.info = {}
+    fake_context = MagicMock()
+    fake_context.connection = fake_conn
+
+    metrics_mod._after_cursor_execute(None, None, "SELECT 1", None, fake_context, False)
+
+    after = _counter_value(metrics_mod.db_statements_total, route="unknown", method="UNKNOWN")
+    assert after == before + 1
+
+
+@pytest.mark.asyncio
+async def test_engine_connect_copies_contextvars_to_connection_info() -> None:
+    """End-to-end: middleware ContextVars → engine_connect → connection.info → after_cursor_execute."""
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    metrics_mod.install_db_statement_listener(engine)
+
+    route = "/internal/v1/db-attribution-test"
+    method = "GET"
+    before = _counter_value(metrics_mod.db_statements_total, route=route, method=method)
+
+    route_token = metrics_mod._route_var.set(route)
+    method_token = metrics_mod._method_var.set(method)
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+            await conn.execute(text("SELECT 2"))
+    finally:
+        metrics_mod._route_var.reset(route_token)
+        metrics_mod._method_var.reset(method_token)
+        await engine.dispose()
+
+    after = _counter_value(metrics_mod.db_statements_total, route=route, method=method)
+    assert after == before + 2
+
+
+@pytest.mark.asyncio
+async def test_middleware_propagates_labels_to_db_statements() -> None:
+    """Full stack: a request hitting the app produces correctly labelled db_statements."""
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    metrics_mod.install_db_statement_listener(engine)
+
+    route = "/widgets/{widget_id}"
+    method = "GET"
+    before = _counter_value(metrics_mod.db_statements_total, route=route, method=method)
+
+    app = FastAPI()
+    app.add_middleware(metrics_mod.PrometheusMiddleware)
+
+    @app.get(route)
+    async def get_widget(widget_id: str) -> dict[str, str]:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        return {"id": widget_id}
+
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/widgets/xyz")
+            assert response.status_code == 200
+    finally:
+        await engine.dispose()
+
+    after = _counter_value(metrics_mod.db_statements_total, route=route, method=method)
     assert after == before + 1
 
 
