@@ -1,0 +1,6 @@
+{
+  "settings.heading": "Settings",
+  "settings.description": "DeployAI runs self-hosted on your team's infrastructure. Configure the LLM provider your team uses for extraction + synthesis here. The API key is stored in the local database.",
+  "settings.auditLogLink": "View audit log",
+  "settings.emailImportLink": "Email paste-import"
+}
