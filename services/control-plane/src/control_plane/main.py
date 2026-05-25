@@ -70,6 +70,7 @@ from control_plane.api.routes.tenants_internal import router as tenants_internal
 from control_plane.api.routes.upload_artifacts import router as upload_artifacts_router
 from control_plane.api.routes.webhooks_internal import router as webhooks_internal_router
 from control_plane.infra.metrics import PrometheusMiddleware
+from control_plane.infra.request_context import RequestIdMiddleware
 
 try:
     _version = metadata.version("control-plane")
@@ -92,6 +93,9 @@ async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="DeployAI Control Plane", version=_version, lifespan=_lifespan)
 app.add_middleware(PrometheusMiddleware)
+# Added last so it wraps PrometheusMiddleware — the request_id is set in the
+# ContextVar before prometheus observes the request.
+app.add_middleware(RequestIdMiddleware)
 app.include_router(auth_router)
 app.include_router(oidc_router)
 app.include_router(auth_entry_router)

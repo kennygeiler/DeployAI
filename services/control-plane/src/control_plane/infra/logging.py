@@ -8,6 +8,8 @@ import os
 import sys
 from typing import Any
 
+from control_plane.infra.request_context import request_id_var
+
 _STANDARD_RECORD_ATTRS: frozenset[str] = frozenset(
     {
         "args",
@@ -56,9 +58,23 @@ class JsonFormatter(logging.Formatter):
             if key in _STANDARD_RECORD_ATTRS or key.startswith("_"):
                 continue
             payload[key] = value
+        request_id = request_id_var.get()
+        if request_id is not None:
+            payload.setdefault("request_id", request_id)
         if record.exc_info:
             payload["exc_info"] = self.formatException(record.exc_info)
         return json.dumps(payload, default=str)
+
+
+class TextFormatter(logging.Formatter):
+    """Human-readable formatter that prefixes ``[req=<short>]`` when a request id is in scope."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        base = super().format(record)
+        request_id = request_id_var.get()
+        if request_id is None:
+            return base
+        return f"[req={request_id[:8]}] {base}"
 
 
 def configure_logging() -> None:
@@ -78,6 +94,6 @@ def configure_logging() -> None:
     if fmt == "json":
         handler.setFormatter(JsonFormatter())
     else:
-        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+        handler.setFormatter(TextFormatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
     handler._deployai_managed = True  # type: ignore[attr-defined]
     root.addHandler(handler)
