@@ -4,6 +4,30 @@ All notable changes to DeployAI ship here. The format follows [Keep a
 Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] — 2026-05-25
+
+Release-pipeline hardening. No application-surface changes.
+
+### Fixed
+
+- `release.yml` installs `uv` before `pnpm turbo run build` so `@deployai/ingest#build` (`uv sync --frozen`) succeeds in CI.
+- cosign signing switched from deprecated `--output-signature`/`--output-certificate` to `--bundle` (cosign v3 default; emits one `.sigstore.json` per artifact).
+- Build-and-sign job permissions tightened — dropped unused `packages: write` (image push lives in the new `images` job).
+
+### Added
+
+- Tag pushes now produce a real GitHub Release page with signed tarballs + `.sigstore.json` bundles + SBOMs (SPDX + CycloneDX) attached. Previously artifacts were built+signed inside the runner and discarded.
+- New `images` job in `release.yml` builds + pushes `ghcr.io/kennygeiler/deployai/{control-plane,web}:<tag>` + `:latest` on tag push, with build-provenance attestations per image digest.
+- `workflow_dispatch` runs validate + build + sign + attest, but skip the publish + image push (tag-triggered only).
+- `docs/release/v0.1.1-punch-list.md` — release-cycle findings + 8-step manual e2e checklist.
+
+### Out of scope (still open in punch list)
+
+- O1 OIDC live login (owner-credentialed)
+- O2 Failover onboarding wizard surface (deferred)
+- S1-S3 UX polish + S3 background-task route label
+- P1-P2 ORM relationship() decls + DB-statement alert per-route
+
 ## [0.1.0] — 2026-05-25
 
 First tagged release. DeployAI is a self-hosted product for cross-functional
@@ -122,4 +146,5 @@ on top of it.
 - **Per-tenant failover UI consumption**: schema + ORM + factory ship; the
   Settings picker also ships, but bulk-onboarding UX is a future polish.
 
+[0.1.1]: https://github.com/kennygeiler/DeployAI/releases/tag/v0.1.1
 [0.1.0]: https://github.com/kennygeiler/DeployAI/releases/tag/v0.1.0
