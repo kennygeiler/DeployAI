@@ -367,19 +367,28 @@ def run(
                 "already_present": len(existing),
             }
 
-        # Sort so the CREATE half of a paired source_ref always lands first
-        # when both halves share an occurred_at (alphabetical source_kind would
-        # otherwise put `insight_closed` before `insight_opened`, breaking the
-        # cause-edge lookup on the next pass).
-        def _sort_key(e: _PendingEvent) -> tuple[Any, int, str]:
-            is_create = 0 if e.source_kind in _CREATE_KINDS else 1
-            return (e.occurred_at, is_create, e.source_kind)
-
-        todo.sort(key=_sort_key)
+        # Two-pass insert so paired CREATE→CLOSE source_refs always link.
+        # We can't rely on occurred_at order alone: matrix_proposals.created_at
+        # is a DB-side `now()` while decided_at can be a Python-side value
+        # supplied before the row is INSERTed, so created_at > decided_at on
+        # backfilled accept/reject rows. Sort-tiebreaker by `is_create` would
+        # only help when occurred_at is exactly equal.
+        # Pass 1: every event whose source_kind is in _CREATE_KINDS, sorted
+        # by occurred_at. Pass 2: everything else, sorted by occurred_at —
+        # cause-edge lookup always finds its parent.
+        creates = sorted(
+            (e for e in todo if e.source_kind in _CREATE_KINDS),
+            key=lambda e: e.occurred_at,
+        )
+        non_creates = sorted(
+            (e for e in todo if e.source_kind not in _CREATE_KINDS),
+            key=lambda e: e.occurred_at,
+        )
+        ordered = [*creates, *non_creates]
         written: dict[str, int] = {}
         with engine.begin() as conn:
             existing_index = _index_by_source_ref(conn, tenant_id)
-            for ev in todo:
+            for ev in ordered:
                 new_id = _insert_event(conn, ev)
                 if ev.source_kind in _CREATE_KINDS:
                     existing_index[(ev.source_kind, ev.source_ref)] = new_id
