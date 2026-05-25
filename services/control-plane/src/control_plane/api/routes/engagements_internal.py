@@ -59,7 +59,10 @@ from control_plane.domain.canonical_memory.matrix import (
     MatrixNode,
     MatrixProposal,
 )
-from control_plane.domain.canonical_memory.node_types import resolve_allowed_node_types
+from control_plane.domain.canonical_memory.node_types import (
+    list_tenant_node_types,
+    resolve_allowed_node_types,
+)
 from control_plane.domain.engagement import Engagement, EngagementMember
 from control_plane.domain.member_roles import resolve_allowed_member_roles
 from control_plane.phases.machine import DEPLOYMENT_PHASES, default_phase
@@ -1286,3 +1289,117 @@ async def refresh_matrix_insights(
         .order_by(MatrixInsight.severity.desc(), MatrixInsight.created_at.desc())
     )
     return list(final_q.scalars().all())
+
+
+# --- Phase D D3.a — engagement-detail aggregate ------------------------------
+#
+# One-shot fetch backing the engagement-detail page: collapses the six
+# sequential CP round-trips the BFF used to issue (engagement, members,
+# matrix nodes, matrix edges, pending proposals, custom node types) into a
+# single endpoint that also surfaces open insights + a recent-activity tail.
+# See docs/perf/engagement-aggregate-query-budget.md.
+
+_AGGREGATE_RECENT_ACTIVITY_LIMIT = 50
+
+
+class CustomNodeTypeAggregate(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    name: str
+    label: str
+    color: str | None
+
+
+class RecentActivityEventRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    occurred_at: datetime
+    event_type: str
+    source_ref: str | None
+
+
+class EngagementDetailRead(BaseModel):
+    engagement: EngagementRead
+    members: list[EngagementMemberRead]
+    matrix_nodes: list[MatrixNodeRead]
+    matrix_edges: list[MatrixEdgeRead]
+    matrix_proposals: list[MatrixProposalRead]
+    custom_node_types: list[CustomNodeTypeAggregate]
+    insights: list[MatrixInsightRead]
+    recent_activity_events: list[RecentActivityEventRead]
+
+
+@router.get(
+    "/{engagement_id}/detail",
+    response_model=EngagementDetailRead,
+    dependencies=[Depends(require_internal)],
+)
+async def get_engagement_detail(
+    engagement_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+) -> EngagementDetailRead:
+    eng = await _require_engagement(session, tenant_id, engagement_id)
+
+    members_q = await session.execute(
+        select(EngagementMember)
+        .where(EngagementMember.engagement_id == engagement_id)
+        .order_by(EngagementMember.created_at)
+    )
+    members = list(members_q.scalars().all())
+
+    nodes_q = await session.execute(
+        select(MatrixNode).where(MatrixNode.engagement_id == engagement_id).order_by(MatrixNode.created_at)
+    )
+    nodes = list(nodes_q.scalars().all())
+
+    edges_q = await session.execute(
+        select(MatrixEdge).where(MatrixEdge.engagement_id == engagement_id).order_by(MatrixEdge.created_at)
+    )
+    edges = list(edges_q.scalars().all())
+
+    proposals_q = await session.execute(
+        select(MatrixProposal)
+        .where(
+            MatrixProposal.engagement_id == engagement_id,
+            MatrixProposal.status == "pending",
+        )
+        .order_by(MatrixProposal.created_at)
+    )
+    proposals = list(proposals_q.scalars().all())
+
+    insights_q = await session.execute(
+        select(MatrixInsight)
+        .where(
+            MatrixInsight.tenant_id == tenant_id,
+            MatrixInsight.engagement_id == engagement_id,
+            MatrixInsight.status == "open",
+        )
+        .order_by(MatrixInsight.severity.desc(), MatrixInsight.created_at.desc())
+    )
+    insights = list(insights_q.scalars().all())
+
+    activity_q = await session.execute(
+        select(CanonicalMemoryEvent)
+        .where(
+            CanonicalMemoryEvent.tenant_id == tenant_id,
+            CanonicalMemoryEvent.engagement_id == engagement_id,
+        )
+        .order_by(CanonicalMemoryEvent.occurred_at.desc())
+        .limit(_AGGREGATE_RECENT_ACTIVITY_LIMIT)
+    )
+    activity = list(activity_q.scalars().all())
+
+    custom_types = await list_tenant_node_types(session, tenant_id)
+
+    return EngagementDetailRead(
+        engagement=EngagementRead.model_validate(eng),
+        members=[EngagementMemberRead.model_validate(m) for m in members],
+        matrix_nodes=[MatrixNodeRead.model_validate(n) for n in nodes],
+        matrix_edges=[MatrixEdgeRead.model_validate(e) for e in edges],
+        matrix_proposals=[MatrixProposalRead.model_validate(p) for p in proposals],
+        custom_node_types=[CustomNodeTypeAggregate.model_validate(c) for c in custom_types],
+        insights=[MatrixInsightRead.model_validate(i) for i in insights],
+        recent_activity_events=[RecentActivityEventRead.model_validate(a) for a in activity],
+    )
