@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-from contextvars import ContextVar
 from typing import Any
 
 from prometheus_client import Counter, Histogram
@@ -18,12 +17,17 @@ from starlette.types import ASGIApp
 SLOW_REQUEST_SECONDS = 1.0
 
 _UNKNOWN_ROUTE = "unknown"
-_UNKNOWN_METHOD = "UNKNOWN"
 
+# Unlabelled: the SQLAlchemy after_cursor_execute event fires in a worker
+# thread; FastAPI request-scope ContextVars set in the middleware aren't
+# visible there, so attaching route/method labels would always emit defaults.
+# Aggregate counter + the per-request histogram (with labels) together cover
+# the budget: scrape both, divide statements-rate by request-rate for an
+# average. If per-route attribution becomes a real need, the proper fix is
+# to set the route on the connection via `engine_connect` event hook.
 db_statements_total = Counter(
     "deployai_db_statements_total",
-    "SQLAlchemy statements executed, labelled by HTTP route + method.",
-    ("route", "method"),
+    "SQLAlchemy statements executed across all requests + background jobs.",
 )
 
 http_request_duration_seconds = Histogram(
@@ -44,10 +48,6 @@ slow_request_total = Counter(
 )
 
 
-_current_route: ContextVar[str] = ContextVar("deployai_metrics_route", default=_UNKNOWN_ROUTE)
-_current_method: ContextVar[str] = ContextVar("deployai_metrics_method", default=_UNKNOWN_METHOD)
-
-
 def _resolve_route_template(request: Request) -> str:
     """Walk the app's router tree to find the matching route template.
 
@@ -64,7 +64,7 @@ def _resolve_route_template(request: Request) -> str:
 
 
 class PrometheusMiddleware(BaseHTTPMiddleware):
-    """Time each request, observe a histogram, count slow ones, set context labels."""
+    """Time each request, observe a histogram, count slow ones."""
 
     def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
@@ -76,8 +76,6 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
     ) -> Response:
         route = _resolve_route_template(request)
         method = request.method
-        route_token = _current_route.set(route)
-        method_token = _current_method.set(method)
         start = time.perf_counter()
         status_code = 500
         try:
@@ -93,8 +91,6 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
             ).observe(duration)
             if duration > SLOW_REQUEST_SECONDS:
                 slow_request_total.labels(route=route).inc()
-            _current_route.reset(route_token)
-            _current_method.reset(method_token)
 
 
 def _after_cursor_execute(
@@ -105,10 +101,7 @@ def _after_cursor_execute(
     _context: Any,
     _executemany: bool,
 ) -> None:
-    db_statements_total.labels(
-        route=_current_route.get(),
-        method=_current_method.get(),
-    ).inc()
+    db_statements_total.inc()
 
 
 def install_db_statement_listener(engine: Engine | Any) -> None:

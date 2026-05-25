@@ -120,20 +120,11 @@ async def test_install_db_statement_listener_is_idempotent() -> None:
         await engine.dispose()
 
 
-@pytest.mark.asyncio
-async def test_after_cursor_execute_increments_with_route_labels() -> None:
-    route = "/test/route"
-    method = "POST"
-    route_token = metrics_mod._current_route.set(route)
-    method_token = metrics_mod._current_method.set(method)
-    try:
-        before = _counter_value(metrics_mod.db_statements_total, route=route, method=method)
-        metrics_mod._after_cursor_execute(None, None, "SELECT 1", None, None, False)
-        after = _counter_value(metrics_mod.db_statements_total, route=route, method=method)
-        assert after == before + 1
-    finally:
-        metrics_mod._current_route.reset(route_token)
-        metrics_mod._current_method.reset(method_token)
+def test_after_cursor_execute_increments_unlabelled_counter() -> None:
+    before = _counter_value(metrics_mod.db_statements_total)
+    metrics_mod._after_cursor_execute(None, None, "SELECT 1", None, None, False)
+    after = _counter_value(metrics_mod.db_statements_total)
+    assert after == before + 1
 
 
 def test_all_metrics_appear_in_default_registry() -> None:
