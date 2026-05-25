@@ -73,7 +73,7 @@ dev: env
 	@echo "make: stack is up. Web → http://localhost:$(WEB_PORT)  |  Control-plane → http://localhost:$(CONTROL_PLANE_PORT)/health"
 
 _wait-healthy:
-	@timeout=900; elapsed=0; \
+	@timeout=$${HEALTH_TIMEOUT:-900}; elapsed=0; \
 	while :; do \
 		statuses="$$($(DC) ps --format '{{.Service}}:{{.Health}}' 2>/dev/null || true)"; \
 		unhealthy="$$(echo "$$statuses" | grep -vE ':(healthy|)$$' || true)"; \

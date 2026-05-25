@@ -10,7 +10,7 @@ This directory holds the GitHub Actions workflows that enforce DeployAI's compli
 |---|---|---|---|---|---|
 | `ci.yml` | PR against `main`; push to `main` | Toolchain guard, **smoke** (`pnpm turbo` …, including `test` for `@deployai/cartographer` / Epic 4-1), then job **Control plane (integration)** — `uv run pytest tests/integration/ -m integration` in `services/control-plane` (Docker + Postgres testcontainers, Epic 2/3 and related). SBOM, Grype CVE, Dependency Review in other jobs. | NFR62 (SBOM), NFR65 (CVE), FR27 contract gate, Story 1.1 deferred AC4 + AC5; integration coverage for control-plane; cartographer via turbo test for AR6 / Story 4-1 | active | Story 1.2 |
 | `release.yml` | Tag push matching `v*.*.*`; `workflow_dispatch` | Signs + attests release artifacts (cosign keyless, SLSA v1.0 provenance) | NFR63 (signing), NFR64 (SLSA L2) | scaffolded — optional for tagged releases; monorepo workspaces build since Story **1.3** | Story 1.2 |
-| `a11y.yml` | PR against `main`; push to `main` | 4-job a11y gate: `jsx-a11y` lint, `storybook-a11y` test-runner, `playwright-a11y` E2E axe, `pa11y` axe + htmlcs | FR44, NFR28, NFR41, NFR42, NFR43, AR25 | active | Story 1.6 |
+| `a11y.yml` | PR against `main` (path-filtered via `.github/path-filters.yml` — docs-only PRs skip the heavy jobs); push to `main` | 4-job a11y gate: `jsx-a11y` lint, `storybook-a11y` test-runner, `playwright-a11y` E2E axe, `pa11y` axe + htmlcs | FR44, NFR28, NFR41, NFR42, NFR43, AR25 | active | Story 1.6 |
 | `compose-smoke.yml` | PR against `main` (path-filtered on `infra/**`, `services/**`, `apps/web/Dockerfile`, `packages/authz/**`, `packages/design-tokens/**`, `Makefile`, `pnpm-lock.yaml`); push to `main` | Brings up the full local stack (postgres + pgvector/pgcrypto, redis, minio, freetsa-stub, control-plane, web) via `make dev`, runs `make dev-verify`, fails if wall-clock exceeds 30 min | NFR67, NFR68, NFR77 | active | Story 1.7 |
 | `schema.yml` | PR against `main` (path-filtered on `services/control-plane/**`, `infra/compose/postgres/**`, the workflow itself); push to `main` | Runs the canonical-memory schema integration tests against a fresh `pgvector/pgvector:pg16` testcontainer — append-only trigger, UUID v7 defaults, partial-unique identity-attribute history, supersession CHECK, enum rejection, lifecycle transitions, tombstone bytea roundtrip | FR1–3, FR5, NFR74 | active; **required on `main`** (see §3) | Story 1.8 |
 | `fuzz.yml` | PR against `main` (path-filtered on `services/**`, `services/_shared/tenancy/**`, `services/control-plane/alembic/versions/**`, the workflow itself); push to `main` | Cross-tenant isolation fuzz harness — seeds 3 synthetic tenants × 50 rows × 8 canonical tables, then runs **6 attack classes** (baseline RLS reads, no-scope reads, SET ROLE escalation, ORM escape hatches, cross-tenant writes, SQLi payloads) ≥ 500 attempts/table. GUC-override (class 3) is intentionally omitted — application-layer defense only, cannot be meaningfully exercised by a raw-SQL fuzzer. JSON report at `artifacts/fuzz/cross-tenant-report.json`; see [docs/security/cross-tenant-fuzz.md](../../docs/security/cross-tenant-fuzz.md) | NFR52, FR72 | active; **required on `main`** (see §3) | Story 1.10 |
@@ -148,14 +148,16 @@ From `fuzz.yml`:
 
 - `cross-tenant-fuzz`
 
-**Path-gated PR gates** (`schema`, `fuzz`, `compose-smoke`): each workflow
-**always runs on `pull_request`** to `main`, but a cheap `prep` job uses
-`dorny/paths-filter` to decide whether the heavy job runs. If paths do not
-match, the heavy job is **skipped** (not “expected”) — which GitHub counts as
-a successful required check, so **docs-only PRs** do not need ruleset
-workarounds or no-op workflow nudges. `push` to `main` still uses `on: paths`
-for `schema` and `fuzz` to avoid spurious post-merge runs; `compose-smoke`
-runs the heavy job on every push (same as before).
+**Path-gated PR gates** (`schema`, `fuzz`, `compose-smoke`, `a11y`): each
+workflow **always runs on `pull_request`** to `main`, but a cheap `prep` job
+uses `dorny/paths-filter` (sourcing named filters from
+[`.github/path-filters.yml`](../path-filters.yml)) to decide whether the heavy
+job(s) run. If paths do not match, the heavy job is **skipped** (not
+"expected") — which GitHub counts as a successful required check, so
+**docs-only PRs** do not need ruleset workarounds or no-op workflow nudges.
+`push` to `main` still uses `on: paths` for `schema` and `fuzz` to avoid
+spurious post-merge runs; `compose-smoke` and `a11y` run the heavy job on
+every push (same as before for `compose-smoke`).
 
 **Repository ruleset (automated):** the `main` branch has an active
 **ruleset** (status checks + PR-only merge) defined as JSON in
