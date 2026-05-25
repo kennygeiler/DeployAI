@@ -78,6 +78,7 @@ export function PastePreview({
   const [previewBusy, setPreviewBusy] = React.useState(false);
   const [commitBusy, setCommitBusy] = React.useState(false);
   const [drafts, setDrafts] = React.useState<DraftRow[] | null>(null);
+  const [err, setErr] = React.useState<string | null>(null);
   const [pendingPayload, setPendingPayload] = React.useState<{
     source: string;
     occurredAt?: string;
@@ -90,6 +91,7 @@ export function PastePreview({
       return;
     }
     setPreviewBusy(true);
+    setErr(null);
     try {
       const { content, occurredAt } = buildContent(source, raw);
       const payload: Record<string, unknown> = { source, content };
@@ -105,9 +107,9 @@ export function PastePreview({
         },
       );
       if (!r.ok) {
-        toast.error("Could not preview", {
-          description: (await readStrategistBffErrorDescription(r)).slice(0, 240),
-        });
+        const desc = (await readStrategistBffErrorDescription(r)).slice(0, 240);
+        toast.error("Could not preview", { description: desc });
+        setErr(desc || "Could not preview.");
         setDrafts(null);
         return;
       }
@@ -119,6 +121,11 @@ export function PastePreview({
       }));
       setDrafts(rows);
       setPendingPayload({ source, occurredAt, content });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not preview.";
+      toast.error("Could not preview", { description: msg });
+      setErr(msg);
+      setDrafts(null);
     } finally {
       setPreviewBusy(false);
     }
@@ -221,6 +228,8 @@ export function PastePreview({
           {previewBusy ? "Previewing…" : "Preview"}
         </Button>
       </div>
+
+      {err ? <p className="text-error-700 text-sm">{err}</p> : null}
 
       {drafts !== null ? (
         <div className="space-y-2">
