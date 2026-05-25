@@ -73,6 +73,7 @@ export function EngagementInsights({ engagementId }: { engagementId: string }) {
       const body = (await r.json()) as { insights?: MatrixInsight[] };
       const list = Array.isArray(body.insights) ? body.insights : [];
       setInsights(list);
+      setErr(null);
       toast.success(`Refreshed — ${list.length} open insight(s)`);
     } finally {
       setRefreshing(false);
