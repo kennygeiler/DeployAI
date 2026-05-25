@@ -1,19 +1,22 @@
-"""OpenTelemetry metrics SDK + OTLP HTTP exporter (e.g. ``llm_provider_py`` token counters)."""
+"""OpenTelemetry metrics + traces SDK wiring with OTLP/HTTP export."""
 
 from __future__ import annotations
 
 import logging
 import os
 
-from opentelemetry import metrics
+from opentelemetry import metrics, trace
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 _log = logging.getLogger(__name__)
 
-# Avoid duplicate PeriodicExportingMetricReader / exporter on reload or double-import.
+# Avoid duplicate exporters / readers on reload or double-import.
 _configured: bool = False
 
 
@@ -22,15 +25,17 @@ def _wants_export() -> bool:
         return False
     return bool(
         (os.environ.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") or "").strip()
+        or (os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") or "").strip()
         or (os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT") or "").strip(),
     )
 
 
 def configure_opentelemetry() -> None:
-    """On OTLP env, install :class:`MeterProvider` with periodic OTLP/HTTP export.
+    """On OTLP env, install :class:`MeterProvider` + :class:`TracerProvider` with OTLP/HTTP export.
 
     Call as early as possible (before any :mod:`llm_provider_py` usage) so
-    :func:`opentelemetry.metrics.get_meter` binds to the SDK, not a no-op.
+    :func:`opentelemetry.metrics.get_meter` and :func:`opentelemetry.trace.get_tracer`
+    bind to the SDK, not a no-op.
     """
     global _configured
     if _configured:
@@ -47,19 +52,25 @@ def configure_opentelemetry() -> None:
         },
     )
     interval = int((os.environ.get("OTEL_METRIC_EXPORT_INTERVAL") or "5000").strip() or "5000")
-    exporter = OTLPMetricExporter()  # reads OTEL_EXPORTER_OTLP_* from the environment
+    metric_exporter = OTLPMetricExporter()  # reads OTEL_EXPORTER_OTLP_* from the environment
     reader = PeriodicExportingMetricReader(
-        exporter,
+        metric_exporter,
         export_interval_millis=max(1_000, interval),
     )
-    provider = MeterProvider(
+    meter_provider = MeterProvider(
         resource=resource,
         metric_readers=(reader,),
     )
-    metrics.set_meter_provider(provider)
+    metrics.set_meter_provider(meter_provider)
+
+    span_exporter = OTLPSpanExporter()
+    tracer_provider = TracerProvider(resource=resource)
+    tracer_provider.add_span_processor(BatchSpanProcessor(span_exporter))
+    trace.set_tracer_provider(tracer_provider)
+
     _configured = True
     _log.info(
-        "OpenTelemetry SDK metrics active (OTLP/HTTP; service=%s; export every %sms)",
+        "OpenTelemetry SDK active (OTLP/HTTP; service=%s; metrics every %sms; traces batched)",
         service_name,
         interval,
     )
@@ -67,11 +78,20 @@ def configure_opentelemetry() -> None:
 
 def shutdown_opentelemetry() -> None:
     global _configured
-    prov = metrics.get_meter_provider()
-    fn = getattr(prov, "shutdown", None)
-    if fn is not None and callable(fn):
+    meter_prov = metrics.get_meter_provider()
+    meter_shutdown = getattr(meter_prov, "shutdown", None)
+    if meter_shutdown is not None and callable(meter_shutdown):
         try:
-            fn()
+            meter_shutdown()
         except Exception:
             _log.exception("OpenTelemetry meter provider shutdown failed")
+
+    tracer_prov = trace.get_tracer_provider()
+    tracer_shutdown = getattr(tracer_prov, "shutdown", None)
+    if tracer_shutdown is not None and callable(tracer_shutdown):
+        try:
+            tracer_shutdown()
+        except Exception:
+            _log.exception("OpenTelemetry tracer provider shutdown failed")
+
     _configured = False

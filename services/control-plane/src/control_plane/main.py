@@ -13,8 +13,11 @@ from contextlib import asynccontextmanager
 from importlib import metadata
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse, Response
+from prometheus_client import REGISTRY, generate_latest
+from sqlalchemy import text
 
-import control_plane.bootstrap  # noqa: F401  # configure OTel before other control_plane imports
+import control_plane.bootstrap  # noqa: F401  # configure logging + OTel before other control_plane imports
 from control_plane.api.routes.adjudication_queue import router as adjudication_queue_internal_router
 from control_plane.api.routes.audit_internal import router as audit_internal_router
 from control_plane.api.routes.auth import router as auth_router
@@ -136,3 +139,29 @@ async def healthz() -> dict[str, str]:
 async def health() -> dict[str, str]:
     """Alias of `/healthz`. Satisfies Story 1.7 AC literal `/health`."""
     return _health_body()
+
+
+@app.get("/readyz")
+async def readyz() -> JSONResponse:
+    """Readiness probe (k8s convention). Checks DB connectivity."""
+    from control_plane.db import get_engine
+
+    try:
+        engine = get_engine()
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+    except Exception as exc:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not-ready", "reason": type(exc).__name__},
+        )
+    return JSONResponse(status_code=200, content={"status": "ready"})
+
+
+@app.get("/metrics")
+async def metrics_endpoint() -> Response:
+    """Prometheus scrape endpoint. Wire to the default process registry."""
+    return Response(
+        content=generate_latest(REGISTRY),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
