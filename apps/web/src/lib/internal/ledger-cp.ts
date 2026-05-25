@@ -1,0 +1,99 @@
+import { z } from "zod";
+
+import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
+
+export const zLedgerEventAffect = z.object({
+  entity_kind: z.string(),
+  entity_id: z.string(),
+});
+
+export const zLedgerEvent = z.object({
+  id: z.string(),
+  engagement_id: z.string().nullable(),
+  occurred_at: z.string(),
+  recorded_at: z.string(),
+  actor_kind: z.string(),
+  actor_id: z.string().nullable(),
+  source_kind: z.string(),
+  source_ref: z.string().nullable(),
+  summary: z.string(),
+  detail: z.record(z.string(), z.unknown()),
+  caused_by_ids: z.array(z.string()).default([]),
+  affects: z.array(zLedgerEventAffect).default([]),
+});
+
+export type LedgerEvent = z.infer<typeof zLedgerEvent>;
+
+export const zLedgerEventList = z.object({
+  events: z.array(zLedgerEvent),
+  next_cursor: z.string().nullable().default(null),
+});
+
+export type LedgerEventList = z.infer<typeof zLedgerEventList>;
+
+export type LedgerListOpts = {
+  from?: string;
+  to?: string;
+  source_kind?: string[];
+  actor_id?: string;
+  cursor?: string;
+  limit?: number;
+};
+
+function cpHeaders(): Record<string, string> {
+  const key = getControlPlaneInternalKey();
+  if (!key) {
+    throw new Error("DEPLOYAI_INTERNAL_API_KEY not set");
+  }
+  return { "X-DeployAI-Internal-Key": key };
+}
+
+function cpBase(): string {
+  const base = getControlPlaneBaseUrl()?.replace(/\/$/, "");
+  if (!base) {
+    throw new Error("DEPLOYAI_CONTROL_PLANE_URL not set");
+  }
+  return base;
+}
+
+export async function cpListLedger(
+  tenantId: string,
+  engagementId: string,
+  opts: LedgerListOpts = {},
+): Promise<LedgerEventList> {
+  const qs = new URLSearchParams({ tenant_id: tenantId });
+  if (opts.from) qs.set("from", opts.from);
+  if (opts.to) qs.set("to", opts.to);
+  if (opts.source_kind && opts.source_kind.length > 0) {
+    qs.set("source_kind", opts.source_kind.join(","));
+  }
+  if (opts.actor_id) qs.set("actor_id", opts.actor_id);
+  if (opts.cursor) qs.set("cursor", opts.cursor);
+  if (opts.limit !== undefined) qs.set("limit", String(opts.limit));
+  const url =
+    `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}/ledger` +
+    `?${qs.toString()}`;
+  const r = await fetch(url, { method: "GET", headers: cpHeaders(), cache: "no-store" });
+  if (!r.ok) {
+    throw new Error(`cp ledger list ${r.status}: ${await r.text()}`);
+  }
+  const raw: unknown = await r.json();
+  return zLedgerEventList.parse(raw);
+}
+
+export async function cpGetLedgerEvent(
+  tenantId: string,
+  engagementId: string,
+  eventId: string,
+): Promise<LedgerEvent> {
+  const qs = new URLSearchParams({ tenant_id: tenantId });
+  const url =
+    `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}/ledger/` +
+    `${encodeURIComponent(eventId)}?${qs.toString()}`;
+  const r = await fetch(url, { method: "GET", headers: cpHeaders(), cache: "no-store" });
+  if (!r.ok) {
+    throw new Error(`cp ledger get ${r.status}: ${await r.text()}`);
+  }
+  const raw: unknown = await r.json();
+  return zLedgerEvent.parse(raw);
+}
