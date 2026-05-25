@@ -1,13 +1,13 @@
 # Release — supply-chain ceremony on tag push (AC2, AC3, AC11)
 #
-# This workflow ships in Story 1.2 but is DORMANT until Story 1.3 lands
-# buildable workspaces under apps/* and services/*. The `guard-artifacts`
-# job detects at runtime whether there's anything to sign and auto-activates
-# the ceremony as soon as real artifacts exist — no code change required.
-#
-# What this workflow does when activated:
+# What this workflow does on every tag push (and on workflow_dispatch
+# from the canonical repo):
 #   - Runs the full smoke suite on the tag commit (authoritative gate).
-#   - Packages each workspace's build output into tarballs under dist/.
+#   - Packages each buildable workspace's output into one tarball under
+#     dist/ — one archive per workspace, named
+#     `<workspace>-<tag>.tar.gz`. Workspaces with no buildable output
+#     (library-only Python helpers whose `uv sync` produced nothing
+#     novel) emit a ::notice:: and are skipped silently.
 #   - Installs cosign v3.0.6 via sigstore/cosign-installer.
 #   - Keyless-signs every tarball using GitHub OIDC + Sigstore (NFR63).
 #     cosign v3 emits a single `.sigstore.json` bundle per artifact
@@ -164,15 +164,125 @@ jobs:
       - run: pnpm turbo run build
 
       - name: Package artifacts
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
+          set -euo pipefail
           mkdir -p dist
-          # TODO(story-1.3): per-workspace tarball + OCI image packaging.
-          # Until Story 1.3 lands, this step is effectively a no-op
-          # because guard-artifacts gates us to false. When Story 1.3
-          # lands, extend this step with:
-          #   tar -czf dist/<workspace>-<version>.tar.gz -C <out-dir> .
-          #   docker build ... && docker push ...
-          echo "::notice::Packaging is stubbed — Story 1.3 fills this in."
+
+          tag="${REF_NAME}"
+
+          pack() {
+            # pack <archive-name-stem> <source-dir> [<extra-source>...]
+            # Tars the source dir(s) into dist/<stem>-<tag>.tar.gz.
+            # If a single source dir is given and it doesn't exist or is
+            # empty, emits a ::notice:: and skips.
+            local stem="$1"; shift
+            local out="dist/${stem}-${tag}.tar.gz"
+
+            if [ "$#" -eq 1 ]; then
+              local src="$1"
+              if [ ! -d "$src" ] || [ -z "$(ls -A "$src" 2>/dev/null)" ]; then
+                echo "::notice title=Skipped::${stem}: ${src} missing or empty (no build output)."
+                return 0
+              fi
+              tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -czf "$out" -C "$src" .
+              echo "Packed $out ($(du -h "$out" | cut -f1))"
+              return 0
+            fi
+
+            # Multi-source form: stage selected paths into a tempdir,
+            # preserving the input paths, then tar the tempdir contents.
+            local staging
+            staging="$(mktemp -d)"
+            local copied=0
+            for src in "$@"; do
+              if [ -e "$src" ]; then
+                mkdir -p "$staging/$(dirname "$src")"
+                cp -R "$src" "$staging/$src"
+                copied=$((copied + 1))
+              fi
+            done
+            if [ "$copied" -eq 0 ]; then
+              echo "::notice title=Skipped::${stem}: no source paths present."
+              rm -rf "$staging"
+              return 0
+            fi
+            tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -czf "$out" -C "$staging" .
+            rm -rf "$staging"
+            echo "Packed $out ($(du -h "$out" | cut -f1))"
+          }
+
+          # apps/web — Next.js standalone bundle (next.config.ts sets
+          # output: "standalone"). Public + static assets live outside
+          # standalone/ and must ship alongside it.
+          if [ -d apps/web/.next/standalone ]; then
+            staging="$(mktemp -d)"
+            cp -R apps/web/.next/standalone/. "$staging/"
+            mkdir -p "$staging/apps/web/.next"
+            [ -d apps/web/.next/static ] && cp -R apps/web/.next/static "$staging/apps/web/.next/static"
+            [ -d apps/web/public ] && cp -R apps/web/public "$staging/apps/web/public"
+            tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -czf "dist/apps-web-${tag}.tar.gz" -C "$staging" .
+            rm -rf "$staging"
+            echo "Packed dist/apps-web-${tag}.tar.gz"
+          else
+            echo "::notice title=Skipped::apps-web: .next/standalone missing."
+          fi
+
+          # services/control-plane — full workspace (src + alembic +
+          # migrations + pyproject + uv.lock + alembic.ini + README).
+          # NOTE: .venv is intentionally NOT included — it's
+          # platform-specific (Linux x86_64 wheels won't run on the
+          # operator's arm64 macOS) and large. Receiver runs
+          # `uv sync --frozen` against the bundled uv.lock.
+          pack services-control-plane \
+            services/control-plane/src \
+            services/control-plane/alembic \
+            services/control-plane/migrations \
+            services/control-plane/pyproject.toml \
+            services/control-plane/uv.lock \
+            services/control-plane/alembic.ini \
+            services/control-plane/README.md
+
+          # services/ingest — Python service (.venv excluded; uv sync).
+          pack services-ingest \
+            services/ingest/src \
+            services/ingest/migrations \
+            services/ingest/pyproject.toml \
+            services/ingest/uv.lock \
+            services/ingest/README.md
+
+          # services/cartographer — Python service (.venv excluded; uv sync).
+          pack services-cartographer \
+            services/cartographer/src \
+            services/cartographer/pyproject.toml \
+            services/cartographer/uv.lock
+
+          # services/_shared/* — library workspaces (.venv excluded).
+          for shared in authz checkpointer citation runtime tenancy tsa; do
+            pack "services-_shared-${shared}" \
+              "services/_shared/${shared}/src" \
+              "services/_shared/${shared}/pyproject.toml" \
+              "services/_shared/${shared}/uv.lock" \
+              "services/_shared/${shared}/README.md"
+          done
+
+          # packages/contracts — TS package, build output under dist/.
+          pack packages-contracts \
+            packages/contracts/dist \
+            packages/contracts/schema \
+            packages/contracts/package.json \
+            packages/contracts/README.md
+
+          # packages/llm-provider-py — Python package.
+          pack packages-llm-provider-py \
+            packages/llm-provider-py/src \
+            packages/llm-provider-py/scripts \
+            packages/llm-provider-py/pyproject.toml \
+            packages/llm-provider-py/uv.lock
+
+          echo "--- dist/ contents ---"
+          ls -la dist/
 
       - name: Generate SBOMs (SPDX + CycloneDX) for release
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.20.7
@@ -237,8 +347,13 @@ jobs:
         run: |
           shopt -s nullglob
           assets=(dist/*.tar.gz dist/*.sigstore.json dist/release-sbom-*.json)
+          # Defensive: the Package artifacts step above produces at least
+          # one tarball per buildable workspace, and Generate SBOMs
+          # produces two .json files. An empty assets array here means
+          # packaging regressed — fail loud rather than publish an
+          # empty Release.
           if (( ${#assets[@]} == 0 )); then
-            echo "No assets to upload" >&2
+            echo "::error::No assets to upload — packaging step produced nothing. This indicates a regression in the Package artifacts step." >&2
             exit 1
           fi
           gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber
