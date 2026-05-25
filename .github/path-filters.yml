@@ -1,0 +1,62 @@
+# Shared path filters for dorny/paths-filter@v3.
+#
+# Workflows reference these via `filters: .github/path-filters.yml` and the
+# named output (e.g. `steps.filter.outputs.heavy`). Keeping filters here
+# centralizes the docs-only / source-touched decision so a new docs path
+# (e.g. `docs/`) doesn't have to be added in five workflow files.
+#
+# Convention: a filter named `<x>` exposes `steps.filter.outputs.<x>` =
+# `'true'` when any matched path changed in the PR diff. Negation is done
+# at the workflow level by skipping the heavy job when the filter is
+# false.
+#
+# `docs` matches the docs-only PR class — when the ONLY changed paths
+# match `docs`, every other named filter below evaluates to `false`,
+# letting the workflow short-circuit its heavy job.
+
+# Documentation surface — docs/ tree, root markdown, LICENSE. PRs that
+# touch only these paths should skip compose-smoke, schema, fuzz, a11y.
+docs:
+  - "docs/**"
+  - "*.md"
+  - "LICENSE"
+
+# Compose-smoke heavy job triggers (Story 1.7 + this slice).
+compose:
+  - "infra/**"
+  - "services/**"
+  - "apps/web/Dockerfile"
+  - "apps/web/next.config.*"
+  - "apps/web/package.json"
+  - "packages/authz/**"
+  - "packages/design-tokens/**"
+  - "Makefile"
+  - ".github/workflows/compose-smoke.yml"
+  - ".github/path-filters.yml"
+  - "pnpm-lock.yaml"
+
+# Canonical-memory schema integration tests.
+schema:
+  - "services/control-plane/**"
+  - "infra/compose/postgres/**"
+  - ".github/workflows/schema.yml"
+  - ".github/path-filters.yml"
+
+# Cross-tenant isolation fuzz harness.
+fuzz:
+  - "services/**"
+  - "services/_shared/tenancy/**"
+  - "services/control-plane/alembic/versions/**"
+  - ".github/workflows/fuzz.yml"
+  - ".github/path-filters.yml"
+
+# Accessibility gate — JSX, Storybook, Playwright, pa11y. Skipped for
+# docs-only PRs because none of these touch the web app's rendered surface.
+a11y:
+  - "apps/web/**"
+  - "packages/shared-ui/**"
+  - "packages/design-tokens/**"
+  - "packages/llama-citation-adapter/**"
+  - "pnpm-lock.yaml"
+  - ".github/workflows/a11y.yml"
+  - ".github/path-filters.yml"

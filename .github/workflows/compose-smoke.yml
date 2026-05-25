@@ -52,18 +52,7 @@ jobs:
         id: filter
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         with:
-          filters: |
-            run:
-              - "infra/**"
-              - "services/**"
-              - "apps/web/Dockerfile"
-              - "apps/web/next.config.*"
-              - "apps/web/package.json"
-              - "packages/authz/**"
-              - "packages/design-tokens/**"
-              - "Makefile"
-              - ".github/workflows/compose-smoke.yml"
-              - "pnpm-lock.yaml"
+          filters: .github/path-filters.yml
 
       - name: Set run output (push = always, PR = path filter)
         id: resolve
@@ -71,7 +60,7 @@ jobs:
           if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
             echo "run=true" >> "${GITHUB_OUTPUT}"
           else
-            echo "run=${{ steps.filter.outputs.run }}" >> "${GITHUB_OUTPUT}"
+            echo "run=${{ steps.filter.outputs.compose }}" >> "${GITHUB_OUTPUT}"
           fi
 
   compose-smoke:
@@ -79,8 +68,11 @@ jobs:
     needs: prep
     if: needs.prep.outputs.run == 'true'
     runs-on: ubuntu-24.04
-    # 30-min stack ceiling per AC10 + 5-min buffer for runner setup.
-    timeout-minutes: 35
+    # Phase D D2.b cycle-time reduction: cap at 20 min so a hung stack
+    # surfaces faster than the prior 35-min ceiling. Observed run-time
+    # is 15-17 min; the per-step Makefile `HEALTH_TIMEOUT` is the inner
+    # budget that bounds the wait-for-healthchecks loop independently.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0

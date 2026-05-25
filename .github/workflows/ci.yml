@@ -110,6 +110,7 @@ jobs:
         with:
           node-version-file: ".nvmrc"
           cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
 
       # Story 1.3 adds Python runtime to the smoke gate:
       #   - uv + Python 3.13 → services/control-plane build (uv sync)

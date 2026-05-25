@@ -36,6 +36,42 @@ defaults:
 
 jobs:
   # ------------------------------------------------------------------
+  # prep — cheap path filter so docs-only PRs skip the four heavy jobs.
+  # Matches the compose-smoke / schema / fuzz pattern: the heavy jobs
+  # are `needs: prep` gated, so when paths don't match they show as
+  # `skipped` in the PR UI — which GitHub counts as a passing required
+  # check (Phase D D2.b CI cycle-time reduction).
+  # ------------------------------------------------------------------
+  prep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.resolve.outputs.run }}
+    steps:
+      - name: Checkout
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Path filter (pull request)
+        if: github.event_name == 'pull_request'
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: .github/path-filters.yml
+
+      - name: Set run output (push = always, PR = path filter)
+        id: resolve
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            echo "run=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "run=${{ steps.filter.outputs.a11y }}" >> "${GITHUB_OUTPUT}"
+          fi
+
+  # ------------------------------------------------------------------
   # Job 1 — jsx-a11y (AC1)
   # Static JSX lint via eslint-plugin-jsx-a11y @ error severity. This
   # is the fastest feedback loop in the stack (~30 seconds vs 3-5
@@ -45,6 +81,8 @@ jobs:
   # ------------------------------------------------------------------
   jsx-a11y:
     name: jsx-a11y
+    needs: prep
+    if: needs.prep.outputs.run == 'true'
     runs-on: ubuntu-24.04
     # Spec AC6 budget. Static lint is the fastest feedback loop in the
     # stack — 10 min is generous relative to the ~30s observed runtime.
@@ -63,6 +101,7 @@ jobs:
         with:
           node-version-file: ".nvmrc"
           cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: pnpm install
         run: pnpm install --frozen-lockfile
@@ -79,6 +118,8 @@ jobs:
   # ------------------------------------------------------------------
   storybook-a11y:
     name: storybook-a11y
+    needs: prep
+    if: needs.prep.outputs.run == 'true'
     runs-on: ubuntu-24.04
     # Spec AC6 budget. Build + test-runner over N stories; today's N is
     # ~7, so 15 min has ample headroom.
@@ -97,6 +138,7 @@ jobs:
         with:
           node-version-file: ".nvmrc"
           cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: pnpm install
         run: pnpm install --frozen-lockfile
@@ -151,6 +193,8 @@ jobs:
   # ------------------------------------------------------------------
   playwright-a11y:
     name: playwright-a11y
+    needs: prep
+    if: needs.prep.outputs.run == 'true'
     runs-on: ubuntu-24.04
     # Spec AC6 budget. Playwright install (~45s cold) + `next build`
     # (~60s) + E2E runs (~30s). 20 min leaves headroom for CI cold
@@ -174,6 +218,7 @@ jobs:
         with:
           node-version-file: ".nvmrc"
           cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: pnpm install
         run: pnpm install --frozen-lockfile
@@ -212,6 +257,8 @@ jobs:
   # ------------------------------------------------------------------
   pa11y:
     name: pa11y
+    needs: prep
+    if: needs.prep.outputs.run == 'true'
     runs-on: ubuntu-24.04
     # Spec AC6 budget was 15 min; bumped to 20 because puppeteer Chrome
     # install (~2-3 min cold) wasn't anticipated in the original
@@ -232,6 +279,7 @@ jobs:
         with:
           node-version-file: ".nvmrc"
           cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
 
       - name: pnpm install
         run: pnpm install --frozen-lockfile
