@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { decideSync } from "@deployai/authz";
 
-import { getActorFromHeaders } from "@/lib/internal/actor";
+import { getActorFromHeaders, getActorIdFromHeaders } from "@/lib/internal/actor";
+import { emitTenantAuditEventBackground } from "@/lib/internal/audit-emit";
 import {
   cpCreateMemberRole,
   cpListMemberRoles,
@@ -58,6 +59,14 @@ export async function POST(req: Request) {
       label,
       ...(body.description !== undefined ? { description: body.description } : {}),
     });
+    emitTenantAuditEventBackground(
+      g.tid,
+      await getActorIdFromHeaders(),
+      "tenant.member_role.created",
+      `created member role ${created.name}`,
+      { role_id: created.id, name: created.name },
+      created.id,
+    );
     return NextResponse.json({ member_role: created }, { status: 201 });
   } catch (e) {
     return nextResponseFromStrategistCpFetchError(e);

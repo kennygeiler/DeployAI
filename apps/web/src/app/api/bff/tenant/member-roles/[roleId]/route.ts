@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { decideSync } from "@deployai/authz";
 
-import { getActorFromHeaders } from "@/lib/internal/actor";
+import { getActorFromHeaders, getActorIdFromHeaders } from "@/lib/internal/actor";
+import { emitTenantAuditEventBackground } from "@/lib/internal/audit-emit";
 import {
   cpDeleteMemberRole,
   cpUpdateMemberRole,
@@ -48,6 +49,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ roleId: 
   if (parsed.data.description !== undefined) body.description = parsed.data.description;
   try {
     const updated = await cpUpdateMemberRole(g.tid, roleId, body);
+    emitTenantAuditEventBackground(
+      g.tid,
+      await getActorIdFromHeaders(),
+      "tenant.member_role.updated",
+      `updated member role ${updated.name}`,
+      { role_id: roleId },
+      roleId,
+    );
     return NextResponse.json({ member_role: updated }, { status: 200 });
   } catch (e) {
     return nextResponseFromStrategistCpFetchError(e);
@@ -60,6 +69,14 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ role
   const { roleId } = await params;
   try {
     await cpDeleteMemberRole(g.tid, roleId);
+    emitTenantAuditEventBackground(
+      g.tid,
+      await getActorIdFromHeaders(),
+      "tenant.member_role.deleted",
+      `deleted member role ${roleId}`,
+      { role_id: roleId },
+      roleId,
+    );
     return new NextResponse(null, { status: 204 });
   } catch (e) {
     return nextResponseFromStrategistCpFetchError(e);

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { decideSync } from "@deployai/authz";
 
-import { getActorFromHeaders } from "@/lib/internal/actor";
+import { getActorFromHeaders, getActorIdFromHeaders } from "@/lib/internal/actor";
+import { emitTenantAuditEventBackground } from "@/lib/internal/audit-emit";
 import {
   cpDeleteNodeType,
   cpUpdateNodeType,
@@ -49,6 +50,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ nodeType
   if (parsed.data.description !== undefined) body.description = parsed.data.description;
   try {
     const updated = await cpUpdateNodeType(g.tid, nodeTypeId, body);
+    emitTenantAuditEventBackground(
+      g.tid,
+      await getActorIdFromHeaders(),
+      "tenant.node_type.updated",
+      `updated node type ${updated.name}`,
+      { node_type_id: nodeTypeId },
+      nodeTypeId,
+    );
     return NextResponse.json({ node_type: updated }, { status: 200 });
   } catch (e) {
     return nextResponseFromStrategistCpFetchError(e);
@@ -64,6 +73,14 @@ export async function DELETE(
   const { nodeTypeId } = await params;
   try {
     await cpDeleteNodeType(g.tid, nodeTypeId);
+    emitTenantAuditEventBackground(
+      g.tid,
+      await getActorIdFromHeaders(),
+      "tenant.node_type.deleted",
+      `deleted node type ${nodeTypeId}`,
+      { node_type_id: nodeTypeId },
+      nodeTypeId,
+    );
     return new NextResponse(null, { status: 204 });
   } catch (e) {
     return nextResponseFromStrategistCpFetchError(e);

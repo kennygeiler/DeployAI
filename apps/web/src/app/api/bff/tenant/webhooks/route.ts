@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { decideSync } from "@deployai/authz";
 
-import { getActorFromHeaders } from "@/lib/internal/actor";
+import { getActorFromHeaders, getActorIdFromHeaders } from "@/lib/internal/actor";
+import { emitTenantAuditEventBackground } from "@/lib/internal/audit-emit";
 import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
 import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strategist-queues-route-guard";
 import { cpCreateWebhook, cpListWebhooks, type WebhookWrite } from "@/lib/internal/webhooks-cp";
@@ -71,6 +72,14 @@ export async function POST(req: Request) {
       ...(body.secret ? { secret: body.secret } : {}),
       ...(typeof body.active === "boolean" ? { active: body.active } : {}),
     });
+    emitTenantAuditEventBackground(
+      g.tid,
+      await getActorIdFromHeaders(),
+      "tenant.webhook.created",
+      `created webhook ${created.name}`,
+      { webhook_id: created.id, events: created.events },
+      created.id,
+    );
     return NextResponse.json({ webhook: created }, { status: 201 });
   } catch (e) {
     return nextResponseFromStrategistCpFetchError(e);
