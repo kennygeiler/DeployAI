@@ -197,3 +197,12 @@ format-python-epic6-agents:
 		( cd "$$d" && uv run ruff format src tests ); \
 	done
 	@echo "make: Epic 6 agent ruff format applied"
+
+# Phase C inc 13.1 -- export one engagement packet (Markdown + PDF + JSON).
+# Requires ENGAGEMENT=<uuid>. Reads DATABASE_URL + DEPLOYAI_TENANT_ID from
+# env (or pass --tenant-id explicitly via CLI flags through the underlying
+# `python -m control_plane.cli.export`). Writes to ./packet/<engagement>/.
+.PHONY: export
+export: ## Export engagement packet (ENGAGEMENT=<uuid> required)
+	@test -n "$(ENGAGEMENT)" || (echo "ENGAGEMENT=<uuid> required" >&2; exit 2)
+	cd services/control-plane && uv run python -m control_plane.cli.export --engagement $(ENGAGEMENT)
