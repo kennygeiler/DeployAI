@@ -23,6 +23,7 @@ const PHASE_LABEL: Record<string, string> = {
 export function EngagementPortfolio() {
   const [engagements, setEngagements] = React.useState<Engagement[]>([]);
   const [err, setErr] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(true);
 
   const refresh = React.useCallback(async () => {
     const r = await fetch("/api/bff/engagements", { cache: "no-store" });
@@ -37,9 +38,11 @@ export function EngagementPortfolio() {
 
   React.useEffect(() => {
     const t = window.setTimeout(() => {
-      refresh().catch((e) => {
-        setErr(e instanceof Error ? e.message : "Could not load engagements.");
-      });
+      refresh()
+        .catch((e) => {
+          setErr(e instanceof Error ? e.message : "Could not load engagements.");
+        })
+        .finally(() => setLoading(false));
     }, 0);
     return () => window.clearTimeout(t);
   }, [refresh]);
@@ -65,7 +68,13 @@ export function EngagementPortfolio() {
             </tr>
           </thead>
           <tbody>
-            {engagements.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td className="text-ink-600 px-3 py-6" colSpan={5} aria-live="polite">
+                  Loading engagements…
+                </td>
+              </tr>
+            ) : engagements.length === 0 ? (
               <tr>
                 <td className="text-ink-600 px-3 py-6" colSpan={5}>
                   No engagements yet — create one via the control-plane engagements API (POST
