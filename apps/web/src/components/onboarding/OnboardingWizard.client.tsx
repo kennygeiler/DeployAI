@@ -284,7 +284,7 @@ function PickerStep(props: {
         variant="default"
         onClick={props.onLoadBluestate}
         disabled={props.busy}
-        className="h-auto flex-col items-start gap-2 p-4 text-left"
+        className="h-auto flex-col items-start gap-2 whitespace-normal break-words p-4 text-left"
       >
         <span className="text-sm font-semibold">Load BlueState demo (26-week scenario)</span>
         <span className="text-ink-100 text-xs font-normal">
@@ -296,7 +296,7 @@ function PickerStep(props: {
         variant="outline"
         onClick={props.onStartFresh}
         disabled={props.busy}
-        className="h-auto flex-col items-start gap-2 p-4 text-left"
+        className="h-auto flex-col items-start gap-2 whitespace-normal break-words p-4 text-left"
       >
         <span className="text-sm font-semibold">Start fresh</span>
         <span className="text-ink-700 text-xs font-normal">
