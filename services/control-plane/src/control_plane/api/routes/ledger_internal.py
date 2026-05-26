@@ -79,8 +79,10 @@ async def list_ledger_events(
     limit: Annotated[int, Query(ge=1, le=_MAX_LIMIT)] = _DEFAULT_LIMIT,
     from_: Annotated[datetime | None, Query(alias="from")] = None,
     to: Annotated[datetime | None, Query()] = None,
-    source_kind: Annotated[str | None, Query(max_length=200)] = None,
+    source_kind: Annotated[str | None, Query(max_length=400)] = None,
     actor_id: Annotated[str | None, Query(max_length=200)] = None,
+    affects_entity_kind: Annotated[str | None, Query(max_length=64)] = None,
+    affects_entity_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> LedgerPage:
     await _require_engagement(session, tenant_id, engagement_id)
     stmt = select(LedgerEvent).where(
@@ -92,9 +94,26 @@ async def list_ledger_events(
     if to is not None:
         stmt = stmt.where(LedgerEvent.occurred_at < to)
     if source_kind is not None:
-        stmt = stmt.where(LedgerEvent.source_kind == source_kind)
+        # Accept comma-separated values from the BFF (e.g. "matrix_node_created,
+        # matrix_node_updated"). The previous exact-equals comparison silently
+        # returned zero rows whenever the BFF joined multiple kinds with a comma,
+        # which broke the provenance "find root event for node" lookup.
+        kinds = [k.strip() for k in source_kind.split(",") if k.strip()]
+        if len(kinds) == 1:
+            stmt = stmt.where(LedgerEvent.source_kind == kinds[0])
+        elif len(kinds) > 1:
+            stmt = stmt.where(LedgerEvent.source_kind.in_(kinds))
     if actor_id is not None:
         stmt = stmt.where(LedgerEvent.actor_id == actor_id)
+    if affects_entity_id is not None:
+        affects_subq = select(LedgerEventAffects.event_id).where(
+            LedgerEventAffects.entity_id == affects_entity_id,
+        )
+        if affects_entity_kind is not None:
+            affects_subq = affects_subq.where(
+                LedgerEventAffects.entity_kind == affects_entity_kind,
+            )
+        stmt = stmt.where(LedgerEvent.id.in_(affects_subq))
     if cursor is not None:
         cursor_at, cursor_id = _decode_cursor(cursor)
         stmt = stmt.where(

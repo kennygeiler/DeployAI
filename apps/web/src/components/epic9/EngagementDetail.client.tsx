@@ -495,6 +495,14 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
               evidenceEventIds={citation.ids}
               open={citation.open}
               onClose={closeCitation}
+              node={
+                citation.nodeId
+                  ? (allMatrixNodes.find((n) => n.id === citation.nodeId) ?? null)
+                  : null
+              }
+              onNodeSaved={() => {
+                void refresh();
+              }}
             />
           </section>
 

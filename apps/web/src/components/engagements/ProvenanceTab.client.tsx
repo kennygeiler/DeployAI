@@ -12,21 +12,30 @@ async function findRootEventIdForNode(
   engagementId: string,
   nodeId: string,
 ): Promise<string | null> {
+  // Query by `affects` so the lookup catches all event kinds that touched this
+  // node — `matrix_node_created`, `matrix_node_updated`, `proposal_accepted`
+  // (where the result is a node), `matrix_node_deleted`, etc. The CP route
+  // returns events newest-first, which is what we want for "root" (most recent
+  // creation/update event seeds the upstream walk).
   const url =
     `/api/bff/engagements/${encodeURIComponent(engagementId)}/ledger` +
-    `?source_kind=matrix_node_created,matrix_node_updated&limit=500`;
+    `?affects_entity_kind=matrix_node&affects_entity_id=${encodeURIComponent(nodeId)}&limit=50`;
   const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) {
     throw new Error(await readStrategistBffErrorDescription(r));
   }
   const body = (await r.json()) as {
-    events?: Array<{ id: string; source_ref: string | null; occurred_at: string }>;
+    events?: Array<{ id: string; source_kind: string; occurred_at: string }>;
   };
   const events = Array.isArray(body.events) ? body.events : [];
-  const matches = events
-    .filter((ev) => ev.source_ref === nodeId)
-    .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
-  return matches[0]?.id ?? null;
+  if (events.length === 0) return null;
+  // Prefer create/accept events as the root so the upstream walk surfaces the
+  // evidence chain. Fall back to the most recent event if none match.
+  const preferred = events.find((ev) =>
+    ["matrix_node_created", "proposal_accepted"].includes(ev.source_kind),
+  );
+  const root = preferred ?? events[0];
+  return root?.id ?? null;
 }
 
 async function findProvenanceNarrative(

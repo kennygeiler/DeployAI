@@ -199,6 +199,11 @@ services:
       # rebuilding. NEVER set this in a hosted/pilot deploy — SSO/proxy
       # supplies the real `x-deployai-role` there.
       DEPLOYAI_LOCAL_DEV_ROLE_INJECT: "1"
+      # Pair role injection with a real seeded actor id so Mr. Oracle (and any
+      # other BFF route that calls getActorIdFromHeaders()) can attribute the
+      # call to an existing app_users row. Must match seed_app.USER_STRATEGIST_ID.
+      DEPLOYAI_DEV_ACTOR_ID: ${DEPLOYAI_DEV_ACTOR_ID:-aaaaaaa1-1111-4111-8111-111111111111}
+      DEPLOYAI_DEV_TENANT_ID: ${DEPLOYAI_DEV_TENANT_ID:-11111111-1111-1111-1111-111111111111}
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:
