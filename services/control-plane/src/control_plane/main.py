@@ -78,6 +78,7 @@ from control_plane.api.routes.temporal_insights_internal import (
     router as temporal_insights_internal_router,
 )
 from control_plane.api.routes.tenants_internal import router as tenants_internal_router
+from control_plane.api.routes.tools_internal import router as tools_internal_router
 from control_plane.api.routes.upload_artifacts import router as upload_artifacts_router
 from control_plane.api.routes.webhooks_internal import router as webhooks_internal_router
 from control_plane.infra.metrics import PrometheusMiddleware
@@ -149,6 +150,7 @@ app.include_router(emails_internal_router, prefix="/internal/v1")
 app.include_router(seed_scenarios_internal_router, prefix="/internal/v1")
 app.include_router(synthesis_internal_router, prefix="/internal/v1")
 app.include_router(lint_internal_router, prefix="/internal/v1")
+app.include_router(tools_internal_router, prefix="/internal/v1")
 app.include_router(scim_users_router, prefix="/scim/v2")
 
 

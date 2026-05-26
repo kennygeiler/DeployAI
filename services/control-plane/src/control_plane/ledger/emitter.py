@@ -54,6 +54,9 @@ ALLOWED_SOURCE_KINDS: frozenset[str] = frozenset(
         "synthesis_failed",
         "synthesis_validation_failed",
         "synthesis_stale_flagged",
+        # v2 Phase 1 — Agent Kenny tool layer (scope-v2 §5.4).
+        "agent_tool_invocation",
+        "propose_action",
     }
 )
 
