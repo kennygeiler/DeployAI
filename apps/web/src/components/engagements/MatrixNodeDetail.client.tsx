@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { TimestampLabel } from "@/components/common/TimestampLabel.client";
 import { ProvenanceTab } from "@/components/engagements/ProvenanceTab.client";
 import {
   Sheet,
@@ -22,18 +23,6 @@ type CitationEvent = {
 };
 
 type TabKey = "source" | "provenance";
-
-function formatOccurredAt(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 function SourceEventsList({ engagementId, ids }: { engagementId: string; ids: string[] }) {
   const [events, setEvents] = React.useState<CitationEvent[]>([]);
@@ -95,7 +84,7 @@ function SourceEventsList({ engagementId, ids }: { engagementId: string; ids: st
       {events.map((ev) => (
         <li key={ev.id} className="space-y-1 px-3 py-2">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-ink-700 text-xs">{formatOccurredAt(ev.occurred_at)}</span>
+            <TimestampLabel value={ev.occurred_at} className="text-ink-700" />
             <span className="bg-ink-100 text-ink-800 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase">
               {ev.event_type}
             </span>

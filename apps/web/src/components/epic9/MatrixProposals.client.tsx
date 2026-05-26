@@ -3,6 +3,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 
+import { TimestampLabel } from "@/components/common/TimestampLabel.client";
 import { Button } from "@/components/ui/button";
 import type { MatrixNode, MatrixProposal } from "@/lib/bff/matrix-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
@@ -346,9 +347,15 @@ export function MatrixProposals({
                           ) : (
                             <p className="text-ink-500 italic">(no rationale)</p>
                           )}
-                          <p className="text-ink-400 font-mono text-[10px]">
-                            src: {p.source_event_id.slice(0, 8)}…
-                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <TimestampLabel value={p.created_at} prefix="proposed" />
+                            {p.decided_at ? (
+                              <TimestampLabel value={p.decided_at} prefix="decided" />
+                            ) : null}
+                            <span className="text-ink-400 font-mono text-[10px]">
+                              src: {p.source_event_id.slice(0, 8)}…
+                            </span>
+                          </div>
                         </div>
                         <div className="flex gap-1">
                           <Button
