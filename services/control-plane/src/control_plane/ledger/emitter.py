@@ -150,6 +150,11 @@ async def emit_ledger_event(
             affects=affects_list,
             detail=sanitised,
         )
+        await _maybe_run_lint(
+            session,
+            event=row,
+            engagement_id=engagement_id,
+        )
     return row
 
 
@@ -241,6 +246,48 @@ async def _lookup_matrix_node_type(
         return None
     value = node.node_type
     return value if isinstance(value, str) else None
+
+
+_LINT_TRIGGER_SOURCE_KINDS: frozenset[str] = frozenset(
+    {
+        "proposal_accepted",
+        "matrix_node_updated",
+        "insight_opened",
+        "insight_closed",
+    }
+)
+
+
+async def _maybe_run_lint(
+    session: AsyncSession,
+    *,
+    event: LedgerEvent,
+    engagement_id: uuid.UUID,
+) -> None:
+    """Run the lint worker inline when a substrate-touching event lands.
+
+    Scope-v2 §4: "inline is fine for v0 since checks are fast". The nightly
+    safety net + dedicated queue land with the Phase 6 dashboard. Caught
+    exceptions never propagate — a lint failure must not roll back the
+    business write that triggered it.
+    """
+    if event.source_kind not in _LINT_TRIGGER_SOURCE_KINDS:
+        return
+    try:
+        from datetime import UTC, datetime
+
+        from control_plane.workers.wiki_lint import run_lint
+
+        await run_lint(
+            session,
+            tenant_id=event.tenant_id,
+            engagement_id=engagement_id,
+            now=datetime.now(UTC),
+        )
+    except Exception as exc:  # broad: never let a lint hiccup kill the emit
+        import logging
+
+        logging.getLogger(__name__).warning("lint dispatch failed: %s", exc)
 
 
 def _scrub_secrets(detail: dict[str, Any]) -> dict[str, Any]:
