@@ -3,7 +3,6 @@
 import * as React from "react";
 
 import { DateRangeFilter } from "@/components/common/DateRangeFilter.client";
-import { DensityStrip } from "@/components/common/DensityStrip.client";
 import { filterByRange, type Section, useTemporalFilter } from "@/lib/bff/temporal-filter";
 
 type Props<T> = {
@@ -28,11 +27,6 @@ export function SectionWithTimeline<T>({
   const filtered = React.useMemo(
     () => filterByRange(events, getTimestamp, range),
     [events, getTimestamp, range],
-  );
-
-  const densityEvents = React.useMemo(
-    () => events.map((e) => ({ timestamp: getTimestamp(e) })),
-    [events, getTimestamp],
   );
 
   const HeadingTag = headingLevel;
@@ -62,10 +56,6 @@ export function SectionWithTimeline<T>({
           label={`${title} date range`}
           idPrefix={`section-${name}`}
         />
-      </div>
-      <div className="flex items-center gap-2" title="Activity per day across the selected range.">
-        <span className="text-ink-500 text-[10px] uppercase tracking-wide">events / day</span>
-        <DensityStrip events={densityEvents} range={range} label={`${title} event density`} />
       </div>
       {children(filtered)}
     </section>

@@ -167,7 +167,7 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
         aria-controls="oracle-chat-body"
         onClick={() => setOpen(true)}
         data-testid="oracle-chat-rail-toggle"
-        className="border-border bg-paper-50 text-ink-800 hover:bg-paper-100 fixed top-1/3 right-0 z-40 flex h-32 w-8 items-center justify-center rounded-l-md rounded-r-none border border-r-0 px-0 shadow-md"
+        className="border-border bg-paper-200 text-ink-800 hover:bg-paper-300 fixed top-1/3 right-0 z-40 flex h-32 w-8 items-center justify-center rounded-l-md rounded-r-none border border-r-0 px-0 shadow-md"
       >
         <span
           className="text-ink-800 text-[11px] font-semibold tracking-wide"
@@ -181,7 +181,7 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
 
   return (
     <aside
-      className="border-border bg-paper-50 fixed top-16 right-0 bottom-0 z-40 flex w-[400px] max-w-[95vw] flex-col border-l shadow-xl"
+      className="border-border bg-paper-200 fixed top-16 right-0 bottom-0 z-40 flex w-[400px] max-w-[95vw] flex-col border-l shadow-xl"
       data-testid="oracle-chat-panel"
     >
       <header className="border-border flex items-center justify-between gap-2 border-b px-3 py-2">

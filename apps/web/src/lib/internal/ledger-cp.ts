@@ -26,6 +26,11 @@ export const ALLOWED_SOURCE_KINDS: ReadonlySet<string> = new Set([
   "member_removed",
   "settings_change",
   "audit_other",
+  "user_provisioned",
+  "audit_decision",
+  "insight_snoozed",
+  "followup_task_created",
+  "oracle_chat_turn",
 ]);
 
 export const zLedgerEventAffect = z.object({
@@ -150,32 +155,70 @@ export async function cpGetLedgerEvent(
   return zLedgerEvent.parse(raw);
 }
 
-export const zChainNode = z.object({
+// CP returns snake_case (FastAPI Pydantic defaults). We map to camelCase on the
+// BFF boundary so the web consumer stays JS-idiomatic and so an accidental CP
+// rename surfaces as a schema error here instead of a silent `undefined` in the
+// tree component.
+const zChainNodeRaw = z.object({
   id: z.string(),
-  occurredAt: z.string(),
-  sourceKind: z.string(),
+  occurred_at: z.string(),
+  source_kind: z.string(),
   summary: z.string(),
-  actorKind: z.string(),
+  actor_kind: z.string(),
   depth: z.number().int().nonnegative(),
   truncated: z.boolean(),
 });
 
+const zChainEdgeRaw = z.object({
+  from_event_id: z.string(),
+  to_event_id: z.string(),
+});
+
+const zChainResponseRaw = z.object({
+  root_event_id: z.string(),
+  nodes: z.array(zChainNodeRaw),
+  edges: z.array(zChainEdgeRaw),
+  truncated_at_depth: z.number().int().nonnegative().nullable(),
+  truncated_node_count: z.number().int().nonnegative().nullable(),
+});
+
+export const zChainNode = zChainNodeRaw.transform((n) => ({
+  id: n.id,
+  occurredAt: n.occurred_at,
+  sourceKind: n.source_kind,
+  summary: n.summary,
+  actorKind: n.actor_kind,
+  depth: n.depth,
+  truncated: n.truncated,
+}));
+
 export type ChainNode = z.infer<typeof zChainNode>;
 
-export const zChainEdge = z.object({
-  fromEventId: z.string(),
-  toEventId: z.string(),
-});
+export const zChainEdge = zChainEdgeRaw.transform((e) => ({
+  fromEventId: e.from_event_id,
+  toEventId: e.to_event_id,
+}));
 
 export type ChainEdge = z.infer<typeof zChainEdge>;
 
-export const zChainResponse = z.object({
-  rootEventId: z.string(),
-  nodes: z.array(zChainNode),
-  edges: z.array(zChainEdge),
-  truncatedAtDepth: z.number().int().nonnegative().nullable(),
-  truncatedNodeCount: z.number().int().nonnegative().nullable(),
-});
+export const zChainResponse = zChainResponseRaw.transform((r) => ({
+  rootEventId: r.root_event_id,
+  nodes: r.nodes.map((n) => ({
+    id: n.id,
+    occurredAt: n.occurred_at,
+    sourceKind: n.source_kind,
+    summary: n.summary,
+    actorKind: n.actor_kind,
+    depth: n.depth,
+    truncated: n.truncated,
+  })),
+  edges: r.edges.map((e) => ({
+    fromEventId: e.from_event_id,
+    toEventId: e.to_event_id,
+  })),
+  truncatedAtDepth: r.truncated_at_depth,
+  truncatedNodeCount: r.truncated_node_count,
+}));
 
 export type ChainResponse = z.infer<typeof zChainResponse>;
 
