@@ -60,9 +60,7 @@ _POSTGRES_PASSWORD = ENV.get("POSTGRES_PASSWORD", "deployai-local-dev")
 # Inside the compose network the CP container reaches Postgres on hostname
 # `postgres` — same as the production compose URL. Loaded from .env so an
 # owner who rotated the local-dev password doesn't have to edit this file.
-_INTERNAL_DB_URL = (
-    f"postgresql+psycopg://{POSTGRES_USER}:{_POSTGRES_PASSWORD}@postgres:5432/{POSTGRES_DB}"
-)
+_INTERNAL_DB_URL = f"postgresql+psycopg://{POSTGRES_USER}:{_POSTGRES_PASSWORD}@postgres:5432/{POSTGRES_DB}"
 
 # Engagement constants
 ENGAGEMENT_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
@@ -180,6 +178,29 @@ def _delete_matrix_node_sql(node_id: uuid.UUID) -> str:
     return f"DELETE FROM matrix_nodes WHERE id = '{node_id}'::uuid;\n"
 
 
+def _matrix_edge_sql(
+    *,
+    edge_id: uuid.UUID,
+    tenant_id: str,
+    engagement_id: str,
+    edge_type: str,
+    from_node_id: uuid.UUID,
+    to_node_id: uuid.UUID,
+    created_at: datetime,
+) -> str:
+    """Insert one matrix_edges row, idempotent on id."""
+    return f"""INSERT INTO matrix_edges
+  (id, tenant_id, engagement_id, edge_type, from_node_id, to_node_id,
+   attributes, evidence_event_ids, created_at, updated_at)
+VALUES
+  ('{edge_id}'::uuid, '{tenant_id}'::uuid, '{engagement_id}'::uuid,
+   '{_q(edge_type)}', '{from_node_id}'::uuid, '{to_node_id}'::uuid,
+   '{{}}'::jsonb, '{{}}'::uuid[],
+   '{created_at.isoformat()}'::timestamptz, '{created_at.isoformat()}'::timestamptz)
+ON CONFLICT (id) DO NOTHING;
+"""
+
+
 def _matrix_insight_sql(
     *,
     insight_id: uuid.UUID,
@@ -213,7 +234,9 @@ ON CONFLICT (id) DO NOTHING;
 """
 
 
-def build_scenario_sql(anchor: TimeAnchor) -> tuple[str, dict[str, dict[str, uuid.UUID]]]:
+def build_scenario_sql(
+    anchor: TimeAnchor,
+) -> tuple[str, dict[str, dict[str, uuid.UUID]]]:
     """Construct the full multi-statement SQL block for the scenario.
 
     Returns ``(sql, registry)`` where ``registry`` maps cluster IDs to the
@@ -234,7 +257,9 @@ def build_scenario_sql(anchor: TimeAnchor) -> tuple[str, dict[str, dict[str, uui
         event_id = det_id(f"narrative|{ev.cluster}")
         cluster_to_event_id[ev.cluster] = event_id
         occurred_at = anchor.at(ev.week, ev.day, ev.hour)
-        actor_id = "marcus.rivera@deployai.com" if "marcus" in ev.body.lower()[:200] else None
+        actor_id = (
+            "marcus.rivera@deployai.com" if "marcus" in ev.body.lower()[:200] else None
+        )
         statements.append(
             _emit_ledger_sql(
                 event_id=event_id,
@@ -246,7 +271,9 @@ def build_scenario_sql(anchor: TimeAnchor) -> tuple[str, dict[str, dict[str, uui
                 source_kind=ev.kind,
                 source_ref=None,
                 summary=ev.summary,
-                detail_json='{"body_excerpt": "' + _q(ev.body[:200].replace("\n", " ")) + '"}',
+                detail_json='{"body_excerpt": "'
+                + _q(ev.body[:200].replace("\n", " "))
+                + '"}',
             )
         )
 
@@ -279,14 +306,18 @@ def build_scenario_sql(anchor: TimeAnchor) -> tuple[str, dict[str, dict[str, uui
                     source_kind="matrix_node_created",
                     source_ref=node_id,
                     summary=ev.summary,
-                    detail_json='{"node_type": "stakeholder", "title": "' + _q(ev.title or "") + '"}',
+                    detail_json='{"node_type": "stakeholder", "title": "'
+                    + _q(ev.title or "")
+                    + '"}',
                     affects=[("matrix_node", node_id)],
                 )
             )
         elif ev.kind == "matrix_node_deleted":
             # Cluster is foo-out; strip the suffix to find the original add.
             base_lookup = (ev.cluster or "").removesuffix("-out")
-            node_id = stakeholder_node_ids.get(base_lookup, det_id(f"stakeholder-node|{base_lookup}"))
+            node_id = stakeholder_node_ids.get(
+                base_lookup, det_id(f"stakeholder-node|{base_lookup}")
+            )
             event_id = det_id(f"stakeholder-evt|{ev.cluster}|delete")
             statements.append(_delete_matrix_node_sql(node_id))
             statements.append(
@@ -300,7 +331,9 @@ def build_scenario_sql(anchor: TimeAnchor) -> tuple[str, dict[str, dict[str, uui
                     source_kind="matrix_node_deleted",
                     source_ref=node_id,
                     summary=ev.summary,
-                    detail_json='{"node_type": "stakeholder", "title": "' + _q(ev.title or "") + '"}',
+                    detail_json='{"node_type": "stakeholder", "title": "'
+                    + _q(ev.title or "")
+                    + '"}',
                 )
             )
 
@@ -340,7 +373,9 @@ def build_scenario_sql(anchor: TimeAnchor) -> tuple[str, dict[str, dict[str, uui
                 source_kind="llm_proposal_created",
                 source_ref=proposal_id,
                 summary=f"proposal drafted: decision — {ev.title or ev.summary}"[:500],
-                detail_json='{"proposal_kind": "node", "node_type": "decision", "title": "' + _q(ev.title or "") + '"}',
+                detail_json='{"proposal_kind": "node", "node_type": "decision", "title": "'
+                + _q(ev.title or "")
+                + '"}',
             )
         )
 
@@ -410,7 +445,9 @@ def build_scenario_sql(anchor: TimeAnchor) -> tuple[str, dict[str, dict[str, uui
     for ev in EXTRACTOR_NOISE:
         proposal_id = det_id(f"extractor-noise-proposal|{ev.cluster}")
         created_at = anchor.at(ev.week, ev.day, ev.hour)
-        decided_at = created_at + timedelta(hours=6)  # tight cycle so accept lands in same 14d window
+        decided_at = created_at + timedelta(
+            hours=6
+        )  # tight cycle so accept lands in same 14d window
         create_evt_id = det_id(f"extractor-noise-create-evt|{ev.cluster}")
         statements.append(
             _emit_ledger_sql(
@@ -479,7 +516,9 @@ def build_scenario_sql(anchor: TimeAnchor) -> tuple[str, dict[str, dict[str, uui
 
     for ev in RISKS_CLOSED:
         closed_at = anchor.at(ev.week, ev.day, ev.hour)
-        insight_id = risk_insight_ids.get(ev.risk_close_of or "", det_id(f"risk-insight|{ev.risk_close_of}"))
+        insight_id = risk_insight_ids.get(
+            ev.risk_close_of or "", det_id(f"risk-insight|{ev.risk_close_of}")
+        )
         close_evt_id = det_id(f"risk-close-evt|{ev.risk_close_of}")
         statements.append(
             f"UPDATE matrix_insights SET status = 'resolved', "
@@ -578,6 +617,317 @@ def build_scenario_sql(anchor: TimeAnchor) -> tuple[str, dict[str, dict[str, uui
                 summary=f"commitment node added: {title}"[:500],
                 detail_json='{"node_type": "commitment", "title": "' + _q(title) + '"}',
                 affects=[("matrix_node", node_id)],
+            )
+        )
+
+    # ---- 8. Edges — typed relationships between matrix_nodes, dual-emitted to ledger.
+    # Each edge insert is paired with a matrix_edge_created ledger event so the
+    # timeline view filtered by source_kind=matrix_edge_created surfaces them.
+    def _stk(short_name: str) -> uuid.UUID:
+        # Stakeholder clusters are namespaced as "stakeholder-<short>" in STAKEHOLDERS;
+        # mirror that so det_id matches section-2 node insertions.
+        return det_id(f"stakeholder-node|stakeholder-{short_name}")
+
+    def _dec(cluster: str) -> uuid.UUID:
+        return det_id(f"decision-node|{cluster}")
+
+    def _sys(title: str) -> uuid.UUID:
+        return det_id(f"system-node|{title}")
+
+    def _commit(title: str) -> uuid.UUID:
+        return det_id(f"commit-node|{title}")
+
+    # (edge_type, from_node_id, to_node_id, week, label)
+    edges_plan: list[tuple[str, uuid.UUID, uuid.UUID, int, str]] = [
+        # Sponsors: stakeholder → decision
+        (
+            "sponsors",
+            _stk("vance"),
+            _dec("decision-w1-engagement-model"),
+            1,
+            "vance-sponsors-engagement-model",
+        ),
+        (
+            "sponsors",
+            _stk("vance"),
+            _dec("decision-w3-regions"),
+            3,
+            "vance-sponsors-regions",
+        ),
+        (
+            "sponsors",
+            _stk("vance"),
+            _dec("decision-w22-phi-scope"),
+            22,
+            "vance-sponsors-phi-scope",
+        ),
+        ("sponsors", _stk("vance"), _dec("decision-w26-go"), 26, "vance-sponsors-go"),
+        (
+            "sponsors",
+            _stk("kim"),
+            _dec("decision-w20-pilot-slip"),
+            20,
+            "kim-sponsors-pilot-slip",
+        ),
+        (
+            "sponsors",
+            _stk("kim"),
+            _dec("decision-w23-comms-cadence"),
+            23,
+            "kim-sponsors-comms-cadence",
+        ),
+        ("sponsors", _stk("kim"), _dec("decision-w25-comms"), 25, "kim-sponsors-comms"),
+        (
+            "sponsors",
+            _stk("kim"),
+            _dec("decision-w4-messaging"),
+            14,
+            "kim-sponsors-messaging",
+        ),
+        (
+            "sponsors",
+            _stk("priya"),
+            _dec("decision-w8-claims"),
+            14,
+            "priya-sponsors-claims",
+        ),
+        (
+            "sponsors",
+            _stk("priya"),
+            _dec("decision-w13-observability"),
+            14,
+            "priya-sponsors-observability",
+        ),
+        (
+            "sponsors",
+            _stk("priya"),
+            _dec("decision-w15-a11y"),
+            15,
+            "priya-sponsors-a11y",
+        ),
+        (
+            "sponsors",
+            _stk("priya"),
+            _dec("decision-w15-cache-warm"),
+            15,
+            "priya-sponsors-cache-warm",
+        ),
+        ("sponsors", _stk("patel"), _dec("decision-w2-okta"), 3, "patel-sponsors-okta"),
+        (
+            "sponsors",
+            _stk("patel"),
+            _dec("decision-w24-pentest-remediation"),
+            24,
+            "patel-sponsors-pentest-remediation",
+        ),
+        (
+            "sponsors",
+            _stk("liu"),
+            _dec("decision-w12-pentest"),
+            14,
+            "liu-sponsors-pentest",
+        ),
+        # Owns: stakeholder → system
+        (
+            "owns",
+            _stk("priya"),
+            _sys("Eligibility Service (mainframe)"),
+            14,
+            "priya-owns-eligibility",
+        ),
+        ("owns", _stk("priya"), _sys("Claims API (Oracle)"), 14, "priya-owns-claims"),
+        ("owns", _stk("priya"), _sys("Member Portal (web)"), 14, "priya-owns-portal"),
+        ("owns", _stk("liu"), _sys("Member Identity (Okta)"), 14, "liu-owns-identity"),
+        (
+            "owns",
+            _stk("thompson"),
+            _sys("Provider Directory API (HealthwayDirect)"),
+            22,
+            "thompson-owns-pdapi",
+        ),
+        (
+            "owns",
+            _stk("kim"),
+            _sys("In-portal Messaging Subsystem"),
+            14,
+            "kim-owns-messaging-system",
+        ),
+        # Depends_on: decision → system
+        (
+            "depends_on",
+            _dec("decision-w2-okta"),
+            _sys("Member Identity (Okta)"),
+            2,
+            "okta-depends-identity",
+        ),
+        (
+            "depends_on",
+            _dec("decision-w4-messaging"),
+            _sys("In-portal Messaging Subsystem"),
+            4,
+            "messaging-depends-msg-sys",
+        ),
+        (
+            "depends_on",
+            _dec("decision-w5-frontend"),
+            _sys("Member Portal (web)"),
+            5,
+            "frontend-depends-portal",
+        ),
+        (
+            "depends_on",
+            _dec("decision-w6-cache"),
+            _sys("Eligibility Service (mainframe)"),
+            6,
+            "cache-depends-eligibility",
+        ),
+        (
+            "depends_on",
+            _dec("decision-w8-claims"),
+            _sys("Claims API (Oracle)"),
+            8,
+            "claims-depends-claims-api",
+        ),
+        (
+            "depends_on",
+            _dec("decision-w9-pdapi"),
+            _sys("Provider Directory API (HealthwayDirect)"),
+            9,
+            "pdapi-depends-pdapi",
+        ),
+        # Affects: decision → system
+        (
+            "affects",
+            _dec("decision-w13-observability"),
+            _sys("Member Portal (web)"),
+            13,
+            "observability-affects-portal",
+        ),
+        (
+            "affects",
+            _dec("decision-w15-a11y"),
+            _sys("Member Portal (web)"),
+            15,
+            "a11y-affects-portal",
+        ),
+        (
+            "affects",
+            _dec("decision-w15-cache-warm"),
+            _sys("Eligibility Service (mainframe)"),
+            15,
+            "cache-warm-affects-eligibility",
+        ),
+        (
+            "affects",
+            _dec("decision-w22-phi-scope"),
+            _sys("Member Identity (Okta)"),
+            22,
+            "phi-scope-affects-identity",
+        ),
+        # Owed_to: commitment → stakeholder
+        ("owed_to", _commit("MSA + BAA signed"), _stk("patel"), 8, "msa-owed-to-patel"),
+        (
+            "owed_to",
+            _commit("Pilot launch by W24"),
+            _stk("vance"),
+            20,
+            "pilot-owed-to-vance",
+        ),
+        (
+            "owed_to",
+            _commit("Post-pilot expansion decision by W30"),
+            _stk("kim"),
+            26,
+            "expansion-owed-to-kim",
+        ),
+        (
+            "owed_to",
+            _commit("DR drill quarterly post-launch"),
+            _stk("liu"),
+            26,
+            "dr-owed-to-liu",
+        ),
+        # Blocks: decision → decision
+        (
+            "blocks",
+            _dec("decision-w16-support-ownership"),
+            _dec("decision-w20-pilot-slip"),
+            20,
+            "support-ownership-blocks-pilot-slip",
+        ),
+        # Enables: decision → commitment
+        (
+            "enables",
+            _dec("decision-w26-go"),
+            _commit("Pilot launch by W24"),
+            26,
+            "go-enables-pilot",
+        ),
+        # Depends_on: system → system
+        (
+            "depends_on",
+            _sys("Member Portal (web)"),
+            _sys("Eligibility Service (mainframe)"),
+            5,
+            "portal-depends-eligibility",
+        ),
+        (
+            "depends_on",
+            _sys("Member Portal (web)"),
+            _sys("Claims API (Oracle)"),
+            8,
+            "portal-depends-claims",
+        ),
+        (
+            "depends_on",
+            _sys("Member Portal (web)"),
+            _sys("Provider Directory API (HealthwayDirect)"),
+            9,
+            "portal-depends-pdapi",
+        ),
+        (
+            "depends_on",
+            _sys("Member Portal (web)"),
+            _sys("Member Identity (Okta)"),
+            2,
+            "portal-depends-identity",
+        ),
+        (
+            "depends_on",
+            _sys("In-portal Messaging Subsystem"),
+            _sys("Member Portal (web)"),
+            5,
+            "msg-depends-portal",
+        ),
+    ]
+    for kind, src, dst, week, label in edges_plan:
+        edge_id = det_id(f"edge|{label}|{kind}")
+        edge_evt_id = det_id(f"edge-evt|{label}|{kind}")
+        edge_at = anchor.at(week, 1, 9)
+        statements.append(
+            _matrix_edge_sql(
+                edge_id=edge_id,
+                tenant_id=TENANT_ID,
+                engagement_id=ENGAGEMENT_ID,
+                edge_type=kind,
+                from_node_id=src,
+                to_node_id=dst,
+                created_at=edge_at,
+            )
+        )
+        statements.append(
+            _emit_ledger_sql(
+                event_id=edge_evt_id,
+                tenant_id=TENANT_ID,
+                engagement_id=ENGAGEMENT_ID,
+                occurred_at=edge_at,
+                actor_kind="user",
+                actor_id="sarah.chen@deployai.com",
+                source_kind="matrix_edge_created",
+                source_ref=edge_id,
+                summary=f"edge: {kind} ({label})"[:500],
+                detail_json='{"edge_type": "' + kind + '"}',
+                affects=[("matrix_edge", edge_id)],
             )
         )
 
@@ -772,12 +1122,20 @@ def main() -> None:
         # corpus. The cleanest workaround is to call run_analyzers programmatically
         # at several `now` values that each materialize one of the expected insights.
         # See docs/test-scenarios/bluestate-health.md § "Analyzer run schedule".
-        w14_end = anchor.at(14, 7, 23)  # stakeholder_churn (deletes in current 30d, prior empty)
-        w16_end_plus1 = anchor.at(16, 7, 23) + timedelta(days=1)  # decision_cycle_slowdown
+        w14_end = anchor.at(
+            14, 7, 23
+        )  # stakeholder_churn (deletes in current 30d, prior empty)
+        w16_end_plus1 = anchor.at(16, 7, 23) + timedelta(
+            days=1
+        )  # decision_cycle_slowdown
         w22_end_plus1 = anchor.at(22, 7, 23) + timedelta(days=1)  # risk_open_rate
-        w24_end_plus2 = anchor.at(24, 7, 23) + timedelta(days=2)  # extractor_acceptance_drift
+        w24_end_plus2 = anchor.at(24, 7, 23) + timedelta(
+            days=2
+        )  # extractor_acceptance_drift
         go_create = anchor.at(26, 2, 15)
-        go_accept_plus12 = go_create + timedelta(hours=72 + 12)  # decision_provenance_summary
+        go_accept_plus12 = go_create + timedelta(
+            hours=72 + 12
+        )  # decision_provenance_summary
         runs = (
             ("W14 end → stakeholder_churn", w14_end),
             ("W16 end+1d → decision_cycle_slowdown", w16_end_plus1),
@@ -808,7 +1166,9 @@ def main() -> None:
     )
     print(
         "  docker compose -f infra/compose/docker-compose.yml exec postgres psql -U deployai -d deployai "
-        "-c \"SELECT count(*) FROM matrix_snapshots WHERE engagement_id='" + ENGAGEMENT_ID + "';\""
+        "-c \"SELECT count(*) FROM matrix_snapshots WHERE engagement_id='"
+        + ENGAGEMENT_ID
+        + "';\""
     )
     print(
         "  docker compose -f infra/compose/docker-compose.yml exec postgres psql -U deployai -d deployai "

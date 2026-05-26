@@ -638,6 +638,7 @@ async def delete_matrix_edge(
             "from_node_id": str(from_id),
             "to_node_id": str(to_id),
         },
+        affects=[("matrix_edge", deleted_id)],
     )
     await session.commit()
 
