@@ -84,7 +84,7 @@ type DetailResponse = {
 export function EngagementDetail({ engagementId }: { engagementId: string }) {
   const [data, setData] = React.useState<DetailResponse | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
-  const [newUserId, setNewUserId] = React.useState("");
+  const [newEmail, setNewEmail] = React.useState("");
   const [newRole, setNewRole] = React.useState<string>("fde");
   const [busy, setBusy] = React.useState(false);
   const [memberRoleOptions, setMemberRoleOptions] = React.useState<MemberRoleOption[]>([
@@ -143,8 +143,8 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
   }, []);
 
   const addMember = React.useCallback(async () => {
-    const userId = newUserId.trim();
-    if (!userId) {
+    const email = newEmail.trim();
+    if (!email) {
       return;
     }
     setBusy(true);
@@ -152,7 +152,7 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
       const r = await fetch(`/api/bff/engagements/${encodeURIComponent(engagementId)}/members`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ user_id: userId, role: newRole }),
+        body: JSON.stringify({ email, role: newRole }),
       });
       if (!r.ok) {
         toast.error("Could not assign member", {
@@ -161,12 +161,12 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
         return;
       }
       toast.success("Member assigned");
-      setNewUserId("");
+      setNewEmail("");
       await refresh();
     } finally {
       setBusy(false);
     }
-  }, [engagementId, newRole, newUserId, refresh]);
+  }, [engagementId, newRole, newEmail, refresh]);
 
   const removeMember = React.useCallback(
     async (memberId: string) => {
@@ -302,15 +302,16 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
               <h3 className="text-ink-800 text-xs font-semibold">Assign a member</h3>
               <div className="flex flex-wrap items-end gap-2">
                 <div className="grid gap-1">
-                  <label className="text-ink-600 text-xs" htmlFor="member-user-id">
-                    User ID
+                  <label className="text-ink-600 text-xs" htmlFor="member-email">
+                    Email
                   </label>
                   <input
-                    id="member-user-id"
+                    id="member-email"
+                    type="email"
                     className="border-border rounded-md border px-2 py-1 text-sm"
-                    placeholder="user UUID"
-                    value={newUserId}
-                    onChange={(e) => setNewUserId(e.target.value)}
+                    placeholder="user@company.com"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
                   />
                 </div>
                 <div className="grid gap-1">
@@ -333,7 +334,7 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
                 <Button
                   type="button"
                   size="sm"
-                  disabled={busy || !newUserId.trim()}
+                  disabled={busy || !newEmail.trim()}
                   onClick={() => void addMember()}
                 >
                   Assign
