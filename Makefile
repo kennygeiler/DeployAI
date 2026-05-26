@@ -36,6 +36,7 @@ WEB_PORT ?= 3000
 .DEFAULT_GOAL := help
 
 .PHONY: help dev dev-verify dev-down dev-logs compose-smoke env init seed-app \
+	seed-scenario-bluestate \
 	lint-python-epic6-agents format-python-epic6-agents backup restore backup-prune
 
 help:
@@ -48,6 +49,7 @@ help:
 	@echo "  make dev-logs       Tail compose logs"
 	@echo "  make init           First-run install (tenant + LLM + engagement + member). Pass INIT_ARGS or DEPLOYAI_INIT_* env vars. Add --template {gov,healthcare,saas,sales} to seed a vertical bundle."
 	@echo "  make seed-app       Seed 1 engagement + ~20 canonical events + run extraction (requires ANTHROPIC_API_KEY in .env)"
+	@echo "  make seed-scenario-bluestate  Seed the 26-week BlueState Health end-to-end test bed (deterministic insights for every analyzer)"
 	@echo "  make backup         pg_dump + tenant-DEK metadata to S3/MinIO (requires S3_BUCKET; see docs/ops/backup.md)"
 	@echo "  make restore        Restore pg_dump from BACKUP=s3://... (requires DEPLOYAI_RESTORE_CONFIRM=YES; see docs/ops/backup.md)"
 	@echo "  make backup-prune   Delete S3 backup folders older than BACKUP_RETENTION_DAYS (dry-run unless DEPLOYAI_PRUNE_CONFIRM=YES)"
@@ -141,6 +143,12 @@ init: env
 seed-app: env
 	@echo "make: seeding app schema (1 engagement + ~20 events + extraction)…"
 	@python3 $(COMPOSE_DIR)/seed/seed_app.py $(SEED_APP_ARGS)
+
+# Phase F end-to-end test bed — a 26-week BlueState Health scenario that fires
+# every Phase F analyzer with deterministic, documented ground-truth insights.
+# See docs/test-scenarios/bluestate-health.md for expected outputs.
+seed-scenario-bluestate: env
+	@python3 $(COMPOSE_DIR)/seed/seed_scenario_bluestate.py $(SEED_SCENARIO_ARGS)
 
 # Phase C inc 12.1 — pg_dump + tenant-DEK metadata to S3 (or MinIO).
 # Requires the stack to be up. See docs/ops/backup.md for env vars
