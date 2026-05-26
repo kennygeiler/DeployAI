@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { EngagementTimeline } from "./EngagementTimeline.client";
+import type { LedgerEvent } from "@/lib/internal/ledger-cp";
 
 type TimelineEvent = {
   id: string;
@@ -10,6 +11,24 @@ type TimelineEvent = {
   source_ref: string | null;
   summary: string;
 };
+
+function mkLedgerEvent(overrides: Partial<LedgerEvent> = {}): LedgerEvent {
+  return {
+    id: "evt-1",
+    engagement_id: "e1",
+    occurred_at: "2026-05-20T10:00:00Z",
+    recorded_at: "2026-05-20T10:00:01Z",
+    actor_kind: "user",
+    actor_id: null,
+    source_kind: "email_ingest",
+    source_ref: null,
+    summary: "ledger event",
+    detail: {},
+    caused_by_ids: [],
+    affects: [],
+    ...overrides,
+  };
+}
 
 function mockFetch(handler: () => { ok: boolean; body: unknown; text?: string }) {
   const calls: string[] = [];
@@ -97,5 +116,71 @@ describe("EngagementTimeline", () => {
     const para = document.querySelector("p.text-error-700");
     expect(para).toBeTruthy();
     expect(para?.textContent?.length).toBeGreaterThan(0);
+  });
+
+  it("shows the stakeholder chip + filters ledger events by evidence id or actor email", async () => {
+    const events = [
+      mkLedgerEvent({
+        id: "match-evidence",
+        actor_id: null,
+        summary: "Match via evidence id",
+      }),
+      mkLedgerEvent({
+        id: "match-actor",
+        actor_id: "alice@example.com",
+        summary: "Match via actor email",
+      }),
+      mkLedgerEvent({
+        id: "drop-me",
+        actor_id: "bob@example.com",
+        summary: "Should be filtered out",
+      }),
+    ];
+    const calls = mockFetch(() => ({ ok: true, body: { events } }));
+    render(
+      <EngagementTimeline
+        engagementId="e1"
+        stakeholderFilter={{
+          id: "stk-1",
+          title: "Alice Sponsor",
+          email: "Alice@example.com",
+          evidenceEventIds: ["match-evidence"],
+          clearHref: "/engagements/e1/timeline",
+        }}
+      />,
+    );
+    await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
+
+    // Hits the ledger BFF when filter is active (not the simpler /timeline endpoint).
+    expect(calls.some((u) => u.includes("/ledger?limit=500"))).toBe(true);
+
+    // Chip shown with stakeholder title + clear link.
+    expect(screen.getByTestId("stakeholder-chip")).toBeTruthy();
+    expect(screen.getByText("Alice Sponsor")).toBeTruthy();
+    const clear = screen.getByTestId("stakeholder-chip-clear");
+    expect(clear.getAttribute("href")).toBe("/engagements/e1/timeline");
+
+    // Only the two matching events render.
+    expect(screen.getByText("Match via evidence id")).toBeTruthy();
+    expect(screen.getByText("Match via actor email")).toBeTruthy();
+    expect(screen.queryByText("Should be filtered out")).toBeNull();
+  });
+
+  it("renders an empty-state message specific to the active stakeholder filter", async () => {
+    mockFetch(() => ({ ok: true, body: { events: [] } }));
+    render(
+      <EngagementTimeline
+        engagementId="e1"
+        stakeholderFilter={{
+          id: "stk-1",
+          title: "Alice Sponsor",
+          email: "alice@example.com",
+          evidenceEventIds: [],
+          clearHref: "/engagements/e1/timeline",
+        }}
+      />,
+    );
+    await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
+    expect(screen.getByText(/No timeline events match Alice Sponsor/)).toBeTruthy();
   });
 });

@@ -343,12 +343,14 @@ export function MatrixGraph({
   customTypes,
   engagementId,
   onNodeClick,
+  onStakeholderClick,
 }: {
   nodes: MatrixNode[];
   edges: MatrixEdge[];
   customTypes?: CustomNodeTypeDescriptor[];
   engagementId?: string;
   onNodeClick?: (node: MatrixNode) => void;
+  onStakeholderClick?: (node: MatrixNode) => void;
 }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -379,14 +381,18 @@ export function MatrixGraph({
 
   const handleNodeClick = React.useCallback(
     (_e: React.MouseEvent, n: Node) => {
-      if (!onNodeClick) return;
       if (n.id.startsWith("header-")) return;
       const matched = nodesById.get(n.id);
-      if (matched) {
+      if (!matched) return;
+      if (onStakeholderClick && matched.node_type === "stakeholder") {
+        onStakeholderClick(matched);
+        return;
+      }
+      if (onNodeClick) {
         onNodeClick(matched);
       }
     },
-    [onNodeClick, nodesById],
+    [onNodeClick, onStakeholderClick, nodesById],
   );
 
   const slider = resolvedEngagementId ? <MatrixTimeSlider /> : null;
