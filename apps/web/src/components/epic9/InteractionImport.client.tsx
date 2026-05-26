@@ -144,8 +144,8 @@ function DirectImport({
       <p className="text-ink-500 text-xs">
         Paste raw text, a forwarded email, a meeting transcript, or a JSON object. When you pick{" "}
         <em>Email</em> or <em>Meeting note</em> the headers / speakers / date get parsed out and
-        attached to the event. The matrix-extraction agent (Phase 6.2c) reads it and proposes matrix
-        entities citing this event.
+        attached to the event. The matrix-extraction agent reads it and proposes matrix entities
+        citing this event.
       </p>
       <div className="flex flex-wrap items-end gap-2">
         <div className="grid gap-1">
