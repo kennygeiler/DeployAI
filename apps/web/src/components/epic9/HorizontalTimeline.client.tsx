@@ -2,6 +2,8 @@
 
 import * as React from "react";
 
+import { Button } from "@/components/ui/button";
+
 export type HorizontalTimelineEvent = {
   id: string;
   occurred_at: string;
@@ -155,16 +157,31 @@ export function HorizontalTimeline({
   focusedEventId?: string | null;
 }) {
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
+  const scrollRef = React.useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = React.useState(MIN_WIDTH);
   const [hoverId, setHoverId] = React.useState<string | null>(null);
   const [hoverNow, setHoverNow] = React.useState<number>(0);
   const [pulseId, setPulseId] = React.useState<string | null>(null);
+  const [zoom, setZoom] = React.useState(1);
   const circleRefs = React.useRef<Map<string, SVGCircleElement>>(new Map());
 
+  const ZOOM_MIN = 0.5;
+  const ZOOM_MAX = 4;
+  const ZOOM_STEP = 1.25;
+  const zoomIn = React.useCallback(
+    () => setZoom((z) => Math.min(ZOOM_MAX, +(z * ZOOM_STEP).toFixed(3))),
+    [],
+  );
+  const zoomOut = React.useCallback(
+    () => setZoom((z) => Math.max(ZOOM_MIN, +(z / ZOOM_STEP).toFixed(3))),
+    [],
+  );
+  const zoomReset = React.useCallback(() => setZoom(1), []);
+
   React.useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
     const measure = () => {
+      const el = scrollRef.current ?? wrapRef.current;
+      if (!el) return;
       const w = el.clientWidth;
       setWidth(Math.max(MIN_WIDTH, w || MIN_WIDTH));
     };
@@ -174,11 +191,13 @@ export function HorizontalTimeline({
       return () => window.removeEventListener("resize", measure);
     }
     const ro = new ResizeObserver(() => measure());
-    ro.observe(el);
+    const target = scrollRef.current ?? wrapRef.current;
+    if (target) ro.observe(target);
     return () => ro.disconnect();
   }, []);
 
-  const innerWidth = Math.max(MIN_WIDTH - MARGIN_X * 2, width - MARGIN_X * 2);
+  const baseInner = Math.max(MIN_WIDTH - MARGIN_X * 2, width - MARGIN_X * 2);
+  const innerWidth = Math.round(baseInner * zoom);
 
   const range = React.useMemo(() => {
     if (events.length === 0) return null;
@@ -273,12 +292,12 @@ export function HorizontalTimeline({
     if (!placed.some((p) => p.ev.id === focusedEventId)) return;
     const setTid = window.setTimeout(() => setPulseId(focusedEventId), 0);
     const node = circleRefs.current.get(focusedEventId);
-    if (node && wrapRef.current) {
-      const wrap = wrapRef.current;
+    const scrollEl = scrollRef.current;
+    if (node && scrollEl) {
       const cx = Number(node.getAttribute("cx") || 0);
-      const target = cx - wrap.clientWidth / 2;
-      if (Number.isFinite(target) && typeof wrap.scrollTo === "function") {
-        wrap.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
+      const target = cx - scrollEl.clientWidth / 2;
+      if (Number.isFinite(target) && typeof scrollEl.scrollTo === "function") {
+        scrollEl.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
       }
     }
     const tid = window.setTimeout(() => {
@@ -316,153 +335,218 @@ export function HorizontalTimeline({
     );
   }
 
+  const hoveredColor = hovered ? hovered.color : null;
+  const hoveredEv = hovered?.ev ?? null;
   return (
-    <div
-      ref={wrapRef}
-      data-testid="horizontal-timeline"
-      className="border-border relative overflow-x-auto rounded-lg border bg-paper-50"
-    >
-      <svg
-        role="img"
-        aria-label="Engagement timeline horizontal view"
-        width={Math.max(width, innerWidth + MARGIN_X * 2)}
-        height={HEIGHT}
-        className="block"
+    <div ref={wrapRef} data-testid="horizontal-timeline" className="space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <div
+          aria-live="polite"
+          data-testid="horizontal-timeline-info-card"
+          className="border-border bg-paper-200 text-ink-800 flex min-h-[64px] flex-1 items-start gap-3 rounded-md border px-3 py-2 text-sm"
+        >
+          {hoveredEv ? (
+            <>
+              <span
+                aria-hidden="true"
+                className="mt-1 inline-block h-3 w-3 shrink-0 rounded-full"
+                style={{ backgroundColor: hoveredColor ?? FALLBACK_COLOR }}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="text-ink-900 font-medium break-words">{hoveredEv.summary}</div>
+                <div className="text-ink-600 mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px]">
+                  <span className="bg-ink-100 text-ink-800 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase">
+                    {hoveredEv.source_kind}
+                  </span>
+                  {hoveredEv.actor_kind ? <span>· {hoveredEv.actor_kind}</span> : null}
+                  <span>
+                    ·{" "}
+                    {formatRelative(
+                      hoveredEv.occurred_at,
+                      hoverNow || Date.parse(hoveredEv.occurred_at),
+                    )}
+                  </span>
+                  <span className="text-ink-500 font-mono text-[10px]">
+                    · {hoveredEv.occurred_at}
+                  </span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-ink-500 text-xs">
+              Hover or focus an event below for details. Use +/− to zoom the time axis.
+            </p>
+          )}
+        </div>
+        <div
+          role="group"
+          aria-label="Timeline zoom controls"
+          className="flex shrink-0 items-center gap-1"
+        >
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-label="Zoom out"
+            data-testid="horizontal-timeline-zoom-out"
+            onClick={zoomOut}
+            disabled={zoom <= ZOOM_MIN + 0.001}
+            className="h-7 w-7 px-0"
+          >
+            −
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-label="Reset zoom"
+            data-testid="horizontal-timeline-zoom-reset"
+            onClick={zoomReset}
+            disabled={Math.abs(zoom - 1) < 0.001}
+            className="h-7 px-2 text-xs"
+          >
+            {Math.round(zoom * 100)}%
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-label="Zoom in"
+            data-testid="horizontal-timeline-zoom-in"
+            onClick={zoomIn}
+            disabled={zoom >= ZOOM_MAX - 0.001}
+            className="h-7 w-7 px-0"
+          >
+            +
+          </Button>
+        </div>
+      </div>
+      <div
+        ref={scrollRef}
+        className="border-border bg-paper-50 relative overflow-x-auto rounded-lg border"
       >
-        <line
-          x1={MARGIN_X}
-          y1={AXIS_Y}
-          x2={MARGIN_X + innerWidth}
-          y2={AXIS_Y}
-          stroke="#9ca3af"
-          strokeWidth={1}
-        />
-        {ticks.map((t, i) => (
-          <g key={`tick-${i}`} transform={`translate(${t.x}, 0)`}>
-            <line
-              x1={0}
-              y1={AXIS_Y - (t.major ? 6 : 4)}
-              x2={0}
-              y2={AXIS_Y + (t.major ? 6 : 4)}
-              stroke={t.major ? "#374151" : "#9ca3af"}
-              strokeWidth={1}
-            />
-            <text
-              x={0}
-              y={AXIS_Y - 10}
-              textAnchor="middle"
-              fontSize={10}
-              fill={t.major ? "#111827" : "#4b5563"}
-              fontFamily="ui-sans-serif, system-ui, sans-serif"
-            >
-              {t.label}
-            </text>
-          </g>
-        ))}
+        <svg
+          role="img"
+          aria-label={`Engagement timeline horizontal view (zoom ${Math.round(zoom * 100)}%)`}
+          width={Math.max(width, innerWidth + MARGIN_X * 2)}
+          height={HEIGHT}
+          className="block"
+        >
+          <line
+            x1={MARGIN_X}
+            y1={AXIS_Y}
+            x2={MARGIN_X + innerWidth}
+            y2={AXIS_Y}
+            stroke="#9ca3af"
+            strokeWidth={1}
+          />
+          {ticks.map((t, i) => (
+            <g key={`tick-${i}`} transform={`translate(${t.x}, 0)`}>
+              <line
+                x1={0}
+                y1={AXIS_Y - (t.major ? 6 : 4)}
+                x2={0}
+                y2={AXIS_Y + (t.major ? 6 : 4)}
+                stroke={t.major ? "#374151" : "#9ca3af"}
+                strokeWidth={1}
+              />
+              <text
+                x={0}
+                y={AXIS_Y - 10}
+                textAnchor="middle"
+                fontSize={10}
+                fill={t.major ? "#111827" : "#4b5563"}
+                fontFamily="ui-sans-serif, system-ui, sans-serif"
+              >
+                {t.label}
+              </text>
+            </g>
+          ))}
 
-        {buckets.map((b, i) =>
-          b.overflow > 0 ? (
-            <text
-              key={`overflow-${i}`}
-              x={b.x}
-              y={LANE_TOP + MAX_LANE * LANE_STEP + 10}
-              textAnchor="middle"
-              fontSize={9}
-              fill="#4b5563"
-              fontFamily="ui-sans-serif, system-ui, sans-serif"
-              data-testid={`horizontal-timeline-overflow-${i}`}
-            >
-              +{b.overflow}
-            </text>
-          ) : null,
-        )}
+          {buckets.map((b, i) =>
+            b.overflow > 0 ? (
+              <text
+                key={`overflow-${i}`}
+                x={b.x}
+                y={LANE_TOP + MAX_LANE * LANE_STEP + 10}
+                textAnchor="middle"
+                fontSize={9}
+                fill="#4b5563"
+                fontFamily="ui-sans-serif, system-ui, sans-serif"
+                data-testid={`horizontal-timeline-overflow-${i}`}
+              >
+                +{b.overflow}
+              </text>
+            ) : null,
+          )}
 
-        {placed.map((p) => {
-          const isPulse = pulseId === p.ev.id;
-          const isHover = hoverId === p.ev.id;
-          const ariaLabel = `${p.ev.source_kind} at ${p.ev.occurred_at}: ${truncate(p.ev.summary, 60)}`;
-          return (
-            <g key={p.ev.id}>
-              {isPulse ? (
+          {placed.map((p) => {
+            const isPulse = pulseId === p.ev.id;
+            const isHover = hoverId === p.ev.id;
+            const ariaLabel = `${p.ev.source_kind} at ${p.ev.occurred_at}: ${truncate(p.ev.summary, 60)}`;
+            return (
+              <g key={p.ev.id}>
+                {isPulse ? (
+                  <circle
+                    cx={p.x}
+                    cy={p.y}
+                    r={CIRCLE_R + 6}
+                    fill="none"
+                    stroke={p.color}
+                    strokeWidth={2}
+                    opacity={0.6}
+                    data-testid={`horizontal-timeline-pulse-${p.ev.id}`}
+                  >
+                    <animate
+                      attributeName="r"
+                      values={`${CIRCLE_R + 2};${CIRCLE_R + 10};${CIRCLE_R + 2}`}
+                      dur="1.2s"
+                      repeatCount="indefinite"
+                    />
+                    <animate
+                      attributeName="opacity"
+                      values="0.8;0.1;0.8"
+                      dur="1.2s"
+                      repeatCount="indefinite"
+                    />
+                  </circle>
+                ) : null}
                 <circle
+                  ref={(el) => setCircleRef(p.ev.id, el)}
                   cx={p.x}
                   cy={p.y}
-                  r={CIRCLE_R + 6}
-                  fill="none"
-                  stroke={p.color}
-                  strokeWidth={2}
-                  opacity={0.6}
-                  data-testid={`horizontal-timeline-pulse-${p.ev.id}`}
-                >
-                  <animate
-                    attributeName="r"
-                    values={`${CIRCLE_R + 2};${CIRCLE_R + 10};${CIRCLE_R + 2}`}
-                    dur="1.2s"
-                    repeatCount="indefinite"
-                  />
-                  <animate
-                    attributeName="opacity"
-                    values="0.8;0.1;0.8"
-                    dur="1.2s"
-                    repeatCount="indefinite"
-                  />
-                </circle>
-              ) : null}
-              <circle
-                ref={(el) => setCircleRef(p.ev.id, el)}
-                cx={p.x}
-                cy={p.y}
-                r={CIRCLE_R}
-                fill={p.color}
-                stroke={isHover ? "#111827" : "#ffffff"}
-                strokeWidth={isHover ? 2 : 1}
-                tabIndex={0}
-                role="button"
-                aria-label={ariaLabel}
-                data-testid={`horizontal-timeline-event-${p.ev.id}`}
-                onMouseEnter={() => {
-                  setHoverId(p.ev.id);
-                  setHoverNow(Date.now());
-                }}
-                onMouseLeave={() => setHoverId((cur) => (cur === p.ev.id ? null : cur))}
-                onFocus={() => {
-                  setHoverId(p.ev.id);
-                  setHoverNow(Date.now());
-                }}
-                onBlur={() => setHoverId((cur) => (cur === p.ev.id ? null : cur))}
-                onClick={() => handleActivate(p.ev.id)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    handleActivate(p.ev.id);
-                  }
-                }}
-                style={{ cursor: "pointer", outline: "none" }}
-              />
-            </g>
-          );
-        })}
-      </svg>
-      {hovered ? (
-        <div
-          role="tooltip"
-          data-testid="horizontal-timeline-tooltip"
-          className="border-border bg-paper-50 text-ink-800 pointer-events-none absolute z-10 max-w-[260px] rounded-md border px-2 py-1 text-xs shadow-md"
-          style={{
-            left: Math.max(8, Math.min(hovered.x + 8, width - 270)),
-            top: Math.max(0, hovered.y - 56),
-          }}
-        >
-          <div className="font-medium">{hovered.ev.summary}</div>
-          <div className="text-ink-500 font-mono text-[10px] uppercase">
-            {hovered.ev.source_kind}
-            {hovered.ev.actor_kind ? ` · ${hovered.ev.actor_kind}` : ""}
-          </div>
-          <div className="text-ink-500 text-[10px]">
-            {formatRelative(hovered.ev.occurred_at, hoverNow || Date.parse(hovered.ev.occurred_at))}
-          </div>
-        </div>
-      ) : null}
+                  r={CIRCLE_R}
+                  fill={p.color}
+                  stroke={isHover ? "#111827" : "#ffffff"}
+                  strokeWidth={isHover ? 2 : 1}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={ariaLabel}
+                  data-testid={`horizontal-timeline-event-${p.ev.id}`}
+                  onMouseEnter={() => {
+                    setHoverId(p.ev.id);
+                    setHoverNow(Date.now());
+                  }}
+                  onMouseLeave={() => setHoverId((cur) => (cur === p.ev.id ? null : cur))}
+                  onFocus={() => {
+                    setHoverId(p.ev.id);
+                    setHoverNow(Date.now());
+                  }}
+                  onBlur={() => setHoverId((cur) => (cur === p.ev.id ? null : cur))}
+                  onClick={() => handleActivate(p.ev.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleActivate(p.ev.id);
+                    }
+                  }}
+                  style={{ cursor: "pointer", outline: "none" }}
+                />
+              </g>
+            );
+          })}
+        </svg>
+      </div>
     </div>
   );
 }

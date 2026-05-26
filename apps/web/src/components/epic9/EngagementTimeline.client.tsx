@@ -135,43 +135,29 @@ export function EngagementTimeline({
     void (async () => {
       setLoading(true);
       try {
-        // The ledger BFF gives us per-event `source_kind` + `affects` metadata we
-        // need for both the affects-filter chip and the event-jump source-kind
-        // broadening behavior. The lighter `/timeline` route is only used when
-        // no URL-driven behavior is active.
-        if (affectsNodeId || eventId || view === "horizontal") {
-          const qs = new URLSearchParams({ limit: "500" });
-          if (affectsNodeId) {
-            qs.set("affects_entity_kind", "matrix_node");
-            qs.set("affects_entity_id", affectsNodeId);
-          }
-          const r = await fetch(
-            `/api/bff/engagements/${encodeURIComponent(engagementId)}/ledger?${qs.toString()}`,
-            { cache: "no-store" },
-          );
-          if (cancelled) return;
-          if (!r.ok) {
-            setErr(await readStrategistBffErrorDescription(r));
-            setSource({ kind: "ledger", events: [] });
-            return;
-          }
-          const body = (await r.json()) as { events?: LedgerEvent[] };
-          const ledger = Array.isArray(body.events) ? body.events : [];
-          setErr(null);
-          setSource({ kind: "ledger", events: ledger });
-          return;
+        // Always fetch from /ledger so list + horizontal share one source. The
+        // legacy /timeline route returned a thinner shape that produced "no
+        // interactions" empty-state on rich BlueState data even though /ledger
+        // had hundreds of rows. /ledger is the authoritative event source.
+        const qs = new URLSearchParams({ limit: "500" });
+        if (affectsNodeId) {
+          qs.set("affects_entity_kind", "matrix_node");
+          qs.set("affects_entity_id", affectsNodeId);
         }
-        const r = await fetch(`/api/bff/engagements/${encodeURIComponent(engagementId)}/timeline`, {
-          cache: "no-store",
-        });
+        const r = await fetch(
+          `/api/bff/engagements/${encodeURIComponent(engagementId)}/ledger?${qs.toString()}`,
+          { cache: "no-store" },
+        );
         if (cancelled) return;
         if (!r.ok) {
           setErr(await readStrategistBffErrorDescription(r));
+          setSource({ kind: "ledger", events: [] });
           return;
         }
-        const body = (await r.json()) as { events?: TimelineEvent[] };
+        const body = (await r.json()) as { events?: LedgerEvent[] };
+        const ledger = Array.isArray(body.events) ? body.events : [];
         setErr(null);
-        setSource({ kind: "timeline", events: Array.isArray(body.events) ? body.events : [] });
+        setSource({ kind: "ledger", events: ledger });
       } catch (e) {
         if (!cancelled) {
           setErr(e instanceof Error ? e.message : "Could not load timeline.");
@@ -183,7 +169,7 @@ export function EngagementTimeline({
     return () => {
       cancelled = true;
     };
-  }, [engagementId, affectsNodeId, eventId, view]);
+  }, [engagementId, affectsNodeId, eventId]);
 
   const events = React.useMemo<TimelineEvent[]>(() => {
     if (source.kind === "timeline") return source.events;

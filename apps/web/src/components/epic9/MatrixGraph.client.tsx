@@ -399,42 +399,33 @@ export function MatrixGraph({
   const staleBanner =
     snapshot.kind === "ready" && isSnapshotStale(snapshot.capturedAt, nodes) ? (
       <p
-        className="border-border bg-paper-50 text-ink-700 rounded-lg border p-3 text-sm"
+        className="border-border bg-paper-200 text-ink-700 rounded-lg border p-3 text-sm"
         role="status"
         data-testid="matrix-snapshot-stale-banner"
       >
         Snapshot from {formatSnapshotDate(snapshot.capturedAt)}; matrix has changed since.
       </p>
     ) : null;
-
-  if (snapshot.kind === "missing") {
-    return (
-      <div className="space-y-2">
-        {slider}
-        <p
-          className="border-border bg-paper-50 text-ink-700 rounded-lg border p-3 text-sm"
-          role="status"
-          data-testid="matrix-snapshot-missing"
-        >
-          No snapshot for that date.
-        </p>
-      </div>
-    );
-  }
-
-  if (snapshot.kind === "error") {
-    return (
-      <div className="space-y-2">
-        {slider}
-        <p
-          className="border-border bg-paper-50 text-ink-700 rounded-lg border p-3 text-sm"
-          role="alert"
-        >
-          Could not load snapshot: {snapshot.message}
-        </p>
-      </div>
-    );
-  }
+  // Missing/error snapshots used to blank the canvas; instead keep the LIVE
+  // matrix rendered and warn above it so the slider experience degrades to
+  // "showing live" rather than "graph gone".
+  const fallbackBanner =
+    snapshot.kind === "missing" ? (
+      <p
+        className="border-warning-300 bg-warning-100 text-warning-900 rounded-lg border p-3 text-sm"
+        role="status"
+        data-testid="matrix-snapshot-missing"
+      >
+        No snapshot for that date — showing live matrix.
+      </p>
+    ) : snapshot.kind === "error" ? (
+      <p
+        className="border-error-300 bg-error-100 text-error-900 rounded-lg border p-3 text-sm"
+        role="alert"
+      >
+        Could not load snapshot ({snapshot.message}) — showing live matrix.
+      </p>
+    ) : null;
 
   if (effectiveNodes.length === 0) {
     return (
@@ -450,6 +441,7 @@ export function MatrixGraph({
   return (
     <div className="space-y-2">
       {slider}
+      {fallbackBanner}
       {staleBanner}
       <MatrixLegend />
       <div
