@@ -2,6 +2,17 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    replace: vi.fn(),
+    push: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+  }),
+  usePathname: () => "/engagements/e1",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 import { EngagementDetail } from "./EngagementDetail.client";
 
 const ENGAGEMENT = {
