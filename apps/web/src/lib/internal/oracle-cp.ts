@@ -1,5 +1,5 @@
 /**
- * Control-plane Mr. Oracle chat client (internal key).
+ * Control-plane Agent Kenny chat client (internal key).
  *
  * The G1.a CP route ships JSON only; SSE-shaped Zod schemas are kept here so
  * the BFF / web can flip to streaming without churning the client surface

@@ -31,7 +31,7 @@ const PANEL_TITLE_ID = "oracle-chat-title";
 const ORACLE_ROLE = "oracle" as const;
 
 /**
- * Right-side collapsible Mr. Oracle chat panel. Single-turn POST against
+ * Right-side collapsible Agent Kenny chat panel. Single-turn POST against
  * the BFF (G1.a CP route returns JSON; SSE upgrade is a follow-up). Loads
  * conversation history on first open + after each send.
  */
@@ -101,7 +101,7 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
       }
       if (!r.ok) {
         const desc = await readStrategistBffErrorDescription(r);
-        toast.error("Mr. Oracle could not reply", { description: desc.slice(0, 240) });
+        toast.error("Agent Kenny could not reply", { description: desc.slice(0, 240) });
         setTurns((prev) => prev.filter((t) => t.id !== optimisticId));
         setInput(message);
         return false;
@@ -247,7 +247,7 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
         } catch {
           setTurns((prev) => prev.filter((t) => t.id !== optimisticId));
           setInput(message);
-          toast.error("Mr. Oracle could not reply");
+          toast.error("Agent Kenny could not reply");
         }
       }
     } finally {
@@ -289,7 +289,7 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
           className="text-ink-800 text-[11px] font-semibold tracking-wide"
           style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
         >
-          Mr. Oracle ›
+          Agent Kenny ›
         </span>
       </Button>
     );
@@ -302,7 +302,7 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
     >
       <header className="border-border flex items-center justify-between gap-2 border-b px-3 py-2">
         <h2 id={PANEL_TITLE_ID} className="text-ink-900 text-sm font-semibold">
-          Mr. Oracle
+          Agent Kenny
         </h2>
         <div className="flex items-center gap-1">
           <Button
@@ -340,7 +340,7 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
             <p className="text-ink-600 text-sm">Loading…</p>
           ) : turns.length === 0 ? (
             <p className="text-ink-600 text-sm">
-              Ask Mr. Oracle about this engagement. He grounds every answer in ledger events.
+              Ask Agent Kenny about this engagement. He grounds every answer in ledger events.
             </p>
           ) : (
             <>
@@ -375,7 +375,7 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
         </div>
         <div className="border-border border-t px-3 py-2">
           <Textarea
-            aria-label="Message Mr. Oracle"
+            aria-label="Message Agent Kenny"
             placeholder="Ask about risks, decisions, or recent activity…"
             value={input}
             onChange={(e) => setInput(e.target.value)}

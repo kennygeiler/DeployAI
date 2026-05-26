@@ -14,7 +14,7 @@ import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strate
 type Ctx = { params: Promise<{ engagementId: string }> };
 
 /**
- * Mr. Oracle chat — SSE streaming variant. Proxies the upstream CP
+ * Agent Kenny chat — SSE streaming variant. Proxies the upstream CP
  * text/event-stream body straight through to the browser so tokens flow
  * live. The non-stream JSON sibling route stays alive as a fallback.
  */

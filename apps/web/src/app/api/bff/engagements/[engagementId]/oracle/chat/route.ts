@@ -14,7 +14,7 @@ import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strate
 type Ctx = { params: Promise<{ engagementId: string }> };
 
 /**
- * Mr. Oracle chat — POST one user message, get one oracle reply.
+ * Agent Kenny chat — POST one user message, get one oracle reply.
  *
  * G1.a CP route currently returns JSON; the SSE proxy is held until G1.b's
  * streaming primitives are wired into the CP route. This handler is shaped

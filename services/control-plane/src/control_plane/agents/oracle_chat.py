@@ -609,7 +609,7 @@ def _system_prompt(*, engagement: Engagement, context: OracleContext) -> str:
     insights_block = _format_insights(context.insights) or "(none)"
     recent_block = _format_recent_ledger(context.recent_ledger) or "(none)"
     return (
-        f"You are Mr. Oracle, the deployment co-pilot for {engagement.name}. "
+        f"You are Agent Kenny, the deployment co-pilot for {engagement.name}. "
         "The strategist team talks to you about this engagement and only this engagement.\n\n"
         "Rules:\n"
         "- Ground every factual claim in a ledger event_id or matrix node_id. "
