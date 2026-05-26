@@ -11,19 +11,11 @@ import type { Engagement } from "@/lib/bff/engagement-types";
 import type { AppUser } from "@/lib/internal/tenant-users-cp";
 
 /**
- * Sprint 1 inc 2 — first-run wizard.
+ * Onboarding wizard.
  *
- * Three steps for a fresh tenant: LLM provider → first engagement →
- * first team member. Each step submits independently so a half-finished
- * wizard leaves the database in a valid state — refresh resumes from
- * whichever step still needs work. After step 3 we redirect into the
- * new engagement.
- *
- * Reuses BFF endpoints already shipped:
- *   - PUT /api/bff/tenant/llm-config     (Sprint 1 inc 1)
- *   - POST /api/bff/engagements          (Sprint 1 inc 2)
- *   - POST /api/bff/tenant/users         (Sprint 1 inc 2)
- *   - POST /api/bff/engagements/{id}/members  (Phase 2)
+ * Step 0 is a picker: load the BlueState demo scenario (one click → CP runs
+ * the 26-week seed natively → redirect into the engagement) or start fresh
+ * (the existing LLM → engagement → member 3-step flow).
  */
 
 type ProviderChoice = "anthropic" | "openai" | "stub";
@@ -37,11 +29,11 @@ const ROLE_LABEL: Record<MemberRole, string> = {
   biz_dev: "Business development",
 };
 
-type Step = 1 | 2 | 3;
+type Step = 0 | 1 | 2 | 3;
 
 export function OnboardingWizard() {
   const router = useRouter();
-  const [step, setStep] = React.useState<Step>(1);
+  const [step, setStep] = React.useState<Step>(0);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
 
@@ -60,6 +52,54 @@ export function OnboardingWizard() {
   const [email, setEmail] = React.useState("");
   const [role, setRole] = React.useState<MemberRole>("deployment_strategist");
 
+  const loadBluestate = React.useCallback(async () => {
+    setBusy(true);
+    setErr(null);
+    let target: string | null = null;
+    let conflictId: string | null = null;
+    try {
+      const r = await fetch("/api/bff/onboarding/seed-bluestate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force: false }),
+      });
+      if (r.status === 409) {
+        const conflict = (await r.json()) as { error: string; engagement_id: string };
+        conflictId = conflict.engagement_id;
+        toast("Demo scenario already seeded.", {
+          description: "Open the BlueState engagement?",
+          action: {
+            label: "Open",
+            onClick: () =>
+              router.push(`/engagements/${encodeURIComponent(conflict.engagement_id)}`),
+          },
+        });
+        return;
+      }
+      if (!r.ok) {
+        setErr((await r.text()).slice(0, 240));
+        return;
+      }
+      const body = (await r.json()) as { engagement_id: string };
+      target = body.engagement_id;
+      toast.success("BlueState demo loaded");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not load demo scenario.");
+    } finally {
+      setBusy(false);
+    }
+    if (target) {
+      router.push(`/engagements/${encodeURIComponent(target)}`);
+    }
+    // Discard unused-var lint when the conflict path doesn't navigate.
+    void conflictId;
+  }, [router]);
+
+  const startFresh = React.useCallback(() => {
+    setErr(null);
+    setStep(1);
+  }, []);
+
   const submitLlm = React.useCallback(async () => {
     setBusy(true);
     setErr(null);
@@ -77,7 +117,6 @@ export function OnboardingWizard() {
         setErr((await r.text()).slice(0, 240));
         return;
       }
-      // Don't echo the key into a follow-up step.
       setApiKey("");
       setStep(2);
     } catch (e) {
@@ -155,6 +194,10 @@ export function OnboardingWizard() {
     }
   }, [createdEngagement, userName, email, role, router]);
 
+  const stepLabel =
+    step === 0 ? "Choose" : step === 1 ? "LLM" : step === 2 ? "Engagement" : "Team member";
+  const stepDisplay = step === 0 ? "Start" : `Step ${step} of 3`;
+
   return (
     <section
       aria-labelledby="onboarding-heading"
@@ -166,15 +209,28 @@ export function OnboardingWizard() {
           Set up DeployAI for your team
         </h1>
         <p className="text-ink-600 mt-1 text-sm">
-          Three quick steps to seed the LLM, your first engagement, and the first team member. Your
-          installation will be usable immediately after.
+          Either load the BlueState demo scenario in one click, or walk the three-step setup to
+          configure the LLM, create your first engagement, and add a team member.
         </p>
         <p className="text-ink-700 mt-3 text-xs font-mono uppercase">
-          Step {step} of 3 — {step === 1 ? "LLM" : step === 2 ? "Engagement" : "Team member"}
+          {stepDisplay} — {stepLabel}
         </p>
       </header>
 
       {err ? <p className="text-error-700 text-sm">{err}</p> : null}
+      {busy && step === 0 ? (
+        <p
+          role="status"
+          aria-label="Loading BlueState demo scenario"
+          className="text-ink-700 text-sm"
+        >
+          Loading BlueState demo scenario (this can take 20–40 seconds)…
+        </p>
+      ) : null}
+
+      {step === 0 ? (
+        <PickerStep onLoadBluestate={loadBluestate} onStartFresh={startFresh} busy={busy} />
+      ) : null}
 
       {step === 1 ? (
         <LlmStep
@@ -213,6 +269,41 @@ export function OnboardingWizard() {
         />
       ) : null}
     </section>
+  );
+}
+
+function PickerStep(props: {
+  onLoadBluestate: () => void;
+  onStartFresh: () => void;
+  busy: boolean;
+}) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Button
+        type="button"
+        variant="default"
+        onClick={props.onLoadBluestate}
+        disabled={props.busy}
+        className="h-auto flex-col items-start gap-2 p-4 text-left"
+      >
+        <span className="text-sm font-semibold">Load BlueState demo (26-week scenario)</span>
+        <span className="text-ink-100 text-xs font-normal">
+          One-click seed with stakeholders, decisions, risks, snapshots, and temporal insights.
+        </span>
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={props.onStartFresh}
+        disabled={props.busy}
+        className="h-auto flex-col items-start gap-2 p-4 text-left"
+      >
+        <span className="text-sm font-semibold">Start fresh</span>
+        <span className="text-ink-700 text-xs font-normal">
+          Configure LLM, create your first engagement, and add a team member.
+        </span>
+      </Button>
+    </div>
   );
 }
 
