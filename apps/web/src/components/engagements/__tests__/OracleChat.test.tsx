@@ -333,6 +333,146 @@ describe("OracleChat", () => {
     expect(sendBtn.className).toMatch(/rounded-md/);
   });
 
+  describe("v2 LangGraph stream-v2 path", () => {
+    beforeEach(() => {
+      vi.stubEnv("NEXT_PUBLIC_AGENT_KENNY_V2_ENABLED", "1");
+      // The component reads the env var at module-load via process.env so
+      // a stubbed env var doesn't apply unless we re-evaluate the constant;
+      // we wire fetch through the v2 route by ensuring the v2 handler is
+      // registered and the v1 fallback is hit when v2 returns 404.
+    });
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    function v2SseStream(
+      typedFrames: Array<{ event: string; data: unknown }>,
+    ): ReadableStream<Uint8Array> {
+      const encoder = new TextEncoder();
+      let i = 0;
+      return new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          if (i >= typedFrames.length) {
+            controller.close();
+            return;
+          }
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          const f = typedFrames[i]!;
+          controller.enqueue(
+            encoder.encode(`event: ${f.event}\ndata: ${JSON.stringify(f.data)}\n\n`),
+          );
+          i += 1;
+        },
+      });
+    }
+
+    it("renders thinking + tool_call chips and an unverified citation badge from v2 frames", async () => {
+      installFetch({
+        "/oracle/history": () => ({
+          ok: true,
+          status: 200,
+          json: async () => ({ conversation_id: null, turns: [] }),
+        }),
+        "/oracle/chat/stream-v2": () => ({
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+          body: v2SseStream([
+            { event: "thinking", data: { content: "checking the ledger" } },
+            { event: "tool_call", data: { name: "query_ledger", input: {} } },
+            {
+              event: "tool_result",
+              data: { name: "query_ledger", row_count: 3, truncated: false },
+            },
+            { event: "delta", data: { content: `Two risks. [event:${EVENT_UUID}]` } },
+            {
+              event: "citation_unverified",
+              data: { kind: "event", id: EVENT_UUID, outcome: "not_found" },
+            },
+            {
+              event: "done",
+              data: {
+                turn_id: TURN_ID,
+                conversation_id: CONVO_ID,
+                tokens: 42,
+                tool_calls: 1,
+                revision_attempts: 0,
+                adversarial_concerns: 0,
+                final_text: `Two risks. [event:${EVENT_UUID}]`,
+              },
+            },
+          ]),
+        }),
+      });
+
+      render(<OracleChat engagementId="e1" />);
+      const user = userEvent.setup();
+      await openPanel(user);
+      const input = await screen.findByLabelText(/message agent kenny/i);
+      await user.type(input, "v2 test");
+      await user.click(screen.getByRole("button", { name: /^send$/i }));
+
+      // Reasoning chips appear during streaming. Assert each one individually
+      // because the macrotask scheduler may flush several frames per render
+      // pass — waiting for the latest tells us nothing about whether the
+      // earliest ever rendered, since both end up in the same DOM snapshot.
+      await screen.findByTestId("oracle-chat-thinking");
+      await screen.findByTestId("oracle-chat-tool_call");
+      await screen.findByTestId("oracle-chat-tool_result");
+      await screen.findByTestId("oracle-citation-unverified");
+
+      // Final reply persists with the cited UUID.
+      await waitFor(() => {
+        expect(screen.queryByTestId("oracle-chat-streaming")).toBeNull();
+      });
+      expect(screen.getByText(/two risks/i)).toBeTruthy();
+    });
+
+    it("falls back to v1 stream when v2 returns 404 (feature flag off in CP)", async () => {
+      const calls = installFetch({
+        "/oracle/history": () => ({
+          ok: true,
+          status: 200,
+          json: async () => ({ conversation_id: null, turns: [] }),
+        }),
+        "/oracle/chat/stream-v2": () => ({
+          ok: false,
+          status: 404,
+          json: async () => ({}),
+          body: null,
+        }),
+        "/oracle/chat/stream": () => ({
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+          body: sseStream([
+            JSON.stringify({ delta: "v1 reply", done: false }),
+            JSON.stringify({
+              done: true,
+              turn_id: TURN_ID,
+              conversation_id: CONVO_ID,
+              tokens_used: 22,
+            }),
+          ]),
+        }),
+      });
+
+      render(<OracleChat engagementId="e1" />);
+      const user = userEvent.setup();
+      await openPanel(user);
+      const input = await screen.findByLabelText(/message agent kenny/i);
+      await user.type(input, "fallback");
+      await user.click(screen.getByRole("button", { name: /^send$/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText(/v1 reply/i)).toBeTruthy();
+      });
+      const urls = calls.map((c) => c.url);
+      expect(urls.some((u) => u.includes("/oracle/chat/stream-v2"))).toBe(true);
+      expect(urls.some((u) => u.endsWith("/oracle/chat/stream"))).toBe(true);
+    });
+  });
+
   it("clear button empties the conversation and disables itself when there are no turns", async () => {
     installFetch({
       "/oracle/history": () => ({

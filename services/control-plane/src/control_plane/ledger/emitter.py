@@ -57,6 +57,10 @@ ALLOWED_SOURCE_KINDS: frozenset[str] = frozenset(
         # v2 Phase 1 — Agent Kenny tool layer (scope-v2 §5.4).
         "agent_tool_invocation",
         "propose_action",
+        # v2 Phase 2/3 — Agent Kenny v2 graph (citation verification, audit).
+        "agent_audit_concern",
+        "agent_hallucination_unresolved",
+        "agent_cross_engagement_leak",
     }
 )
 

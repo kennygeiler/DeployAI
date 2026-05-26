@@ -166,6 +166,49 @@ export async function cpStreamOracleChat(
   return r;
 }
 
+/**
+ * v2 Phase 2 — LangGraph multi-step Agent Kenny endpoint. Returns the
+ * upstream Response unmodified (including 404 when the feature flag is
+ * off) so the route layer can fall back to the v1 stream gracefully.
+ */
+export async function cpStreamOracleChatV2(
+  tenantId: string,
+  engagementId: string,
+  actorId: string,
+  body: OracleChatRequest,
+): Promise<Response> {
+  const url =
+    `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}/oracle/chat/stream-v2` +
+    `?tenant_id=${encodeURIComponent(tenantId)}`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: {
+      ...cpHeaders(actorId),
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (r.status === 429) {
+    const raw: unknown = await r.json().catch(() => ({}));
+    const parsed = zOracleBudgetExhausted.safeParse((raw as { detail?: unknown })?.detail ?? raw);
+    if (parsed.success) {
+      throw new OracleBudgetExhaustedError(parsed.data.error, parsed.data.retry_after_iso);
+    }
+    throw new OracleBudgetExhaustedError("daily LLM budget exhausted", "");
+  }
+  // 404 returns intact so the BFF can signal fallback. Other errors surface
+  // through the strategist-bff-cp-error helper.
+  if (r.status === 404) {
+    return r;
+  }
+  if (!r.ok) {
+    throw new Error(`cp oracle chat stream-v2 ${r.status}: ${await r.text()}`);
+  }
+  return r;
+}
+
 export async function cpGetOracleHistory(
   tenantId: string,
   engagementId: string,
