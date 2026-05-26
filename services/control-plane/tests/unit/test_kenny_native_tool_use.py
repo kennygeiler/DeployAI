@@ -112,9 +112,7 @@ async def test_call_llm_with_tools_captures_tool_use_blocks() -> None:
         emitted.append(chunk)
 
     await call_llm_with_tools(provider, state, emit=sink)
-    assert state.pending_tool_calls == [
-        {"name": "get_engagement_summary", "input": {}, "_tool_use_id": "toolu_1"}
-    ]
+    assert state.pending_tool_calls == [{"name": "get_engagement_summary", "input": {}, "_tool_use_id": "toolu_1"}]
     # assistant message persisted with native tool_use block.
     assert len(state.messages) == 1
     assistant = state.messages[0]
@@ -122,9 +120,7 @@ async def test_call_llm_with_tools_captures_tool_use_blocks() -> None:
     blocks = assistant["content"]
     assert isinstance(blocks, list)
     tool_use_blocks = [b for b in blocks if b.get("type") == "tool_use"]
-    assert tool_use_blocks == [
-        {"type": "tool_use", "id": "toolu_1", "name": "get_engagement_summary", "input": {}}
-    ]
+    assert tool_use_blocks == [{"type": "tool_use", "id": "toolu_1", "name": "get_engagement_summary", "input": {}}]
     assert state.final_tokens == 18
     assert any(isinstance(c, ToolCallChunk) and c.name == "get_engagement_summary" for c in emitted)
 
@@ -132,11 +128,7 @@ async def test_call_llm_with_tools_captures_tool_use_blocks() -> None:
 @pytest.mark.asyncio
 async def test_call_llm_with_tools_passes_tool_registry_to_provider() -> None:
     state = _state()
-    provider = _FakeProvider(
-        scripts=[
-            [StopReason(reason="end_turn", usage={"input_tokens": 1, "output_tokens": 1})]
-        ]
-    )
+    provider = _FakeProvider(scripts=[[StopReason(reason="end_turn", usage={"input_tokens": 1, "output_tokens": 1})]])
     await call_llm_with_tools_sync(provider, state)
     assert provider.last_tools is not None
     tool_names = {t["name"] for t in provider.last_tools}
@@ -157,9 +149,7 @@ async def test_build_messages_pairs_tool_result_text_with_tool_use_ids() -> None
     state.messages.append(
         {
             "role": "assistant",
-            "content": [
-                {"type": "tool_use", "id": "toolu_99", "name": "get_engagement_summary", "input": {}}
-            ],
+            "content": [{"type": "tool_use", "id": "toolu_99", "name": "get_engagement_summary", "input": {}}],
         }
     )
     # User-text message tool_dispatch appended (existing string protocol).
@@ -195,17 +185,14 @@ async def test_build_messages_marks_tool_error_results() -> None:
     state.messages.append(
         {
             "role": "assistant",
-            "content": [
-                {"type": "tool_use", "id": "toolu_err", "name": "walk_chain", "input": {}}
-            ],
+            "content": [{"type": "tool_use", "id": "toolu_err", "name": "walk_chain", "input": {}}],
         }
     )
     state.messages.append(
         {
             "role": "user",
             "content": (
-                '<tool_result name="walk_chain" error="tool_error: bad input">'
-                "tool_error: bad input</tool_result>"
+                '<tool_result name="walk_chain" error="tool_error: bad input">tool_error: bad input</tool_result>'
             ),
         }
     )
@@ -256,22 +243,16 @@ async def test_call_llm_with_tools_multi_turn_loops_back_with_tool_result() -> N
     # tool_use + tool_result sequence.
     sent_msgs = provider.last_messages or []
     paired = [m for m in sent_msgs if isinstance(m.get("content"), list)]
-    has_tool_use = any(
-        any(isinstance(b, dict) and b.get("type") == "tool_use" for b in m["content"])
-        for m in paired
-    )
+    has_tool_use = any(any(isinstance(b, dict) and b.get("type") == "tool_use" for b in m["content"]) for m in paired)
     has_tool_result = any(
-        any(isinstance(b, dict) and b.get("type") == "tool_result" for b in m["content"])
-        for m in paired
+        any(isinstance(b, dict) and b.get("type") == "tool_result" for b in m["content"]) for m in paired
     )
     assert has_tool_use and has_tool_result
 
 
 def test_call_llm_with_tools_sync_returns_state() -> None:
     state = _state()
-    provider = _FakeProvider(
-        scripts=[[TextDelta(content="hi"), StopReason(reason="end_turn", usage={})]]
-    )
+    provider = _FakeProvider(scripts=[[TextDelta(content="hi"), StopReason(reason="end_turn", usage={})]])
     out = asyncio.run(call_llm_with_tools_sync(provider, state))
     assert out is state
     assert state.accumulated_text == "hi"
