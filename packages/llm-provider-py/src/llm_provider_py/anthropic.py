@@ -10,7 +10,17 @@ from typing import Any
 import httpx
 
 from llm_provider_py.secrets import resolve_anthropic_api_key, resolve_openai_api_key
-from llm_provider_py.types import CapabilityMatrix, ChatMessage, StreamChunk
+from llm_provider_py.types import (
+    CapabilityMatrix,
+    ChatMessage,
+    StopReason,
+    StreamChunk,
+    TextDelta,
+    ToolStreamChunk,
+    ToolUseEnd,
+    ToolUseInputDelta,
+    ToolUseStart,
+)
 from llm_provider_py.util import DEFAULT_CAPS, UsageCallback, httpx_post_with_retries, pseudo_embed, record_usage
 
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
@@ -52,7 +62,9 @@ class AnthropicProvider:
             role = m.get("role", "user")
             if role not in ("user", "assistant"):
                 continue
-            out.append({"role": role, "content": m.get("content", "")})
+            content = m.get("content", "")
+            # Pass through native content-block lists (tool_use / tool_result) unchanged.
+            out.append({"role": role, "content": content})
         if not out:
             out = [{"role": "user", "content": ""}]
         return out
@@ -173,6 +185,72 @@ class AnthropicProvider:
         # arrived (e.g. truncated stream); caller treats 0 as "unknown" and
         # falls back to its pre-call estimate for budget accounting.
         yield StreamChunk(delta="", done=True, tokens_used=tokens_used)
+
+    async def chat_complete_stream_with_tools(
+        self,
+        messages: list[ChatMessage],
+        tools: list[dict[str, Any]],
+        *,
+        temperature: float = 0.0,
+        max_output_tokens: int = 1024,
+    ) -> AsyncIterator[ToolStreamChunk]:
+        body = self._build_stream_body(messages, temperature=temperature, max_output_tokens=max_output_tokens)
+        if tools:
+            body["tools"] = tools
+        # block index → (id, name, partial-json buffer)
+        active: dict[int, dict[str, Any]] = {}
+        stop_reason: str | None = None
+        usage_input = 0
+        usage_output = 0
+        async for ev in self._iter_sse_events(body):
+            t = ev.get("type")
+            if t == "content_block_start":
+                idx = ev.get("index")
+                block = ev.get("content_block") or {}
+                if isinstance(idx, int) and isinstance(block, dict) and block.get("type") == "tool_use":
+                    active[idx] = {
+                        "id": str(block.get("id", "")),
+                        "name": str(block.get("name", "")),
+                        "buf": "",
+                    }
+                    yield ToolUseStart(id=str(block.get("id", "")), name=str(block.get("name", "")))
+            elif t == "content_block_delta" and isinstance(ev.get("delta"), dict):
+                d = ev["delta"]
+                idx = ev.get("index")
+                if d.get("type") == "text_delta" and "text" in d:
+                    yield TextDelta(content=str(d["text"]))
+                elif d.get("type") == "input_json_delta" and isinstance(idx, int) and idx in active:
+                    partial = str(d.get("partial_json", ""))
+                    active[idx]["buf"] += partial
+                    yield ToolUseInputDelta(id=str(active[idx]["id"]), partial_json=partial)
+            elif t == "content_block_stop":
+                idx = ev.get("index")
+                if isinstance(idx, int) and idx in active:
+                    entry = active.pop(idx)
+                    try:
+                        parsed = json.loads(entry["buf"]) if entry["buf"] else {}
+                    except json.JSONDecodeError:
+                        parsed = {}
+                    if not isinstance(parsed, dict):
+                        parsed = {}
+                    yield ToolUseEnd(id=str(entry["id"]), name=str(entry["name"]), input=parsed)
+            elif t == "message_delta":
+                d = ev.get("delta")
+                if isinstance(d, dict) and isinstance(d.get("stop_reason"), str):
+                    stop_reason = str(d["stop_reason"])
+                u = ev.get("usage")
+                if isinstance(u, dict):
+                    usage_output = int(u.get("output_tokens", usage_output) or usage_output)
+                    usage_input = int(u.get("input_tokens", usage_input) or usage_input)
+            elif t == "message_start" and isinstance(ev.get("message"), dict):
+                u = ev["message"].get("usage")
+                if isinstance(u, dict):
+                    usage_input = max(usage_input, int(u.get("input_tokens", 0) or 0))
+                    usage_output = max(usage_output, int(u.get("output_tokens", 0) or 0))
+        yield StopReason(
+            reason=stop_reason or "end_turn",
+            usage={"input_tokens": usage_input, "output_tokens": usage_output},
+        )
 
     async def _iter_sse_events(self, body: dict[str, Any]) -> AsyncGenerator[dict[str, Any]]:
         import httpx as hx

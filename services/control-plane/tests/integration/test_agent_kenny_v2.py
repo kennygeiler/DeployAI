@@ -16,7 +16,16 @@ from typing import Any
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from llm_provider_py.types import CapabilityMatrix, ChatMessage, StreamChunk
+from llm_provider_py.types import (
+    CapabilityMatrix,
+    ChatMessage,
+    StopReason,
+    StreamChunk,
+    TextDelta,
+    ToolStreamChunk,
+    ToolUseEnd,
+    ToolUseStart,
+)
 from llm_provider_py.util import DEFAULT_CAPS, pseudo_embed
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
@@ -29,8 +38,49 @@ from control_plane.main import app
 pytestmark = pytest.mark.integration
 
 
+_TOOL_CALL_SCRIPT_RE = __import__("re").compile(
+    r"<tool_call>(.*?)</tool_call>",
+    __import__("re").DOTALL,
+)
+
+
+def _split_reply_for_tool_use(reply: str) -> tuple[str, list[dict[str, Any]]]:
+    """Split a legacy scripted reply into (visible_text, tool_use_blocks).
+
+    Existing tests build replies as plain text with embedded
+    ``<tool_call>{json}</tool_call>`` segments. We parse them out here so
+    the stub can emit them as native ``tool_use`` blocks via the new
+    protocol — keeping the script interface stable while the underlying
+    transport flips to native tool_use.
+    """
+    blocks: list[dict[str, Any]] = []
+    for idx, m in enumerate(_TOOL_CALL_SCRIPT_RE.finditer(reply)):
+        body = m.group(1).strip()
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        name = payload.get("name")
+        if not isinstance(name, str):
+            continue
+        input_obj = payload.get("input", {})
+        if not isinstance(input_obj, dict):
+            input_obj = {}
+        blocks.append({"id": f"toolu_script_{idx}", "name": name, "input": input_obj})
+    text_remaining = _TOOL_CALL_SCRIPT_RE.sub("", reply).strip()
+    return text_remaining, blocks
+
+
 class _LLMScript:
-    """Stub provider that returns one scripted reply per ``chat_complete_stream`` call."""
+    """Stub provider that returns one scripted reply per LLM call.
+
+    The ``_replies`` script remains expressed as text with embedded
+    ``<tool_call>{json}</tool_call>`` segments for ergonomic test
+    authoring; this stub translates each call into the native tool_use
+    chunk sequence the Phase 2 follow-up llm_call node now consumes.
+    """
 
     id = "stub-v2"
 
@@ -74,10 +124,33 @@ class _LLMScript:
         idx = self.calls
         self.calls += 1
         text_val = self._replies[idx] if idx < len(self._replies) else ""
-        # Emit a single chunk per call for determinism.
         if text_val:
             yield StreamChunk(delta=text_val, done=False, tokens_used=0)
         yield StreamChunk(delta="", done=True, tokens_used=120)
+
+    async def chat_complete_stream_with_tools(
+        self,
+        messages: list[ChatMessage],
+        tools: list[dict[str, Any]],
+        *,
+        temperature: float = 0.0,
+        max_output_tokens: int = 1024,
+    ) -> AsyncIterator[ToolStreamChunk]:
+        _ = tools, temperature, max_output_tokens
+        self.last_messages = messages
+        idx = self.calls
+        self.calls += 1
+        reply = self._replies[idx] if idx < len(self._replies) else ""
+        text_val, tool_blocks = _split_reply_for_tool_use(reply)
+        if text_val:
+            yield TextDelta(content=text_val)
+        for block in tool_blocks:
+            yield ToolUseStart(id=block["id"], name=block["name"])
+            yield ToolUseEnd(id=block["id"], name=block["name"], input=block["input"])
+        yield StopReason(
+            reason="tool_use" if tool_blocks else "end_turn",
+            usage={"input_tokens": 80, "output_tokens": 40},
+        )
 
     def embed(self, text: str) -> list[float]:
         return pseudo_embed(text, 16)
