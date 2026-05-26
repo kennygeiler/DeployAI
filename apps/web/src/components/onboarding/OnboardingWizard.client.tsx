@@ -13,9 +13,9 @@ import type { AppUser } from "@/lib/internal/tenant-users-cp";
 /**
  * Onboarding wizard.
  *
- * Step 0 is a picker: load the BlueState demo scenario (one click → CP runs
- * the 26-week seed natively → redirect into the engagement) or start fresh
- * (the existing LLM → engagement → member 3-step flow).
+ * Step 0 is a picker: load a pre-canned scenario (BlueState 26-week demo,
+ * BlueState-XL 5-year stress test, or DeployAI Portfolio multi-engagement
+ * isolation fixture) or start fresh (LLM → engagement → member 3-step flow).
  */
 
 type ProviderChoice = "anthropic" | "openai" | "stub";
@@ -56,7 +56,6 @@ export function OnboardingWizard() {
     setBusy(true);
     setErr(null);
     let target: string | null = null;
-    let conflictId: string | null = null;
     try {
       const r = await fetch("/api/bff/onboarding/seed-bluestate", {
         method: "POST",
@@ -65,7 +64,6 @@ export function OnboardingWizard() {
       });
       if (r.status === 409) {
         const conflict = (await r.json()) as { error: string; engagement_id: string };
-        conflictId = conflict.engagement_id;
         toast("Demo scenario already seeded.", {
           description: "Open the BlueState engagement?",
           action: {
@@ -91,15 +89,51 @@ export function OnboardingWizard() {
     if (target) {
       router.push(`/engagements/${encodeURIComponent(target)}`);
     }
-    // Discard unused-var lint when the conflict path doesn't navigate.
-    void conflictId;
+  }, [router]);
+
+  const loadBluestateXl = React.useCallback(async () => {
+    setBusy(true);
+    setErr(null);
+    let target: string | null = null;
+    try {
+      const r = await fetch("/api/bff/onboarding/seed-bluestate-xl", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force: false }),
+      });
+      if (r.status === 409) {
+        const conflict = (await r.json()) as { error: string; engagement_id: string };
+        toast("BlueState-XL already seeded.", {
+          description: "Open the 5-year engagement?",
+          action: {
+            label: "Open",
+            onClick: () =>
+              router.push(`/engagements/${encodeURIComponent(conflict.engagement_id)}`),
+          },
+        });
+        return;
+      }
+      if (!r.ok) {
+        setErr((await r.text()).slice(0, 240));
+        return;
+      }
+      const body = (await r.json()) as { engagement_id: string };
+      target = body.engagement_id;
+      toast.success("BlueState-XL loaded");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not load BlueState-XL.");
+    } finally {
+      setBusy(false);
+    }
+    if (target) {
+      router.push(`/engagements/${encodeURIComponent(target)}`);
+    }
   }, [router]);
 
   const loadPortfolio = React.useCallback(async () => {
     setBusy(true);
     setErr(null);
     let target: string | null = null;
-    let conflictIds: string[] | null = null;
     try {
       const r = await fetch("/api/bff/onboarding/seed-portfolio", {
         method: "POST",
@@ -108,7 +142,6 @@ export function OnboardingWizard() {
       });
       if (r.status === 409) {
         const conflict = (await r.json()) as { error: string; engagement_ids: string[] };
-        conflictIds = conflict.engagement_ids;
         const firstId = conflict.engagement_ids[0];
         toast("Portfolio fixture already seeded.", {
           description: firstId ? "Open the first portfolio engagement?" : undefined,
@@ -138,7 +171,6 @@ export function OnboardingWizard() {
     if (target) {
       router.push(`/engagements/${encodeURIComponent(target)}`);
     }
-    void conflictIds;
   }, [router]);
 
   const startFresh = React.useCallback(() => {
@@ -248,15 +280,15 @@ export function OnboardingWizard() {
     <section
       aria-labelledby="onboarding-heading"
       aria-busy={busy ? "true" : "false"}
-      className="max-w-xl space-y-6"
+      className="max-w-4xl space-y-6"
     >
       <header>
         <h1 id="onboarding-heading" className="text-xl font-semibold">
           Set up DeployAI for your team
         </h1>
         <p className="text-ink-600 mt-1 text-sm">
-          Either load the BlueState demo scenario in one click, or walk the three-step setup to
-          configure the LLM, create your first engagement, and add a team member.
+          Load a pre-canned scenario in one click, or walk the three-step setup to configure the
+          LLM, create your first engagement, and add a team member.
         </p>
         <p className="text-ink-700 mt-3 text-xs font-mono uppercase">
           {stepDisplay} — {stepLabel}
@@ -265,18 +297,15 @@ export function OnboardingWizard() {
 
       {err ? <p className="text-error-700 text-sm">{err}</p> : null}
       {busy && step === 0 ? (
-        <p
-          role="status"
-          aria-label="Loading BlueState demo scenario"
-          className="text-ink-700 text-sm"
-        >
-          Loading BlueState demo scenario (this can take 20–40 seconds)…
+        <p role="status" aria-label="Loading scenario" className="text-ink-700 text-sm">
+          Loading scenario (this can take 20–60 seconds)…
         </p>
       ) : null}
 
       {step === 0 ? (
         <PickerStep
           onLoadBluestate={loadBluestate}
+          onLoadBluestateXl={loadBluestateXl}
           onLoadPortfolio={loadPortfolio}
           onStartFresh={startFresh}
           busy={busy}
@@ -325,12 +354,13 @@ export function OnboardingWizard() {
 
 function PickerStep(props: {
   onLoadBluestate: () => void;
+  onLoadBluestateXl: () => void;
   onLoadPortfolio: () => void;
   onStartFresh: () => void;
   busy: boolean;
 }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
       <Button
         type="button"
         variant="default"
@@ -341,6 +371,18 @@ function PickerStep(props: {
         <span className="text-sm font-semibold">Load BlueState demo (26-week scenario)</span>
         <span className="text-ink-100 text-xs font-normal">
           One-click seed with stakeholders, decisions, risks, snapshots, and temporal insights.
+        </span>
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={props.onLoadBluestateXl}
+        disabled={props.busy}
+        className="h-auto flex-col items-start gap-2 whitespace-normal break-words p-4 text-left"
+      >
+        <span className="text-sm font-semibold">Load BlueState-XL (5-year stress test)</span>
+        <span className="text-ink-700 text-xs font-normal">
+          Stress-test fixture for Agent Kenny v2 — 5 years of compounded events.
         </span>
       </Button>
       <Button
@@ -389,7 +431,7 @@ function LlmStep(props: {
         e.preventDefault();
         props.onSubmit();
       }}
-      className="space-y-4"
+      className="max-w-xl space-y-4"
     >
       <div className="space-y-2">
         <Label htmlFor="ob-provider">Provider</Label>
@@ -453,7 +495,7 @@ function EngagementStep(props: {
         e.preventDefault();
         if (canSubmit) props.onSubmit();
       }}
-      className="space-y-4"
+      className="max-w-xl space-y-4"
     >
       <div className="space-y-2">
         <Label htmlFor="ob-eng-name">Engagement name</Label>
@@ -500,7 +542,7 @@ function MemberStep(props: {
         e.preventDefault();
         if (canSubmit) props.onSubmit();
       }}
-      className="space-y-4"
+      className="max-w-xl space-y-4"
     >
       <div className="space-y-2">
         <Label htmlFor="ob-user-name">Username</Label>
