@@ -1,0 +1,68 @@
+[project]
+name = "deployai-mcp-server"
+version = "0.1.0"
+description = "DeployAI MCP inbound server — exposes engagement matrix + ledger to external MCP clients (scope-v2 §8)."
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "fastapi>=0.136.0",
+  "pydantic>=2.9.0",
+  "uvicorn[standard]>=0.32.0",
+  "sqlalchemy[asyncio]>=2.0.36",
+  "asyncpg>=0.30.0",
+  "httpx>=0.28.0",
+  "deployai-control-plane",
+]
+
+[tool.uv.sources]
+deployai-control-plane = { path = "../control-plane", editable = true }
+
+[dependency-groups]
+dev = [
+  "ruff>=0.7.4",
+  "mypy>=1.13.0",
+  "pytest>=8.3.3",
+  "pytest-asyncio>=0.24.0",
+  "httpx>=0.28.1",
+  "aiosqlite>=0.20.0",
+  "testcontainers[postgres]>=4.9.0",
+  "psycopg[binary]>=3.2.0",
+  "alembic>=1.14.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mcp_server"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "ASYNC", "RUF"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+packages = ["mcp_server"]
+
+[[tool.mypy.overrides]]
+module = ["control_plane", "control_plane.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "--import-mode=importlib"
+markers = [
+  "integration: requires a reachable Docker daemon (testcontainers)",
+]
