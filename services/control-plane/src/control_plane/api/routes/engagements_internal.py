@@ -65,9 +65,10 @@ from control_plane.domain.canonical_memory.node_types import (
     resolve_allowed_node_types,
 )
 from control_plane.domain.engagement import Engagement, EngagementMember
-from control_plane.domain.ledger import LedgerEvent
+from control_plane.domain.ledger import LedgerEvent, TemporalInsight
 from control_plane.domain.matrix_snapshot import MatrixSnapshot
 from control_plane.domain.member_roles import resolve_allowed_member_roles
+from control_plane.domain.strategist_queues import StrategistActionQueueItem
 from control_plane.ledger import emit_ledger_event
 from control_plane.phases.machine import DEPLOYMENT_PHASES, default_phase
 from control_plane.webhooks.dispatcher import dispatch as dispatch_webhook
@@ -1844,3 +1845,156 @@ async def get_matrix_snapshot(
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="no snapshot at or before requested date")
     return MatrixSnapshotRead(captured_at=row.captured_at, nodes=row.nodes, edges=row.edges)
+
+
+# --- Phase G4.b — temporal insight quick-actions (snooze + followup) ---
+
+
+class TemporalInsightSnoozeBody(BaseModel):
+    days: int = Field(ge=1, le=90)
+
+
+class TemporalInsightFollowupBody(BaseModel):
+    owner_user_id: uuid.UUID
+    due_date: date
+
+
+class TemporalInsightSnoozeResponse(BaseModel):
+    insight_id: uuid.UUID
+    status: str
+    snoozed_until: datetime
+
+
+class TemporalInsightFollowupResponse(BaseModel):
+    action_queue_item_id: str
+    insight_id: uuid.UUID
+
+
+async def _require_temporal_insight(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    engagement_id: uuid.UUID,
+    insight_id: uuid.UUID,
+) -> TemporalInsight:
+    r = await session.execute(
+        select(TemporalInsight).where(
+            TemporalInsight.tenant_id == tenant_id,
+            TemporalInsight.engagement_id == engagement_id,
+            TemporalInsight.id == insight_id,
+        )
+    )
+    row = r.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="insight not found")
+    return row
+
+
+@router.post(
+    "/{engagement_id}/insights/{insight_id}/snooze",
+    response_model=TemporalInsightSnoozeResponse,
+    dependencies=[Depends(require_internal)],
+)
+async def snooze_temporal_insight(
+    engagement_id: uuid.UUID,
+    insight_id: uuid.UUID,
+    body: TemporalInsightSnoozeBody,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+) -> TemporalInsightSnoozeResponse:
+    await _require_engagement(session, tenant_id, engagement_id)
+    row = await _require_temporal_insight(session, tenant_id, engagement_id, insight_id)
+    now = datetime.now(UTC)
+    row.status = "snoozed"
+    row.snoozed_until = now + timedelta(days=body.days)
+    await session.flush()
+    await emit_ledger_event(
+        session,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        occurred_at=now,
+        actor_kind="user",
+        actor_id=None,
+        source_kind="insight_snoozed",
+        source_ref=row.id,
+        summary=f"insight snoozed {body.days}d: {row.title}"[:500],
+        detail={
+            "days": body.days,
+            "snoozed_until": row.snoozed_until.isoformat(),
+            "insight_kind": row.insight_kind,
+        },
+        affects=[("insight", row.id)],
+    )
+    await session.commit()
+    await session.refresh(row)
+    assert row.snoozed_until is not None
+    return TemporalInsightSnoozeResponse(
+        insight_id=row.id,
+        status=row.status,
+        snoozed_until=row.snoozed_until,
+    )
+
+
+@router.post(
+    "/{engagement_id}/insights/{insight_id}/followup",
+    response_model=TemporalInsightFollowupResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_internal)],
+)
+async def create_insight_followup(
+    engagement_id: uuid.UUID,
+    insight_id: uuid.UUID,
+    body: TemporalInsightFollowupBody,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+) -> TemporalInsightFollowupResponse:
+    await _require_engagement(session, tenant_id, engagement_id)
+    insight = await _require_temporal_insight(session, tenant_id, engagement_id, insight_id)
+    now = datetime.now(UTC)
+    item_id = f"fu-{uuid.uuid4()}"
+    item = StrategistActionQueueItem(
+        id=item_id,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        priority="normal",
+        phase="followup",
+        description=f"Follow up: {insight.title}"[:500],
+        status="open",
+        claimed_by=str(body.owner_user_id),
+        updated_at=now,
+        source=f"insight:{insight.id}",
+        evidence_node_ids=[],
+        resolution_reason=None,
+        evidence_event_ids={
+            "linked_insight_id": str(insight.id),
+            "due_date": body.due_date.isoformat(),
+            "owner_user_id": str(body.owner_user_id),
+        },
+    )
+    session.add(item)
+    await session.flush()
+    evidence = list(insight.evidence_event_ids or [])
+    caused_by = [evidence[0]] if evidence else []
+    await emit_ledger_event(
+        session,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        occurred_at=now,
+        actor_kind="user",
+        actor_id=None,
+        source_kind="followup_task_created",
+        source_ref=insight.id,
+        summary=f"followup task created: {insight.title}"[:500],
+        detail={
+            "action_queue_item_id": item_id,
+            "owner_user_id": str(body.owner_user_id),
+            "due_date": body.due_date.isoformat(),
+            "insight_kind": insight.insight_kind,
+        },
+        caused_by=caused_by,
+        affects=[("insight", insight.id)],
+    )
+    await session.commit()
+    return TemporalInsightFollowupResponse(
+        action_queue_item_id=item_id,
+        insight_id=insight.id,
+    )

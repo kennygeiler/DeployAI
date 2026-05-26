@@ -118,4 +118,4 @@ def test_entity_kinds_match_design_doc() -> None:
 
 def test_temporal_severity_and_status_enums() -> None:
     assert TEMPORAL_SEVERITIES == ("info", "low", "medium", "high", "critical")
-    assert TEMPORAL_STATUSES == ("open", "acknowledged", "dismissed", "resolved")
+    assert TEMPORAL_STATUSES == ("open", "acknowledged", "dismissed", "resolved", "snoozed")

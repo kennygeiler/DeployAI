@@ -183,3 +183,60 @@ export function cpResolveTenantInsight(
 ): Promise<MatrixInsight> {
   return cpDecideTenantInsight(tenantId, insightId, "resolve", body);
 }
+
+// --- G4.b — temporal insight snooze + followup quick-actions ----------------
+
+export type TemporalInsightSnoozeResponse = {
+  insight_id: string;
+  status: string;
+  snoozed_until: string;
+};
+
+export type TemporalInsightFollowupResponse = {
+  action_queue_item_id: string;
+  insight_id: string;
+};
+
+export async function cpSnoozeTemporalInsight(
+  tenantId: string,
+  engagementId: string,
+  insightId: string,
+  body: { days: number },
+): Promise<TemporalInsightSnoozeResponse> {
+  const url =
+    `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}` +
+    `/insights/${encodeURIComponent(insightId)}/snooze` +
+    `?tenant_id=${encodeURIComponent(tenantId)}`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { ...cpHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    throw new Error(`cp insight snooze ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as TemporalInsightSnoozeResponse;
+}
+
+export async function cpCreateInsightFollowup(
+  tenantId: string,
+  engagementId: string,
+  insightId: string,
+  body: { owner_user_id: string; due_date: string },
+): Promise<TemporalInsightFollowupResponse> {
+  const url =
+    `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}` +
+    `/insights/${encodeURIComponent(insightId)}/followup` +
+    `?tenant_id=${encodeURIComponent(tenantId)}`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { ...cpHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    throw new Error(`cp insight followup ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as TemporalInsightFollowupResponse;
+}

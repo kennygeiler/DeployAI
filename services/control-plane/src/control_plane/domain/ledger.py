@@ -166,6 +166,7 @@ class TemporalInsight(Base):
     )
     acknowledged_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     acknowledged_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    snoozed_until: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,
@@ -179,7 +180,7 @@ class TemporalInsight(Base):
             name="temporal_severity_enum",
         ),
         CheckConstraint(
-            "status IN ('open','acknowledged','dismissed','resolved')",
+            "status IN ('open','acknowledged','dismissed','resolved','snoozed')",
             name="temporal_status_enum",
         ),
         Index(
@@ -224,7 +225,7 @@ LEDGER_SOURCE_KINDS: frozenset[str] = frozenset(
 LEDGER_AFFECTS_ENTITY_KINDS: frozenset[str] = frozenset({"matrix_node", "matrix_edge", "insight", "recommendation"})
 
 TEMPORAL_SEVERITIES: tuple[str, ...] = ("info", "low", "medium", "high", "critical")
-TEMPORAL_STATUSES: tuple[str, ...] = ("open", "acknowledged", "dismissed", "resolved")
+TEMPORAL_STATUSES: tuple[str, ...] = ("open", "acknowledged", "dismissed", "resolved", "snoozed")
 
 __all__ = [
     "LEDGER_AFFECTS_ENTITY_KINDS",
