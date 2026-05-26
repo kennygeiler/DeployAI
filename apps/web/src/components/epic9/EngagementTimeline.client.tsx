@@ -2,11 +2,13 @@
 
 import { XIcon } from "lucide-react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 
 import { TimestampLabel } from "@/components/common/TimestampLabel.client";
 import { Button } from "@/components/ui/button";
+import { HorizontalTimeline } from "@/components/epic9/HorizontalTimeline.client";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 import type { LedgerEvent } from "@/lib/internal/ledger-cp";
 
@@ -91,17 +93,32 @@ function ledgerToTimelineEvent(ev: LedgerEvent): TimelineEvent {
   };
 }
 
+type ViewMode = "list" | "horizontal";
+
 export function EngagementTimeline({
   engagementId,
   affectsFilter,
   eventId,
   initialSourceKinds = [],
+  initialView,
 }: {
   engagementId: string;
   affectsFilter?: AffectsFilter | null;
   eventId?: string | null;
   initialSourceKinds?: string[];
+  initialView?: ViewMode;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const urlView: ViewMode | null = searchParams?.get("view") === "horizontal" ? "horizontal" : null;
+  const [view, setView] = React.useState<ViewMode>(urlView ?? initialView ?? "list");
+  React.useEffect(() => {
+    if (!urlView || urlView === view) return;
+    const t = window.setTimeout(() => setView(urlView), 0);
+    return () => clearTimeout(t);
+  }, [urlView, view]);
+
   const [source, setSource] = React.useState<SourceState>({ kind: "timeline", events: [] });
   const [loading, setLoading] = React.useState(true);
   const [err, setErr] = React.useState<string | null>(null);
@@ -122,7 +139,7 @@ export function EngagementTimeline({
         // need for both the affects-filter chip and the event-jump source-kind
         // broadening behavior. The lighter `/timeline` route is only used when
         // no URL-driven behavior is active.
-        if (affectsNodeId || eventId) {
+        if (affectsNodeId || eventId || view === "horizontal") {
           const qs = new URLSearchParams({ limit: "500" });
           if (affectsNodeId) {
             qs.set("affects_entity_kind", "matrix_node");
@@ -166,7 +183,7 @@ export function EngagementTimeline({
     return () => {
       cancelled = true;
     };
-  }, [engagementId, affectsNodeId, eventId]);
+  }, [engagementId, affectsNodeId, eventId, view]);
 
   const events = React.useMemo<TimelineEvent[]>(() => {
     if (source.kind === "timeline") return source.events;
@@ -175,6 +192,28 @@ export function EngagementTimeline({
       .filter((ev) => (allow ? allow.has(ev.source_kind) : true))
       .map(ledgerToTimelineEvent);
   }, [source, sourceKinds]);
+
+  const horizontalEvents = React.useMemo(() => {
+    if (source.kind === "ledger") {
+      const allow = sourceKinds.length === 0 ? null : new Set(sourceKinds);
+      return source.events
+        .filter((ev) => (allow ? allow.has(ev.source_kind) : true))
+        .map((ev) => ({
+          id: ev.id,
+          occurred_at: ev.occurred_at,
+          source_kind: ev.source_kind,
+          summary: ev.summary,
+          actor_kind: ev.actor_kind,
+        }));
+    }
+    return events.map((ev) => ({
+      id: ev.id,
+      occurred_at: ev.occurred_at,
+      source_kind: ev.event_type,
+      summary: ev.summary,
+      actor_kind: null,
+    }));
+  }, [source, sourceKinds, events]);
 
   // Event-jump: scroll & highlight once events have rendered. Broaden the
   // source-kind filter automatically if the target is filtered out, otherwise
@@ -240,12 +279,71 @@ export function EngagementTimeline({
     }
   }, []);
 
+  const buildViewHref = React.useCallback(
+    (target: ViewMode): string => {
+      const sp = new URLSearchParams(searchParams?.toString() ?? "");
+      if (target === "horizontal") sp.set("view", "horizontal");
+      else sp.delete("view");
+      const qs = sp.toString();
+      return qs ? `${pathname}?${qs}` : (pathname ?? "");
+    },
+    [pathname, searchParams],
+  );
+
+  const handleSetView = React.useCallback(
+    (target: ViewMode) => {
+      setView(target);
+      const href = buildViewHref(target);
+      if (router && href) router.replace(href, { scroll: false });
+    },
+    [buildViewHref, router],
+  );
+
+  const handleHorizontalSelect = React.useCallback(
+    (selectedId: string) => {
+      const sp = new URLSearchParams(searchParams?.toString() ?? "");
+      sp.set("event", selectedId);
+      sp.set("view", "horizontal");
+      const qs = sp.toString();
+      const href = qs ? `${pathname}?${qs}` : (pathname ?? "");
+      if (router && href) router.replace(href, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
   return (
     <section aria-labelledby="engagement-timeline-heading" className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <h2 id="engagement-timeline-heading" className="text-ink-800 text-sm font-semibold">
           Timeline
         </h2>
+        <div
+          role="group"
+          aria-label="Timeline view mode"
+          className="inline-flex gap-1"
+          data-testid="timeline-view-toggle"
+        >
+          <Button
+            type="button"
+            variant={view === "list" ? "default" : "outline"}
+            size="xs"
+            aria-pressed={view === "list"}
+            data-testid="timeline-view-toggle-list"
+            onClick={() => handleSetView("list")}
+          >
+            List
+          </Button>
+          <Button
+            type="button"
+            variant={view === "horizontal" ? "default" : "outline"}
+            size="xs"
+            aria-pressed={view === "horizontal"}
+            data-testid="timeline-view-toggle-horizontal"
+            onClick={() => handleSetView("horizontal")}
+          >
+            Horizontal
+          </Button>
+        </div>
       </div>
       {affectsFilter || sourceKinds.length > 0 ? (
         <div
@@ -297,7 +395,13 @@ export function EngagementTimeline({
       {err ? <p className="text-error-700 text-sm">{err}</p> : null}
       {loading ? (
         <p className="text-ink-600 text-sm">Loading…</p>
-      ) : err ? null : groups.length === 0 ? (
+      ) : err ? null : view === "horizontal" ? (
+        <HorizontalTimeline
+          events={horizontalEvents}
+          focusedEventId={eventId ?? null}
+          onSelect={handleHorizontalSelect}
+        />
+      ) : groups.length === 0 ? (
         <p className="text-ink-600 text-sm">
           {affectsFilter
             ? `No timeline events affect ${affectsFilter.nodeTitle}.`

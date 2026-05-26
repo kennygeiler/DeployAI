@@ -1,11 +1,31 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { toastMock } = vi.hoisted(() => ({ toastMock: vi.fn() }));
 
 vi.mock("sonner", () => {
   const t = Object.assign(toastMock, { success: vi.fn(), error: vi.fn() });
   return { toast: t };
+});
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    replace: vi.fn(),
+    push: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+  }),
+  usePathname: () => "/engagements/eng-1/timeline",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+beforeAll(() => {
+  class RO {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  vi.stubGlobal("ResizeObserver", RO);
 });
 
 import { EngagementTimeline } from "./EngagementTimeline.client";

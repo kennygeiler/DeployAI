@@ -1,5 +1,25 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    replace: vi.fn(),
+    push: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+  }),
+  usePathname: () => "/engagements/eng-1/timeline",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+beforeAll(() => {
+  class RO {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  vi.stubGlobal("ResizeObserver", RO);
+});
 
 import { EngagementTimeline } from "./EngagementTimeline.client";
 import type { LedgerEvent } from "@/lib/internal/ledger-cp";
