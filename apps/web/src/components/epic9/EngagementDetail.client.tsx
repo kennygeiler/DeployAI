@@ -13,6 +13,7 @@ import { MatrixProposals } from "@/components/epic9/MatrixProposals.client";
 import { RecommendationsPanel } from "@/components/epic9/RecommendationsPanel.client";
 import { RoleLensFilter } from "@/components/epic9/RoleLensFilter.client";
 import { MatrixNodeDetail } from "@/components/engagements/MatrixNodeDetail.client";
+import { OracleChat } from "@/components/engagements/OracleChat.client";
 import { Button } from "@/components/ui/button";
 import type { Engagement, EngagementMember } from "@/lib/bff/engagement-types";
 import type { MatrixEdge, MatrixNode, MatrixProposal } from "@/lib/bff/matrix-types";
@@ -463,6 +464,8 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
             </p>
             <InteractionImport engagementId={engagementId} onChanged={refresh} />
           </section>
+
+          <OracleChat engagementId={engagementId} />
         </>
       ) : null}
     </div>
