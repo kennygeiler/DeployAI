@@ -3,8 +3,10 @@
 import { XIcon } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
+import { toast } from "sonner";
 
 import { TimestampLabel } from "@/components/common/TimestampLabel.client";
+import { Button } from "@/components/ui/button";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 import type { LedgerEvent } from "@/lib/internal/ledger-cp";
 
@@ -16,11 +18,9 @@ type TimelineEvent = {
   summary: string;
 };
 
-export type StakeholderFilter = {
-  id: string;
-  title: string;
-  email: string | null;
-  evidenceEventIds: string[];
+export type AffectsFilter = {
+  nodeId: string;
+  nodeTitle: string;
   clearHref: string;
 };
 
@@ -30,11 +30,14 @@ type WeekGroup = {
   events: TimelineEvent[];
 };
 
+type SourceState =
+  | { kind: "ledger"; events: LedgerEvent[] }
+  | { kind: "timeline"; events: TimelineEvent[] };
+
 const DAY_MS = 24 * 60 * 60 * 1000;
+const HIGHLIGHT_DURATION_MS = 2500;
 
 function isoWeekKey(d: Date): { key: string; year: number; week: number } {
-  // ISO 8601 week: Thursday in current week decides the year. Days from
-  // Monday=1..Sunday=7. Standard algorithm — no library needed.
   const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   const dayNum = t.getUTCDay() === 0 ? 7 : t.getUTCDay();
   t.setUTCDate(t.getUTCDate() + 4 - dayNum);
@@ -45,7 +48,6 @@ function isoWeekKey(d: Date): { key: string; year: number; week: number } {
 }
 
 function weekRangeLabel(year: number, week: number): string {
-  // ISO week 1 is the week containing Jan 4 — compute the Monday of that week.
   const jan4 = new Date(Date.UTC(year, 0, 4));
   const jan4Day = jan4.getUTCDay() === 0 ? 7 : jan4.getUTCDay();
   const week1Monday = new Date(jan4);
@@ -72,7 +74,6 @@ function groupByWeek(events: TimelineEvent[]): WeekGroup[] {
     group.events.push(ev);
   }
   const groups = Array.from(buckets.values());
-  // Newest week first; within a week, newest event first.
   groups.sort((a, b) => (a.key < b.key ? 1 : a.key > b.key ? -1 : 0));
   for (const g of groups) {
     g.events.sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : -1));
@@ -90,94 +91,154 @@ function ledgerToTimelineEvent(ev: LedgerEvent): TimelineEvent {
   };
 }
 
-function ledgerMatchesStakeholder(ev: LedgerEvent, filter: StakeholderFilter): boolean {
-  if (filter.evidenceEventIds.includes(ev.id)) return true;
-  if (filter.email && ev.actor_id && ev.actor_id.toLowerCase() === filter.email.toLowerCase()) {
-    return true;
-  }
-  return false;
-}
-
 export function EngagementTimeline({
   engagementId,
-  stakeholderFilter,
+  affectsFilter,
+  eventId,
+  initialSourceKinds = [],
 }: {
   engagementId: string;
-  stakeholderFilter?: StakeholderFilter;
+  affectsFilter?: AffectsFilter | null;
+  eventId?: string | null;
+  initialSourceKinds?: string[];
 }) {
-  const [events, setEvents] = React.useState<TimelineEvent[]>([]);
+  const [source, setSource] = React.useState<SourceState>({ kind: "timeline", events: [] });
   const [loading, setLoading] = React.useState(true);
   const [err, setErr] = React.useState<string | null>(null);
-  const filterId = stakeholderFilter?.id ?? null;
-  const filterEmail = stakeholderFilter?.email ?? null;
-  const filterEvidenceKey = stakeholderFilter?.evidenceEventIds.join(",") ?? "";
+  const [sourceKinds, setSourceKinds] = React.useState<string[]>(initialSourceKinds);
+  const [highlightedId, setHighlightedId] = React.useState<string | null>(null);
+  const itemRefs = React.useRef<Map<string, HTMLLIElement>>(new Map());
+  const jumpHandledRef = React.useRef<string | null>(null);
+  const broadenedForRef = React.useRef<string | null>(null);
+
+  const affectsNodeId = affectsFilter?.nodeId ?? null;
 
   React.useEffect(() => {
     let cancelled = false;
     void (async () => {
       setLoading(true);
       try {
-        // Stakeholder filter requires actor_id + per-event ids only the ledger
-        // BFF exposes — fall back to the lighter /timeline route otherwise so
-        // the engagement-detail page surface stays cheap.
-        if (filterId) {
+        // The ledger BFF gives us per-event `source_kind` + `affects` metadata we
+        // need for both the affects-filter chip and the event-jump source-kind
+        // broadening behavior. The lighter `/timeline` route is only used when
+        // no URL-driven behavior is active.
+        if (affectsNodeId || eventId) {
+          const qs = new URLSearchParams({ limit: "500" });
+          if (affectsNodeId) {
+            qs.set("affects_entity_kind", "matrix_node");
+            qs.set("affects_entity_id", affectsNodeId);
+          }
           const r = await fetch(
-            `/api/bff/engagements/${encodeURIComponent(engagementId)}/ledger?limit=500`,
+            `/api/bff/engagements/${encodeURIComponent(engagementId)}/ledger?${qs.toString()}`,
             { cache: "no-store" },
           );
           if (cancelled) return;
           if (!r.ok) {
             setErr(await readStrategistBffErrorDescription(r));
-            setEvents([]);
+            setSource({ kind: "ledger", events: [] });
             return;
           }
           const body = (await r.json()) as { events?: LedgerEvent[] };
           const ledger = Array.isArray(body.events) ? body.events : [];
-          const filter: StakeholderFilter = {
-            id: filterId,
-            title: stakeholderFilter?.title ?? "",
-            email: filterEmail,
-            evidenceEventIds: filterEvidenceKey ? filterEvidenceKey.split(",") : [],
-            clearHref: stakeholderFilter?.clearHref ?? "#",
-          };
-          const filtered = ledger
-            .filter((ev) => ledgerMatchesStakeholder(ev, filter))
-            .map(ledgerToTimelineEvent);
           setErr(null);
-          setEvents(filtered);
+          setSource({ kind: "ledger", events: ledger });
           return;
         }
         const r = await fetch(`/api/bff/engagements/${encodeURIComponent(engagementId)}/timeline`, {
           cache: "no-store",
         });
-        if (cancelled) {
-          return;
-        }
+        if (cancelled) return;
         if (!r.ok) {
           setErr(await readStrategistBffErrorDescription(r));
           return;
         }
         const body = (await r.json()) as { events?: TimelineEvent[] };
         setErr(null);
-        setEvents(Array.isArray(body.events) ? body.events : []);
+        setSource({ kind: "timeline", events: Array.isArray(body.events) ? body.events : [] });
       } catch (e) {
         if (!cancelled) {
           setErr(e instanceof Error ? e.message : "Could not load timeline.");
         }
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-    // stakeholderFilter is captured by id/email/evidence — its onClear ref is
-    // stable from the parent and not a fetch input.
-  }, [engagementId, filterId, filterEmail, filterEvidenceKey, stakeholderFilter]);
+  }, [engagementId, affectsNodeId, eventId]);
+
+  const events = React.useMemo<TimelineEvent[]>(() => {
+    if (source.kind === "timeline") return source.events;
+    const allow = sourceKinds.length === 0 ? null : new Set(sourceKinds);
+    return source.events
+      .filter((ev) => (allow ? allow.has(ev.source_kind) : true))
+      .map(ledgerToTimelineEvent);
+  }, [source, sourceKinds]);
+
+  // Event-jump: scroll & highlight once events have rendered. Broaden the
+  // source-kind filter automatically if the target is filtered out, otherwise
+  // toast "Event not on this page" when the id isn't in the loaded set.
+  React.useEffect(() => {
+    if (!eventId || loading) return;
+    if (jumpHandledRef.current === eventId) return;
+    const ledgerEvents = source.kind === "ledger" ? source.events : [];
+    const inLedger = ledgerEvents.some((ev) => ev.id === eventId);
+    const visible = events.some((ev) => ev.id === eventId);
+
+    if (visible) {
+      jumpHandledRef.current = eventId;
+      const el = itemRefs.current.get(eventId);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      const onTimer = window.setTimeout(() => {
+        setHighlightedId((cur) => (cur === eventId ? null : cur));
+      }, HIGHLIGHT_DURATION_MS);
+      const setNow = window.setTimeout(() => setHighlightedId(eventId), 0);
+      return () => {
+        clearTimeout(onTimer);
+        clearTimeout(setNow);
+      };
+    }
+
+    if (source.kind === "ledger" && inLedger && sourceKinds.length > 0) {
+      if (broadenedForRef.current !== eventId) {
+        broadenedForRef.current = eventId;
+        const t = window.setTimeout(() => {
+          setSourceKinds([]);
+          toast("Cleared filters to show this event");
+        }, 0);
+        return () => clearTimeout(t);
+      }
+      return;
+    }
+
+    if (source.kind === "ledger" && source.events.length > 0 && !inLedger) {
+      jumpHandledRef.current = eventId;
+      toast("Event not on this page");
+      return;
+    }
+    if (source.kind === "timeline" && source.events.length > 0 && !visible) {
+      jumpHandledRef.current = eventId;
+      toast("Event not on this page");
+      return;
+    }
+  }, [eventId, loading, source, events, sourceKinds]);
 
   const groups = React.useMemo(() => groupByWeek(events), [events]);
+
+  const clearSourceKind = React.useCallback((kind: string) => {
+    setSourceKinds((cur) => cur.filter((k) => k !== kind));
+  }, []);
+
+  const setItemRef = React.useCallback((id: string, el: HTMLLIElement | null) => {
+    if (el) {
+      itemRefs.current.set(id, el);
+    } else {
+      itemRefs.current.delete(id);
+    }
+  }, []);
 
   return (
     <section aria-labelledby="engagement-timeline-heading" className="space-y-3">
@@ -186,28 +247,51 @@ export function EngagementTimeline({
           Timeline
         </h2>
       </div>
-      {stakeholderFilter ? (
+      {affectsFilter || sourceKinds.length > 0 ? (
         <div
           role="group"
           aria-label="Active timeline filters"
           className="flex flex-wrap items-center gap-2"
           data-testid="timeline-filter-rail"
         >
-          <span
-            data-testid="stakeholder-chip"
-            className="border-border bg-paper-50 text-ink-800 inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs"
-          >
-            <span className="text-ink-500">Stakeholder:</span>
-            <span className="font-medium">{stakeholderFilter.title}</span>
-            <Link
-              href={stakeholderFilter.clearHref}
-              aria-label="Clear stakeholder filter"
-              data-testid="stakeholder-chip-clear"
-              className="text-ink-600 hover:text-ink-900 ml-1 inline-flex items-center justify-center rounded-full"
+          {affectsFilter ? (
+            <span
+              data-testid="affects-chip"
+              className="border-border bg-paper-50 text-ink-800 inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs"
             >
-              <XIcon className="size-3" aria-hidden />
-            </Link>
-          </span>
+              <span className="text-ink-500">Showing events affecting</span>
+              <span className="font-medium">{affectsFilter.nodeTitle}</span>
+              <Link
+                href={affectsFilter.clearHref}
+                aria-label="Clear node filter"
+                data-testid="affects-chip-clear"
+                className="text-ink-600 hover:text-ink-900 ml-1 inline-flex items-center justify-center rounded-full"
+              >
+                <XIcon className="size-3" aria-hidden />
+              </Link>
+            </span>
+          ) : null}
+          {sourceKinds.map((k) => (
+            <span
+              key={k}
+              data-testid={`source-kind-chip-${k}`}
+              className="border-border bg-paper-50 text-ink-800 inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs"
+            >
+              <span className="text-ink-500">Source:</span>
+              <span className="font-mono">{k}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Clear ${k} source filter`}
+                data-testid={`source-kind-chip-clear-${k}`}
+                onClick={() => clearSourceKind(k)}
+                className="text-ink-600 hover:text-ink-900 ml-1 size-4 rounded-full p-0"
+              >
+                <XIcon className="size-3" aria-hidden />
+              </Button>
+            </span>
+          ))}
         </div>
       ) : null}
       {err ? <p className="text-error-700 text-sm">{err}</p> : null}
@@ -215,8 +299,8 @@ export function EngagementTimeline({
         <p className="text-ink-600 text-sm">Loading…</p>
       ) : err ? null : groups.length === 0 ? (
         <p className="text-ink-600 text-sm">
-          {stakeholderFilter
-            ? `No timeline events match ${stakeholderFilter.title}.`
+          {affectsFilter
+            ? `No timeline events affect ${affectsFilter.nodeTitle}.`
             : "No interactions yet — paste one below or wait for ingestion."}
         </p>
       ) : (
@@ -225,20 +309,32 @@ export function EngagementTimeline({
             <div key={g.key} className="space-y-2">
               <h3 className="text-ink-700 text-xs font-semibold uppercase">{g.label}</h3>
               <ul className="border-border divide-border divide-y rounded-lg border text-sm">
-                {g.events.map((ev) => (
-                  <li key={ev.id} className="space-y-1 px-3 py-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <TimestampLabel value={ev.occurred_at} className="text-ink-700" />
-                      <span className="bg-ink-100 text-ink-800 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase">
-                        {ev.event_type}
-                      </span>
-                    </div>
-                    <p className="text-ink-700 whitespace-pre-line">{ev.summary}</p>
-                    {ev.source_ref ? (
-                      <p className="text-ink-500 font-mono text-xs">{ev.source_ref}</p>
-                    ) : null}
-                  </li>
-                ))}
+                {g.events.map((ev) => {
+                  const isHighlighted = highlightedId === ev.id;
+                  return (
+                    <li
+                      key={ev.id}
+                      ref={(el) => setItemRef(ev.id, el)}
+                      data-testid={`timeline-event-${ev.id}`}
+                      aria-current={isHighlighted ? "true" : undefined}
+                      className={
+                        "space-y-1 px-3 py-2 transition-colors " +
+                        (isHighlighted ? "bg-warning-100 ring-warning-400 ring-2" : "")
+                      }
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <TimestampLabel value={ev.occurred_at} className="text-ink-700" />
+                        <span className="bg-ink-100 text-ink-800 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase">
+                          {ev.event_type}
+                        </span>
+                      </div>
+                      <p className="text-ink-700 whitespace-pre-line">{ev.summary}</p>
+                      {ev.source_ref ? (
+                        <p className="text-ink-500 font-mono text-xs">{ev.source_ref}</p>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}
