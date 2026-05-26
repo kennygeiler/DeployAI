@@ -76,7 +76,7 @@ export function OracleMessage({ engagementId, role, content, pending }: OracleMe
         }
       >
         <span id={labelId} className="sr-only">
-          {isUser ? "You said" : "Mr. Oracle replied"}
+          {isUser ? "You said" : "Agent Kenny replied"}
         </span>
         {role === "user" || parts === null ? (
           <span>

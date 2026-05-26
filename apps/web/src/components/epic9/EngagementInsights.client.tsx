@@ -27,7 +27,7 @@ import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff
  */
 export type EngagementInsightsProps = {
   engagementId: string;
-  // Stub for G1.c — per-card "Explain" button wires through to Mr. Oracle.
+  // Stub for G1.c — per-card "Explain" button wires through to Agent Kenny.
   onExplain?: (insight: MatrixInsight) => void;
 };
 

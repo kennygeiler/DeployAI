@@ -122,7 +122,7 @@ describe("OracleChat", () => {
     await openPanel(user);
     expect(screen.getByTestId("oracle-chat-panel")).toBeTruthy();
 
-    const region = await screen.findByRole("region", { name: /mr\. oracle/i });
+    const region = await screen.findByRole("region", { name: /agent kenny/i });
     expect(region).toBeTruthy();
     const sendBtn = screen.getByRole("button", { name: /^send$/i });
     expect((sendBtn as HTMLButtonElement).disabled).toBe(true);
@@ -157,7 +157,7 @@ describe("OracleChat", () => {
     const user = userEvent.setup();
     await openPanel(user);
 
-    const input = await screen.findByLabelText(/message mr\. oracle/i);
+    const input = await screen.findByLabelText(/message agent kenny/i);
     await user.type(input, "what should I worry about?");
     await user.click(screen.getByRole("button", { name: /^send$/i }));
 
@@ -214,7 +214,7 @@ describe("OracleChat", () => {
     const user = userEvent.setup();
     await openPanel(user);
 
-    const input = await screen.findByLabelText(/message mr\. oracle/i);
+    const input = await screen.findByLabelText(/message agent kenny/i);
     await user.type(input, "hi");
     await user.click(screen.getByRole("button", { name: /^send$/i }));
 
@@ -246,7 +246,7 @@ describe("OracleChat", () => {
     const user = userEvent.setup();
     await openPanel(user);
 
-    const input = await screen.findByLabelText(/message mr\. oracle/i);
+    const input = await screen.findByLabelText(/message agent kenny/i);
     await user.type(input, "hi");
     await user.click(screen.getByRole("button", { name: /^send$/i }));
 
@@ -303,9 +303,9 @@ describe("OracleChat", () => {
 
     // Panel is persistent + non-modal; `role="region"` is the correct ARIA
     // primitive (a dialog requires `aria-modal="true"` to be valid).
-    const region = await screen.findByRole("region", { name: /mr\. oracle/i });
+    const region = await screen.findByRole("region", { name: /agent kenny/i });
     expect(region).toBeTruthy();
-    const textarea = within(region).getByLabelText(/message mr\. oracle/i);
+    const textarea = within(region).getByLabelText(/message agent kenny/i);
     expect(textarea.tagName.toLowerCase()).toBe("textarea");
     // AI-generated disclosure footer.
     expect(within(region).getByText(/ai-generated/i)).toBeTruthy();
@@ -324,7 +324,7 @@ describe("OracleChat", () => {
     const user = userEvent.setup();
     await openPanel(user);
 
-    const region = await screen.findByRole("region", { name: /mr\. oracle/i });
+    const region = await screen.findByRole("region", { name: /agent kenny/i });
     const sendBtn = within(region).getByRole("button", { name: /^send$/i });
     // The shared <Button> primitive applies `data-slot="button"` via its
     // generated className/attrs — checking for the rounded-md utility is a

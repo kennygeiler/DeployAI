@@ -1,4 +1,4 @@
-# Post-Phase-F polish + Mr. Oracle — design
+# Post-Phase-F polish + Agent Kenny — design
 
 Authored 2026-05-26 after first owner end-to-end smoke of the BlueState
 scenario. The owner's feedback ("matrix underwhelming, insights overwhelm,
@@ -8,7 +8,7 @@ design pass.
 This doc defines five work bundles (G0–G4) that turn the Phase F surface
 into a demo-grade product. Each bundle slices into AGENTS.md-compliant
 briefs in `briefs/`. Bundle G0 ships first to unblock the visual demo;
-G1 (Mr. Oracle) is the headline feature; G2–G4 fold in the rest.
+G1 (Agent Kenny) is the headline feature; G2–G4 fold in the rest.
 
 ---
 
@@ -213,7 +213,7 @@ return (
 );
 ```
 
-Mr. Oracle (§8) provides the per-card "explain" CTA.
+Agent Kenny (§8) provides the per-card "explain" CTA.
 
 ### Files
 - `apps/web/src/components/engagements/EngagementInsights.client.tsx` (refactor)
@@ -320,7 +320,7 @@ Diff-view N+1 on long scrolls. Mitigated by bulk snapshot pre-fetch.
 
 ---
 
-## §8. Feature — Mr. Oracle chat
+## §8. Feature — Agent Kenny chat
 
 ### Architecture
 
@@ -328,7 +328,7 @@ Diff-view N+1 on long scrolls. Mitigated by bulk snapshot pre-fetch.
 ┌────────────────────────────────────────────────────────────────────┐
 │  Engagement Detail Page                                            │
 │  ┌──────────────────┐   ┌─────────────────────────────────────┐    │
-│  │ Matrix / Insights│   │ Mr. Oracle chat panel (collapsible) │    │
+│  │ Matrix / Insights│   │ Agent Kenny chat panel (collapsible)│    │
 │  │ Timeline         │   │ ┌──────────────────────┐            │    │
 │  │ Provenance       │   │ │ Convo turns          │ ← SSE      │    │
 │  │                  │   │ │  (user / oracle)     │            │    │
@@ -411,7 +411,7 @@ async def build_context(
 ### System prompt (versioned)
 
 ```
-You are Mr. Oracle, the deployment co-pilot for {engagement_name}. The
+You are Agent Kenny, the deployment co-pilot for {engagement_name}. The
 strategist team talks to you about this engagement and only this
 engagement.
 
@@ -499,13 +499,13 @@ analyzer can later cite Oracle conversations as upstream causes.
 | Bundle | Slices | Class | Parallelism |
 |---|---|---|---|
 | **G0** — slider + timeline + seed fixes | bug-1, bug-2, snapshot rebuild | Orthogonal | parallel-2 |
-| **G1** — Mr. Oracle | G1.a CP, G1.b LLM stream, G1.c web | Foundation + leaves (a+b → c) | spawn a+b parallel, then c |
+| **G1** — Agent Kenny | G1.a CP, G1.b LLM stream, G1.c web | Foundation + leaves (a+b → c) | spawn a+b parallel, then c |
 | **G2** — member + UX shell | bug-3 user-provision, ux-5 timestamps, ux-7 edit dialog | Orthogonal | parallel-3 |
 | **G3** — section timelines + insight grouping | bug-4 grouping, ux-6 per-section timeline | Orthogonal | parallel-2 |
 | **G4** — polish menu | pick 3-5 items | Orthogonal | parallel-N |
 
 ### Migration IDs pre-allocated
-- Mr. Oracle: `20260613_0040_oracle_conversations`
+- Agent Kenny: `20260613_0040_oracle_conversations`
 
 ### Risks the orchestrator owns
 - **G1.b LLM streaming**: provider package may need new code. If owning

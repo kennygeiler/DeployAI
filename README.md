@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/python-3.13-3776AB?logo=python)](./services/control-plane/.python-version)
 [![License](https://img.shields.io/badge/license-UNLICENSED-lightgrey.svg)](./README.md#license)
 
-> **Customer-deployment co-pilot.** Capture every email, meeting note, and decision across a long-cycle deployment → build a typed property graph of stakeholders / systems / decisions / risks → surface insights and chat with **Mr. Oracle** about any of it.
+> **Customer-deployment co-pilot.** Capture every email, meeting note, and decision across a long-cycle deployment → build a typed property graph of stakeholders / systems / decisions / risks → surface insights and chat with **Agent Kenny** about any of it.
 
 ---
 
@@ -21,7 +21,7 @@ make seed-scenario-bluestate                        # ground-truth 26-week demo
 open http://localhost:3000/engagements
 ```
 
-Click **BlueState Health — Member Portal Replatform** → scrub the matrix time-slider, ask **Mr. Oracle** a question, drag the date filter on any section.
+Click **BlueState Health — Member Portal Replatform** → scrub the matrix time-slider, ask **Agent Kenny** a question, drag the date filter on any section.
 
 ---
 
@@ -35,7 +35,7 @@ Click **BlueState Health — Member Portal Replatform** → scrub the matrix tim
 | **Maps** | Time-travelable property graph — drag the slider to see any historical state |
 | **Surfaces** | 6 deterministic analyzers (engagement silence, decision-cycle slowdown, risk-open rate, stakeholder churn, extractor drift, decision provenance) |
 | **Audits** | Append-only ledger with causal-chain edges — every claim cites its source events |
-| **Chats** | **Mr. Oracle** side panel — grounded in the engagement's full ledger + matrix; cites events and nodes inline |
+| **Chats** | **Agent Kenny** side panel — grounded in the engagement's full ledger + matrix; cites events and nodes inline |
 
 ---
 
@@ -45,7 +45,7 @@ Click **BlueState Health — Member Portal Replatform** → scrub the matrix tim
 ┌────────────────────────────────────────────────────────────────────┐
 │  apps/web (Next.js 16, App Router)                                  │
 │  /engagements  /engagements/[id]  /engagements/[id]/timeline        │
-│   • Matrix graph view + time slider     • Mr. Oracle chat panel     │
+│   • Matrix graph view + time slider     • Agent Kenny chat panel    │
 │   • Per-section date-range filters      • Audit-AI reject flow      │
 └──────────────────────────────────┬──────────────────────────────────┘
                                    │ BFF routes (Next.js server)
@@ -70,7 +70,7 @@ Click **BlueState Health — Member Portal Replatform** → scrub the matrix tim
 
 | Path | Role |
 |---|---|
-| `apps/web/` | Next.js — engagement portfolio, detail, timeline, Mr. Oracle panel, BFF routes |
+| `apps/web/` | Next.js — engagement portfolio, detail, timeline, Agent Kenny panel, BFF routes |
 | `services/control-plane/` | FastAPI — domain, internal APIs, agents, ledger, analyzers, snapshots |
 | `packages/llm-provider-py/` | `LLMProvider` protocol + Anthropic / OpenAI / stub impls; streaming via `chat_complete_stream` |
 | `packages/authz/` | TS + Python role/action matrix (shared) |
@@ -87,7 +87,7 @@ Click **BlueState Health — Member Portal Replatform** → scrub the matrix tim
 
 **Phase F (timeline ledger)** — append-only ledger with `caused_by` + `affects` edges. Matrix time-slider over daily snapshots. Provenance drawer on any node. 6 statistical analyzers + LLM-narrated `decision_provenance_summary`. Per-tenant LLM budget. Sales pitch: "audit any decision back to source evidence" — compliance-buyer ready.
 
-**Phase G (post-F polish + Mr. Oracle)** — chat panel grounded in engagement state (dual-emits every reply to the ledger; conversations themselves auditable). Member-by-email auto-provision. Inline node edit dialog. Audit-AI reject flow. Insight grouping by severity. Per-section date filters. Edge colors by type. Colorblind-safe palette. Per-stakeholder timeline filter. Recent-activity strip.
+**Phase G (post-F polish + Agent Kenny)** — chat panel grounded in engagement state (dual-emits every reply to the ledger; conversations themselves auditable). Member-by-email auto-provision. Inline node edit dialog. Audit-AI reject flow. Insight grouping by severity. Per-section date filters. Edge colors by type. Colorblind-safe palette. Per-stakeholder timeline filter. Recent-activity strip.
 
 See [`docs/design/post-f-polish.md`](./docs/design/post-f-polish.md) for the post-F design pass.
 
@@ -134,7 +134,7 @@ The repo's CI runs the same plus compose-smoke, canonical-memory-schema, cross-t
 |---|---|---|
 | [`docs/product/deployai-source-of-truth-spec.md`](./docs/product/deployai-source-of-truth-spec.md) | Everyone | Canonical product intent + §16 phased roadmap. **Start here.** |
 | [`docs/design/timeline-ledger.md`](./docs/design/timeline-ledger.md) | Engineers | Phase F design: ledger, snapshots, analyzers, provenance |
-| [`docs/design/post-f-polish.md`](./docs/design/post-f-polish.md) | Engineers | Phase G design: Mr. Oracle + UX bundles G0–G4 |
+| [`docs/design/post-f-polish.md`](./docs/design/post-f-polish.md) | Engineers | Phase G design: Agent Kenny + UX bundles G0–G4 |
 | [`docs/test-scenarios/bluestate-health.md`](./docs/test-scenarios/bluestate-health.md) | Owners + Eng | Ground-truth doc for `make seed-scenario-bluestate` — what to expect on screen |
 | [`AGENTS.md`](./AGENTS.md) | Sub-agents | Binding rules for parallel sub-agent work |
 | [`ORCHESTRATOR.md`](./ORCHESTRATOR.md) | Main thread | Autonomy contract + concurrency policy |
