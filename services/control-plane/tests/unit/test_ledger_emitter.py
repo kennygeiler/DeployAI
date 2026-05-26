@@ -128,9 +128,11 @@ async def test_emits_cause_and_affect_edges() -> None:
     s = _session()
     parent = uuid.uuid4()
     node = uuid.uuid4()
+    # Use matrix_node_updated to avoid the v2 Phase 0.5 synthesis-job side-effect
+    # the matrix_node_created+stakeholder combination would trigger.
     await emit_ledger_event(
         s,
-        **_kwargs(),
+        **_kwargs(source_kind="matrix_node_updated"),
         caused_by=[parent],
         affects=[("matrix_node", node)],
     )

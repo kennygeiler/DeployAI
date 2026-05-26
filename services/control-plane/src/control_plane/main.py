@@ -69,6 +69,7 @@ from control_plane.api.routes.strategist_pilot_surfaces import (
     router as strategist_pilot_surfaces_internal_router,
 )
 from control_plane.api.routes.strategist_queues_internal import router as strategist_queues_internal_router
+from control_plane.api.routes.synthesis_internal import router as synthesis_internal_router
 from control_plane.api.routes.temporal_insights_internal import (
     intelligence_router as temporal_intelligence_router,
 )
@@ -145,6 +146,7 @@ app.include_router(meetings_internal_router, prefix="/internal/v1")
 app.include_router(oracle_internal_router, prefix="/internal/v1")
 app.include_router(emails_internal_router, prefix="/internal/v1")
 app.include_router(seed_scenarios_internal_router, prefix="/internal/v1")
+app.include_router(synthesis_internal_router, prefix="/internal/v1")
 app.include_router(scim_users_router, prefix="/scim/v2")
 
 
