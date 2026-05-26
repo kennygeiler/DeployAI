@@ -9,6 +9,7 @@ import * as React from "react";
 import { z } from "zod";
 
 import { MatrixTimeSlider } from "@/components/engagements/MatrixTimeSlider.client";
+import { MatrixLegend } from "@/components/epic9/MatrixLegend.client";
 import type { MatrixEdge, MatrixNode } from "@/lib/bff/matrix-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 import { zMatrixSnapshot } from "@/lib/internal/matrix-snapshot-cp";
@@ -30,7 +31,7 @@ const zSnapshotBffResponse = z.object({ snapshot: zMatrixSnapshot });
  * user drags.
  */
 
-const BUILTIN_TYPE_ORDER = [
+export const BUILTIN_TYPE_ORDER = [
   "stakeholder",
   "organization",
   "system",
@@ -40,9 +41,9 @@ const BUILTIN_TYPE_ORDER = [
   "opportunity",
 ] as const;
 
-type BuiltinTypeKey = (typeof BUILTIN_TYPE_ORDER)[number];
+export type BuiltinTypeKey = (typeof BUILTIN_TYPE_ORDER)[number];
 
-const BUILTIN_TYPE_LABEL: Record<BuiltinTypeKey, string> = {
+export const BUILTIN_TYPE_LABEL: Record<BuiltinTypeKey, string> = {
   stakeholder: "Stakeholders",
   organization: "Organizations",
   system: "Systems",
@@ -52,17 +53,56 @@ const BUILTIN_TYPE_LABEL: Record<BuiltinTypeKey, string> = {
   opportunity: "Opportunities",
 };
 
-const BUILTIN_TYPE_BG: Record<BuiltinTypeKey, string> = {
-  stakeholder: "#fde68a",
-  organization: "#bfdbfe",
-  system: "#bbf7d0",
-  decision: "#ddd6fe",
-  risk: "#fecaca",
-  commitment: "#fbcfe8",
-  opportunity: "#a7f3d0",
+// Okabe-Ito colorblind-safe palette (tinted for fill use). The original
+// red/green pairing (system #bbf7d0 vs risk #fecaca) collapsed under
+// deuteranopia + protanopia. These eight base hues stay distinguishable for
+// the three common CVD types; we use seven for the built-in node types.
+export const BUILTIN_TYPE_BG: Record<BuiltinTypeKey, string> = {
+  stakeholder: "#ffe9bf", // Okabe-Ito orange (#E69F00) tinted
+  organization: "#cfe8fb", // Okabe-Ito sky blue (#56B4E9) tinted
+  system: "#c9e9de", // Okabe-Ito bluish green (#009E73) tinted
+  decision: "#e0d6ea", // Okabe-Ito reddish purple (#CC79A7) tinted
+  risk: "#f8d5bb", // Okabe-Ito vermillion (#D55E00) tinted
+  commitment: "#fbf6c4", // Okabe-Ito yellow (#F0E442) tinted
+  opportunity: "#bfd3eb", // Okabe-Ito blue (#0072B2) tinted
+};
+
+export const BUILTIN_TYPE_COLOR_NAME: Record<BuiltinTypeKey, string> = {
+  stakeholder: "Orange",
+  organization: "Sky blue",
+  system: "Bluish green",
+  decision: "Reddish purple",
+  risk: "Vermillion",
+  commitment: "Yellow",
+  opportunity: "Blue",
 };
 
 const DEFAULT_CUSTOM_BG = "#e5e7eb";
+
+// Edge styles by edge_type. Hex codes chosen from the existing Tailwind
+// palette so the legend swatches and graph strokes match across the app.
+// Dashed strokes give a second non-color cue for the "directional debt"
+// edges (`owed_by` / `owed_to`) — color alone is insufficient for CVD.
+type EdgeStyleEntry = {
+  stroke: string;
+  strokeDasharray?: string;
+  colorName: string;
+};
+
+export const EDGE_STYLE: Record<string, EdgeStyleEntry> = {
+  sponsors: { stroke: "#2563eb", colorName: "Blue" }, // tailwind blue-600
+  owns: { stroke: "#16a34a", colorName: "Green" }, // tailwind green-600
+  depends_on: { stroke: "#d97706", colorName: "Amber" }, // tailwind amber-600
+  blocks: { stroke: "#dc2626", colorName: "Red" }, // tailwind red-600
+  affects: { stroke: "#6b7280", colorName: "Gray" }, // tailwind gray-500
+  belongs_to: { stroke: "#0d9488", colorName: "Teal" }, // tailwind teal-600
+  threatens: { stroke: "#c026d3", colorName: "Fuchsia" }, // tailwind fuchsia-600
+  owed_by: { stroke: "#7c3aed", strokeDasharray: "6 4", colorName: "Violet (dashed)" }, // tailwind violet-600
+  owed_to: { stroke: "#db2777", strokeDasharray: "6 4", colorName: "Pink (dashed)" }, // tailwind pink-600
+  enables: { stroke: "#0891b2", colorName: "Cyan" }, // tailwind cyan-600
+};
+
+const DEFAULT_EDGE_STROKE = "#a1a1aa";
 
 const COLUMN_X = 240;
 const ROW_Y = 90;
@@ -202,15 +242,22 @@ function engagementIdFromPathname(pathname: string | null): string | undefined {
 }
 
 function buildEdges(matrixEdges: MatrixEdge[]): Edge[] {
-  return matrixEdges.map((e) => ({
-    id: e.id,
-    source: e.from_node_id,
-    target: e.to_node_id,
-    label: e.edge_type.replace(/_/g, " "),
-    labelStyle: { fontSize: 10, fill: "#52525b" },
-    labelBgStyle: { fill: "#fafafa" },
-    style: { stroke: "#a1a1aa", strokeWidth: 1.5 },
-  }));
+  return matrixEdges.map((e) => {
+    const styleEntry = EDGE_STYLE[e.edge_type];
+    const stroke = styleEntry?.stroke ?? DEFAULT_EDGE_STROKE;
+    const dash = styleEntry?.strokeDasharray;
+    return {
+      id: e.id,
+      source: e.from_node_id,
+      target: e.to_node_id,
+      label: e.edge_type.replace(/_/g, " "),
+      labelStyle: { fontSize: 10, fill: "#52525b" },
+      labelBgStyle: { fill: "#fafafa" },
+      style: dash
+        ? { stroke, strokeWidth: 1.5, strokeDasharray: dash }
+        : { stroke, strokeWidth: 1.5 },
+    };
+  });
 }
 
 type FetchedSnapshot =
@@ -398,6 +445,7 @@ export function MatrixGraph({
     <div className="space-y-2">
       {slider}
       {staleBanner}
+      <MatrixLegend />
       <div
         data-testid="matrix-graph"
         className="border-border h-[600px] w-full rounded-lg border"
