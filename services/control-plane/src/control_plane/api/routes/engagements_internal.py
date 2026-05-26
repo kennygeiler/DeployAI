@@ -210,6 +210,29 @@ async def _require_engagement(session: AsyncSession, tenant_id: uuid.UUID, engag
     return eng
 
 
+async def _find_stakeholder_node_by_email(
+    session: AsyncSession,
+    *,
+    engagement_id: uuid.UUID,
+    email: str,
+) -> uuid.UUID | None:
+    """Return a stakeholder matrix_node id whose ``attributes->>'email'`` matches.
+
+    Case-insensitive. Returns the first match (engagement-scoped, stakeholder-typed).
+    """
+    needle = email.strip().lower()
+    if not needle:
+        return None
+    r = await session.execute(
+        select(MatrixNode.id).where(
+            MatrixNode.engagement_id == engagement_id,
+            MatrixNode.node_type == "stakeholder",
+            func.lower(MatrixNode.attributes["email"].astext) == needle,
+        )
+    )
+    return r.scalars().first()
+
+
 @router.get(
     "/{engagement_id}/members",
     response_model=list[EngagementMemberRead],
@@ -308,6 +331,18 @@ async def add_engagement_member(
     )
     session.add(row)
     await session.flush()
+    member_detail: dict[str, Any] = {
+        "role": row.role,
+        "user_id": str(user.id),
+        "user_provisioned": user_provisioned,
+    }
+    # Synthesis-dispatch hint: when the added user's email matches a
+    # stakeholder matrix_node in the same engagement, hand that node id to
+    # the emitter so it can enqueue a stakeholder_brief refresh.
+    if user.email:
+        stakeholder_id = await _find_stakeholder_node_by_email(session, engagement_id=engagement_id, email=user.email)
+        if stakeholder_id is not None:
+            member_detail["stakeholder_node_id"] = str(stakeholder_id)
     await emit_ledger_event(
         session,
         tenant_id=tenant_id,
@@ -318,11 +353,7 @@ async def add_engagement_member(
         source_kind="member_added",
         source_ref=row.id,
         summary=f"member added: {row.role}"[:500],
-        detail={
-            "role": row.role,
-            "user_id": str(user.id),
-            "user_provisioned": user_provisioned,
-        },
+        detail=member_detail,
     )
     await session.commit()
     await session.refresh(row)
@@ -999,6 +1030,17 @@ async def accept_matrix_proposal(
     if proposal.result_edge_id is not None:
         affects.append(("matrix_edge", proposal.result_edge_id))
     caused_by = await _proposal_created_event_ids(session, tenant_id, proposal.id)
+    accept_detail: dict[str, Any] = {
+        "proposal_kind": proposal.proposal_kind,
+        "result_node_id": str(proposal.result_node_id) if proposal.result_node_id else None,
+        "result_edge_id": str(proposal.result_edge_id) if proposal.result_edge_id else None,
+    }
+    # Synthesis-dispatch hint: emitter._maybe_enqueue_synthesis reads node_type
+    # off detail to decide which refresh job (if any) to enqueue.
+    if proposal.proposal_kind == "node":
+        accepted_node_type = payload.get("node_type")
+        if isinstance(accepted_node_type, str) and accepted_node_type:
+            accept_detail["node_type"] = accepted_node_type
     await emit_ledger_event(
         session,
         tenant_id=tenant_id,
@@ -1009,11 +1051,7 @@ async def accept_matrix_proposal(
         source_kind="proposal_accepted",
         source_ref=proposal.id,
         summary=f"proposal accepted: {proposal.proposal_kind}"[:500],
-        detail={
-            "proposal_kind": proposal.proposal_kind,
-            "result_node_id": str(proposal.result_node_id) if proposal.result_node_id else None,
-            "result_edge_id": str(proposal.result_edge_id) if proposal.result_edge_id else None,
-        },
+        detail=accept_detail,
         caused_by=caused_by,
         affects=affects,
     )

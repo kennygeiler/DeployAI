@@ -171,17 +171,28 @@ async def _maybe_enqueue_synthesis(
       - ``matrix_node_created`` whose ``detail.node_type == 'stakeholder'`` or
         ``member_added`` that affects a stakeholder node → ``stakeholder_brief``.
 
+    For ``proposal_accepted`` the preferred path is the explicit
+    ``detail.node_type`` hint set by the accept route. As a defensive fallback,
+    if the hint is missing but the event affects a matrix_node, the dispatcher
+    looks up ``node_type`` from ``matrix_nodes`` so older / future emit sites
+    that forget the hint still drive the right refresh job.
+
     Local import keeps the emitter module free of ORM-cycle risk (the
     synthesis ORM lives in ``canonical_memory``, which already imports the
     ledger ORM transitively).
     """
-    from control_plane.domain.canonical_memory.matrix import SynthesisRefreshJob
+    from control_plane.domain.canonical_memory.matrix import MatrixNode, SynthesisRefreshJob
 
     triggers: list[tuple[str, uuid.UUID]] = []
     src = event.source_kind
-    if src == "proposal_accepted" and detail.get("node_type") == "decision":
-        for kind, target_id in affects:
-            if kind == "matrix_node":
+    if src == "proposal_accepted":
+        hint = detail.get("node_type")
+        node_type: str | None = hint if isinstance(hint, str) else None
+        affected_nodes = [tid for kind, tid in affects if kind == "matrix_node"]
+        if node_type is None and affected_nodes:
+            node_type = await _lookup_matrix_node_type(session, MatrixNode, affected_nodes[0])
+        if node_type == "decision":
+            for target_id in affected_nodes:
                 triggers.append(("decision_provenance", target_id))
     elif src == "insight_opened" and detail.get("severity") == "high":
         for kind, target_id in affects:
@@ -213,6 +224,23 @@ async def _maybe_enqueue_synthesis(
         )
     if triggers:
         await session.flush()
+
+
+async def _lookup_matrix_node_type(
+    session: AsyncSession,
+    matrix_node_cls: Any,
+    node_id: uuid.UUID,
+) -> str | None:
+    """Look up ``node_type`` for one matrix_node id, or ``None`` if absent.
+
+    Fallback for ``proposal_accepted`` emit sites that did not populate the
+    ``detail.node_type`` hint — see ``_maybe_enqueue_synthesis``.
+    """
+    node = await session.get(matrix_node_cls, node_id)
+    if node is None:
+        return None
+    value = node.node_type
+    return value if isinstance(value, str) else None
 
 
 def _scrub_secrets(detail: dict[str, Any]) -> dict[str, Any]:
