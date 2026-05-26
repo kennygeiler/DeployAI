@@ -12,11 +12,13 @@ import { MatrixGraph } from "@/components/epic9/MatrixGraph.client";
 import { MatrixProposals } from "@/components/epic9/MatrixProposals.client";
 import { RecommendationsPanel } from "@/components/epic9/RecommendationsPanel.client";
 import { RoleLensFilter } from "@/components/epic9/RoleLensFilter.client";
+import { SectionWithTimeline } from "@/components/common/SectionWithTimeline.client";
 import { MatrixNodeDetail } from "@/components/engagements/MatrixNodeDetail.client";
 import { OracleChat } from "@/components/engagements/OracleChat.client";
 import { Button } from "@/components/ui/button";
 import type { Engagement, EngagementMember } from "@/lib/bff/engagement-types";
 import type { MatrixEdge, MatrixNode, MatrixProposal } from "@/lib/bff/matrix-types";
+import type { Section } from "@/lib/bff/temporal-filter";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 import { applyRoleLens, type RoleLens } from "@/lib/matrix/role-lens";
 
@@ -57,6 +59,18 @@ const NODE_TYPE_LABEL: Record<string, string> = {
   commitment: "Commitments",
   opportunity: "Opportunities",
 };
+
+const NODE_TYPE_SECTION: Partial<Record<(typeof MATRIX_NODE_TYPES)[number], Section>> = {
+  stakeholder: "stakeholders",
+  system: "systems",
+  decision: "decisions",
+  risk: "risks",
+  commitment: "commitments",
+};
+
+function getNodeTimestamp(n: MatrixNode): string {
+  return n.created_at;
+}
 
 type CustomNodeTypeFromDetail = {
   name: string;
@@ -404,13 +418,14 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
                   if (nodes.length === 0) {
                     return null;
                   }
-                  return (
-                    <div key={t} className="space-y-1">
-                      <h3 className="text-ink-700 text-xs font-semibold uppercase">
-                        {NODE_TYPE_LABEL[t]}
-                      </h3>
-                      <ul className="border-border divide-border divide-y rounded-lg border text-sm">
-                        {nodes.map((n) => {
+                  const renderList = (items: MatrixNode[]) => (
+                    <ul className="border-border divide-border divide-y rounded-lg border text-sm">
+                      {items.length === 0 ? (
+                        <li className="text-ink-500 px-3 py-2 text-xs">
+                          No {NODE_TYPE_LABEL[t]?.toLowerCase() ?? t} in the selected range.
+                        </li>
+                      ) : (
+                        items.map((n) => {
                           const edges = matrixEdges.filter((e) => e.from_node_id === n.id);
                           return (
                             <li key={n.id} className="space-y-1 px-3 py-2">
@@ -428,8 +443,31 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
                               ))}
                             </li>
                           );
-                        })}
-                      </ul>
+                        })
+                      )}
+                    </ul>
+                  );
+                  const sectionName = NODE_TYPE_SECTION[t];
+                  if (sectionName) {
+                    return (
+                      <SectionWithTimeline<MatrixNode>
+                        key={t}
+                        name={sectionName}
+                        title={NODE_TYPE_LABEL[t] ?? t}
+                        events={nodes}
+                        getTimestamp={getNodeTimestamp}
+                        headingLevel="h3"
+                      >
+                        {(filtered) => renderList(filtered)}
+                      </SectionWithTimeline>
+                    );
+                  }
+                  return (
+                    <div key={t} className="space-y-1">
+                      <h3 className="text-ink-700 text-xs font-semibold uppercase">
+                        {NODE_TYPE_LABEL[t]}
+                      </h3>
+                      {renderList(nodes)}
                     </div>
                   );
                 })}
