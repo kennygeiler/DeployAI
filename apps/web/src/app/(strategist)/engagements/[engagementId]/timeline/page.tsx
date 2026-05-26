@@ -16,6 +16,7 @@ const STAKEHOLDER_PARAM = "timeline.stakeholder";
 const SHORT_STAKEHOLDER_PARAM = "stakeholder";
 const EVENT_PARAM = "event";
 const SOURCE_KIND_PARAM = "source_kind";
+const VIEW_PARAM = "view";
 
 const zUuid = z.string().uuid();
 
@@ -50,8 +51,10 @@ export default async function EngagementTimelinePage({
   const stakeholderId = readUuid(sp[STAKEHOLDER_PARAM]) ?? readUuid(sp[SHORT_STAKEHOLDER_PARAM]);
   const eventId = readUuid(sp[EVENT_PARAM]);
   const initialSourceKinds = readSourceKinds(sp[SOURCE_KIND_PARAM]);
+  const viewParam = typeof sp[VIEW_PARAM] === "string" ? sp[VIEW_PARAM] : undefined;
+  const initialView: "list" | "horizontal" = viewParam === "horizontal" ? "horizontal" : "list";
 
-  if (!stakeholderId && !eventId) {
+  if (!stakeholderId && !eventId && initialView === "list") {
     return <TimelineView engagementId={engagementId} />;
   }
 
@@ -79,6 +82,7 @@ export default async function EngagementTimelinePage({
         affectsFilter={affectsFilter}
         eventId={eventId}
         initialSourceKinds={initialSourceKinds}
+        initialView={initialView}
       />
     </div>
   );
