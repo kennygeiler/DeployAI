@@ -234,6 +234,14 @@ def build_scenario_sql(
             node_id = det_id(f"stakeholder-node|{ev.cluster}")
             stakeholder_node_ids[ev.cluster or ""] = node_id
             event_id = det_id(f"stakeholder-evt|{ev.cluster}|create")
+            stakeholder_evidence: list[uuid.UUID] = [event_id]
+            for nev in NARRATIVE:
+                if nev.week == ev.week and nev.cluster in cluster_to_event_id:
+                    nid = cluster_to_event_id[nev.cluster]
+                    if nid not in stakeholder_evidence:
+                        stakeholder_evidence.append(nid)
+                    if len(stakeholder_evidence) >= 5:
+                        break
             statements.append(
                 _matrix_node_sql(
                     node_id=node_id,
@@ -242,6 +250,7 @@ def build_scenario_sql(
                     node_type="stakeholder",
                     title=ev.title or "stakeholder",
                     created_at=occurred_at,
+                    evidence_event_ids=stakeholder_evidence,
                 )
             )
             statements.append(
@@ -314,6 +323,19 @@ def build_scenario_sql(
         )
 
         if ev.accept_decision:
+            accept_evt_id = det_id(f"decision-accept-evt|{ev.cluster}")
+            causes = [create_evt_id]
+            for nev in NARRATIVE:
+                if nev.week == ev.week and nev.cluster in cluster_to_event_id:
+                    causes.append(cluster_to_event_id[nev.cluster])
+                    if len(causes) >= 4:
+                        break
+            decision_evidence: list[uuid.UUID] = [create_evt_id, accept_evt_id]
+            for cause_id in causes[1:]:
+                if cause_id not in decision_evidence:
+                    decision_evidence.append(cause_id)
+                if len(decision_evidence) >= 5:
+                    break
             statements.append(
                 _matrix_node_sql(
                     node_id=node_id,
@@ -322,17 +344,11 @@ def build_scenario_sql(
                     node_type="decision",
                     title=ev.title or ev.summary,
                     created_at=decided_at,
+                    evidence_event_ids=decision_evidence,
                 )
             )
             decision_node_ids[ev.cluster or ""] = node_id
-            accept_evt_id = det_id(f"decision-accept-evt|{ev.cluster}")
             accept_ledger_ids[ev.cluster or ""] = accept_evt_id
-            causes = [create_evt_id]
-            for nev in NARRATIVE:
-                if nev.week == ev.week and nev.cluster in cluster_to_event_id:
-                    causes.append(cluster_to_event_id[nev.cluster])
-                    if len(causes) >= 4:
-                        break
             statements.append(
                 _emit_ledger_sql(
                     event_id=accept_evt_id,
@@ -477,6 +493,15 @@ def build_scenario_sql(
     for title, week in system_titles:
         node_id = det_id(f"system-node|{title}")
         created_at = anchor.at(week, 1, 9)
+        evt_id = det_id(f"system-evt|{title}")
+        system_evidence: list[uuid.UUID] = [evt_id]
+        for nev in NARRATIVE:
+            if nev.week == week and nev.cluster in cluster_to_event_id:
+                nid = cluster_to_event_id[nev.cluster]
+                if nid not in system_evidence:
+                    system_evidence.append(nid)
+                if len(system_evidence) >= 5:
+                    break
         statements.append(
             _matrix_node_sql(
                 node_id=node_id,
@@ -485,9 +510,9 @@ def build_scenario_sql(
                 node_type="system",
                 title=title,
                 created_at=created_at,
+                evidence_event_ids=system_evidence,
             )
         )
-        evt_id = det_id(f"system-evt|{title}")
         statements.append(
             _emit_ledger_sql(
                 event_id=evt_id,
@@ -513,6 +538,15 @@ def build_scenario_sql(
     for title, week in commitments:
         node_id = det_id(f"commit-node|{title}")
         created_at = anchor.at(week, 1, 10)
+        evt_id = det_id(f"commit-evt|{title}")
+        commit_evidence: list[uuid.UUID] = [evt_id]
+        for nev in NARRATIVE:
+            if nev.week == week and nev.cluster in cluster_to_event_id:
+                nid = cluster_to_event_id[nev.cluster]
+                if nid not in commit_evidence:
+                    commit_evidence.append(nid)
+                if len(commit_evidence) >= 5:
+                    break
         statements.append(
             _matrix_node_sql(
                 node_id=node_id,
@@ -521,9 +555,9 @@ def build_scenario_sql(
                 node_type="commitment",
                 title=title,
                 created_at=created_at,
+                evidence_event_ids=commit_evidence,
             )
         )
-        evt_id = det_id(f"commit-evt|{title}")
         statements.append(
             _emit_ledger_sql(
                 event_id=evt_id,

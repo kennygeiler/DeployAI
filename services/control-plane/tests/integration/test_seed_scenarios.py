@@ -129,6 +129,22 @@ async def test_bluestate_fresh_seed_populates_full_scenario(s_client: AsyncClien
         ).scalar()
         assert 4 <= (temporal_count or 0) <= 6
 
+        evidence_counts = dict(
+            conn.execute(
+                text(
+                    "SELECT node_type, count(*) FROM matrix_nodes "
+                    "WHERE engagement_id = CAST(:eid AS uuid) AND tenant_id = CAST(:tid AS uuid) "
+                    "AND array_length(evidence_event_ids, 1) > 0 "
+                    "GROUP BY node_type"
+                ),
+                {"eid": BLUESTATE_ENGAGEMENT_ID, "tid": str(tid)},
+            ).all()
+        )
+        assert evidence_counts.get("stakeholder", 0) >= 1
+        assert evidence_counts.get("decision", 0) >= 1
+        assert evidence_counts.get("system", 0) >= 1
+        assert evidence_counts.get("commitment", 0) >= 1
+
         # Silence the unused-variable warning when assertions above pass.
         _ = users
 
