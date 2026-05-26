@@ -1,10 +1,9 @@
 /**
  * Control-plane pre-canned scenario client.
  *
- * Wraps `POST /internal/v1/admin/seed-scenarios/bluestate` used by the
- * onboarding wizard's "Load BlueState demo" picker (Path B). The CP
- * route runs the same 26-week seed natively that
- * `make seed-scenario-bluestate` produces from the host.
+ * Wraps `POST /internal/v1/admin/seed-scenarios/{bluestate,bluestate-xl,portfolio}`
+ * used by the onboarding wizard's picker cards. The CP routes run the same
+ * seed natively that `make seed-scenario-bluestate` produces from the host.
  */
 import { z } from "zod";
 
@@ -82,6 +81,73 @@ export async function cpSeedBluestateScenario(
   const text = await r.text();
   return { status: "error", code: r.status, message: text };
 }
+
+// ─────────────────────────────────────────────────────────────
+// BlueState-XL (5-year fixture)
+// ─────────────────────────────────────────────────────────────
+
+export const zXlScenarioSummary = z.object({
+  tenant_id: z.string(),
+  engagement_id: z.string(),
+  stakeholder_node_count: z.number(),
+  decision_node_count: z.number(),
+  risk_count: z.number(),
+  narrative_event_count: z.number(),
+  ledger_event_count: z.number(),
+  matrix_edge_count: z.number(),
+  snapshot_count: z.number(),
+});
+export type XlScenarioSummary = z.infer<typeof zXlScenarioSummary>;
+
+export const zSeedBluestateXlOk = z.object({
+  engagement_id: z.string(),
+  summary: zXlScenarioSummary,
+  took_seconds: z.number(),
+  source: z.string(),
+});
+export type SeedBluestateXlOk = z.infer<typeof zSeedBluestateXlOk>;
+
+export const zSeedBluestateXlConflict = z.object({
+  detail: z.object({
+    error: z.literal("already_seeded"),
+    engagement_id: z.string(),
+  }),
+});
+export type SeedBluestateXlConflict = z.infer<typeof zSeedBluestateXlConflict>;
+
+export type SeedBluestateXlResult =
+  | { status: "ok"; body: SeedBluestateXlOk }
+  | { status: "conflict"; body: SeedBluestateXlConflict }
+  | { status: "error"; code: number; message: string };
+
+export async function cpStartBluestateXlSeed(
+  tenantId: string,
+  body: { force: boolean },
+): Promise<SeedBluestateXlResult> {
+  const url =
+    `${cpBase()}/internal/v1/admin/seed-scenarios/bluestate-xl` +
+    `?tenant_id=${encodeURIComponent(tenantId)}`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { ...cpHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (r.status === 200) {
+    const parsed = zSeedBluestateXlOk.parse(await r.json());
+    return { status: "ok", body: parsed };
+  }
+  if (r.status === 409) {
+    const parsed = zSeedBluestateXlConflict.parse(await r.json());
+    return { status: "conflict", body: parsed };
+  }
+  const text = await r.text();
+  return { status: "error", code: r.status, message: text };
+}
+
+// ─────────────────────────────────────────────────────────────
+// DeployAI Portfolio (5 sibling engagements, isolation stress)
+// ─────────────────────────────────────────────────────────────
 
 export const zPortfolioSummary = z.object({
   tenant_id: z.string(),

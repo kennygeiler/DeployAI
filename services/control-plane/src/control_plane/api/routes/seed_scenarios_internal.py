@@ -26,6 +26,14 @@ from control_plane.scenarios.bluestate import (
     apply_bluestate_scenario,
     engagement_exists_for_tenant,
 )
+from control_plane.scenarios.bluestate_xl import (
+    ENGAGEMENT_ID as BLUESTATE_XL_ENGAGEMENT_ID,
+)
+from control_plane.scenarios.bluestate_xl import (
+    XlScenarioSummary,
+    apply_bluestate_xl_scenario,
+    xl_engagement_exists_for_tenant,
+)
 from control_plane.scenarios.portfolio import (
     PORTFOLIO_ENGAGEMENT_IDS,
     PortfolioSummary,
@@ -34,6 +42,11 @@ from control_plane.scenarios.portfolio import (
 )
 
 router = APIRouter(prefix="/admin/seed-scenarios", tags=["internal-seed-scenarios"])
+
+
+# ─────────────────────────────────────────────────────────────
+# BlueState (26-week demo)
+# ─────────────────────────────────────────────────────────────
 
 
 class SeedBluestateRequest(BaseModel):
@@ -82,6 +95,64 @@ async def seed_bluestate(
         summary=summary,
         took_seconds=round(elapsed, 3),
     )
+
+
+# ─────────────────────────────────────────────────────────────
+# BlueState-XL (5-year fixture)
+# ─────────────────────────────────────────────────────────────
+
+
+class SeedBluestateXlRequest(BaseModel):
+    force: bool = False
+
+
+class SeedBluestateXlResponse(BaseModel):
+    engagement_id: uuid.UUID
+    summary: XlScenarioSummary
+    took_seconds: float
+    source: str = "cp"
+
+
+class SeedBluestateXlConflict(BaseModel):
+    error: str
+    engagement_id: uuid.UUID
+
+
+@router.post(
+    "/bluestate-xl",
+    response_model=SeedBluestateXlResponse,
+    dependencies=[Depends(require_internal)],
+)
+async def seed_bluestate_xl(
+    body: SeedBluestateXlRequest,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+) -> SeedBluestateXlResponse:
+    already = await xl_engagement_exists_for_tenant(session, tenant_id)
+    if already and not body.force:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "already_seeded",
+                "engagement_id": BLUESTATE_XL_ENGAGEMENT_ID,
+            },
+        )
+
+    started = time.monotonic()
+    summary = await apply_bluestate_xl_scenario(session, tenant_id=tenant_id)
+    await session.commit()
+    elapsed = time.monotonic() - started
+
+    return SeedBluestateXlResponse(
+        engagement_id=summary.engagement_id,
+        summary=summary,
+        took_seconds=round(elapsed, 3),
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# DeployAI Portfolio (5 sibling engagements)
+# ─────────────────────────────────────────────────────────────
 
 
 class SeedPortfolioRequest(BaseModel):
