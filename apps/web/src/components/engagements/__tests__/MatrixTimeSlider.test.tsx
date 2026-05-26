@@ -149,7 +149,7 @@ describe("MatrixGraph + slider integration", () => {
     routerReplaceMock.mockReset();
   });
 
-  it("propagates a snapshot 404 from the BFF into a 'No snapshot for that date' banner", async () => {
+  it("propagates a snapshot 404 from the BFF into a warning banner above the live graph", async () => {
     searchParamsRef.current = new URLSearchParams("at=2026-05-22");
     // jsdom path: stub fetch so we don't make a real network call.
     // ReactFlow still needs ResizeObserver / getBoundingClientRect; see beforeAll above.
@@ -173,9 +173,8 @@ describe("MatrixGraph + slider integration", () => {
     await waitFor(() => {
       expect(screen.getByTestId("matrix-snapshot-missing")).toBeTruthy();
     });
-    expect(screen.getByText(/No snapshot for that date/i)).toBeTruthy();
-    // The graph itself is not rendered when the snapshot is missing — the
-    // live data was suppressed in favour of the banner, no crash.
-    expect(screen.queryByTestId("matrix-graph")).toBeNull();
+    expect(screen.getByText(/No snapshot for that date — showing live matrix/i)).toBeTruthy();
+    // The live graph still renders alongside the warning banner — never blanks.
+    expect(screen.getByTestId("matrix-graph")).toBeTruthy();
   });
 });

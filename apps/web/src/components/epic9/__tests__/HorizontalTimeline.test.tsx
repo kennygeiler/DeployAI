@@ -70,7 +70,7 @@ describe("HorizontalTimeline", () => {
     expect(onSelect).toHaveBeenCalledWith("space-target");
   });
 
-  it("reveals a tooltip on hover with the event summary", () => {
+  it("populates the info card above the chart on hover", () => {
     const events = [
       mkEvent({
         id: "hover-target",
@@ -79,12 +79,34 @@ describe("HorizontalTimeline", () => {
       }),
     ];
     render(<HorizontalTimeline events={events} />);
+    const card = screen.getByTestId("horizontal-timeline-info-card");
+    // Placeholder copy before any hover.
+    expect(card.textContent).toMatch(/Hover or focus an event/);
     const circle = screen.getByTestId("horizontal-timeline-event-hover-target");
-    expect(screen.queryByTestId("horizontal-timeline-tooltip")).toBeNull();
     fireEvent.mouseEnter(circle);
-    const tooltip = screen.getByTestId("horizontal-timeline-tooltip");
-    expect(tooltip.textContent).toMatch(/Hovered event summary/);
-    expect(tooltip.textContent).toMatch(/manual_capture/);
+    expect(card.textContent).toMatch(/Hovered event summary/);
+    expect(card.textContent).toMatch(/manual_capture/);
+  });
+
+  it("zooms the SVG via the +/Reset/- button group", () => {
+    const events = [
+      mkEvent({ id: "z1" }),
+      mkEvent({ id: "z2", occurred_at: "2026-02-01T00:00:00Z" }),
+    ];
+    render(<HorizontalTimeline events={events} />);
+    const svg = screen.getByRole("img", { name: /Engagement timeline horizontal view/i });
+    const baseWidth = Number(svg.getAttribute("width") ?? 0);
+    expect(baseWidth).toBeGreaterThan(0);
+    fireEvent.click(screen.getByTestId("horizontal-timeline-zoom-in"));
+    fireEvent.click(screen.getByTestId("horizontal-timeline-zoom-in"));
+    const zoomedInWidth = Number(svg.getAttribute("width") ?? 0);
+    expect(zoomedInWidth).toBeGreaterThan(baseWidth);
+    // Zoom out from the zoomed-in state — should drop below the prior width.
+    fireEvent.click(screen.getByTestId("horizontal-timeline-zoom-out"));
+    expect(Number(svg.getAttribute("width") ?? 0)).toBeLessThan(zoomedInWidth);
+    // Reset returns to baseline.
+    fireEvent.click(screen.getByTestId("horizontal-timeline-zoom-reset"));
+    expect(Number(svg.getAttribute("width") ?? 0)).toBe(baseWidth);
   });
 
   it("renders a focused pulse ring when focusedEventId matches", async () => {

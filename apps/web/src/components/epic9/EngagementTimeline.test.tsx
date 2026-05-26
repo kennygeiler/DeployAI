@@ -23,12 +23,23 @@ beforeAll(() => {
 
 import { EngagementTimeline } from "./EngagementTimeline.client";
 
-type TimelineEvent = {
+// Now that EngagementTimeline always fetches /ledger, tests feed the ledger
+// event shape (source_kind/source_ref/detail/etc.) instead of the legacy
+// /timeline event shape. The component maps source_kind → event_type for the
+// list view via ledgerToTimelineEvent.
+type LedgerEvent = {
   id: string;
+  engagement_id: string | null;
   occurred_at: string;
-  event_type: string;
+  recorded_at: string;
+  actor_kind: string;
+  actor_id: string | null;
+  source_kind: string;
   source_ref: string | null;
   summary: string;
+  detail: Record<string, unknown>;
+  caused_by_ids: string[];
+  affects: Array<{ entity_kind: string; entity_id: string }>;
 };
 
 function mockFetch(handler: () => { ok: boolean; body: unknown; text?: string }) {
@@ -60,28 +71,41 @@ describe("EngagementTimeline", () => {
   });
 
   it("groups events into ISO weeks with newest week first", async () => {
-    const events: TimelineEvent[] = [
-      {
+    const mkLedger = (over: Partial<LedgerEvent>): LedgerEvent => ({
+      id: "x",
+      engagement_id: "e1",
+      occurred_at: "2026-01-01T00:00:00Z",
+      recorded_at: "2026-01-01T00:00:00Z",
+      actor_kind: "user",
+      actor_id: null,
+      source_kind: "manual_capture",
+      source_ref: null,
+      summary: "",
+      detail: {},
+      caused_by_ids: [],
+      affects: [],
+      ...over,
+    });
+    const events: LedgerEvent[] = [
+      mkLedger({
         id: "a",
         occurred_at: "2026-05-05T10:00:00Z",
-        event_type: "ingest.email",
-        source_ref: null,
+        source_kind: "email_ingest",
         summary: "Older-week event",
-      },
-      {
+      }),
+      mkLedger({
         id: "b",
         occurred_at: "2026-05-12T15:00:00Z",
-        event_type: "ingest.meeting_note",
+        source_kind: "meeting_webhook",
         source_ref: "https://example/notes/42",
         summary: "Recent week event one",
-      },
-      {
+      }),
+      mkLedger({
         id: "c",
         occurred_at: "2026-05-14T09:00:00Z",
-        event_type: "ingest.field_note",
-        source_ref: null,
+        source_kind: "manual_capture",
         summary: "Recent week event two",
-      },
+      }),
     ];
     mockFetch(() => ({ ok: true, body: { events } }));
     render(<EngagementTimeline engagementId="e1" />);
@@ -98,7 +122,7 @@ describe("EngagementTimeline", () => {
 
     expect(screen.getByText("https://example/notes/42")).toBeTruthy();
 
-    expect(screen.getByText("ingest.email")).toBeTruthy();
+    expect(screen.getByText("email_ingest")).toBeTruthy();
   });
 
   it("renders the BFF error message inline when the request fails", async () => {
