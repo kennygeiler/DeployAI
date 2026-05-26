@@ -30,6 +30,22 @@ type ChatResponse = {
 const PANEL_TITLE_ID = "oracle-chat-title";
 const ORACLE_ROLE = "oracle" as const;
 
+function isV2Enabled(): boolean {
+  const raw = (process.env.NEXT_PUBLIC_AGENT_KENNY_V2_ENABLED ?? "").trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
+type V2Reasoning =
+  | { kind: "thinking"; content: string }
+  | { kind: "tool_call"; name: string }
+  | { kind: "tool_result"; name: string; row_count: number; truncated: boolean; error?: string };
+
+type V2CitationBadge = {
+  kind: string;
+  id: string;
+  outcome: "verified" | "unverified" | "external" | "cross_engagement_leak" | "not_found";
+};
+
 /**
  * Right-side collapsible Agent Kenny chat panel. Single-turn POST against
  * the BFF (G1.a CP route returns JSON; SSE upgrade is a follow-up). Loads
@@ -43,6 +59,8 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
   const [loadingHistory, setLoadingHistory] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const [streamingContent, setStreamingContent] = React.useState<string | null>(null);
+  const [reasoning, setReasoning] = React.useState<V2Reasoning[]>([]);
+  const [citationBadges, setCitationBadges] = React.useState<V2CitationBadge[]>([]);
   const [err, setErr] = React.useState<string | null>(null);
   const loadedRef = React.useRef(false);
 
@@ -132,10 +150,139 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
     [conversationId, engagementId],
   );
 
+  const consumeStream = React.useCallback(
+    async (
+      r: Response,
+      message: string,
+      optimisticId: string,
+    ): Promise<{
+      ok: boolean;
+      turn?: { turn_id: string; conversation_id: string };
+      acc?: string;
+    }> => {
+      if (!r.body) return { ok: false };
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let acc = "";
+      let done: { turn_id: string; conversation_id: string } | null = null;
+      let streamError: string | null = null;
+      for (;;) {
+        const { value, done: rdrDone } = await reader.read();
+        if (value) buffer += decoder.decode(value, { stream: true });
+        let split = buffer.indexOf("\n\n");
+        while (split !== -1) {
+          const block = buffer.slice(0, split);
+          buffer = buffer.slice(split + 2);
+          let eventName = "";
+          let dataText = "";
+          for (const line of block.split("\n")) {
+            if (line.startsWith("event: ")) {
+              eventName = line.slice(7).trim();
+            } else if (line.startsWith("data: ")) {
+              dataText = line.slice(6).trim();
+            }
+          }
+          if (!dataText) {
+            split = buffer.indexOf("\n\n");
+            continue;
+          }
+          try {
+            const frame = JSON.parse(dataText) as Record<string, unknown>;
+            if (eventName) {
+              // v2 typed frames.
+              if (eventName === "delta" && typeof frame.content === "string") {
+                acc += frame.content;
+                setStreamingContent(acc);
+              } else if (eventName === "thinking" && typeof frame.content === "string") {
+                setReasoning((prev) => [
+                  ...prev,
+                  { kind: "thinking", content: frame.content as string },
+                ]);
+              } else if (eventName === "tool_call" && typeof frame.name === "string") {
+                setReasoning((prev) => [
+                  ...prev,
+                  { kind: "tool_call", name: frame.name as string },
+                ]);
+              } else if (eventName === "tool_result" && typeof frame.name === "string") {
+                setReasoning((prev) => [
+                  ...prev,
+                  {
+                    kind: "tool_result",
+                    name: frame.name as string,
+                    row_count: Number(frame.row_count ?? 0),
+                    truncated: Boolean(frame.truncated),
+                    error: typeof frame.error === "string" ? frame.error : undefined,
+                  },
+                ]);
+              } else if (eventName === "citation_verified" && typeof frame.id === "string") {
+                setCitationBadges((prev) => [
+                  ...prev,
+                  { kind: String(frame.kind ?? ""), id: frame.id as string, outcome: "verified" },
+                ]);
+              } else if (eventName === "citation_unverified" && typeof frame.id === "string") {
+                const outcome = (
+                  typeof frame.outcome === "string" ? frame.outcome : "unverified"
+                ) as "unverified" | "external" | "cross_engagement_leak" | "not_found";
+                setCitationBadges((prev) => [
+                  ...prev,
+                  { kind: String(frame.kind ?? ""), id: frame.id as string, outcome },
+                ]);
+              } else if (eventName === "done") {
+                if (typeof frame.final_text === "string" && frame.final_text) {
+                  acc = frame.final_text;
+                }
+                if (
+                  typeof frame.turn_id === "string" &&
+                  typeof frame.conversation_id === "string"
+                ) {
+                  done = { turn_id: frame.turn_id, conversation_id: frame.conversation_id };
+                }
+              } else if (eventName === "error" && typeof frame.error === "string") {
+                streamError = frame.error;
+              }
+            } else {
+              // v1 unkeyed frames: { delta, done } or { done: true, turn_id, ... }
+              const f = frame as
+                | { delta?: string; done?: false }
+                | { done: true; turn_id?: string; conversation_id?: string; error?: string };
+              if (
+                "done" in f &&
+                f.done === false &&
+                typeof (f as { delta?: string }).delta === "string"
+              ) {
+                acc += (f as { delta: string }).delta;
+                setStreamingContent(acc);
+              } else if ("error" in f && typeof f.error === "string") {
+                streamError = f.error;
+              } else if ("turn_id" in f && f.turn_id && f.conversation_id) {
+                done = { turn_id: f.turn_id, conversation_id: f.conversation_id };
+              }
+            }
+          } catch {
+            // ignore malformed frame
+          }
+          split = buffer.indexOf("\n\n");
+        }
+        if (rdrDone) break;
+      }
+
+      if (streamError || !done) {
+        setStreamingContent(null);
+        await sendJsonFallback(message, optimisticId);
+        return { ok: false };
+      }
+      return { ok: true, turn: done, acc };
+    },
+    [sendJsonFallback],
+  );
+
   const send = React.useCallback(async () => {
     const message = input.trim();
     if (!message || sending) return;
     setSending(true);
+    setReasoning([]);
+    setCitationBadges([]);
     const optimisticId = `pending-${Date.now()}`;
     setTurns((prev) => [
       ...prev,
@@ -145,14 +292,33 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
     setStreamingContent("");
     let streamOk = false;
     try {
-      const r = await fetch(
-        `/api/bff/engagements/${encodeURIComponent(engagementId)}/oracle/chat/stream`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json", accept: "text/event-stream" },
-          body: JSON.stringify({ conversation_id: conversationId, message }),
-        },
-      );
+      let r: Response | null = null;
+      if (isV2Enabled()) {
+        const v2r = await fetch(
+          `/api/bff/engagements/${encodeURIComponent(engagementId)}/oracle/chat/stream-v2`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json", accept: "text/event-stream" },
+            body: JSON.stringify({ conversation_id: conversationId, message }),
+          },
+        );
+        if (v2r.status === 404) {
+          // CP feature flag is off — fall through to v1 stream.
+          r = null;
+        } else {
+          r = v2r;
+        }
+      }
+      if (r === null) {
+        r = await fetch(
+          `/api/bff/engagements/${encodeURIComponent(engagementId)}/oracle/chat/stream`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json", accept: "text/event-stream" },
+            body: JSON.stringify({ conversation_id: conversationId, message }),
+          },
+        );
+      }
       if (r.status === 429) {
         const j = (await r.json().catch(() => ({}))) as { userMessage?: string };
         toast.error(
@@ -172,62 +338,26 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
         return;
       }
 
-      const reader = r.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let acc = "";
-      let done: { turn_id: string; conversation_id: string } | null = null;
-      let streamError: string | null = null;
-      for (;;) {
-        const { value, done: rdrDone } = await reader.read();
-        if (value) buffer += decoder.decode(value, { stream: true });
-        let split = buffer.indexOf("\n\n");
-        while (split !== -1) {
-          const raw = buffer.slice(0, split);
-          buffer = buffer.slice(split + 2);
-          const line = raw.trim();
-          if (line.startsWith("data: ")) {
-            try {
-              const frame = JSON.parse(line.slice(6)) as
-                | { delta: string; done: false }
-                | { done: true; turn_id?: string; conversation_id?: string; error?: string };
-              if (frame.done === false) {
-                acc += frame.delta;
-                setStreamingContent(acc);
-              } else if (frame.error) {
-                streamError = frame.error;
-              } else if (frame.turn_id && frame.conversation_id) {
-                done = { turn_id: frame.turn_id, conversation_id: frame.conversation_id };
-              }
-            } catch {
-              // Malformed frame — ignore; the terminal done frame is what matters.
-            }
-          }
-          split = buffer.indexOf("\n\n");
-        }
-        if (rdrDone) break;
-      }
-
-      if (streamError || !done) {
-        // No terminal done frame (or upstream error mid-stream) — fall back.
-        setStreamingContent(null);
-        await sendJsonFallback(message, optimisticId);
+      const consumed = await consumeStream(r, message, optimisticId);
+      if (!consumed.ok || !consumed.turn) {
         return;
       }
 
+      const done = consumed.turn;
+      const acc = consumed.acc ?? "";
       setConversationId(done.conversation_id);
       setTurns((prev) =>
         prev
           .filter((t) => t.id !== optimisticId)
           .concat([
             {
-              id: `user-${done!.turn_id}`,
+              id: `user-${done.turn_id}`,
               role: "user",
               content: message,
               created_at: new Date().toISOString(),
             },
             {
-              id: done!.turn_id,
+              id: done.turn_id,
               role: "oracle",
               content: acc,
               created_at: new Date().toISOString(),
@@ -253,12 +383,14 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
     } finally {
       setSending(false);
     }
-  }, [conversationId, engagementId, input, sending, sendJsonFallback]);
+  }, [conversationId, consumeStream, engagementId, input, sending, sendJsonFallback]);
 
   const clear = React.useCallback(() => {
     setTurns([]);
     setConversationId(null);
     setStreamingContent(null);
+    setReasoning([]);
+    setCitationBadges([]);
     setErr(null);
     loadedRef.current = false;
   }, []);
@@ -361,6 +493,44 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
                   data-testid="oracle-chat-streaming"
                   className="mt-2"
                 >
+                  {reasoning.length > 0 ? (
+                    <ul className="mb-1 flex flex-wrap gap-1" data-testid="oracle-chat-reasoning">
+                      {reasoning.map((r, i) => (
+                        <li
+                          key={i}
+                          className="bg-paper-300 text-ink-700 rounded px-2 py-0.5 text-[10px]"
+                          data-testid={`oracle-chat-${r.kind}`}
+                        >
+                          {r.kind === "thinking"
+                            ? `thinking: ${r.content.slice(0, 80)}`
+                            : r.kind === "tool_call"
+                              ? `tool: ${r.name}`
+                              : `result: ${r.name} (${r.row_count}${r.truncated ? "+" : ""})`}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {citationBadges.length > 0 ? (
+                    <ul className="mb-1 flex flex-wrap gap-1" data-testid="oracle-chat-citations">
+                      {citationBadges.map((b, i) => (
+                        <li
+                          key={`${b.kind}-${b.id}-${i}`}
+                          className={
+                            b.outcome === "verified"
+                              ? "bg-success-100 text-success-800 rounded px-1.5 py-0.5 text-[10px]"
+                              : "bg-error-100 text-error-800 rounded px-1.5 py-0.5 text-[10px]"
+                          }
+                          data-testid={
+                            b.outcome === "verified"
+                              ? "oracle-citation-verified"
+                              : "oracle-citation-unverified"
+                          }
+                        >
+                          {b.kind}:{b.id.slice(0, 8)}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                   <ul>
                     <OracleMessage
                       engagementId={engagementId}

@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
@@ -24,6 +25,15 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from control_plane.agents.agent_kenny import (
+    BudgetExhaustedError as KennyBudgetExhaustedError,
+)
+from control_plane.agents.agent_kenny import (
+    ConversationNotFoundError as KennyConversationNotFoundError,
+)
+from control_plane.agents.agent_kenny import KennyAgentService
+from control_plane.agents.agent_kenny.stream import format_chunk as format_kenny_chunk
+from control_plane.agents.agent_kenny.types import DoneChunk, ErrorChunk
 from control_plane.agents.llm import get_llm_provider, resolve_tenant_llm_provider
 from control_plane.agents.oracle_chat import (
     BudgetExhaustedError,
@@ -38,6 +48,13 @@ from control_plane.api.routes.engagements_internal import (
 )
 from control_plane.db import get_app_db_session
 from control_plane.domain.oracle import OracleChatTurn, OracleConversation
+
+_KENNY_V2_ENV_FLAG = "DEPLOYAI_AGENT_KENNY_V2_ENABLED"
+
+
+def _kenny_v2_enabled() -> bool:
+    return os.environ.get(_KENNY_V2_ENV_FLAG, "").strip().lower() in ("1", "true", "yes", "on")
+
 
 router = APIRouter(prefix="/engagements", tags=["internal-engagements-oracle"])
 
@@ -202,6 +219,75 @@ async def post_oracle_chat_stream(
             _log.exception("oracle stream error")
             err_payload = {"done": True, "error": str(exc)[:200]}
             yield f"data: {json.dumps(err_payload)}\n\n".encode()
+
+    return StreamingResponse(
+        _frames(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.post(
+    "/{engagement_id}/oracle/chat/stream-v2",
+    dependencies=[Depends(require_internal)],
+)
+async def post_oracle_chat_stream_v2(
+    engagement_id: uuid.UUID,
+    body: OracleChatRequest,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+    actor_id: Annotated[uuid.UUID, Depends(_actor_uuid)],
+    llm: Annotated[LLMProvider, Depends(get_llm_provider)],
+) -> StreamingResponse:
+    if not _kenny_v2_enabled():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+
+    await _require_engagement(session, tenant_id, engagement_id)
+    resolved = await resolve_tenant_llm_provider(session, tenant_id, llm)
+    service = KennyAgentService(resolved)
+
+    try:
+        chunks = await service.reply_stream(
+            session,
+            tenant_id=tenant_id,
+            engagement_id=engagement_id,
+            actor_user_id=actor_id,
+            conversation_id=body.conversation_id,
+            message=body.message,
+            now=datetime.now(UTC),
+        )
+    except KennyBudgetExhaustedError as exc:
+        await session.rollback()
+        tomorrow = datetime.now(UTC).date() + _ONE_DAY
+        retry_at = datetime.combine(tomorrow, datetime.min.time(), tzinfo=UTC).isoformat()
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"error": "daily LLM budget exhausted", "retry_after_iso": retry_at},
+        ) from exc
+    except KennyConversationNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found") from exc
+
+    async def _frames() -> AsyncIterator[bytes]:
+        committed = False
+        try:
+            async for chunk in chunks:
+                if isinstance(chunk, DoneChunk):
+                    if not committed:
+                        await session.commit()
+                        committed = True
+                    yield format_kenny_chunk(chunk)
+                elif isinstance(chunk, ErrorChunk):
+                    if not committed:
+                        await session.rollback()
+                    yield format_kenny_chunk(chunk)
+                else:
+                    yield format_kenny_chunk(chunk)
+        except Exception as exc:
+            if not committed:
+                await session.rollback()
+            _log.exception("kenny v2 stream error")
+            yield format_kenny_chunk(ErrorChunk(error=str(exc)[:200]))
 
     return StreamingResponse(
         _frames(),
