@@ -142,6 +142,16 @@ async def persist_turn(
     session.add(audit)
     await session.flush()
 
+    # Phase 5 Wave 1C: include external citations in the persisted
+    # citation list so the audit trail captures *which* MCP provider was
+    # cited (slack / linear / …). The agent_audit_traces table only
+    # stores aggregate counts (no per-citation kind column → no CHECK
+    # constraint to dodge), so the per-row detail lives in the ledger
+    # event's JSONB ``detail`` column. Schema-level kind constraints, if
+    # any are added, are Wave 2's problem — no migration here.
+    external_citations_payload = [
+        {"kind": c.kind, "external_kind": c.kind, "id": c.identifier} for c in (report.external if report else [])
+    ]
     await emit_ledger_event(
         session,
         tenant_id=state.tenant_id,
@@ -163,6 +173,7 @@ async def persist_turn(
             "unverified_count": unverified,
             "cross_engagement_count": cross_eng,
             "external_count": external,
+            "external_citations": external_citations_payload,
             "agent_kenny_v2": True,
         },
         caused_by=context_event_ids,

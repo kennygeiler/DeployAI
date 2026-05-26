@@ -19,11 +19,18 @@ CITATION_RE = re.compile(
     r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]"
 )
 # External-prefix citations have a looser identifier shape — they are
-# recorded but never DB-checked.
+# recorded but never DB-checked. The shape allows path-like ``/``, GitHub
+# ``#issue`` / ``@sha`` separators, and Slack ``channel/ts`` forms so the
+# Phase 5 Wave 2 MCP wiring can echo provider-native ids verbatim without
+# the verifier silently dropping them.
 EXTERNAL_CITATION_RE = re.compile(
     r"\[(slack|linear|gdrive|notion|github):"
-    r"([0-9a-zA-Z][0-9a-zA-Z._-]{2,80})\]"
+    r"([0-9a-zA-Z][0-9a-zA-Z._\-/#@]{0,200})\]"
 )
+# Catch-all for any ``[word:non-empty-id]`` that did NOT match either of
+# the two regexes above. These surface as ``citation_unverified`` so we
+# never silently trust an unknown provider prefix (Phase 5 Wave 1C).
+UNKNOWN_KINDED_CITATION_RE = re.compile(r"\[([a-z][a-z0-9_]{1,30}):([^\[\]\s][^\[\]]{0,200})\]")
 DB_CITATION_KINDS: frozenset[str] = frozenset({"event", "node", "insight", "turn", "edge"})
 EXTERNAL_CITATION_KINDS: frozenset[str] = frozenset({"slack", "linear", "gdrive", "notion", "github"})
 
@@ -32,7 +39,7 @@ MAX_TOOL_CALLS_PER_TURN = 8
 MAX_REVISION_ATTEMPTS = 2
 TURN_HARD_TIMEOUT_S = 60.0
 
-CitationOutcome = Literal["verified", "cross_engagement_leak", "not_found", "external"]
+CitationOutcome = Literal["verified", "cross_engagement_leak", "not_found", "external_trust"]
 AdversarialSeverity = Literal["info", "warning", "blocking"]
 
 
@@ -154,6 +161,19 @@ class CrossEngagementLeakChunk:
 
 
 @dataclass(frozen=True)
+class CitationExternalChunk:
+    """One external (MCP-provider) citation, recorded but not DB-verified.
+
+    The ``kind`` is one of :data:`EXTERNAL_CITATION_KINDS` (slack / linear
+    / gdrive / notion / github). The audit ledger captures the upstream
+    call; we don't re-verify the id here. See scope-v2 §9.3.
+    """
+
+    kind: str
+    identifier: str
+
+
+@dataclass(frozen=True)
 class AdversarialConcernChunk:
     concern_text: str
     severity: AdversarialSeverity
@@ -183,6 +203,7 @@ StreamChunk = (
     | CitationVerifiedChunk
     | CitationUnverifiedChunk
     | CrossEngagementLeakChunk
+    | CitationExternalChunk
     | AdversarialConcernChunk
     | DoneChunk
     | ErrorChunk
@@ -192,10 +213,19 @@ StreamChunk = (
 def parse_citations(text: str) -> list[ParsedCitation]:
     """Extract all ``[kind:id]`` citations from ``text``.
 
-    Two regex sweeps so the DB-kinds keep the strict UUID guard from
-    scope-v2 §7.1 while external prefixes (slack / linear / …) accept a
-    looser provider-shaped identifier. Deduplicated by (kind, identifier)
-    preserving first-occurrence order across both sweeps.
+    Three regex sweeps:
+
+    1. :data:`CITATION_RE` keeps the strict UUID guard from scope-v2 §7.1
+       for DB-kinds.
+    2. :data:`EXTERNAL_CITATION_RE` accepts loose provider-shaped ids for
+       the Phase 5 MCP outbound prefixes.
+    3. :data:`UNKNOWN_KINDED_CITATION_RE` catches any *other* kinded
+       prefix (e.g. ``[twitter:abc]``). These surface as ``ParsedCitation``
+       so the verifier can mark them ``not_found`` and the SSE layer can
+       emit ``citation_unverified`` — never silently trusted (Wave 1C).
+
+    Deduplicated by (kind, identifier) preserving first-occurrence order
+    across all three sweeps.
     """
     seen: set[tuple[str, str]] = set()
     out: list[ParsedCitation] = []
@@ -204,6 +234,14 @@ def parse_citations(text: str) -> list[ParsedCitation]:
         matches.append((m.start(), m.group(1), m.group(2)))
     for m in EXTERNAL_CITATION_RE.finditer(text):
         matches.append((m.start(), m.group(1), m.group(2)))
+    for m in UNKNOWN_KINDED_CITATION_RE.finditer(text):
+        kind = m.group(1)
+        if kind in DB_CITATION_KINDS or kind in EXTERNAL_CITATION_KINDS:
+            # Already covered by the strict / external sweeps above. Skip
+            # to avoid surfacing a malformed DB-kind id (which the strict
+            # regex correctly refused) as a fake "unverified" frame.
+            continue
+        matches.append((m.start(), kind, m.group(2)))
     matches.sort(key=lambda t: t[0])
     for _, kind, identifier in matches:
         key = (kind, identifier)
@@ -247,11 +285,13 @@ __all__ = [
     "MAX_REVISION_ATTEMPTS",
     "MAX_TOOL_CALLS_PER_TURN",
     "TURN_HARD_TIMEOUT_S",
+    "UNKNOWN_KINDED_CITATION_RE",
     "AdversarialConcern",
     "AdversarialConcernChunk",
     "AdversarialSeverity",
     "AgentState",
     "BudgetExhaustedError",
+    "CitationExternalChunk",
     "CitationOutcome",
     "CitationReport",
     "CitationUnverifiedChunk",

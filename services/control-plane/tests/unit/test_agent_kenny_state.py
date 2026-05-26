@@ -70,9 +70,15 @@ def test_parse_citations_dedupes() -> None:
     assert len(parsed) == 1
 
 
-def test_parse_citations_ignores_unknown_prefixes() -> None:
+def test_parse_citations_surfaces_unknown_prefixes_for_unverified_emission() -> None:
+    # Phase 5 Wave 1C: unknown kinded prefixes are no longer silently
+    # dropped — they surface so the verifier can emit ``citation_unverified``.
+    # We don't want to silently trust an unfamiliar provider.
     text = "[banana:abc] is not a known kind"
-    assert parse_citations(text) == []
+    parsed = parse_citations(text)
+    assert len(parsed) == 1
+    assert parsed[0].kind == "banana"
+    assert parsed[0].identifier == "abc"
 
 
 def test_filter_db_citations_excludes_external() -> None:
@@ -99,7 +105,7 @@ def test_citation_report_total_sums_all_outcomes() -> None:
     report.verified.append(VerifiedCitation(kind="event", identifier="a", outcome="verified"))
     report.not_found.append(VerifiedCitation(kind="event", identifier="b", outcome="not_found"))
     report.cross_engagement.append(VerifiedCitation(kind="event", identifier="c", outcome="cross_engagement_leak"))
-    report.external.append(VerifiedCitation(kind="slack", identifier="d", outcome="external"))
+    report.external.append(VerifiedCitation(kind="slack", identifier="d", outcome="external_trust"))
     assert report.total == 4
 
 
