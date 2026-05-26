@@ -84,6 +84,8 @@ export type LedgerListOpts = {
   to?: string;
   source_kind?: string[];
   actor_id?: string;
+  affects_entity_kind?: string;
+  affects_entity_id?: string;
   cursor?: string;
   limit?: number;
 };
@@ -116,6 +118,8 @@ export async function cpListLedger(
     qs.set("source_kind", opts.source_kind.join(","));
   }
   if (opts.actor_id) qs.set("actor_id", opts.actor_id);
+  if (opts.affects_entity_kind) qs.set("affects_entity_kind", opts.affects_entity_kind);
+  if (opts.affects_entity_id) qs.set("affects_entity_id", opts.affects_entity_id);
   if (opts.cursor) qs.set("cursor", opts.cursor);
   if (opts.limit !== undefined) qs.set("limit", String(opts.limit));
   const url =

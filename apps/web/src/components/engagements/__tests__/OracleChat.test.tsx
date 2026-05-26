@@ -72,7 +72,7 @@ function installFetch(routes: Record<string, FetchHandler>) {
 }
 
 async function openPanel(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole("button", { name: /open/i }));
+  await user.click(screen.getByTestId("oracle-chat-rail-toggle"));
 }
 
 describe("OracleChat", () => {
@@ -95,9 +95,10 @@ describe("OracleChat", () => {
     });
 
     render(<OracleChat engagementId="e1" />);
-    expect(screen.getByTestId("oracle-chat-panel")).toBeTruthy();
+    expect(screen.getByTestId("oracle-chat-rail-toggle")).toBeTruthy();
     const user = userEvent.setup();
     await openPanel(user);
+    expect(screen.getByTestId("oracle-chat-panel")).toBeTruthy();
 
     const region = await screen.findByRole("region", { name: /mr\. oracle/i });
     expect(region).toBeTruthy();

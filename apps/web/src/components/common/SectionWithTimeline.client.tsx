@@ -63,7 +63,10 @@ export function SectionWithTimeline<T>({
           idPrefix={`section-${name}`}
         />
       </div>
-      <DensityStrip events={densityEvents} range={range} label={`${title} event density`} />
+      <div className="flex items-center gap-2" title="Activity per day across the selected range.">
+        <span className="text-ink-500 text-[10px] uppercase tracking-wide">events / day</span>
+        <DensityStrip events={densityEvents} range={range} label={`${title} event density`} />
+      </div>
       {children(filtered)}
     </section>
   );

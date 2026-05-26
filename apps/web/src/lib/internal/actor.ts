@@ -49,16 +49,20 @@ export async function getActorFromHeaders(): Promise<AuthActor | null> {
     }
   }
 
-  if (
-    !role &&
-    process.env.NODE_ENV === "development" &&
-    process.env.DEPLOYAI_DISABLE_DEV_STRATEGIST !== "1"
-  ) {
+  const devRoleInjectEnabled =
+    process.env.NODE_ENV === "development" || process.env.DEPLOYAI_LOCAL_DEV_ROLE_INJECT === "1";
+  if (!role && devRoleInjectEnabled && process.env.DEPLOYAI_DISABLE_DEV_STRATEGIST !== "1") {
     // Mirrors `middleware.ts`: some dev setups (and certain Next + fetch paths) do not
     // forward middleware-injected headers into `headers()` for Route Handlers. Defaulting
     // here keeps `/api/internal/strategist-activity` and BFF routes usable in `next dev`
-    // without a browser extension. Disabled with `DEPLOYAI_DISABLE_DEV_STRATEGIST=1`.
-    role = "deployment_strategist";
+    // and the local compose stack (which runs the production build with
+    // DEPLOYAI_LOCAL_DEV_ROLE_INJECT=1) without a browser extension.
+    // Disabled with `DEPLOYAI_DISABLE_DEV_STRATEGIST=1`.
+    role =
+      process.env.DEPLOYAI_DEV_STRATEGIST_ROLE?.trim() === "fde" ? "fde" : "deployment_strategist";
+    if (!tenant) {
+      tenant = process.env.DEPLOYAI_DEV_TENANT_ID?.trim() || "11111111-1111-1111-1111-111111111111";
+    }
   }
   if (!role) {
     return null;
@@ -88,10 +92,9 @@ export async function getActorIdFromHeaders(): Promise<string | null> {
       }
     }
   }
-  if (
-    process.env.NODE_ENV === "development" &&
-    process.env.DEPLOYAI_DISABLE_DEV_STRATEGIST !== "1"
-  ) {
+  const devInjectActive =
+    process.env.NODE_ENV === "development" || process.env.DEPLOYAI_LOCAL_DEV_ROLE_INJECT === "1";
+  if (devInjectActive && process.env.DEPLOYAI_DISABLE_DEV_STRATEGIST !== "1") {
     return process.env.DEPLOYAI_DEV_ACTOR_ID?.trim() || DEV_ACTOR_FALLBACK;
   }
   return null;

@@ -104,6 +104,15 @@ export async function GET(request: NextRequest, ctx: Ctx) {
   }
   const actorId = sp.get("actor_id");
   if (actorId) opts.actor_id = actorId;
+  const affectsKind = sp.get("affects_entity_kind");
+  if (affectsKind) opts.affects_entity_kind = affectsKind;
+  const affectsId = sp.get("affects_entity_id");
+  if (affectsId) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(affectsId)) {
+      return NextResponse.json({ error: "invalid affects_entity_id" }, { status: 400 });
+    }
+    opts.affects_entity_id = affectsId;
+  }
   const cursor = sp.get("cursor");
   if (cursor) opts.cursor = cursor;
 
