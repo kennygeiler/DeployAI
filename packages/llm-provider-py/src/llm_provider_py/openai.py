@@ -10,13 +10,41 @@ from typing import Any
 import httpx
 
 from llm_provider_py.secrets import resolve_openai_api_key
-from llm_provider_py.types import CapabilityMatrix, ChatMessage, StreamChunk
+from llm_provider_py.types import (
+    CapabilityMatrix,
+    ChatMessage,
+    StopReason,
+    StreamChunk,
+    ToolStreamChunk,
+)
 from llm_provider_py.util import DEFAULT_CAPS, UsageCallback, httpx_post_with_retries, record_usage
 
 CHAT_URL = "https://api.openai.com/v1/chat/completions"
 EMBED_URL = "https://api.openai.com/v1/embeddings"
 DEFAULT_CHAT_MODEL = "gpt-4o"
 DEFAULT_EMBED_MODEL = "text-embedding-3-small"
+
+
+def anthropic_tools_to_openai(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Translate the Anthropic ``tools=[]`` shape into OpenAI function-call spec.
+
+    Anthropic: ``{"name": ..., "description": ..., "input_schema": {...}}``
+    OpenAI:    ``{"type": "function", "function": {"name", "description", "parameters"}}``
+    """
+    out: list[dict[str, Any]] = []
+    for t in tools:
+        name = str(t.get("name", ""))
+        if not name:
+            continue
+        fn: dict[str, Any] = {"name": name}
+        desc = t.get("description")
+        if isinstance(desc, str):
+            fn["description"] = desc
+        schema = t.get("input_schema")
+        if isinstance(schema, dict):
+            fn["parameters"] = schema
+        out.append({"type": "function", "function": fn})
+    return out
 
 
 class OpenAIProvider:
@@ -115,6 +143,22 @@ class OpenAIProvider:
         msg = "OpenAI chat_complete_stream not implemented; use AnthropicProvider for streaming"
         raise NotImplementedError(msg)
         yield StreamChunk(delta="", done=True, tokens_used=0)  # pragma: no cover
+
+    async def chat_complete_stream_with_tools(
+        self,
+        messages: list[ChatMessage],
+        tools: list[dict[str, Any]],
+        *,
+        temperature: float = 0.0,
+        max_output_tokens: int = 1024,
+    ) -> AsyncIterator[ToolStreamChunk]:
+        # Caller pattern is `async for chunk in provider.chat_complete_stream_with_tools(...)`;
+        # raising synchronously from a non-async method would break the
+        # try/except-around-iteration contract. Wrap in an async generator.
+        _ = messages, tools, temperature, max_output_tokens
+        msg = "OpenAI chat_complete_stream_with_tools not implemented; use AnthropicProvider for streaming tool_use"
+        raise NotImplementedError(msg)
+        yield StopReason(reason="end_turn", usage={})  # pragma: no cover
 
     async def chat_stream(
         self,
