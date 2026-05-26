@@ -46,6 +46,10 @@ type V2CitationBadge = {
   outcome: "verified" | "unverified" | "external" | "cross_engagement_leak" | "not_found";
 };
 
+type V2InlineNote =
+  | { kind: "cross_engagement_leak"; citationKind: string; id: string }
+  | { kind: "adversarial_concern"; concern: string; severity: "info" | "warning" | "blocking" };
+
 /**
  * Right-side collapsible Agent Kenny chat panel. Single-turn POST against
  * the BFF (G1.a CP route returns JSON; SSE upgrade is a follow-up). Loads
@@ -61,6 +65,7 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
   const [streamingContent, setStreamingContent] = React.useState<string | null>(null);
   const [reasoning, setReasoning] = React.useState<V2Reasoning[]>([]);
   const [citationBadges, setCitationBadges] = React.useState<V2CitationBadge[]>([]);
+  const [inlineNotes, setInlineNotes] = React.useState<V2InlineNote[]>([]);
   const [err, setErr] = React.useState<string | null>(null);
   const loadedRef = React.useRef(false);
 
@@ -228,6 +233,40 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
                   ...prev,
                   { kind: String(frame.kind ?? ""), id: frame.id as string, outcome },
                 ]);
+              } else if (eventName === "cross_engagement_leak" && typeof frame.id === "string") {
+                setCitationBadges((prev) => [
+                  ...prev,
+                  {
+                    kind: String(frame.kind ?? ""),
+                    id: frame.id as string,
+                    outcome: "cross_engagement_leak",
+                  },
+                ]);
+                setInlineNotes((prev) => [
+                  ...prev,
+                  {
+                    kind: "cross_engagement_leak",
+                    citationKind: String(frame.kind ?? ""),
+                    id: frame.id as string,
+                  },
+                ]);
+              } else if (
+                eventName === "adversarial_concern" &&
+                typeof frame.concern_text === "string"
+              ) {
+                const sev = (
+                  frame.severity === "blocking" || frame.severity === "warning"
+                    ? frame.severity
+                    : "info"
+                ) as "info" | "warning" | "blocking";
+                setInlineNotes((prev) => [
+                  ...prev,
+                  {
+                    kind: "adversarial_concern",
+                    concern: frame.concern_text as string,
+                    severity: sev,
+                  },
+                ]);
               } else if (eventName === "done") {
                 if (typeof frame.final_text === "string" && frame.final_text) {
                   acc = frame.final_text;
@@ -283,6 +322,7 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
     setSending(true);
     setReasoning([]);
     setCitationBadges([]);
+    setInlineNotes([]);
     const optimisticId = `pending-${Date.now()}`;
     setTurns((prev) => [
       ...prev,
@@ -391,6 +431,7 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
     setStreamingContent(null);
     setReasoning([]);
     setCitationBadges([]);
+    setInlineNotes([]);
     setErr(null);
     loadedRef.current = false;
   }, []);
@@ -529,6 +570,35 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
                           {b.kind}:{b.id.slice(0, 8)}
                         </li>
                       ))}
+                    </ul>
+                  ) : null}
+                  {inlineNotes.length > 0 ? (
+                    <ul className="mb-1 flex flex-col gap-1" data-testid="oracle-chat-inline-notes">
+                      {inlineNotes.map((n, i) =>
+                        n.kind === "cross_engagement_leak" ? (
+                          <li
+                            key={`leak-${i}`}
+                            className="bg-error-100 text-error-800 rounded px-2 py-1 text-[11px]"
+                            data-testid="oracle-cross-engagement-leak"
+                          >
+                            Cross-engagement leak blocked: {n.citationKind}:{n.id.slice(0, 8)}
+                          </li>
+                        ) : (
+                          <li
+                            key={`concern-${i}`}
+                            className={
+                              n.severity === "blocking"
+                                ? "bg-error-100 text-error-800 rounded px-2 py-1 text-[11px]"
+                                : n.severity === "warning"
+                                  ? "bg-warning-100 text-warning-900 rounded px-2 py-1 text-[11px]"
+                                  : "bg-paper-300 text-ink-700 rounded px-2 py-1 text-[11px]"
+                            }
+                            data-testid={`oracle-adversarial-concern-${n.severity}`}
+                          >
+                            Concern: {n.concern}
+                          </li>
+                        ),
+                      )}
                     </ul>
                   ) : null}
                   <ul>

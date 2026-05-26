@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     TIMESTAMP,
@@ -20,7 +21,7 @@ from sqlalchemy import (
     Text,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from control_plane.domain.base import Base
@@ -58,6 +59,12 @@ class AgentAuditTrace(Base):
     total_tokens: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text("0"))
     duration_ms: Mapped[float] = mapped_column(Float(), nullable=False, server_default=text("0"))
     final_text: Mapped[str] = mapped_column(Text(), nullable=False)
+    adversarial_concerns_text: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB(),
+        nullable=False,
+        server_default=text("'[]'::jsonb"),
+    )
+    verified_concerns_count: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text("0"))
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,

@@ -13,9 +13,15 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 
-# scope-v2 §7.1
+# scope-v2 §7.1 — full 5-kind UUID regex for the audit-loop citation gate.
 CITATION_RE = re.compile(
-    r"\[(event|node|insight|turn|edge|slack|linear|gdrive|notion|github):"
+    r"\[(event|node|insight|turn|edge):"
+    r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]"
+)
+# External-prefix citations have a looser identifier shape — they are
+# recorded but never DB-checked.
+EXTERNAL_CITATION_RE = re.compile(
+    r"\[(slack|linear|gdrive|notion|github):"
     r"([0-9a-zA-Z][0-9a-zA-Z._-]{2,80})\]"
 )
 DB_CITATION_KINDS: frozenset[str] = frozenset({"event", "node", "insight", "turn", "edge"})
@@ -27,6 +33,15 @@ MAX_REVISION_ATTEMPTS = 2
 TURN_HARD_TIMEOUT_S = 60.0
 
 CitationOutcome = Literal["verified", "cross_engagement_leak", "not_found", "external"]
+AdversarialSeverity = Literal["info", "warning", "blocking"]
+
+
+@dataclass(frozen=True)
+class AdversarialConcern:
+    """One auditor-flagged concern with a heuristic severity (scope-v2 §7.3)."""
+
+    concern_text: str
+    severity: AdversarialSeverity
 
 
 @dataclass(frozen=True)
@@ -85,6 +100,7 @@ class AgentState:
     revision_attempts: int = 0
     citation_report: CitationReport | None = None
     adversarial_concerns: list[str] = field(default_factory=list)
+    adversarial_concern_objs: list[AdversarialConcern] = field(default_factory=list)
     final_text: str = ""
     final_turn_id: uuid.UUID | None = None
     final_conversation_id: uuid.UUID | None = None
@@ -132,6 +148,18 @@ class CitationUnverifiedChunk:
 
 
 @dataclass(frozen=True)
+class CrossEngagementLeakChunk:
+    kind: str
+    identifier: str
+
+
+@dataclass(frozen=True)
+class AdversarialConcernChunk:
+    concern_text: str
+    severity: AdversarialSeverity
+
+
+@dataclass(frozen=True)
 class DoneChunk:
     turn_id: uuid.UUID
     conversation_id: uuid.UUID
@@ -154,6 +182,8 @@ StreamChunk = (
     | DeltaChunk
     | CitationVerifiedChunk
     | CitationUnverifiedChunk
+    | CrossEngagementLeakChunk
+    | AdversarialConcernChunk
     | DoneChunk
     | ErrorChunk
 )
@@ -162,16 +192,25 @@ StreamChunk = (
 def parse_citations(text: str) -> list[ParsedCitation]:
     """Extract all ``[kind:id]`` citations from ``text``.
 
-    Deduplicated by (kind, identifier) preserving first-occurrence order.
+    Two regex sweeps so the DB-kinds keep the strict UUID guard from
+    scope-v2 §7.1 while external prefixes (slack / linear / …) accept a
+    looser provider-shaped identifier. Deduplicated by (kind, identifier)
+    preserving first-occurrence order across both sweeps.
     """
     seen: set[tuple[str, str]] = set()
     out: list[ParsedCitation] = []
+    matches: list[tuple[int, str, str]] = []
     for m in CITATION_RE.finditer(text):
-        key = (m.group(1), m.group(2))
+        matches.append((m.start(), m.group(1), m.group(2)))
+    for m in EXTERNAL_CITATION_RE.finditer(text):
+        matches.append((m.start(), m.group(1), m.group(2)))
+    matches.sort(key=lambda t: t[0])
+    for _, kind, identifier in matches:
+        key = (kind, identifier)
         if key in seen:
             continue
         seen.add(key)
-        out.append(ParsedCitation(kind=m.group(1), identifier=m.group(2)))
+        out.append(ParsedCitation(kind=kind, identifier=identifier))
     return out
 
 
@@ -204,9 +243,13 @@ __all__ = [
     "CITATION_RE",
     "DB_CITATION_KINDS",
     "EXTERNAL_CITATION_KINDS",
+    "EXTERNAL_CITATION_RE",
     "MAX_REVISION_ATTEMPTS",
     "MAX_TOOL_CALLS_PER_TURN",
     "TURN_HARD_TIMEOUT_S",
+    "AdversarialConcern",
+    "AdversarialConcernChunk",
+    "AdversarialSeverity",
     "AgentState",
     "BudgetExhaustedError",
     "CitationOutcome",
@@ -214,6 +257,7 @@ __all__ = [
     "CitationUnverifiedChunk",
     "CitationVerifiedChunk",
     "ConversationNotFoundError",
+    "CrossEngagementLeakChunk",
     "CrossEngagementLeakError",
     "DeltaChunk",
     "DoneChunk",
