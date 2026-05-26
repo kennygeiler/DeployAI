@@ -10,7 +10,7 @@ from typing import Any
 import httpx
 
 from llm_provider_py.secrets import resolve_openai_api_key
-from llm_provider_py.types import CapabilityMatrix, ChatMessage
+from llm_provider_py.types import CapabilityMatrix, ChatMessage, StreamChunk
 from llm_provider_py.util import DEFAULT_CAPS, UsageCallback, httpx_post_with_retries, record_usage
 
 CHAT_URL = "https://api.openai.com/v1/chat/completions"
@@ -99,6 +99,22 @@ class OpenAIProvider:
         except (KeyError, IndexError, TypeError) as e:
             msg = f"Bad OpenAI response: {data!r}"
             raise OSError(msg) from e
+
+    async def chat_complete_stream(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float = 0.2,
+        max_output_tokens: int = 1024,
+    ) -> AsyncIterator[StreamChunk]:
+        # Caller pattern is `async for chunk in provider.chat_complete_stream(...)`;
+        # raising synchronously from a non-async method would error at call time
+        # not at iteration time, breaking the caller's try/except-around-iteration
+        # contract. Wrap in an async generator so the error surfaces at iteration.
+        _ = messages, temperature, max_output_tokens
+        msg = "OpenAI chat_complete_stream not implemented; use AnthropicProvider for streaming"
+        raise NotImplementedError(msg)
+        yield StreamChunk(delta="", done=True, tokens_used=0)  # pragma: no cover
 
     async def chat_stream(
         self,

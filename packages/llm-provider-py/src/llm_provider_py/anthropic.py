@@ -10,7 +10,7 @@ from typing import Any
 import httpx
 
 from llm_provider_py.secrets import resolve_anthropic_api_key, resolve_openai_api_key
-from llm_provider_py.types import CapabilityMatrix, ChatMessage
+from llm_provider_py.types import CapabilityMatrix, ChatMessage, StreamChunk
 from llm_provider_py.util import DEFAULT_CAPS, UsageCallback, httpx_post_with_retries, pseudo_embed, record_usage
 
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
@@ -109,13 +109,13 @@ class AnthropicProvider:
         msg = f"No text in Anthropic response: {data!r}"
         raise OSError(msg)
 
-    async def chat_stream(
+    def _build_stream_body(
         self,
         messages: list[ChatMessage],
         *,
-        temperature: float | None = None,
-        max_output_tokens: int | None = None,
-    ) -> AsyncIterator[str]:
+        temperature: float | None,
+        max_output_tokens: int | None,
+    ) -> dict[str, Any]:
         system_parts = [m["content"] for m in messages if m.get("role") == "system"]
         system = "\n\n".join(system_parts) if system_parts else None
         user_msgs = [m for m in messages if m.get("role") in ("user", "assistant")]
@@ -129,8 +129,101 @@ class AnthropicProvider:
             body["system"] = system
         if temperature is not None:
             body["temperature"] = temperature
+        return body
+
+    async def chat_stream(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float | None = None,
+        max_output_tokens: int | None = None,
+    ) -> AsyncIterator[str]:
+        body = self._build_stream_body(messages, temperature=temperature, max_output_tokens=max_output_tokens)
         async for chunk in self._iter_sse(body):
             yield chunk
+
+    async def chat_complete_stream(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float = 0.2,
+        max_output_tokens: int = 1024,
+    ) -> AsyncIterator[StreamChunk]:
+        body = self._build_stream_body(messages, temperature=temperature, max_output_tokens=max_output_tokens)
+        tokens_used = 0
+        async for ev in self._iter_sse_events(body):
+            t = ev.get("type")
+            if t == "content_block_delta" and isinstance(ev.get("delta"), dict):
+                d = ev["delta"]
+                if d.get("type") == "text_delta" and "text" in d:
+                    yield StreamChunk(delta=str(d["text"]), done=False, tokens_used=0)
+            elif t == "message_delta" and isinstance(ev.get("usage"), dict):
+                u = ev["usage"]
+                inp = int(u.get("input_tokens", 0) or 0)
+                out = int(u.get("output_tokens", 0) or 0)
+                tokens_used = inp + out
+            elif t == "message_start" and isinstance(ev.get("message"), dict):
+                u = ev["message"].get("usage")
+                if isinstance(u, dict):
+                    inp = int(u.get("input_tokens", 0) or 0)
+                    out = int(u.get("output_tokens", 0) or 0)
+                    tokens_used = max(tokens_used, inp + out)
+        # Final chunk: tokens_used reflects what Anthropic actually reported via
+        # message_delta.usage / message_start.usage. May be 0 if neither event
+        # arrived (e.g. truncated stream); caller treats 0 as "unknown" and
+        # falls back to its pre-call estimate for budget accounting.
+        yield StreamChunk(delta="", done=True, tokens_used=tokens_used)
+
+    async def _iter_sse_events(self, body: dict[str, Any]) -> AsyncGenerator[dict[str, Any]]:
+        import httpx as hx
+
+        async with (
+            hx.AsyncClient(timeout=self._timeout) as aclient,
+            aclient.stream("POST", ANTHROPIC_URL, headers=self._headers(), json=body) as resp,
+        ):
+            if resp.status_code >= 400:
+                err_body = await resp.aread()
+                msg = f"Anthropic error {resp.status_code}: {err_body[:500]!r}"
+                raise OSError(msg)
+            buf = b""
+
+            def _parse_line(line: bytes) -> dict[str, Any] | None | str:
+                if not line.strip() or not line.startswith(b"data: "):
+                    return None
+                payload = line[6:].strip()
+                if payload == b"[DONE]":
+                    return "DONE"
+                try:
+                    parsed = json.loads(payload.decode("utf-8", errors="replace"))
+                except json.JSONDecodeError:
+                    return None
+                return parsed if isinstance(parsed, dict) else None
+
+            async for chunk in resp.aiter_bytes():
+                buf += chunk
+                while b"\n" in buf:
+                    line, buf = buf.split(b"\n", 1)
+                    ev = _parse_line(line)
+                    if ev is None:
+                        continue
+                    if ev == "DONE":
+                        return
+                    assert isinstance(ev, dict)
+                    yield ev
+                    # Emit usage telemetry only AFTER caller consumed the event
+                    # so an early break doesn't inflate counters with an event
+                    # the caller never saw.
+                    if ev.get("type") == "message_delta" and isinstance(ev.get("usage"), dict):
+                        self._emit_usage(ev["usage"])
+            # Flush any final line that arrived without a trailing newline
+            # before the stream closed.
+            if buf.strip():
+                ev = _parse_line(buf)
+                if ev not in (None, "DONE"):
+                    assert isinstance(ev, dict)
+                    yield ev
+                    if ev.get("type") == "message_delta" and isinstance(ev.get("usage"), dict):
+                        self._emit_usage(ev["usage"])
 
     async def _iter_sse(self, body: dict[str, Any]) -> AsyncGenerator[str]:
         import httpx as hx
