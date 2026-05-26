@@ -162,11 +162,21 @@ async def apply_bluestate_scenario(
     sql, _registry = build_scenario_sql(anchor)
     # Builder emits BEGIN/COMMIT to wrap its block when run via psql. Inside an
     # async session that already manages a transaction these statements are
-    # noise; strip them so SQLAlchemy doesn't choke on the nested transaction.
+    # noise; strip them so we don't fight the existing transaction.
     sql = sql.replace("BEGIN;", "").replace("COMMIT;", "")
     if not is_default_tenant:
         sql = sql.replace(TENANT_ID, effective_tenant_str)
-    await session.execute(text(sql))
+    # SQLAlchemy + asyncpg refuses multi-statement blocks ("cannot insert
+    # multiple commands into a prepared statement"). Drop down to the raw
+    # asyncpg connection and run the block via its `execute` API, which DOES
+    # support multi-statement DDL/DML when run as a simple query.
+    await session.flush()
+    sync_conn = await session.connection()
+    raw = await sync_conn.get_raw_connection()
+    driver_conn = raw.driver_connection
+    if driver_conn is None:
+        raise RuntimeError("expected asyncpg driver connection for multi-statement seed")
+    await driver_conn.execute(sql)
     await session.flush()
 
     snapshot_count = 0
