@@ -81,6 +81,15 @@ ALLOWED_SOURCE_KINDS: frozenset[str] = frozenset(
         # one ledger row so the audit timeline shows who turned the
         # switch and when. Detail: ``{disabled: bool, actor_id: str}``.
         "mcp_outbound_killswitch_changed",
+        # v2 Phase 5 Wave 2D — Agent Kenny outbound MCP client (scope-v2 §9.2,
+        # threat-model §3+§4). Four kinds so reviewers can tell a successful
+        # external call apart from a kill-switch lockdown apart from a
+        # per-tenant rate-limit denial apart from an allow-list rejection
+        # without parsing the detail blob.
+        "mcp_outbound_call",
+        "mcp_outbound_blocked",
+        "mcp_outbound_rate_limited",
+        "mcp_outbound_denied",
     }
 )
 
