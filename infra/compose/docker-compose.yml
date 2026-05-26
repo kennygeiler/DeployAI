@@ -181,6 +181,39 @@ services:
       retries: 20
       start_period: 15s
 
+  # v2 Phase 4 — MCP inbound server (scope-v2 §8). Exposes engagement matrix +
+  # ledger over the Model Context Protocol so an advisor's Claude desktop (or
+  # any MCP client) can query DeployAI directly with a tenant-minted bearer
+  # token. Reads from the same Postgres as control-plane; writes nothing.
+  mcp-server:
+    build:
+      context: ../..
+      dockerfile: services/mcp-server/Dockerfile
+    image: deployai/mcp-server:local-dev
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${MCP_SERVER_DATABASE_URL:-postgresql+asyncpg://deployai:deployai-local-dev@postgres:5432/deployai}
+      MCP_SERVER_PORT: 3030
+      DEPLOYAI_CONTROL_PLANE_URL: ${DEPLOYAI_CONTROL_PLANE_URL:-http://control-plane:8000}
+      DEPLOYAI_INTERNAL_API_KEY: ${DEPLOYAI_INTERNAL_API_KEY:-dev-internal-insecure}
+    ports:
+      - "${MCP_SERVER_PORT:-3030}:3030"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      control-plane:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen(''http://127.0.0.1:3030/health'',timeout=3).status==200 else 1)"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
   web:
     build:
       context: ../..

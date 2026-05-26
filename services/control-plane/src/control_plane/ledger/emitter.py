@@ -62,6 +62,12 @@ ALLOWED_SOURCE_KINDS: frozenset[str] = frozenset(
         "agent_concern_logged",
         "agent_hallucination_unresolved",
         "agent_cross_engagement_leak",
+        # v2 Phase 4 — MCP inbound server (scope-v2 §8.4).
+        "tenant_api_key_minted",
+        "tenant_api_key_revoked",
+        "mcp_resource_read",
+        "mcp_tool_invocation",
+        "mcp_auth_failed",
     }
 )
 

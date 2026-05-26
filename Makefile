@@ -35,7 +35,7 @@ WEB_PORT ?= 3000
 
 .DEFAULT_GOAL := help
 
-.PHONY: help dev dev-verify dev-down dev-logs compose-smoke env init seed-app \
+.PHONY: help dev dev-verify dev-down dev-logs mcp-logs compose-smoke env init seed-app \
 	seed-scenario-bluestate \
 	lint-python-epic6-agents format-python-epic6-agents backup restore backup-prune
 
@@ -176,6 +176,10 @@ backup-prune:
 
 dev-logs:
 	$(DC) logs -f --tail=200
+
+# v2 Phase 4 — tail the MCP inbound server logs (compose service: mcp-server).
+mcp-logs:
+	$(DC) logs -f --tail=200 mcp-server
 
 # CI entry point — enforces the 30-minute wall-clock ceiling from AC10.
 compose-smoke: env
