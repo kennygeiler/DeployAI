@@ -43,6 +43,8 @@ ALLOWED_SOURCE_KINDS: frozenset[str] = frozenset(
         "member_removed",
         "settings_change",
         "audit_other",
+        "oracle_chat_turn",
+        "oracle_conversation_started",
     }
 )
 
