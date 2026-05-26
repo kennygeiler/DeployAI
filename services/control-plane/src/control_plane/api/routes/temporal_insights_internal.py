@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.api.routes.engagements_internal import require_internal
@@ -47,12 +47,14 @@ class TemporalInsightRead(BaseModel):
     status: str
     acknowledged_by: uuid.UUID | None
     acknowledged_at: datetime | None
+    snoozed_until: datetime | None
     created_at: datetime
 
 
 class TemporalInsightPatch(BaseModel):
     status: str = Field(min_length=1)
     acknowledged_by: uuid.UUID | None = None
+    snooze_days: int | None = Field(default=None, ge=1, le=90)
 
 
 class IntelligenceRunRequest(BaseModel):
@@ -92,6 +94,14 @@ async def list_temporal_insights(
                 detail=f"invalid status: {status_}",
             )
         stmt = stmt.where(TemporalInsight.status == status_)
+    else:
+        now = datetime.now(UTC)
+        stmt = stmt.where(
+            or_(
+                TemporalInsight.status != "snoozed",
+                TemporalInsight.snoozed_until < now,
+            )
+        )
     if severity_at_least is not None:
         if severity_at_least not in _SEVERITY_ORDER:
             raise HTTPException(
@@ -124,6 +134,11 @@ async def patch_temporal_insight(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"invalid status: {body.status}",
         )
+    if body.status == "snoozed" and body.snooze_days is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="snooze_days required when status='snoozed'",
+        )
     row = (
         await session.execute(
             select(TemporalInsight).where(
@@ -141,6 +156,8 @@ async def patch_temporal_insight(
             row.acknowledged_at = datetime.now(UTC)
     elif body.acknowledged_by is not None:
         row.acknowledged_by = body.acknowledged_by
+    if body.status == "snoozed" and body.snooze_days is not None:
+        row.snoozed_until = datetime.now(UTC) + timedelta(days=body.snooze_days)
     await session.commit()
     await session.refresh(row)
     return TemporalInsightRead.model_validate(row)

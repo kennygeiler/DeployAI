@@ -121,6 +121,11 @@ export function EngagementInsights({ engagementId, onExplain }: EngagementInsigh
     [engagementId, fetchList],
   );
 
+  // Snooze + followup callbacks intentionally removed — this component renders
+  // MatrixInsight (Oracle) rows; the backend snooze/followup endpoints operate
+  // on temporal_insights only. The BFF + CP plumbing exists for the future
+  // temporal-insights surface; do not wire it here until that surface lands.
+
   const groups = React.useMemo(() => groupByKind(insights), [insights]);
 
   return (
@@ -223,6 +228,13 @@ function InsightGroupSection({
                       Explain
                     </Button>
                   ) : null}
+                  {/*
+                    Snooze + Follow-up buttons hidden: this component renders
+                    MatrixInsight (Oracle) rows but the snooze endpoint
+                    operates on temporal_insights. Re-enable once a dedicated
+                    TemporalInsight surface exists or the endpoint is extended
+                    to dispatch by table.
+                  */}
                   <Button
                     type="button"
                     size="sm"

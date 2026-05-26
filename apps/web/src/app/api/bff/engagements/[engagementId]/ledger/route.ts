@@ -38,6 +38,8 @@ const ALLOWED_SOURCE_KINDS = new Set([
   "audit_other",
   "user_provisioned",
   "audit_decision",
+  "insight_snoozed",
+  "followup_task_created",
 ]);
 
 function parseLimit(raw: string | null): number | { error: NextResponse } {
