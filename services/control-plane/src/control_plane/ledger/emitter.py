@@ -49,6 +49,11 @@ ALLOWED_SOURCE_KINDS: frozenset[str] = frozenset(
         "audit_decision",
         "insight_snoozed",
         "followup_task_created",
+        # v2 Phase 0.5 — compounding synthesis layer (scope-v2 §3).
+        "agent_synthesis_emitted",
+        "synthesis_failed",
+        "synthesis_validation_failed",
+        "synthesis_stale_flagged",
     }
 )
 
@@ -107,6 +112,7 @@ async def emit_ledger_event(
     if not isinstance(detail, dict):
         raise ValueError("detail must be a dict")
 
+    affects_list = list(affects)
     sanitised = _scrub_secrets(detail)
 
     row = LedgerEvent(
@@ -128,14 +134,85 @@ async def emit_ledger_event(
             continue  # self-cause is a schema CHECK; skip defensively
         session.add(LedgerEventCause(event_id=row.id, caused_by_id=parent_id))
 
-    for entity_kind, entity_id in affects:
+    for entity_kind, entity_id in affects_list:
         if entity_kind not in ALLOWED_AFFECT_KINDS:
             raise ValueError(f"invalid affect entity_kind: {entity_kind!r}")
         session.add(LedgerEventAffects(event_id=row.id, entity_kind=entity_kind, entity_id=entity_id))
 
-    if caused_by or affects:
+    if caused_by or affects_list:
         await session.flush()
+
+    if engagement_id is not None:
+        await _maybe_enqueue_synthesis(
+            session,
+            event=row,
+            engagement_id=engagement_id,
+            affects=affects_list,
+            detail=sanitised,
+        )
     return row
+
+
+async def _maybe_enqueue_synthesis(
+    session: AsyncSession,
+    *,
+    event: LedgerEvent,
+    engagement_id: uuid.UUID,
+    affects: list[AffectsEntry],
+    detail: dict[str, Any],
+) -> None:
+    """Insert one ``synthesis_refresh_jobs`` row per synthesis trigger.
+
+    Routing rules per scope-v2 §3.2:
+      - ``proposal_accepted`` whose ``detail.node_type == 'decision'`` and that
+        ``affects`` a matrix_node → ``decision_provenance`` job on that node.
+      - ``insight_opened`` with ``detail.severity == 'high'`` and an
+        ``affects`` insight → ``risk_explainer`` job on that insight.
+      - ``matrix_node_created`` whose ``detail.node_type == 'stakeholder'`` or
+        ``member_added`` that affects a stakeholder node → ``stakeholder_brief``.
+
+    Local import keeps the emitter module free of ORM-cycle risk (the
+    synthesis ORM lives in ``canonical_memory``, which already imports the
+    ledger ORM transitively).
+    """
+    from control_plane.domain.canonical_memory.matrix import SynthesisRefreshJob
+
+    triggers: list[tuple[str, uuid.UUID]] = []
+    src = event.source_kind
+    if src == "proposal_accepted" and detail.get("node_type") == "decision":
+        for kind, target_id in affects:
+            if kind == "matrix_node":
+                triggers.append(("decision_provenance", target_id))
+    elif src == "insight_opened" and detail.get("severity") == "high":
+        for kind, target_id in affects:
+            if kind == "insight":
+                triggers.append(("risk_explainer", target_id))
+    elif src == "matrix_node_created" and detail.get("node_type") == "stakeholder":
+        for kind, target_id in affects:
+            if kind == "matrix_node":
+                triggers.append(("stakeholder_brief", target_id))
+    elif src == "member_added":
+        # member_added does not always carry a stakeholder node id in affects;
+        # only enqueue when the route explicitly hints at one.
+        stakeholder_node_id = detail.get("stakeholder_node_id")
+        if isinstance(stakeholder_node_id, str):
+            try:
+                triggers.append(("stakeholder_brief", uuid.UUID(stakeholder_node_id)))
+            except ValueError:
+                pass
+
+    for job_kind, target_id in triggers:
+        session.add(
+            SynthesisRefreshJob(
+                tenant_id=event.tenant_id,
+                engagement_id=engagement_id,
+                kind=job_kind,
+                target_id=target_id,
+                trigger_event_id=event.id,
+            )
+        )
+    if triggers:
+        await session.flush()
 
 
 def _scrub_secrets(detail: dict[str, Any]) -> dict[str, Any]:

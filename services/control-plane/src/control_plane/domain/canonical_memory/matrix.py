@@ -279,9 +279,13 @@ class MatrixProposal(Base):
 # open → dismissed | resolved (user action) or → resolved (auto, when the
 # predicate that produced the insight no longer fires).
 
-INSIGHT_AGENTS: tuple[str, ...] = ("oracle", "master_strategist")
+INSIGHT_AGENTS: tuple[str, ...] = ("oracle", "master_strategist", "kenny")
 INSIGHT_SEVERITIES: tuple[str, ...] = ("low", "medium", "high")
 INSIGHT_STATUSES: tuple[str, ...] = ("open", "dismissed", "resolved")
+# Synthesis agents persist their LLM output with citation_event_ids populated.
+# Scope-v2 §3.1 enforces this via a DB CHECK for 'kenny'; oracle remains
+# predicate-driven (event citations optional) until Phase 0.6 lint catches up.
+SYNTHESIS_AGENTS: tuple[str, ...] = ("kenny",)
 
 
 class MatrixInsight(Base):
@@ -331,6 +335,15 @@ class MatrixInsight(Base):
     dedup_key: Mapped[str] = mapped_column(nullable=False)
     status: Mapped[str] = mapped_column(nullable=False, server_default=text("'open'"))
     input_hash: Mapped[str | None] = mapped_column(nullable=True)
+    last_refreshed_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
+    stale: Mapped[bool] = mapped_column(
+        nullable=False,
+        server_default=text("false"),
+    )
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,
@@ -353,4 +366,83 @@ class MatrixInsight(Base):
             "status",
         ),
         Index("uq_matrix_insights_dedup_key", "dedup_key", unique=True),
+        Index(
+            "idx_matrix_insights_stale_refreshed",
+            "tenant_id",
+            "stale",
+            "last_refreshed_at",
+        ),
+    )
+
+    # Ethos §3.1: synthesis rows cite their *source events*. The column was
+    # named ``citation_event_ids`` in the original increment; expose
+    # ``source_event_ids`` as a Python alias so synthesizer code reads with
+    # the ethos-aligned name. The two are the same list object.
+    @property
+    def source_event_ids(self) -> list[uuid.UUID]:
+        return self.citation_event_ids
+
+    @source_event_ids.setter
+    def source_event_ids(self, value: list[uuid.UUID]) -> None:
+        self.citation_event_ids = value
+
+
+# Phase 0.5 synthesis job queue. Populated by the ledger emitter when a
+# triggering event lands; drained by /internal/v1/admin/synthesis/drain. The
+# kind enum lines up with the synthesis worker entrypoints in
+# ``control_plane/workers/synthesizer.py``.
+SYNTHESIS_JOB_KINDS: tuple[str, ...] = (
+    "decision_provenance",
+    "risk_explainer",
+    "stakeholder_brief",
+)
+SYNTHESIS_JOB_STATUSES: tuple[str, ...] = ("pending", "running", "done", "failed")
+
+
+class SynthesisRefreshJob(Base):
+    """Queued LLM-synthesis refresh request triggered by a ledger event."""
+
+    __tablename__ = "synthesis_refresh_jobs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("deployai_uuid_v7()"),
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("app_tenants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    engagement_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("engagements.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    kind: Mapped[str] = mapped_column(nullable=False)
+    target_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    trigger_event_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True,
+    )
+    status: Mapped[str] = mapped_column(nullable=False, server_default=text("'pending'"))
+    attempts: Mapped[int] = mapped_column(nullable=False, server_default=text("0"))
+    last_error: Mapped[str | None] = mapped_column(nullable=True)
+    enqueued_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
+    started_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index(
+            "idx_synthesis_refresh_jobs_pending",
+            "tenant_id",
+            "engagement_id",
+            "status",
+            "enqueued_at",
+        ),
+        Index("idx_synthesis_refresh_jobs_target", "target_id", "kind"),
     )
