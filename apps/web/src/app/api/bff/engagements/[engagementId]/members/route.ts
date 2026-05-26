@@ -30,19 +30,32 @@ export async function POST(request: NextRequest, ctx: Ctx) {
   }
   const { engagementId } = await ctx.params;
   const tid = actor.tenantId!.trim();
-  let parsed: { user_id?: unknown; role?: unknown };
+  let parsed: { user_id?: unknown; email?: unknown; role?: unknown };
   try {
     parsed = (await request.json()) as typeof parsed;
   } catch {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
   const userId = typeof parsed.user_id === "string" ? parsed.user_id.trim() : "";
+  const email = typeof parsed.email === "string" ? parsed.email.trim() : "";
   const role = typeof parsed.role === "string" ? parsed.role : "";
-  if (!userId || !MEMBER_ROLES.includes(role)) {
-    return NextResponse.json({ error: "user_id and a valid role are required" }, { status: 400 });
+  if (!MEMBER_ROLES.includes(role)) {
+    return NextResponse.json({ error: "a valid role is required" }, { status: 400 });
+  }
+  if ((userId === "") === (email === "")) {
+    return NextResponse.json(
+      { error: "exactly one of user_id or email is required" },
+      { status: 400 },
+    );
+  }
+  const cpBody: { role: string; user_id?: string; email?: string } = { role };
+  if (userId) {
+    cpBody.user_id = userId;
+  } else {
+    cpBody.email = email;
   }
   try {
-    const member = await cpAddEngagementMember(tid, engagementId, { user_id: userId, role });
+    const member = await cpAddEngagementMember(tid, engagementId, cpBody);
     return NextResponse.json({ member, source: "cp" }, { status: 201 });
   } catch (e) {
     if (e instanceof Error && / 409:/.test(e.message)) {

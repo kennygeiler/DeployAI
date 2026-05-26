@@ -80,14 +80,14 @@ describe("EngagementDetail", () => {
     render(<EngagementDetail engagementId="e1" />);
 
     await waitFor(() => screen.getByText("NYC DOT LiDAR"));
-    await user.type(screen.getByLabelText("User ID"), "user-9");
+    await user.type(screen.getByLabelText("Email"), "new.user@example.com");
     await user.selectOptions(screen.getByLabelText("Role"), "biz_dev");
     await user.click(screen.getByRole("button", { name: "Assign" }));
 
     await waitFor(() => expect(calls.some((c) => c.method === "POST")).toBe(true));
     const posted = calls.find((c) => c.method === "POST");
     expect(posted?.url).toContain("/api/bff/engagements/e1/members");
-    expect(posted?.body).toContain("user-9");
+    expect(posted?.body).toContain("new.user@example.com");
     expect(posted?.body).toContain("biz_dev");
   });
 

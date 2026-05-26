@@ -77,7 +77,7 @@ export async function cpListEngagementMembers(
 export async function cpAddEngagementMember(
   tenantId: string,
   engagementId: string,
-  member: { user_id: string; role: string },
+  member: { role: string; user_id?: string; email?: string },
 ): Promise<EngagementMember> {
   const url =
     `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}/members` +

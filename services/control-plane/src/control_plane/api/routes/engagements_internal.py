@@ -17,8 +17,8 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from llm_provider_py.types import LLMProvider
-from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.agents.llm import get_llm_provider, resolve_tenant_llm_provider
@@ -173,8 +173,15 @@ async def get_engagement(
 
 
 class EngagementMemberCreate(BaseModel):
-    user_id: uuid.UUID
+    user_id: uuid.UUID | None = None
+    email: str | None = Field(default=None, max_length=320)
     role: str
+
+    @model_validator(mode="after")
+    def exactly_one_identifier(self) -> EngagementMemberCreate:
+        if (self.user_id is None) == (self.email is None):
+            raise ValueError("provide exactly one of user_id, email")
+        return self
 
 
 class EngagementMemberRead(BaseModel):
@@ -235,13 +242,50 @@ async def add_engagement_member(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"invalid role: {body.role}",
         )
-    user = await session.get(AppUser, body.user_id)
-    if user is None or user.tenant_id != tenant_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found in tenant")
+
+    user: AppUser | None = None
+    user_provisioned = False
+    if body.user_id is not None:
+        user = await session.get(AppUser, body.user_id)
+        if user is None or user.tenant_id != tenant_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found in tenant")
+    else:
+        email = (body.email or "").strip()
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="email must not be blank",
+            )
+        # case-insensitive lookup scoped to tenant — typo dedupe per design §3
+        match = await session.execute(
+            select(AppUser).where(
+                AppUser.tenant_id == tenant_id,
+                func.lower(AppUser.email) == email.lower(),
+            )
+        )
+        user = match.scalars().first()
+        if user is None:
+            user = AppUser(tenant_id=tenant_id, user_name=email.lower(), email=email)
+            session.add(user)
+            await session.flush()
+            user_provisioned = True
+            await emit_ledger_event(
+                session,
+                tenant_id=tenant_id,
+                engagement_id=engagement_id,
+                occurred_at=datetime.now(UTC),
+                actor_kind="user",
+                actor_id=None,
+                source_kind="user_provisioned",
+                source_ref=user.id,
+                summary=f"user provisioned: {email}"[:500],
+                detail={"email": email, "user_name": user.user_name},
+            )
+
     existing = await session.execute(
         select(EngagementMember).where(
             EngagementMember.engagement_id == engagement_id,
-            EngagementMember.user_id == body.user_id,
+            EngagementMember.user_id == user.id,
         )
     )
     if existing.scalar_one_or_none() is not None:
@@ -252,10 +296,27 @@ async def add_engagement_member(
     row = EngagementMember(
         tenant_id=tenant_id,
         engagement_id=engagement_id,
-        user_id=body.user_id,
+        user_id=user.id,
         role=body.role,
     )
     session.add(row)
+    await session.flush()
+    await emit_ledger_event(
+        session,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        occurred_at=datetime.now(UTC),
+        actor_kind="user",
+        actor_id=None,
+        source_kind="member_added",
+        source_ref=row.id,
+        summary=f"member added: {row.role}"[:500],
+        detail={
+            "role": row.role,
+            "user_id": str(user.id),
+            "user_provisioned": user_provisioned,
+        },
+    )
     await session.commit()
     await session.refresh(row)
     return row

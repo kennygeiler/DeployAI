@@ -36,6 +36,7 @@ const ALLOWED_SOURCE_KINDS = new Set([
   "member_removed",
   "settings_change",
   "audit_other",
+  "user_provisioned",
 ]);
 
 function parseLimit(raw: string | null): number | { error: NextResponse } {
