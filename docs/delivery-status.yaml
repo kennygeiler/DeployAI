@@ -30,7 +30,6 @@ headline: >-
   presence is a stub. See deployai-source-of-truth-spec.md sections 3 and 14.
 
 epics:
-
   epic-1:
     title: Foundations, Canonical Memory & Citation Envelope
     bmad_claim: done

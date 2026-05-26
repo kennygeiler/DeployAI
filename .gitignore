@@ -195,12 +195,6 @@ coverage/
 *.lcov
 reports/
 
-# ─────────────────────── BMAD / local agent state ───────────────────────
-# Track planning + implementation artifacts; ignore agent scratch
-_bmad-output/tmp/
-_bmad-output/cache/
-.bmad-cache/
-
 # ─────────────────────── Accessibility / Playwright / pa11y (Story 1.6) ───────────────────────
 # Playwright HTML report + result traces (generated per run; gitignored
 # so local runs don't pollute the working tree; CI uploads them as

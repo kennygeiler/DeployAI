@@ -1,6 +1,6 @@
 # Operations and release (production-facing)
 
-How to think about hosting **DeployAI** (strategist web + control plane) in **dev**, **staging**, and **production** after CI is green. Complements pilot runbooks; does **not** replace the [source-of-truth spec](../product/deployai-source-of-truth-spec.md) or [sprint-status.yaml](../../_bmad-output/implementation-artifacts/sprint-status.yaml) for product and delivery truth.
+How to think about hosting **DeployAI** (strategist web + control plane) in **dev**, **staging**, and **production** after CI is green. Complements pilot runbooks; does **not** replace the [source-of-truth spec](../product/deployai-source-of-truth-spec.md) or [delivery-status.yaml](../delivery-status.yaml) for product and delivery truth.
 
 ---
 

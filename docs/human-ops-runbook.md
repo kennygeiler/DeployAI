@@ -93,8 +93,7 @@ If Apple secrets are **missing**, the workflow still builds; the optional notary
 
 | Who | Action |
 |-----|--------|
-| PM / lead | Update [`sprint-status.yaml`](../_bmad-output/implementation-artifacts/sprint-status.yaml) when stories merge. |
-| Team | Use `.cursor/skills/` BMAD skills for PRD, stories, reviews (see root README table). |
+| PM / lead | Update [`delivery-status.yaml`](./delivery-status.yaml) when stories merge. |
 
 ---
 
