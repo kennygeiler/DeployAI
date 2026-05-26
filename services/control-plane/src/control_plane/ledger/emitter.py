@@ -45,11 +45,13 @@ ALLOWED_SOURCE_KINDS: frozenset[str] = frozenset(
         "audit_other",
         "oracle_chat_turn",
         "oracle_conversation_started",
-        "audit_decision",
+        "user_provisioned",
     }
 )
 
-ALLOWED_AFFECT_KINDS: frozenset[str] = frozenset({"matrix_node", "matrix_edge", "insight", "recommendation"})
+ALLOWED_AFFECT_KINDS: frozenset[str] = frozenset(
+    {"matrix_node", "matrix_edge", "insight", "recommendation", "app_user"}
+)
 
 _SUMMARY_MIN = 1
 _SUMMARY_MAX = 500

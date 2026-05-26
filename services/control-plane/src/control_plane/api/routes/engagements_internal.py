@@ -172,6 +172,9 @@ async def get_engagement(
 # --- Engagement membership (Phase 2, increment 2.2) ---
 
 
+_EMAIL_SHAPE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
 class EngagementMemberCreate(BaseModel):
     user_id: uuid.UUID | None = None
     email: str | None = Field(default=None, max_length=320)
@@ -181,6 +184,8 @@ class EngagementMemberCreate(BaseModel):
     def exactly_one_identifier(self) -> EngagementMemberCreate:
         if (self.user_id is None) == (self.email is None):
             raise ValueError("provide exactly one of user_id, email")
+        if self.email is not None and not _EMAIL_SHAPE.match(self.email):
+            raise ValueError("email must look like local@domain.tld")
         return self
 
 
@@ -280,6 +285,7 @@ async def add_engagement_member(
                 source_ref=user.id,
                 summary=f"user provisioned: {email}"[:500],
                 detail={"email": email, "user_name": user.user_name},
+                affects=[("app_user", user.id)],
             )
 
     existing = await session.execute(
