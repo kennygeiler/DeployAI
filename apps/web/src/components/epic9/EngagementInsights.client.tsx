@@ -1,10 +1,19 @@
 "use client";
 
+import { ChevronDownIcon } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
 import { TimestampLabel } from "@/components/common/TimestampLabel.client";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  groupByKind,
+  humanizeKind,
+  isOpenByDefault,
+  type GroupSeverity,
+  type InsightGroup,
+} from "@/lib/bff/insight-grouping";
 import type { MatrixInsight } from "@/lib/bff/matrix-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 
@@ -16,7 +25,13 @@ import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff
  * Cards are observations, not graph edits — resolving does not mutate
  * the matrix. See `docs/product/synthesis-agents.md`.
  */
-export function EngagementInsights({ engagementId }: { engagementId: string }) {
+export type EngagementInsightsProps = {
+  engagementId: string;
+  // Stub for G1.c — per-card "Explain" button wires through to Mr. Oracle.
+  onExplain?: (insight: MatrixInsight) => void;
+};
+
+export function EngagementInsights({ engagementId, onExplain }: EngagementInsightsProps) {
   const [insights, setInsights] = React.useState<MatrixInsight[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -106,6 +121,8 @@ export function EngagementInsights({ engagementId }: { engagementId: string }) {
     [engagementId, fetchList],
   );
 
+  const groups = React.useMemo(() => groupByKind(insights), [insights]);
+
   return (
     <section aria-labelledby="engagement-insights-heading" className="space-y-3">
       <div className="flex items-center justify-between gap-3">
@@ -131,25 +148,88 @@ export function EngagementInsights({ engagementId }: { engagementId: string }) {
           this engagement&apos;s matrix.
         </p>
       ) : (
-        <ul className="border-border divide-border divide-y rounded-lg border text-sm">
-          {insights.map((i) => (
+        <ul className="space-y-2">
+          {groups.map((g) => (
+            <li key={g.kind}>
+              <InsightGroupSection
+                group={g}
+                busyId={busyId}
+                onDecide={decide}
+                onExplain={onExplain}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function InsightGroupSection({
+  group,
+  busyId,
+  onDecide,
+  onExplain,
+}: {
+  group: InsightGroup;
+  busyId: string | null;
+  onDecide: (insightId: string, decision: "dismiss" | "resolve") => void;
+  onExplain?: (insight: MatrixInsight) => void;
+}) {
+  const [open, setOpen] = React.useState<boolean>(() => isOpenByDefault(group));
+  const contentId = React.useId();
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="border-border rounded-lg border">
+      <CollapsibleTrigger
+        aria-controls={contentId}
+        className="hover:bg-ink-50 flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
+      >
+        <span className="flex items-center gap-2">
+          <SeverityBadge severity={group.severityMax} />
+          <span className="text-ink-900 text-sm font-medium">{humanizeKind(group.kind)}</span>
+          <span
+            className="text-ink-600 bg-ink-100 rounded px-1.5 py-0.5 font-mono text-[10px]"
+            aria-label={`${group.insights.length} insight(s)`}
+          >
+            {group.insights.length}
+          </span>
+        </span>
+        <ChevronDownIcon
+          aria-hidden="true"
+          className={
+            "text-ink-600 size-4 transition-transform duration-200 " +
+            (open ? "rotate-180" : "rotate-0")
+          }
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent id={contentId}>
+        <ul className="divide-border divide-y border-t text-sm">
+          {group.insights.map((i) => (
             <li key={i.id} className="space-y-1 px-3 py-2">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <SeverityBadge severity={i.severity} />
-                  <span className="text-ink-600 font-mono text-xs uppercase">
-                    {i.insight_type.replace(/_/g, " ")}
-                  </span>
+                  <InsightSeverityBadge severity={i.severity} />
                   <TimestampLabel value={i.created_at} prefix="created" />
                 </div>
                 <div className="flex gap-1">
+                  {onExplain ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => onExplain(i)}
+                    >
+                      Explain
+                    </Button>
+                  ) : null}
                   <Button
                     type="button"
                     size="sm"
                     variant="outline"
                     className="h-7 px-2 text-xs"
                     disabled={busyId === i.id}
-                    onClick={() => void decide(i.id, "resolve")}
+                    onClick={() => onDecide(i.id, "resolve")}
                   >
                     Resolve
                   </Button>
@@ -159,7 +239,7 @@ export function EngagementInsights({ engagementId }: { engagementId: string }) {
                     variant="ghost"
                     className="h-7 px-2 text-xs"
                     disabled={busyId === i.id}
-                    onClick={() => void decide(i.id, "dismiss")}
+                    onClick={() => onDecide(i.id, "dismiss")}
                   >
                     Dismiss
                   </Button>
@@ -170,12 +250,29 @@ export function EngagementInsights({ engagementId }: { engagementId: string }) {
             </li>
           ))}
         </ul>
-      )}
-    </section>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
-function SeverityBadge({ severity }: { severity: MatrixInsight["severity"] }) {
+function SeverityBadge({ severity }: { severity: GroupSeverity }) {
+  const classes =
+    severity === "critical"
+      ? "bg-error-100 text-error-900"
+      : severity === "warning"
+        ? "bg-warning-100 text-warning-900"
+        : "bg-ink-100 text-ink-800";
+  return (
+    <span
+      className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase ${classes}`}
+      aria-label={`severity ${severity}`}
+    >
+      {severity}
+    </span>
+  );
+}
+
+function InsightSeverityBadge({ severity }: { severity: MatrixInsight["severity"] }) {
   const classes =
     severity === "high"
       ? "bg-error-100 text-error-900"

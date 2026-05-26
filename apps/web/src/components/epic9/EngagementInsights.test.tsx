@@ -64,10 +64,10 @@ describe("EngagementInsights", () => {
     });
     render(<EngagementInsights engagementId="e1" />);
     await waitFor(() => expect(screen.getByText("Pilot ship date is slipping")).toBeTruthy());
-    expect(screen.getByLabelText("severity high")).toBeTruthy();
+    expect(screen.getAllByLabelText("severity high")[0]).toBeTruthy();
     expect(screen.getByText(/Confirm a new date/)).toBeTruthy();
-    // insight_type renders human-readable
-    expect(screen.getByText(/stale commitment/i)).toBeTruthy();
+    // Kind renders human-readable on the group header.
+    expect(screen.getByText("Stale commitment")).toBeTruthy();
   });
 
   it("refresh button calls the refresh endpoint and replaces the list", async () => {
@@ -139,5 +139,108 @@ describe("EngagementInsights", () => {
     await waitFor(() => expect(screen.queryByText("Pilot ship date is slipping")).toBeNull());
     const post = calls.find((c) => c.method === "POST")!;
     expect(post.url).toContain("/api/bff/engagements/e1/insights/i1/dismiss");
+  });
+
+  it("groups insights by kind, severity-first, with critical/warning open and info collapsed", async () => {
+    mockFetch({
+      "/insights": () => ({
+        insights: [
+          mkInsight({
+            id: "c1",
+            insight_type: "stale_commitment",
+            severity: "high",
+            title: "Critical 1",
+            body: "Critical body 1",
+          }),
+          mkInsight({
+            id: "w1",
+            insight_type: "decision_cycle_slowdown",
+            severity: "medium",
+            title: "Warning 1",
+            body: "Warning body 1",
+          }),
+          mkInsight({
+            id: "i1",
+            insight_type: "ambient_observation",
+            severity: "low",
+            title: "Info 1",
+            body: "Info body 1",
+          }),
+        ],
+      }),
+    });
+    render(<EngagementInsights engagementId="e1" />);
+    await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
+
+    // Collapsible triggers expose aria-expanded; the Refresh button does not.
+    const groupTriggers = screen
+      .getAllByRole("button")
+      .filter((h) => h.hasAttribute("aria-expanded"));
+    expect(groupTriggers).toHaveLength(3);
+
+    const [critical, warning, info] = groupTriggers as [HTMLElement, HTMLElement, HTMLElement];
+    // Severity-first order: critical, warning, info.
+    expect(critical.textContent).toContain("Stale commitment");
+    expect(warning.textContent).toContain("Decision cycle slowdown");
+    expect(info.textContent).toContain("Ambient observation");
+
+    // Critical + warning open by default, info collapsed.
+    expect(critical.getAttribute("aria-expanded")).toBe("true");
+    expect(warning.getAttribute("aria-expanded")).toBe("true");
+    expect(info.getAttribute("aria-expanded")).toBe("false");
+
+    // Open-group bodies are in the DOM; collapsed info body is not rendered as text.
+    expect(screen.getByText("Critical 1")).toBeTruthy();
+    expect(screen.getByText("Warning 1")).toBeTruthy();
+    expect(screen.queryByText("Info body 1")).toBeNull();
+  });
+
+  it("clicking a chevron toggles aria-expanded without losing scroll position", async () => {
+    mockFetch({
+      "/insights": () => ({
+        insights: [
+          mkInsight({
+            id: "c1",
+            insight_type: "stale_commitment",
+            severity: "high",
+            title: "Critical 1",
+            body: "Critical body 1",
+          }),
+        ],
+      }),
+    });
+    render(<EngagementInsights engagementId="e1" />);
+    await waitFor(() => expect(screen.getByText("Stale commitment")).toBeTruthy());
+
+    const trigger = screen
+      .getAllByRole("button", { expanded: true })
+      .find((h) => h.textContent?.includes("Stale commitment"))!;
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(trigger.getAttribute("aria-controls")).toBeTruthy();
+
+    const beforeScroll = window.scrollY;
+    const user = userEvent.setup();
+    await user.click(trigger);
+    await waitFor(() => expect(trigger.getAttribute("aria-expanded")).toBe("false"));
+    expect(window.scrollY).toBe(beforeScroll);
+
+    await user.click(trigger);
+    await waitFor(() => expect(trigger.getAttribute("aria-expanded")).toBe("true"));
+  });
+
+  it("invokes onExplain stub when the per-card Explain button is clicked", async () => {
+    mockFetch({
+      "/insights": () => ({ insights: [mkInsight({ id: "ix1" })] }),
+    });
+    const onExplain = vi.fn();
+    render(<EngagementInsights engagementId="e1" onExplain={onExplain} />);
+    await waitFor(() => expect(screen.getByText("Pilot ship date is slipping")).toBeTruthy());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Explain" }));
+    expect(onExplain).toHaveBeenCalledOnce();
+    const firstCall = onExplain.mock.calls[0];
+    if (!firstCall) throw new Error("onExplain was not called");
+    expect((firstCall[0] as MatrixInsight).id).toBe("ix1");
   });
 });
