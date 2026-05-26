@@ -1,9 +1,12 @@
 "use client";
 
+import { PencilIcon } from "lucide-react";
 import * as React from "react";
 
 import { TimestampLabel } from "@/components/common/TimestampLabel.client";
+import { NodeEditDialog } from "@/components/engagements/NodeEditDialog.client";
 import { ProvenanceTab } from "@/components/engagements/ProvenanceTab.client";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -12,6 +15,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { MatrixNode } from "@/lib/bff/matrix-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 
 type CitationEvent = {
@@ -106,6 +110,8 @@ export function MatrixNodeDetail({
   evidenceEventIds,
   open,
   onClose,
+  node,
+  onNodeSaved,
 }: {
   engagementId: string;
   nodeId: string | null;
@@ -113,9 +119,12 @@ export function MatrixNodeDetail({
   evidenceEventIds: string[];
   open: boolean;
   onClose: () => void;
+  node?: Pick<MatrixNode, "id" | "title" | "node_type" | "attributes"> | null;
+  onNodeSaved?: (next: MatrixNode) => void;
 }) {
   const [tab, setTab] = React.useState<TabKey>("source");
   const [lastKey, setLastKey] = React.useState<string | null>(null);
+  const [editOpen, setEditOpen] = React.useState(false);
   const currentKey = open ? `${nodeId ?? ""}` : null;
   if (currentKey !== lastKey) {
     setLastKey(currentKey);
@@ -126,6 +135,8 @@ export function MatrixNodeDetail({
     evidenceEventIds.length === 0
       ? "No source events cited."
       : `${evidenceEventIds.length} cited event${evidenceEventIds.length === 1 ? "" : "s"}.`;
+
+  const canEdit = node !== null && node !== undefined && onNodeSaved !== undefined;
 
   return (
     <Sheet
@@ -141,7 +152,20 @@ export function MatrixNodeDetail({
         data-testid="matrix-node-detail"
       >
         <SheetHeader>
-          <SheetTitle>{title}</SheetTitle>
+          <div className="flex items-start justify-between gap-2">
+            <SheetTitle>{title}</SheetTitle>
+            {canEdit ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label="Edit node"
+                data-testid="matrix-node-edit-button"
+                onClick={() => setEditOpen(true)}
+              >
+                <PencilIcon className="h-4 w-4" />
+              </Button>
+            ) : null}
+          </div>
           <SheetDescription>{description}</SheetDescription>
         </SheetHeader>
         <div className="space-y-3 overflow-y-auto px-4 pb-4">
@@ -169,6 +193,18 @@ export function MatrixNodeDetail({
           </Tabs>
         </div>
       </SheetContent>
+      {canEdit && node ? (
+        <NodeEditDialog
+          engagementId={engagementId}
+          node={node}
+          open={editOpen}
+          onClose={() => setEditOpen(false)}
+          onSaved={(next) => {
+            onNodeSaved?.(next);
+            setEditOpen(false);
+          }}
+        />
+      ) : null}
     </Sheet>
   );
 }

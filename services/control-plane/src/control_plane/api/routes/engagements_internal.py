@@ -377,6 +377,7 @@ class MatrixNodeUpdate(BaseModel):
     """Partial update — only fields present in the request body are applied."""
 
     title: str | None = Field(default=None, min_length=1, max_length=400)
+    node_type: str | None = None
     attributes: dict[str, Any] | None = None
     status: str | None = Field(default=None, max_length=100)
     evidence_event_ids: list[uuid.UUID] | None = None
@@ -534,6 +535,13 @@ async def update_matrix_node(
     await _require_engagement(session, tenant_id, engagement_id)
     node = await _require_matrix_node(session, engagement_id, node_id)
     changes = body.model_dump(exclude_unset=True)
+    if "node_type" in changes:
+        allowed = await resolve_allowed_node_types(session, tenant_id)
+        if changes["node_type"] not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"invalid node_type: {changes['node_type']}",
+            )
     for key, value in changes.items():
         setattr(node, key, value)
     await session.flush()
@@ -1049,6 +1057,86 @@ async def reject_matrix_proposal(
         summary=f"proposal rejected: {proposal.proposal_kind}"[:500],
         detail={"proposal_kind": proposal.proposal_kind},
         caused_by=caused_by,
+    )
+    await session.commit()
+    await session.refresh(proposal)
+    return proposal
+
+
+# --- Audit-the-AI: reject an LLM-produced proposal post-hoc (G2.c) -----------
+#
+# Different from `proposals/{id}/reject` (which acts on a pending proposal):
+# audit-decision targets an LLM-produced ledger event (the
+# `llm_proposal_created` row), and soft-marks the underlying proposal as
+# `audit_rejected` regardless of its current decided state — so the user can
+# call out a bad extraction even after they had auto-accepted it. Emits an
+# `audit_decision` ledger event with `caused_by` linking to the AI event.
+
+
+class AuditDecisionBody(BaseModel):
+    event_id: uuid.UUID
+    reason: str | None = Field(default=None, max_length=2000)
+
+
+@router.post(
+    "/{engagement_id}/audit-decision",
+    response_model=MatrixProposalRead,
+    dependencies=[Depends(require_internal)],
+)
+async def audit_decision(
+    engagement_id: uuid.UUID,
+    body: AuditDecisionBody,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+) -> MatrixProposal:
+    await _require_engagement(session, tenant_id, engagement_id)
+    ev_q = await session.execute(
+        select(LedgerEvent).where(
+            LedgerEvent.tenant_id == tenant_id,
+            LedgerEvent.engagement_id == engagement_id,
+            LedgerEvent.id == body.event_id,
+        )
+    )
+    event = ev_q.scalar_one_or_none()
+    if event is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ledger event not found")
+    if event.source_ref is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="event has no source_ref to resolve a proposal from",
+        )
+    p_q = await session.execute(
+        select(MatrixProposal).where(
+            MatrixProposal.tenant_id == tenant_id,
+            MatrixProposal.engagement_id == engagement_id,
+            MatrixProposal.id == event.source_ref,
+        )
+    )
+    proposal = p_q.scalar_one_or_none()
+    if proposal is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="matrix proposal not found")
+    if proposal.status == "audit_rejected":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="proposal already audit_rejected",
+        )
+    proposal.status = "audit_rejected"
+    proposal.decided_at = datetime.now(UTC)
+    await session.flush()
+    detail: dict[str, Any] = {"reason": body.reason} if body.reason is not None else {"reason": None}
+    await emit_ledger_event(
+        session,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        occurred_at=datetime.now(UTC),
+        actor_kind="user",
+        actor_id=None,
+        source_kind="audit_decision",
+        source_ref=proposal.id,
+        summary=f"audit-rejected: {proposal.proposal_kind}"[:500],
+        detail=detail,
+        caused_by=[event.id],
+        affects=[("matrix_node", proposal.result_node_id)] if proposal.result_node_id else [],
     )
     await session.commit()
     await session.refresh(proposal)
