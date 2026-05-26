@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from llm_provider_py.types import LLMProvider
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.agents.agent_kenny.budget import charge_turn
@@ -32,7 +33,7 @@ from control_plane.agents.agent_kenny.graph import (
 from control_plane.agents.agent_kenny.nodes.adversarial import adversarial_review
 from control_plane.agents.agent_kenny.nodes.citations import (
     extract_citations,
-    verify_citations,
+    verify_citations_parallel,
 )
 from control_plane.agents.agent_kenny.nodes.llm_call import call_llm_with_tools
 from control_plane.agents.agent_kenny.nodes.persist import (
@@ -46,6 +47,7 @@ from control_plane.agents.agent_kenny.nodes.tool_dispatch import dispatch_tools
 from control_plane.agents.agent_kenny.types import (
     MAX_TOOL_CALLS_PER_TURN,
     TURN_HARD_TIMEOUT_S,
+    AdversarialConcernChunk,
     AgentState,
     BudgetExhaustedError,
     ConversationNotFoundError,
@@ -54,6 +56,7 @@ from control_plane.agents.agent_kenny.types import (
     ErrorChunk,
     StreamChunk,
 )
+from control_plane.domain.canonical_memory.agent_audit import AgentAuditTrace
 from control_plane.ledger import emit_ledger_event
 
 _log = logging.getLogger(__name__)
@@ -204,10 +207,10 @@ class KennyAgentService:
                     )
                 break
 
-        # 3. citations + revision loop
+        # 3. citations + revision loop (parallel verify per scope-v2 §5.3).
         for _ in range(3):  # at most 1 initial + 2 revisions
             await extract_citations(state)
-            await verify_citations(session, state, emit=emit)
+            await verify_citations_parallel(session, state, emit=emit)
             route = unverified_router(state)
             if route == "revise":
                 await revise_if_unverified(self._provider, state, emit=emit)
@@ -272,12 +275,20 @@ class KennyAgentService:
             )
             return
 
-        # 5. adversarial review
+        # 5. adversarial review + per-concern stream frames
         try:
             await adversarial_review(self._cheap, state)
         except Exception as exc:
             _log.warning("kenny v2 adversarial review failed: %s", exc)
             state.adversarial_concerns = []
+            state.adversarial_concern_objs = []
+        for concern in state.adversarial_concern_objs:
+            await emit(
+                AdversarialConcernChunk(
+                    concern_text=concern.concern_text,
+                    severity=concern.severity,
+                )
+            )
 
         # 6. persist + done
         try:
@@ -302,6 +313,8 @@ class KennyAgentService:
             moment=moment,
         )
 
+        await _persist_concern_payload(session, state, moment=moment)
+
         assert state.final_turn_id is not None
         assert state.final_conversation_id is not None
         await emit(
@@ -315,6 +328,50 @@ class KennyAgentService:
                 final_text=state.final_text,
             )
         )
+
+
+async def _persist_concern_payload(
+    session: AsyncSession,
+    state: AgentState,
+    *,
+    moment: datetime,
+) -> None:
+    """Write the structured concerns onto the audit row + emit the ledger event.
+
+    persist.py owns row creation (Phase 2 land, out of scope for this
+    PR); the Phase 3 columns + ``agent_concern_logged`` ledger emit land
+    here so the audit table carries the structured payload without
+    re-touching the persist node.
+    """
+    if not state.adversarial_concern_objs:
+        return
+    if state.final_turn_id is None:
+        return
+    payload = [{"concern_text": c.concern_text, "severity": c.severity} for c in state.adversarial_concern_objs]
+    verified = sum(1 for c in state.adversarial_concern_objs if c.severity == "info")
+    audit = (
+        await session.execute(select(AgentAuditTrace).where(AgentAuditTrace.turn_id == state.final_turn_id))
+    ).scalar_one_or_none()
+    if audit is not None:
+        audit.adversarial_concerns_text = payload
+        audit.verified_concerns_count = verified
+        await session.flush()
+    await emit_ledger_event(
+        session,
+        tenant_id=state.tenant_id,
+        engagement_id=state.engagement_id,
+        occurred_at=moment,
+        actor_kind="agent:kenny",
+        actor_id=str(state.final_turn_id),
+        source_kind="agent_concern_logged",
+        source_ref=state.final_turn_id,
+        summary=f"adversarial reviewer logged {len(payload)} concern(s)"[:500],
+        detail={
+            "turn_id": str(state.final_turn_id),
+            "concerns": payload[:20],
+            "verified_concerns_count": verified,
+        },
+    )
 
 
 __all__ = ["KennyAgentService"]

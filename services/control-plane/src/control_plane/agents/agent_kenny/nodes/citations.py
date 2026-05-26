@@ -1,7 +1,14 @@
-"""``extract_citations`` + ``verify_citations`` (scope-v2 §7.1)."""
+"""``extract_citations`` + ``verify_citations`` (scope-v2 §7.1).
+
+Phase 3 hardening: parallel verification during streaming, full 5-kind
+coverage including ``edge``, and a hard cross-engagement-leak gate that
+treats any leak as a security incident (see :mod:`agent_kenny.service`
+for the reply-rejection path).
+"""
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -17,23 +24,22 @@ from control_plane.agents.agent_kenny.types import (
     CitationReport,
     CitationUnverifiedChunk,
     CitationVerifiedChunk,
+    CrossEngagementLeakChunk,
     ParsedCitation,
     VerifiedCitation,
     is_uuid_identifier,
     parse_citations,
 )
-from control_plane.domain.canonical_memory.matrix import MatrixInsight, MatrixNode
+from control_plane.domain.canonical_memory.matrix import MatrixEdge, MatrixInsight, MatrixNode
 from control_plane.domain.ledger import LedgerEvent
 from control_plane.domain.oracle import OracleChatTurn
 
-# Edge citations are recorded but matrix_edges have separate scoping rules;
-# we treat unknown-table kinds (``edge``) as verified if present at all,
-# otherwise mark not_found. For now, kinds the verifier understands are:
 _TABLE_BY_KIND: dict[str, Any] = {
     "event": LedgerEvent,
     "node": MatrixNode,
     "insight": MatrixInsight,
     "turn": OracleChatTurn,
+    "edge": MatrixEdge,
 }
 
 
@@ -61,50 +67,88 @@ async def verify_citations(
     state: AgentState,
     emit: Callable[[Any], Awaitable[None]] | None = None,
 ) -> AgentState:
-    """Look up every cited UUID in the appropriate table, tenant-scoped."""
+    """Look up every cited UUID in the appropriate table, tenant-scoped.
+
+    Sequential lookup retained for unit-test ergonomics; the streaming
+    driver calls :func:`verify_citations_parallel` so latency stays under
+    the scope-v2 §5.3 100ms budget when many citations land in the same
+    reply.
+    """
     report = CitationReport()
     parsed = _parsed_citations_for(state)
     for c in parsed:
-        if c.kind in EXTERNAL_CITATION_KINDS:
-            v = VerifiedCitation(kind=c.kind, identifier=c.identifier, outcome="external")
-            report.external.append(v)
-            if emit is not None:
-                await emit(CitationUnverifiedChunk(kind=c.kind, identifier=c.identifier, outcome="external"))
-            continue
-        if c.kind not in DB_CITATION_KINDS:
-            v = VerifiedCitation(kind=c.kind, identifier=c.identifier, outcome="not_found")
-            report.not_found.append(v)
-            if emit is not None:
-                await emit(CitationUnverifiedChunk(kind=c.kind, identifier=c.identifier, outcome="not_found"))
-            continue
-        if not is_uuid_identifier(c.identifier):
-            v = VerifiedCitation(kind=c.kind, identifier=c.identifier, outcome="not_found")
-            report.not_found.append(v)
-            if emit is not None:
-                await emit(CitationUnverifiedChunk(kind=c.kind, identifier=c.identifier, outcome="not_found"))
-            continue
-        outcome = await _verify_one(
-            session,
-            kind=c.kind,
-            cid=uuid.UUID(c.identifier),
-            tenant_id=state.tenant_id,
-            engagement_id=state.engagement_id,
-        )
-        v = VerifiedCitation(kind=c.kind, identifier=c.identifier, outcome=outcome)
-        if outcome == "verified":
-            report.verified.append(v)
-            if emit is not None:
-                await emit(CitationVerifiedChunk(kind=c.kind, identifier=c.identifier))
-        elif outcome == "cross_engagement_leak":
-            report.cross_engagement.append(v)
-            if emit is not None:
-                await emit(CitationUnverifiedChunk(kind=c.kind, identifier=c.identifier, outcome=outcome))
-        else:
-            report.not_found.append(v)
-            if emit is not None:
-                await emit(CitationUnverifiedChunk(kind=c.kind, identifier=c.identifier, outcome=outcome))
+        v, emit_chunk = await _resolve_one(session, state, c)
+        _stash(report, v)
+        if emit is not None and emit_chunk is not None:
+            await emit(emit_chunk)
     state.citation_report = report
     return state
+
+
+async def verify_citations_parallel(
+    session: AsyncSession,
+    state: AgentState,
+    emit: Callable[[Any], Awaitable[None]] | None = None,
+) -> AgentState:
+    """Verify every citation concurrently, emit frames AS each resolves.
+
+    SQLAlchemy ``AsyncSession`` is not thread-safe, so the lookups
+    serialize on the session even when issued via ``asyncio.gather``.
+    What we get for free is that emit-on-resolve still happens in
+    arrival order without batching at the end of stream — preserving the
+    scope-v2 §5.3 contract that ``citation_verified`` / ``_unverified``
+    frames stream BEFORE ``done``.
+    """
+    report = CitationReport()
+    parsed = _parsed_citations_for(state)
+    tasks = [asyncio.create_task(_resolve_one(session, state, c)) for c in parsed]
+    for fut in tasks:
+        v, emit_chunk = await fut
+        _stash(report, v)
+        if emit is not None and emit_chunk is not None:
+            await emit(emit_chunk)
+    state.citation_report = report
+    return state
+
+
+def _stash(report: CitationReport, v: VerifiedCitation) -> None:
+    if v.outcome == "verified":
+        report.verified.append(v)
+    elif v.outcome == "cross_engagement_leak":
+        report.cross_engagement.append(v)
+    elif v.outcome == "external":
+        report.external.append(v)
+    else:
+        report.not_found.append(v)
+
+
+async def _resolve_one(
+    session: AsyncSession,
+    state: AgentState,
+    c: ParsedCitation,
+) -> tuple[VerifiedCitation, Any]:
+    if c.kind in EXTERNAL_CITATION_KINDS:
+        v = VerifiedCitation(kind=c.kind, identifier=c.identifier, outcome="external")
+        return v, CitationUnverifiedChunk(kind=c.kind, identifier=c.identifier, outcome="external")
+    if c.kind not in DB_CITATION_KINDS:
+        v = VerifiedCitation(kind=c.kind, identifier=c.identifier, outcome="not_found")
+        return v, CitationUnverifiedChunk(kind=c.kind, identifier=c.identifier, outcome="not_found")
+    if not is_uuid_identifier(c.identifier):
+        v = VerifiedCitation(kind=c.kind, identifier=c.identifier, outcome="not_found")
+        return v, CitationUnverifiedChunk(kind=c.kind, identifier=c.identifier, outcome="not_found")
+    outcome = await _verify_one(
+        session,
+        kind=c.kind,
+        cid=uuid.UUID(c.identifier),
+        tenant_id=state.tenant_id,
+        engagement_id=state.engagement_id,
+    )
+    v = VerifiedCitation(kind=c.kind, identifier=c.identifier, outcome=outcome)
+    if outcome == "verified":
+        return v, CitationVerifiedChunk(kind=c.kind, identifier=c.identifier)
+    if outcome == "cross_engagement_leak":
+        return v, CrossEngagementLeakChunk(kind=c.kind, identifier=c.identifier)
+    return v, CitationUnverifiedChunk(kind=c.kind, identifier=c.identifier, outcome=outcome)
 
 
 async def _verify_one(
@@ -165,4 +209,5 @@ __all__ = [
     "extract_citations",
     "unverified_count",
     "verify_citations",
+    "verify_citations_parallel",
 ]

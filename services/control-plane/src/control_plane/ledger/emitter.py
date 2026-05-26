@@ -59,6 +59,7 @@ ALLOWED_SOURCE_KINDS: frozenset[str] = frozenset(
         "propose_action",
         # v2 Phase 2/3 — Agent Kenny v2 graph (citation verification, audit).
         "agent_audit_concern",
+        "agent_concern_logged",
         "agent_hallucination_unresolved",
         "agent_cross_engagement_leak",
     }

@@ -149,10 +149,13 @@ async def test_verify_citations_marks_external_without_db_lookup() -> None:
 
 
 @pytest.mark.asyncio
-async def test_verify_citations_rejects_malformed_uuid() -> None:
+async def test_verify_citations_drops_malformed_uuid_at_regex_level() -> None:
+    # v2 Phase 3: the citation regex now enforces a strict UUID payload
+    # for every DB-kind cite (scope-v2 §7.1). Malformed identifiers no
+    # longer reach the verifier — they're invisible to ``parse_citations``.
     session = _StubSession({})
     s = _state("Bad [event:not-a-uuid] format.")
     await verify_citations(session, s)
     report = s.citation_report
     assert report is not None
-    assert len(report.not_found) == 1
+    assert report.total == 0

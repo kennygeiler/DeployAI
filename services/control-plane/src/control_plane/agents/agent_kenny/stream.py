@@ -12,8 +12,10 @@ import json
 from typing import Any
 
 from control_plane.agents.agent_kenny.types import (
+    AdversarialConcernChunk,
     CitationUnverifiedChunk,
     CitationVerifiedChunk,
+    CrossEngagementLeakChunk,
     DeltaChunk,
     DoneChunk,
     ErrorChunk,
@@ -47,6 +49,16 @@ def format_chunk(chunk: StreamChunk) -> bytes:
         return _frame(
             "citation_unverified",
             {"kind": chunk.kind, "id": chunk.identifier, "outcome": chunk.outcome},
+        )
+    if isinstance(chunk, CrossEngagementLeakChunk):
+        return _frame(
+            "cross_engagement_leak",
+            {"kind": chunk.kind, "id": chunk.identifier},
+        )
+    if isinstance(chunk, AdversarialConcernChunk):
+        return _frame(
+            "adversarial_concern",
+            {"concern_text": chunk.concern_text, "severity": chunk.severity},
         )
     if isinstance(chunk, DoneChunk):
         return _frame(
