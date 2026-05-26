@@ -13,6 +13,7 @@ from typing import Any
 
 from control_plane.agents.agent_kenny.types import (
     AdversarialConcernChunk,
+    CitationExternalChunk,
     CitationUnverifiedChunk,
     CitationVerifiedChunk,
     CrossEngagementLeakChunk,
@@ -53,6 +54,11 @@ def format_chunk(chunk: StreamChunk) -> bytes:
     if isinstance(chunk, CrossEngagementLeakChunk):
         return _frame(
             "cross_engagement_leak",
+            {"kind": chunk.kind, "id": chunk.identifier},
+        )
+    if isinstance(chunk, CitationExternalChunk):
+        return _frame(
+            "citation_external",
             {"kind": chunk.kind, "id": chunk.identifier},
         )
     if isinstance(chunk, AdversarialConcernChunk):

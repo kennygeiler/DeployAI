@@ -20,6 +20,7 @@ from control_plane.agents.agent_kenny.types import (
     DB_CITATION_KINDS,
     EXTERNAL_CITATION_KINDS,
     AgentState,
+    CitationExternalChunk,
     CitationOutcome,
     CitationReport,
     CitationUnverifiedChunk,
@@ -116,7 +117,7 @@ def _stash(report: CitationReport, v: VerifiedCitation) -> None:
         report.verified.append(v)
     elif v.outcome == "cross_engagement_leak":
         report.cross_engagement.append(v)
-    elif v.outcome == "external":
+    elif v.outcome == "external_trust":
         report.external.append(v)
     else:
         report.not_found.append(v)
@@ -128,9 +129,16 @@ async def _resolve_one(
     c: ParsedCitation,
 ) -> tuple[VerifiedCitation, Any]:
     if c.kind in EXTERNAL_CITATION_KINDS:
-        v = VerifiedCitation(kind=c.kind, identifier=c.identifier, outcome="external")
-        return v, CitationUnverifiedChunk(kind=c.kind, identifier=c.identifier, outcome="external")
+        # Phase 5 Wave 1C: external (MCP-provider) citations are trusted
+        # upstream — the audit ledger records the outbound call, we don't
+        # re-verify the id in our DB. Emit the dedicated ``citation_external``
+        # frame so the web layer can render a provenance chip without
+        # being mislabelled as ``verified`` or ``unverified``.
+        v = VerifiedCitation(kind=c.kind, identifier=c.identifier, outcome="external_trust")
+        return v, CitationExternalChunk(kind=c.kind, identifier=c.identifier)
     if c.kind not in DB_CITATION_KINDS:
+        # Unknown kinded prefix (e.g. ``[twitter:abc]``) — do NOT silently
+        # trust. Surface as unverified so reviewers can see the hallucination.
         v = VerifiedCitation(kind=c.kind, identifier=c.identifier, outcome="not_found")
         return v, CitationUnverifiedChunk(kind=c.kind, identifier=c.identifier, outcome="not_found")
     if not is_uuid_identifier(c.identifier):

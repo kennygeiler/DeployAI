@@ -67,8 +67,12 @@ def test_parse_citations_preserves_text_order() -> None:
     assert [p.kind for p in parsed] == ["node", "event", "edge"]
 
 
-def test_parse_citations_ignores_unknown_kinds() -> None:
-    # ``email`` is not a Phase 3 cite kind. Don't pick it up.
+def test_parse_citations_surfaces_unknown_kinds_for_unverified_emission() -> None:
+    # Phase 5 Wave 1C: unknown kinded prefixes are no longer silently
+    # dropped. They surface as ``ParsedCitation`` so the verifier emits
+    # ``citation_unverified`` (we don't silently trust unknown providers).
+    # The known DB-kind ``edge`` still parses normally with its UUID.
     text = f"[email:{_UUID}] but [edge:{_UUID}]"
     parsed = parse_citations(text)
-    assert [p.kind for p in parsed] == ["edge"]
+    assert [p.kind for p in parsed] == ["email", "edge"]
+    assert parsed[0].identifier == _UUID
