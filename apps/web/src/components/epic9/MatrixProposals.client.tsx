@@ -219,8 +219,8 @@ export function MatrixProposals({
   if (proposals.length === 0) {
     return (
       <p className="text-ink-600 text-sm">
-        No proposals pending — the extraction agent (Phase 6.2c) will surface candidate matrix
-        entities here as interactions are imported.
+        No proposals pending — the matrix-extraction agent will surface candidate matrix entities
+        here as interactions are imported.
       </p>
     );
   }

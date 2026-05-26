@@ -521,7 +521,7 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
             <p className="text-ink-600 text-sm">
               Drop an email, a meeting summary, a field note — or anything else that happened on
               this deployment. Each import is captured as a canonical event; the matrix grows from
-              it in Phase 6.2 (extraction).
+              it via extraction.
             </p>
             <InteractionImport engagementId={engagementId} onChanged={refresh} />
           </section>
