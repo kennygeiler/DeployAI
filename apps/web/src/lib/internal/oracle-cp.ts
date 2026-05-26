@@ -125,6 +125,47 @@ export async function cpPostOracleChat(
   return zOracleChatResponse.parse(raw);
 }
 
+export type OracleSseFrame = OracleSseDelta | OracleSseDone;
+
+/**
+ * Stream the CP oracle chat reply as parsed SSE frames. Returns a fetch
+ * Response so the BFF can pipe the body through unchanged when proxying.
+ * Surfaces budget exhaustion (429) as `OracleBudgetExhaustedError` so the
+ * caller can render the same toast as the JSON path.
+ */
+export async function cpStreamOracleChat(
+  tenantId: string,
+  engagementId: string,
+  actorId: string,
+  body: OracleChatRequest,
+): Promise<Response> {
+  const url =
+    `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}/oracle/chat/stream` +
+    `?tenant_id=${encodeURIComponent(tenantId)}`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: {
+      ...cpHeaders(actorId),
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (r.status === 429) {
+    const raw: unknown = await r.json().catch(() => ({}));
+    const parsed = zOracleBudgetExhausted.safeParse((raw as { detail?: unknown })?.detail ?? raw);
+    if (parsed.success) {
+      throw new OracleBudgetExhaustedError(parsed.data.error, parsed.data.retry_after_iso);
+    }
+    throw new OracleBudgetExhaustedError("daily LLM budget exhausted", "");
+  }
+  if (!r.ok) {
+    throw new Error(`cp oracle chat stream ${r.status}: ${await r.text()}`);
+  }
+  return r;
+}
+
 export async function cpGetOracleHistory(
   tenantId: string,
   engagementId: string,

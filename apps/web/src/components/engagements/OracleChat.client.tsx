@@ -28,6 +28,7 @@ type ChatResponse = {
 };
 
 const PANEL_TITLE_ID = "oracle-chat-title";
+const ORACLE_ROLE = "oracle" as const;
 
 /**
  * Right-side collapsible Mr. Oracle chat panel. Single-turn POST against
@@ -41,6 +42,7 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
   const [input, setInput] = React.useState("");
   const [loadingHistory, setLoadingHistory] = React.useState(false);
   const [sending, setSending] = React.useState(false);
+  const [streamingContent, setStreamingContent] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   const loadedRef = React.useRef(false);
 
@@ -76,17 +78,8 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
     })();
   }, [open, loadHistory]);
 
-  const send = React.useCallback(async () => {
-    const message = input.trim();
-    if (!message || sending) return;
-    setSending(true);
-    const optimisticId = `pending-${Date.now()}`;
-    setTurns((prev) => [
-      ...prev,
-      { id: optimisticId, role: "user", content: message, created_at: new Date().toISOString() },
-    ]);
-    setInput("");
-    try {
+  const sendJsonFallback = React.useCallback(
+    async (message: string, optimisticId: string): Promise<boolean> => {
       const r = await fetch(
         `/api/bff/engagements/${encodeURIComponent(engagementId)}/oracle/chat`,
         {
@@ -102,17 +95,16 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
             ? j.userMessage
             : "Daily LLM budget reached. Try again tomorrow.",
         );
-        // Roll back the optimistic user turn so the input can be edited + retried.
         setTurns((prev) => prev.filter((t) => t.id !== optimisticId));
         setInput(message);
-        return;
+        return false;
       }
       if (!r.ok) {
         const desc = await readStrategistBffErrorDescription(r);
         toast.error("Mr. Oracle could not reply", { description: desc.slice(0, 240) });
         setTurns((prev) => prev.filter((t) => t.id !== optimisticId));
         setInput(message);
-        return;
+        return false;
       }
       const body = (await r.json()) as ChatResponse;
       setConversationId(body.conversation_id);
@@ -135,14 +127,138 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
           ]),
       );
       setErr(null);
+      return true;
+    },
+    [conversationId, engagementId],
+  );
+
+  const send = React.useCallback(async () => {
+    const message = input.trim();
+    if (!message || sending) return;
+    setSending(true);
+    const optimisticId = `pending-${Date.now()}`;
+    setTurns((prev) => [
+      ...prev,
+      { id: optimisticId, role: "user", content: message, created_at: new Date().toISOString() },
+    ]);
+    setInput("");
+    setStreamingContent("");
+    let streamOk = false;
+    try {
+      const r = await fetch(
+        `/api/bff/engagements/${encodeURIComponent(engagementId)}/oracle/chat/stream`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", accept: "text/event-stream" },
+          body: JSON.stringify({ conversation_id: conversationId, message }),
+        },
+      );
+      if (r.status === 429) {
+        const j = (await r.json().catch(() => ({}))) as { userMessage?: string };
+        toast.error(
+          j.userMessage && typeof j.userMessage === "string" && j.userMessage.trim()
+            ? j.userMessage
+            : "Daily LLM budget reached. Try again tomorrow.",
+        );
+        setTurns((prev) => prev.filter((t) => t.id !== optimisticId));
+        setInput(message);
+        setStreamingContent(null);
+        return;
+      }
+      if (!r.ok || !r.body) {
+        // Stream path unavailable — fall back to the JSON sibling route.
+        setStreamingContent(null);
+        await sendJsonFallback(message, optimisticId);
+        return;
+      }
+
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let acc = "";
+      let done: { turn_id: string; conversation_id: string } | null = null;
+      let streamError: string | null = null;
+      for (;;) {
+        const { value, done: rdrDone } = await reader.read();
+        if (value) buffer += decoder.decode(value, { stream: true });
+        let split = buffer.indexOf("\n\n");
+        while (split !== -1) {
+          const raw = buffer.slice(0, split);
+          buffer = buffer.slice(split + 2);
+          const line = raw.trim();
+          if (line.startsWith("data: ")) {
+            try {
+              const frame = JSON.parse(line.slice(6)) as
+                | { delta: string; done: false }
+                | { done: true; turn_id?: string; conversation_id?: string; error?: string };
+              if (frame.done === false) {
+                acc += frame.delta;
+                setStreamingContent(acc);
+              } else if (frame.error) {
+                streamError = frame.error;
+              } else if (frame.turn_id && frame.conversation_id) {
+                done = { turn_id: frame.turn_id, conversation_id: frame.conversation_id };
+              }
+            } catch {
+              // Malformed frame — ignore; the terminal done frame is what matters.
+            }
+          }
+          split = buffer.indexOf("\n\n");
+        }
+        if (rdrDone) break;
+      }
+
+      if (streamError || !done) {
+        // No terminal done frame (or upstream error mid-stream) — fall back.
+        setStreamingContent(null);
+        await sendJsonFallback(message, optimisticId);
+        return;
+      }
+
+      setConversationId(done.conversation_id);
+      setTurns((prev) =>
+        prev
+          .filter((t) => t.id !== optimisticId)
+          .concat([
+            {
+              id: `user-${done!.turn_id}`,
+              role: "user",
+              content: message,
+              created_at: new Date().toISOString(),
+            },
+            {
+              id: done!.turn_id,
+              role: "oracle",
+              content: acc,
+              created_at: new Date().toISOString(),
+            },
+          ]),
+      );
+      setStreamingContent(null);
+      setErr(null);
+      streamOk = true;
+    } catch {
+      // Network error on the stream path — fall back to JSON so the panel
+      // still works even if SSE is unavailable.
+      setStreamingContent(null);
+      if (!streamOk) {
+        try {
+          await sendJsonFallback(message, optimisticId);
+        } catch {
+          setTurns((prev) => prev.filter((t) => t.id !== optimisticId));
+          setInput(message);
+          toast.error("Mr. Oracle could not reply");
+        }
+      }
     } finally {
       setSending(false);
     }
-  }, [conversationId, engagementId, input, sending]);
+  }, [conversationId, engagementId, input, sending, sendJsonFallback]);
 
   const clear = React.useCallback(() => {
     setTurns([]);
     setConversationId(null);
+    setStreamingContent(null);
     setErr(null);
     loadedRef.current = false;
   }, []);
@@ -227,16 +343,34 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
               Ask Mr. Oracle about this engagement. He grounds every answer in ledger events.
             </p>
           ) : (
-            <ul className="space-y-2">
-              {turns.map((t) => (
-                <OracleMessage
-                  key={t.id}
-                  engagementId={engagementId}
-                  role={t.role}
-                  content={t.content}
-                />
-              ))}
-            </ul>
+            <>
+              <ul className="space-y-2">
+                {turns.map((t) => (
+                  <OracleMessage
+                    key={t.id}
+                    engagementId={engagementId}
+                    role={t.role}
+                    content={t.content}
+                  />
+                ))}
+              </ul>
+              {streamingContent !== null ? (
+                <div
+                  aria-live="polite"
+                  aria-atomic="false"
+                  data-testid="oracle-chat-streaming"
+                  className="mt-2"
+                >
+                  <ul>
+                    <OracleMessage
+                      engagementId={engagementId}
+                      role={ORACLE_ROLE}
+                      content={streamingContent || "…"}
+                    />
+                  </ul>
+                </div>
+              ) : null}
+            </>
           )}
         </div>
         <div className="border-border border-t px-3 py-2">

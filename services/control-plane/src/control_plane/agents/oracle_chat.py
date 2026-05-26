@@ -14,7 +14,7 @@ non-streaming (single completion) via ``provider.chat_complete``.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterable
+from collections.abc import AsyncIterator, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
@@ -63,6 +63,21 @@ class OracleReply:
     conversation_id: uuid.UUID
     content: str
     tokens_used: int
+
+
+@dataclass(frozen=True)
+class OracleStreamDelta:
+    delta: str
+
+
+@dataclass(frozen=True)
+class OracleStreamDone:
+    turn_id: uuid.UUID
+    conversation_id: uuid.UUID
+    tokens_used: int
+
+
+OracleStreamChunk = OracleStreamDelta | OracleStreamDone
 
 
 class BudgetExhaustedError(Exception):
@@ -203,6 +218,165 @@ class OracleChatService:
             conversation_id=conversation.id,
             content=reply_text,
             tokens_used=ORACLE_TOKEN_ESTIMATE,
+        )
+
+    async def reply_stream(
+        self,
+        session: AsyncSession,
+        *,
+        tenant_id: uuid.UUID,
+        engagement: Engagement,
+        actor_user_id: uuid.UUID,
+        conversation_id: uuid.UUID | None,
+        message: str,
+        now: datetime | None = None,
+    ) -> AsyncIterator[OracleStreamChunk]:
+        """Pre-flight (validate/budget/setup) runs eagerly so 404/429 surface
+        before any SSE frame; the LLM stream + post-stream persist run lazily
+        as the caller iterates."""
+        moment = now or datetime.now(UTC)
+        prompt, conversation, context_event_ids = await self._prepare_stream(
+            session,
+            tenant_id=tenant_id,
+            engagement=engagement,
+            actor_user_id=actor_user_id,
+            conversation_id=conversation_id,
+            message=message,
+            moment=moment,
+        )
+        return self._drive_stream(
+            session,
+            tenant_id=tenant_id,
+            engagement_id=engagement.id,
+            conversation=conversation,
+            context_event_ids=context_event_ids,
+            prompt=prompt,
+            moment=moment,
+        )
+
+    async def _prepare_stream(
+        self,
+        session: AsyncSession,
+        *,
+        tenant_id: uuid.UUID,
+        engagement: Engagement,
+        actor_user_id: uuid.UUID,
+        conversation_id: uuid.UUID | None,
+        message: str,
+        moment: datetime,
+    ) -> tuple[list[dict[str, str]], OracleConversation, list[uuid.UUID]]:
+        if conversation_id is not None:
+            await _require_conversation(
+                session,
+                tenant_id=tenant_id,
+                engagement_id=engagement.id,
+                conversation_id=conversation_id,
+            )
+
+        granted = await check_and_charge(session, tenant_id=tenant_id, estimate=ORACLE_TOKEN_ESTIMATE)
+        if not granted:
+            raise BudgetExhaustedError
+
+        conversation, started_new = await _get_or_create_conversation(
+            session,
+            tenant_id=tenant_id,
+            engagement_id=engagement.id,
+            actor_user_id=actor_user_id,
+            conversation_id=conversation_id,
+        )
+        if started_new:
+            await emit_ledger_event(
+                session,
+                tenant_id=tenant_id,
+                engagement_id=engagement.id,
+                occurred_at=moment,
+                actor_kind="user",
+                actor_id=str(actor_user_id),
+                source_kind="oracle_conversation_started",
+                source_ref=conversation.id,
+                summary=f"oracle conversation started by user {actor_user_id}"[:500],
+                detail={"conversation_id": str(conversation.id)},
+            )
+
+        context = await build_context(session, tenant_id=tenant_id, engagement_id=engagement.id, now=moment)
+
+        user_turn = OracleChatTurn(
+            conversation_id=conversation.id,
+            tenant_id=tenant_id,
+            role="user",
+            content=message,
+            context_event_ids=list(context.context_event_ids),
+            tokens_used=0,
+        )
+        session.add(user_turn)
+        await session.flush()
+
+        history = await _fetch_history(session, conversation_id=conversation.id, tenant_id=tenant_id)
+        prompt = _build_prompt(engagement=engagement, context=context, history=history, message=message)
+        return prompt, conversation, list(context.context_event_ids)
+
+    async def _drive_stream(
+        self,
+        session: AsyncSession,
+        *,
+        tenant_id: uuid.UUID,
+        engagement_id: uuid.UUID,
+        conversation: OracleConversation,
+        context_event_ids: list[uuid.UUID],
+        prompt: list[dict[str, str]],
+        moment: datetime,
+    ) -> AsyncIterator[OracleStreamChunk]:
+        # Per Bundle G1.b race-fix: user-visible delta yields happen BEFORE the
+        # oracle_turn insert + ledger emit. The route layer commits after we
+        # yield Done so the persisted state is visible only once the client has
+        # the final frame.
+        accumulated: list[str] = []
+        provider_tokens = 0
+        stream = self._provider.chat_complete_stream(
+            prompt,
+            temperature=_LLM_TEMPERATURE,
+            max_output_tokens=_LLM_MAX_OUTPUT_TOKENS,
+        )
+        async for chunk in stream:
+            if chunk.done:
+                provider_tokens = chunk.tokens_used
+                break
+            if chunk.delta:
+                accumulated.append(chunk.delta)
+                yield OracleStreamDelta(delta=chunk.delta)
+
+        reply_text = "".join(accumulated).strip() or "(no response)"
+        tokens_used = provider_tokens if provider_tokens > 0 else ORACLE_TOKEN_ESTIMATE
+
+        oracle_turn = OracleChatTurn(
+            conversation_id=conversation.id,
+            tenant_id=tenant_id,
+            role="oracle",
+            content=reply_text,
+            context_event_ids=list(context_event_ids),
+            tokens_used=tokens_used,
+        )
+        session.add(oracle_turn)
+        conversation.last_turn_at = moment
+        await session.flush()
+
+        await emit_ledger_event(
+            session,
+            tenant_id=tenant_id,
+            engagement_id=engagement_id,
+            occurred_at=moment,
+            actor_kind="agent:oracle",
+            actor_id=str(oracle_turn.id),
+            source_kind="oracle_chat_turn",
+            source_ref=oracle_turn.id,
+            summary=f"oracle reply ({tokens_used} tokens)"[:500],
+            detail={"role": "oracle", "tokens": tokens_used},
+            caused_by=context_event_ids,
+        )
+        yield OracleStreamDone(
+            turn_id=oracle_turn.id,
+            conversation_id=conversation.id,
+            tokens_used=tokens_used,
         )
 
 
@@ -472,5 +646,8 @@ __all__ = [
     "OracleChatService",
     "OracleContext",
     "OracleReply",
+    "OracleStreamChunk",
+    "OracleStreamDelta",
+    "OracleStreamDone",
     "build_context",
 ]

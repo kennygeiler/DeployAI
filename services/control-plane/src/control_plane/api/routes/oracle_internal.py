@@ -10,11 +10,15 @@ growing. Streaming is deferred to G1.b — this slice ships JSON only.
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 import uuid
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from llm_provider_py.types import LLMProvider
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
@@ -25,6 +29,8 @@ from control_plane.agents.oracle_chat import (
     BudgetExhaustedError,
     ConversationNotFoundError,
     OracleChatService,
+    OracleStreamDelta,
+    OracleStreamDone,
 )
 from control_plane.api.routes.engagements_internal import (
     _require_engagement,
@@ -129,6 +135,78 @@ async def post_oracle_chat(
         conversation_id=reply.conversation_id,
         content=reply.content,
         tokens_used=reply.tokens_used,
+    )
+
+
+_log = logging.getLogger(__name__)
+
+
+@router.post(
+    "/{engagement_id}/oracle/chat/stream",
+    dependencies=[Depends(require_internal)],
+)
+async def post_oracle_chat_stream(
+    engagement_id: uuid.UUID,
+    body: OracleChatRequest,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+    actor_id: Annotated[uuid.UUID, Depends(_actor_uuid)],
+    llm: Annotated[LLMProvider, Depends(get_llm_provider)],
+) -> StreamingResponse:
+    engagement = await _require_engagement(session, tenant_id, engagement_id)
+    resolved = await resolve_tenant_llm_provider(session, tenant_id, llm)
+    service = OracleChatService(resolved)
+
+    # reply_stream() runs pre-flight (validate / budget / user-turn / prompt)
+    # eagerly so 404 / 429 surface here as HTTPException before any SSE frame.
+    try:
+        chunks = await service.reply_stream(
+            session,
+            tenant_id=tenant_id,
+            engagement=engagement,
+            actor_user_id=actor_id,
+            conversation_id=body.conversation_id,
+            message=body.message,
+            now=datetime.now(UTC),
+        )
+    except BudgetExhaustedError as exc:
+        await session.rollback()
+        tomorrow = datetime.now(UTC).date() + _ONE_DAY
+        retry_at = datetime.combine(tomorrow, datetime.min.time(), tzinfo=UTC).isoformat()
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"error": "daily LLM budget exhausted", "retry_after_iso": retry_at},
+        ) from exc
+    except ConversationNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found") from exc
+
+    async def _frames() -> AsyncIterator[bytes]:
+        try:
+            async for chunk in chunks:
+                if isinstance(chunk, OracleStreamDelta):
+                    payload: dict[str, object] = {"delta": chunk.delta, "done": False}
+                    yield f"data: {json.dumps(payload)}\n\n".encode()
+                else:
+                    assert isinstance(chunk, OracleStreamDone)
+                    await session.commit()
+                    done_payload: dict[str, object] = {
+                        "done": True,
+                        "turn_id": str(chunk.turn_id),
+                        "conversation_id": str(chunk.conversation_id),
+                        "tokens_used": chunk.tokens_used,
+                    }
+                    yield f"data: {json.dumps(done_payload)}\n\n".encode()
+        except Exception as exc:
+            await session.rollback()
+            _log.exception("oracle stream error")
+            err_payload = {"done": True, "error": str(exc)[:200]}
+            yield f"data: {json.dumps(err_payload)}\n\n".encode()
+
+    return StreamingResponse(
+        _frames(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-store"},
     )
 
 

@@ -37,14 +37,15 @@ const NODE_UUID = "22222222-2222-4222-8222-222222222222";
 const TURN_ID = "33333333-3333-4333-8333-333333333333";
 const CONVO_ID = "44444444-4444-4444-8444-444444444444";
 
-type FetchHandler = (init?: RequestInit) =>
-  | { ok: boolean; status?: number; json: () => Promise<unknown>; text?: () => Promise<string> }
-  | Promise<{
-      ok: boolean;
-      status?: number;
-      json: () => Promise<unknown>;
-      text?: () => Promise<string>;
-    }>;
+type FetchResult = {
+  ok: boolean;
+  status?: number;
+  json: () => Promise<unknown>;
+  text?: () => Promise<string>;
+  body?: ReadableStream<Uint8Array> | null;
+};
+
+type FetchHandler = (init?: RequestInit) => FetchResult | Promise<FetchResult>;
 
 function installFetch(routes: Record<string, FetchHandler>) {
   const calls: Array<{ url: string; method: string; body: unknown }> = [];
@@ -59,8 +60,11 @@ function installFetch(routes: Record<string, FetchHandler>) {
       }
     }
     calls.push({ url, method, body });
-    for (const [pattern, handler] of Object.entries(routes)) {
+    // Longest pattern wins so "/oracle/chat/stream" beats "/oracle/chat".
+    const ordered = Object.keys(routes).sort((a, b) => b.length - a.length);
+    for (const pattern of ordered) {
       if (url.includes(pattern)) {
+        const handler = routes[pattern]!;
         const result = await Promise.resolve(handler(init));
         return Object.assign({ text: async () => JSON.stringify(await result.json()) }, result);
       }
@@ -69,6 +73,24 @@ function installFetch(routes: Record<string, FetchHandler>) {
   });
   vi.stubGlobal("fetch", mock);
   return calls;
+}
+
+function sseStream(frames: string[]): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  let i = 0;
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      if (i >= frames.length) {
+        controller.close();
+        return;
+      }
+      // Defer to a macrotask so React can flush state updates between frames
+      // (mirrors a real network stream where reads land on separate ticks).
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      controller.enqueue(encoder.encode(`data: ${frames[i]}\n\n`));
+      i += 1;
+    },
+  });
 }
 
 async function openPanel(user: ReturnType<typeof userEvent.setup>) {
@@ -106,20 +128,29 @@ describe("OracleChat", () => {
     expect((sendBtn as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("renders incrementally: optimistic user turn appears, then the oracle reply flips in", async () => {
-    let resolveReply:
-      | ((value: { ok: boolean; status?: number; json: () => Promise<unknown> }) => void)
-      | null = null;
+  it("streams deltas progressively, then swaps to the persisted oracle turn on done", async () => {
     installFetch({
       "/oracle/history": () => ({
         ok: true,
         status: 200,
         json: async () => ({ conversation_id: null, turns: [] }),
       }),
-      "/oracle/chat": () =>
-        new Promise((resolve) => {
-          resolveReply = resolve;
-        }),
+      "/oracle/chat/stream": () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+        body: sseStream([
+          JSON.stringify({ delta: "Two ", done: false }),
+          JSON.stringify({ delta: "open ", done: false }),
+          JSON.stringify({ delta: `risks. See [event:${EVENT_UUID}].`, done: false }),
+          JSON.stringify({
+            done: true,
+            turn_id: TURN_ID,
+            conversation_id: CONVO_ID,
+            tokens_used: 42,
+          }),
+        ]),
+      }),
     });
 
     render(<OracleChat engagementId="e1" />);
@@ -128,35 +159,67 @@ describe("OracleChat", () => {
 
     const input = await screen.findByLabelText(/message mr\. oracle/i);
     await user.type(input, "what should I worry about?");
-    const sendBtn = screen.getByRole("button", { name: /^send$/i });
-    expect((sendBtn as HTMLButtonElement).disabled).toBe(false);
-    await user.click(sendBtn);
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
 
-    // Optimistic user turn renders immediately while the POST is in flight.
+    // Optimistic user turn appears immediately.
     await waitFor(() => {
       expect(screen.getByText("what should I worry about?")).toBeTruthy();
     });
 
-    // Finalize the streaming-mock fetch — oracle reply flips state to done.
-    resolveReply!({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        turn_id: TURN_ID,
-        conversation_id: CONVO_ID,
-        content: `Two open risks. See [event:${EVENT_UUID}].`,
-        tokens_used: 314,
+    // Streaming region with aria-live is rendered, and the full delta text
+    // accumulates as frames arrive.
+    await waitFor(() => {
+      const region = screen.getByTestId("oracle-chat-streaming");
+      expect(region.getAttribute("aria-live")).toBe("polite");
+      expect(region.textContent ?? "").toMatch(/two open risks/i);
+    });
+
+    // After the terminal done frame, the streaming region disappears and the
+    // persisted oracle turn (with the same content) replaces it.
+    await waitFor(() => {
+      expect(screen.queryByTestId("oracle-chat-streaming")).toBeNull();
+    });
+    expect(screen.getByText(/two open risks/i)).toBeTruthy();
+    expect((screen.getByRole("button", { name: /^send$/i }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it("falls back to JSON POST when the stream endpoint fails", async () => {
+    installFetch({
+      "/oracle/history": () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ conversation_id: null, turns: [] }),
+      }),
+      "/oracle/chat/stream": () => ({
+        ok: false,
+        status: 502,
+        json: async () => ({ error: "upstream_unreachable" }),
+        body: null,
+      }),
+      "/oracle/chat": () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          turn_id: TURN_ID,
+          conversation_id: CONVO_ID,
+          content: "Fallback reply from JSON path.",
+          tokens_used: 100,
+        }),
       }),
     });
 
+    render(<OracleChat engagementId="e1" />);
+    const user = userEvent.setup();
+    await openPanel(user);
+
+    const input = await screen.findByLabelText(/message mr\. oracle/i);
+    await user.type(input, "hi");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+
     await waitFor(() => {
-      expect(screen.getByText(/two open risks/i)).toBeTruthy();
-    });
-    // After the reply lands, Send is enabled again + textarea is empty.
-    await waitFor(() => {
-      expect((screen.getByRole("button", { name: /^send$/i }) as HTMLButtonElement).disabled).toBe(
-        true,
-      );
+      expect(screen.getByText(/fallback reply from json path/i)).toBeTruthy();
     });
   });
 
@@ -167,7 +230,7 @@ describe("OracleChat", () => {
         status: 200,
         json: async () => ({ conversation_id: null, turns: [] }),
       }),
-      "/oracle/chat": () => ({
+      "/oracle/chat/stream": () => ({
         ok: false,
         status: 429,
         json: async () => ({
