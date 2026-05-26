@@ -82,3 +82,55 @@ export async function cpSeedBluestateScenario(
   const text = await r.text();
   return { status: "error", code: r.status, message: text };
 }
+
+export const zPortfolioSummary = z.object({
+  tenant_id: z.string(),
+  engagement_count: z.number(),
+  engagements: z.array(zScenarioSummary),
+});
+export type PortfolioSummary = z.infer<typeof zPortfolioSummary>;
+
+export const zSeedPortfolioOk = z.object({
+  summary: zPortfolioSummary,
+  took_seconds: z.number(),
+  source: z.string(),
+});
+export type SeedPortfolioOk = z.infer<typeof zSeedPortfolioOk>;
+
+export const zSeedPortfolioConflict = z.object({
+  detail: z.object({
+    error: z.literal("already_seeded"),
+    engagement_ids: z.array(z.string()),
+  }),
+});
+export type SeedPortfolioConflict = z.infer<typeof zSeedPortfolioConflict>;
+
+export type SeedPortfolioResult =
+  | { status: "ok"; body: SeedPortfolioOk }
+  | { status: "conflict"; body: SeedPortfolioConflict }
+  | { status: "error"; code: number; message: string };
+
+export async function cpStartPortfolioSeed(
+  tenantId: string,
+  body: { force: boolean },
+): Promise<SeedPortfolioResult> {
+  const url =
+    `${cpBase()}/internal/v1/admin/seed-scenarios/portfolio` +
+    `?tenant_id=${encodeURIComponent(tenantId)}`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { ...cpHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (r.status === 200) {
+    const parsed = zSeedPortfolioOk.parse(await r.json());
+    return { status: "ok", body: parsed };
+  }
+  if (r.status === 409) {
+    const parsed = zSeedPortfolioConflict.parse(await r.json());
+    return { status: "conflict", body: parsed };
+  }
+  const text = await r.text();
+  return { status: "error", code: r.status, message: text };
+}

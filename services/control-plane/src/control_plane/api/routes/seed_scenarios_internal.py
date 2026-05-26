@@ -26,6 +26,12 @@ from control_plane.scenarios.bluestate import (
     apply_bluestate_scenario,
     engagement_exists_for_tenant,
 )
+from control_plane.scenarios.portfolio import (
+    PORTFOLIO_ENGAGEMENT_IDS,
+    PortfolioSummary,
+    apply_portfolio_scenario,
+    portfolio_engagements_exist_for_tenant,
+)
 
 router = APIRouter(prefix="/admin/seed-scenarios", tags=["internal-seed-scenarios"])
 
@@ -73,6 +79,47 @@ async def seed_bluestate(
 
     return SeedBluestateResponse(
         engagement_id=summary.engagement_id,
+        summary=summary,
+        took_seconds=round(elapsed, 3),
+    )
+
+
+class SeedPortfolioRequest(BaseModel):
+    force: bool = False
+
+
+class SeedPortfolioResponse(BaseModel):
+    summary: PortfolioSummary
+    took_seconds: float
+    source: str = "cp"
+
+
+@router.post(
+    "/portfolio",
+    response_model=SeedPortfolioResponse,
+    dependencies=[Depends(require_internal)],
+)
+async def seed_portfolio(
+    body: SeedPortfolioRequest,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+) -> SeedPortfolioResponse:
+    already = await portfolio_engagements_exist_for_tenant(session, tenant_id)
+    if already and not body.force:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "already_seeded",
+                "engagement_ids": list(PORTFOLIO_ENGAGEMENT_IDS),
+            },
+        )
+
+    started = time.monotonic()
+    summary = await apply_portfolio_scenario(session, tenant_id=tenant_id)
+    await session.commit()
+    elapsed = time.monotonic() - started
+
+    return SeedPortfolioResponse(
         summary=summary,
         took_seconds=round(elapsed, 3),
     )

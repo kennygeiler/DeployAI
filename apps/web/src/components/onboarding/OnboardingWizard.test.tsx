@@ -54,8 +54,88 @@ describe("OnboardingWizard", () => {
     render(<OnboardingWizard />);
     expect(screen.getByText(/Start —/)).toBeTruthy();
     expect(screen.getByRole("button", { name: /Load BlueState demo/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Load DeployAI Portfolio/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Start fresh/i })).toBeTruthy();
     expect(screen.queryByLabelText("Provider")).toBeNull();
+  });
+
+  it("'Load DeployAI Portfolio' POSTs the BFF route and redirects to the first engagement", async () => {
+    const calls = mockFetch((call) => {
+      if (call.url === "/api/bff/onboarding/seed-portfolio" && call.method === "POST") {
+        return {
+          ok: true,
+          body: {
+            summary: {
+              tenant_id: "11111111-1111-1111-1111-111111111111",
+              engagement_count: 5,
+              engagements: [
+                {
+                  tenant_id: "11111111-1111-1111-1111-111111111111",
+                  engagement_id: "f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1",
+                  stakeholder_nodes: 12,
+                  decision_nodes: 25,
+                  risks: 15,
+                  snapshot_count: 30,
+                  temporal_insight_count: 0,
+                },
+                {
+                  tenant_id: "11111111-1111-1111-1111-111111111111",
+                  engagement_id: "f2f2f2f2-f2f2-4f2f-8f2f-f2f2f2f2f2f2",
+                  stakeholder_nodes: 11,
+                  decision_nodes: 25,
+                  risks: 15,
+                  snapshot_count: 30,
+                  temporal_insight_count: 0,
+                },
+              ],
+            },
+            took_seconds: 95.2,
+            source: "cp",
+          },
+        };
+      }
+      return { ok: false, body: "unexpected" };
+    });
+
+    const user = userEvent.setup();
+    render(<OnboardingWizard />);
+    await user.click(screen.getByRole("button", { name: /Load DeployAI Portfolio/i }));
+
+    await waitFor(() =>
+      expect(pushMock).toHaveBeenCalledWith("/engagements/f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1"),
+    );
+    expect(calls[0]?.url).toBe("/api/bff/onboarding/seed-portfolio");
+    expect(calls[0]?.method).toBe("POST");
+    expect(calls[0]?.body as { force: boolean }).toEqual({ force: false });
+    expect(toastSuccessMock).toHaveBeenCalled();
+  });
+
+  it("'Load DeployAI Portfolio' surfaces an 'already seeded' toast on 409", async () => {
+    mockFetch((call) => {
+      if (call.url === "/api/bff/onboarding/seed-portfolio" && call.method === "POST") {
+        return {
+          ok: false,
+          status: 409,
+          body: {
+            error: "already_seeded",
+            engagement_ids: [
+              "f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1",
+              "f2f2f2f2-f2f2-4f2f-8f2f-f2f2f2f2f2f2",
+            ],
+          },
+        };
+      }
+      return { ok: false, body: "unexpected" };
+    });
+
+    const user = userEvent.setup();
+    render(<OnboardingWizard />);
+    await user.click(screen.getByRole("button", { name: /Load DeployAI Portfolio/i }));
+
+    await waitFor(() => expect(toastMock).toHaveBeenCalled());
+    const firstCall = toastMock.mock.calls[0];
+    expect(firstCall?.[0]).toMatch(/already seeded/i);
+    expect(pushMock).not.toHaveBeenCalled();
   });
 
   it("'Load BlueState demo' POSTs the BFF route and redirects on success", async () => {

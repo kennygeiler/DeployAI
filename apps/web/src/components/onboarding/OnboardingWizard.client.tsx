@@ -95,6 +95,52 @@ export function OnboardingWizard() {
     void conflictId;
   }, [router]);
 
+  const loadPortfolio = React.useCallback(async () => {
+    setBusy(true);
+    setErr(null);
+    let target: string | null = null;
+    let conflictIds: string[] | null = null;
+    try {
+      const r = await fetch("/api/bff/onboarding/seed-portfolio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force: false }),
+      });
+      if (r.status === 409) {
+        const conflict = (await r.json()) as { error: string; engagement_ids: string[] };
+        conflictIds = conflict.engagement_ids;
+        const firstId = conflict.engagement_ids[0];
+        toast("Portfolio fixture already seeded.", {
+          description: firstId ? "Open the first portfolio engagement?" : undefined,
+          action: firstId
+            ? {
+                label: "Open",
+                onClick: () => router.push(`/engagements/${encodeURIComponent(firstId)}`),
+              }
+            : undefined,
+        });
+        return;
+      }
+      if (!r.ok) {
+        setErr((await r.text()).slice(0, 240));
+        return;
+      }
+      const body = (await r.json()) as {
+        summary: { engagements: { engagement_id: string }[] };
+      };
+      target = body.summary.engagements[0]?.engagement_id ?? null;
+      toast.success("DeployAI Portfolio loaded");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not load portfolio fixture.");
+    } finally {
+      setBusy(false);
+    }
+    if (target) {
+      router.push(`/engagements/${encodeURIComponent(target)}`);
+    }
+    void conflictIds;
+  }, [router]);
+
   const startFresh = React.useCallback(() => {
     setErr(null);
     setStep(1);
@@ -229,7 +275,12 @@ export function OnboardingWizard() {
       ) : null}
 
       {step === 0 ? (
-        <PickerStep onLoadBluestate={loadBluestate} onStartFresh={startFresh} busy={busy} />
+        <PickerStep
+          onLoadBluestate={loadBluestate}
+          onLoadPortfolio={loadPortfolio}
+          onStartFresh={startFresh}
+          busy={busy}
+        />
       ) : null}
 
       {step === 1 ? (
@@ -274,6 +325,7 @@ export function OnboardingWizard() {
 
 function PickerStep(props: {
   onLoadBluestate: () => void;
+  onLoadPortfolio: () => void;
   onStartFresh: () => void;
   busy: boolean;
 }) {
@@ -289,6 +341,20 @@ function PickerStep(props: {
         <span className="text-sm font-semibold">Load BlueState demo (26-week scenario)</span>
         <span className="text-ink-100 text-xs font-normal">
           One-click seed with stakeholders, decisions, risks, snapshots, and temporal insights.
+        </span>
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={props.onLoadPortfolio}
+        disabled={props.busy}
+        className="h-auto flex-col items-start gap-2 whitespace-normal break-words p-4 text-left"
+      >
+        <span className="text-sm font-semibold">
+          Load DeployAI Portfolio (5 engagements × 26 weeks)
+        </span>
+        <span className="text-ink-700 text-xs font-normal">
+          Cross-engagement isolation stress fixture — five realistic deployments under one tenant.
         </span>
       </Button>
       <Button
