@@ -78,6 +78,9 @@ from control_plane.api.routes.temporal_insights_internal import (
     router as temporal_insights_internal_router,
 )
 from control_plane.api.routes.tenant_api_keys_internal import router as tenant_api_keys_internal_router
+from control_plane.api.routes.tenant_mcp_configs_internal import (
+    router as tenant_mcp_configs_internal_router,
+)
 from control_plane.api.routes.tenants_internal import router as tenants_internal_router
 from control_plane.api.routes.tools_internal import router as tools_internal_router
 from control_plane.api.routes.upload_artifacts import router as upload_artifacts_router
@@ -144,6 +147,7 @@ app.include_router(temporal_insights_internal_router, prefix="/internal/v1")
 app.include_router(temporal_intelligence_router, prefix="/internal/v1")
 app.include_router(tenants_internal_router, prefix="/internal/v1")
 app.include_router(tenant_api_keys_internal_router, prefix="/internal/v1")
+app.include_router(tenant_mcp_configs_internal_router, prefix="/internal/v1")
 app.include_router(audit_internal_router, prefix="/internal/v1")
 app.include_router(webhooks_internal_router, prefix="/internal/v1")
 app.include_router(meetings_internal_router, prefix="/internal/v1")

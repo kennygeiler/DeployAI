@@ -68,6 +68,14 @@ ALLOWED_SOURCE_KINDS: frozenset[str] = frozenset(
         "mcp_resource_read",
         "mcp_tool_invocation",
         "mcp_auth_failed",
+        # v2 Phase 5 Wave 2E — tenant_mcp_configs CRUD audit (scope-v2 §9.1,
+        # threat-model §5.4). Every mutation against the MCP-outbound config
+        # table lands one of these rows so an auditor can replay the
+        # tenant-admin decisions that gave Kenny access to an external server.
+        "mcp_config_created",
+        "mcp_config_updated",
+        "mcp_config_deleted",
+        "mcp_oauth_token_rotated",
     }
 )
 
@@ -90,6 +98,10 @@ _SECRET_KEY_NEEDLES: tuple[str, ...] = (
     "bearer_token",
     "access_token",
     "refresh_token",
+    # v2 Phase 5 Wave 2E — defense-in-depth for ``tenant_mcp_configs``
+    # ``auth_token`` payloads. The route never includes it in detail, but
+    # this scrubs the dict shape in case a future caller forgets.
+    "auth_token",
     "password",
     "private_key",
 )
