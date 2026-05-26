@@ -68,6 +68,26 @@ const COLUMN_X = 240;
 const ROW_Y = 90;
 const COLUMN_HEADER_Y = -50;
 
+const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+
+function isSnapshotStale(capturedAt: string, liveNodes: MatrixNode[]): boolean {
+  const captured = Date.parse(capturedAt);
+  if (Number.isNaN(captured)) return false;
+  let latest = 0;
+  for (const n of liveNodes) {
+    const t = Date.parse(n.updated_at);
+    if (!Number.isNaN(t) && t > latest) latest = t;
+  }
+  if (latest === 0) return false;
+  return captured < latest - STALE_THRESHOLD_MS;
+}
+
+function formatSnapshotDate(capturedAt: string): string {
+  const t = Date.parse(capturedAt);
+  if (Number.isNaN(t)) return capturedAt;
+  return new Date(t).toISOString().slice(0, 10);
+}
+
 export type CustomNodeTypeDescriptor = {
   name: string;
   label?: string | null;
@@ -323,6 +343,16 @@ export function MatrixGraph({
   );
 
   const slider = resolvedEngagementId ? <MatrixTimeSlider /> : null;
+  const staleBanner =
+    snapshot.kind === "ready" && isSnapshotStale(snapshot.capturedAt, nodes) ? (
+      <p
+        className="border-border bg-paper-50 text-ink-700 rounded-lg border p-3 text-sm"
+        role="status"
+        data-testid="matrix-snapshot-stale-banner"
+      >
+        Snapshot from {formatSnapshotDate(snapshot.capturedAt)}; matrix has changed since.
+      </p>
+    ) : null;
 
   if (snapshot.kind === "missing") {
     return (
@@ -367,6 +397,7 @@ export function MatrixGraph({
   return (
     <div className="space-y-2">
       {slider}
+      {staleBanner}
       <div
         data-testid="matrix-graph"
         className="border-border h-[600px] w-full rounded-lg border"

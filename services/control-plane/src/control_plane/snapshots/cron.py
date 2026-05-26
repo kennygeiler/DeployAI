@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.domain.engagement import Engagement
@@ -103,6 +103,7 @@ async def backfill_snapshots(
     tenant_id: uuid.UUID,
     engagement_id: uuid.UUID,
     days: int,
+    rebuild: bool = False,
     now: datetime | None = None,
 ) -> int:
     """Create one snapshot per missing UTC day going back ``days`` from ``now``.
@@ -111,11 +112,29 @@ async def backfill_snapshots(
     no existing row falls inside that UTC day window. Snapshot ``captured_at`` is
     the UTC midnight of the target day so the time-machine endpoint sees evenly
     spaced anchors.
+
+    When ``rebuild`` is true, in-window rows for ``(tenant_id, engagement_id)``
+    are deleted before the per-day insert loop so a re-run reflects current
+    matrix state (the per-day idempotency check otherwise freezes existing rows).
     """
     if days <= 0:
         return 0
     anchor = (now or datetime.now(UTC)).astimezone(UTC)
     midnight = anchor.replace(hour=0, minute=0, second=0, microsecond=0)
+    if rebuild:
+        # Fill loop runs `range(days)` starting at offset=0 (midnight) and
+        # going back to offset=days-1; the oldest day touched is therefore
+        # `midnight - (days - 1) days`. The DELETE must match that lower
+        # bound so a row exactly `days` days old (outside the rebuild
+        # window) is never collateral-deleted.
+        oldest_filled = midnight - timedelta(days=days - 1)
+        await session.execute(
+            delete(MatrixSnapshot).where(
+                MatrixSnapshot.tenant_id == tenant_id,
+                MatrixSnapshot.engagement_id == engagement_id,
+                MatrixSnapshot.captured_at >= oldest_filled,
+            )
+        )
     written = 0
     for offset in range(days):
         day_anchor = midnight - timedelta(days=offset)
