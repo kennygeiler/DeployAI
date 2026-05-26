@@ -7,7 +7,7 @@
 | **Status** | Authoritative. Maintained going forward. |
 | **Audience** | Engineers (esp. anyone taking the codebase over), PM/GTM, hosting operators, leadership. |
 | **Last verified against code** | 2026-05-21 (commit `c21e9b4`, branch `main`). |
-| **Delivery tracking** | [`_bmad-output/implementation-artifacts/sprint-status.yaml`](../../_bmad-output/implementation-artifacts/sprint-status.yaml) — honest epic-level status, kept in sync with this doc. |
+| **Delivery tracking** | [`docs/delivery-status.yaml`](../delivery-status.yaml) — honest epic-level status, kept in sync with this doc. |
 | **Supersedes** | `whats-actually-here.md`, `pm-functionality-and-direction-brief.md`, and the BMAD planning artifacts (`prd.md`, `architecture.md`, `epics.md`, the product briefs, `ux-design-specification.md`, `mvp-operating-plan-2026.md`, `implementation-readiness-report-*`). All are archived under [`docs/archive/`](../archive/) for history. |
 
 **The rule:** when this document and the code disagree, **the code wins** — fix the document. When this document and any archived planning artifact disagree, **this document wins**. Every claim here was checked against the repository at the commit above; sections that describe intent rather than shipped behavior say so explicitly.
@@ -56,8 +56,8 @@ DeployAI is an **agentic Deployment System of Record** — durable, cited memory
 
 Read this before trusting any "done" label anywhere in the repo.
 
-- **This codebase was generated with the BMAD method** (an AI-agent-driven development framework — see the agent personas under [`.cursor/skills/`](../../.cursor/skills/)). The 16-epic / ~95-story / "23-week" roadmap was produced by a single author across ~3 weeks of commit activity. The "week" labels in the roadmap are planning fiction, not elapsed engineering time.
-- **"Done" in BMAD artifacts means "story acceptance criteria met / CI green," not "production feature."** Many epics marked `done` deliver production-*shaped* UI on **fixture or stubbed data**. The honest tracker ([`sprint-status.yaml`](../../_bmad-output/implementation-artifacts/sprint-status.yaml)) reclassifies these — use it, not the BMAD story files.
+- **This codebase was originally generated with the BMAD method** (an AI-agent-driven development framework). The 16-epic / ~95-story / "23-week" roadmap was produced by a single author across ~3 weeks of commit activity; the "week" labels in the roadmap are planning fiction, not elapsed engineering time. The BMAD planning artifacts and IDE agent personas have since been retired — the story files are preserved in git history (commit removing them) and the canonical delivery tracker is now [`docs/delivery-status.yaml`](../delivery-status.yaml).
+- **"Done" in legacy BMAD artifacts meant "story acceptance criteria met / CI green," not "production feature."** Many epics marked `done` deliver production-*shaped* UI on **fixture or stubbed data**. The honest tracker ([`delivery-status.yaml`](../delivery-status.yaml)) reclassifies these — use it as the source of truth for what is real vs scaffolded.
 - **What is genuinely solid:** the engineering scaffolding — typed Next.js + FastAPI code, async SQLAlchemy + Alembic migrations with tenant RLS, a working Anthropic/OpenAI LLM client, 13 CI workflows, SBOM/CVE scanning, accessibility gates, cross-tenant isolation fuzz tests, ~141 test files. Code quality is consistent and clean.
 - **What is demo-grade:** digest/evening data (fixtures or optional HTTP feeds), meeting presence (a stub), the "agentic" layer (deterministic Python heuristics, no live LLM-driven loop into the UI — see §11). There is no running agent that ingests meetings and updates surfaces.
 - **Overall:** a credible, well-engineered **prototype skeleton** — better scaffolding than most prototypes, but a prototype. It is **demo-usable**, not **pilot-usable** or **production-usable** (see §13 for the precise distinction).
@@ -287,7 +287,7 @@ Run it locally: `pnpm install --frozen-lockfile` then `pnpm --filter @deployai/w
 
 ## 15. Requirements & delivery tracking
 
-- **Live status:** [`_bmad-output/implementation-artifacts/sprint-status.yaml`](../../_bmad-output/implementation-artifacts/sprint-status.yaml) — rewritten to honest, code-verified epic-level statuses. **This is the tracker to update as work lands.** Update it in the same PR that changes delivery status, and update §3/§7/§14 here if a surface moves from fixture to real.
+- **Live status:** [`docs/delivery-status.yaml`](../delivery-status.yaml) — rewritten to honest, code-verified epic-level statuses. **This is the tracker to update as work lands.** Update it in the same PR that changes delivery status, and update §3/§7/§14 here if a surface moves from fixture to real.
 - **Requirements baseline:** the PRD defined 79 functional requirements, 78 non-functional requirements, and 12 design-philosophy commitments (DP1–DP12). The full text is archived at [`docs/archive/prd.md`](../archive/prd.md); the epic→FR mapping at [`docs/archive/epics.md`](../archive/epics.md). These are a historical baseline, not a delivery promise.
 - **Forward roadmap:** see **§16** — the sequenced Phase 0–5 plan for the team-based direction.
 

@@ -2,7 +2,7 @@
 
 **Document type:** Living mapping (Epic 12 Story 12.8).  
 **Version:** 0.1 · **Last reviewed:** 2026-04-26  
-**Scope:** Relates product artifacts described in the [`source-of-truth spec`](../product/deployai-source-of-truth-spec.md) and [`sprint-status.yaml`](../../_bmad-output/implementation-artifacts/sprint-status.yaml)—not every roadmap claim is shipped.
+**Scope:** Relates product artifacts described in the [`source-of-truth spec`](../product/deployai-source-of-truth-spec.md) and [`delivery-status.yaml`](../delivery-status.yaml)—not every roadmap claim is shipped.
 
 Legend: **Shipped** (in-repo behavior/tests), **Partial** (plumbing or demo-bound), **Planned** (design/epic only).
 

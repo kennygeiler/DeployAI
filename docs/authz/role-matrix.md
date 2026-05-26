@@ -23,7 +23,7 @@ This document is the human-facing source for `packages/authz/src/matrix.ts` and 
 - **V1.5** — `customer_admin` and `successor_strategist` are active in product copy; matrix entries marked V1.5 are enforced in the same code path as V1 (no separate build today).
 - **⁺¹** — `external_auditor` has **`foia:export`** only for export-oriented APIs (not strategist browser surfaces). **`canonical:read`** is **denied** — Epic 12 Story 12.3: auditors must not read canonical memory via `/digest`, `/evidence/*`, BFF, etc.; future **`/auditor`** audit-evidence routes will use a separate action when implemented.
 - **Cross-tenant** — For resources with `kind: "tenant"`, only `platform_admin` may target a tenant id different from `actor.tenantId`.
-- **Web (dev)** — `apps/web/middleware.ts` still uses request header `x-deployai-role` for v1. Real SSO and cookies land in Story 2.2 (see [`sprint-status.yaml`](../../_bmad-output/implementation-artifacts/sprint-status.yaml)).
+- **Web (dev)** — `apps/web/middleware.ts` still uses request header `x-deployai-role` for v1. Real SSO and cookies land in Story 2.2 (see [`delivery-status.yaml`](../delivery-status.yaml)).
 
 **Related**
 

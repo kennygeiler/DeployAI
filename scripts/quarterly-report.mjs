@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generate a short Epic 4 quarterly report from `sprint-status.yaml` (no YAML dependency).
+ * Generate a short Epic 4 quarterly report from `docs/delivery-status.yaml` (no YAML dependency).
  * Writes: artifacts/quarterly/report-<year>-Q<q>.md
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
-const statusPath = join(root, "_bmad-output/implementation-artifacts/sprint-status.yaml");
+const statusPath = join(root, "docs/delivery-status.yaml");
 const outDir = join(root, "artifacts/quarterly");
 
 const text = readFileSync(statusPath, "utf8");
