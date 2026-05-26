@@ -642,7 +642,7 @@ def backfill_snapshots(engagement_id: str) -> None:
         "    engine = create_async_engine(URL)\n"
         "    Session = async_sessionmaker(engine, expire_on_commit=False)\n"
         "    async with Session() as s:\n"
-        "        n = await backfill_snapshots(s, tenant_id=TENANT_ID, engagement_id=ENGAGEMENT_ID, days=182)\n"
+        "        n = await backfill_snapshots(s, tenant_id=TENANT_ID, engagement_id=ENGAGEMENT_ID, days=182, rebuild=True)\n"
         "        await s.commit()\n"
         "        print('wrote', n, 'snapshots')\n"
         "    await engine.dispose()\n"

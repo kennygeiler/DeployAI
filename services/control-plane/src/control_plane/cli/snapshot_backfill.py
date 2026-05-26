@@ -5,7 +5,8 @@ Usage:
     python -m control_plane.cli.snapshot_backfill \\
         --engagement <uuid> \\
         --days N \\
-        [--tenant-id <uuid>]
+        [--tenant-id <uuid>] \\
+        [--rebuild]
 
 Exit 0 OK, 1 DB error, 2 misconfig. Prints the count of snapshot rows written.
 """
@@ -37,6 +38,7 @@ async def _run(
     tenant_id: uuid.UUID,
     engagement_id: uuid.UUID,
     days: int,
+    rebuild: bool,
 ) -> int:
     engine = create_async_engine(_coerce_async_url(database_url))
     maker = async_sessionmaker(engine, expire_on_commit=False)
@@ -47,6 +49,7 @@ async def _run(
                 tenant_id=tenant_id,
                 engagement_id=engagement_id,
                 days=days,
+                rebuild=rebuild,
             )
             await session.commit()
             return written
@@ -63,6 +66,11 @@ def main(argv: list[str] | None = None) -> int:
         "--database-url",
         default=os.environ.get("DATABASE_URL"),
         help="SQLAlchemy URL; defaults to $DATABASE_URL",
+    )
+    parser.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="Delete existing in-window rows for this engagement before re-inserting.",
     )
     args = parser.parse_args(argv)
 
@@ -87,7 +95,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        written = asyncio.run(_run(args.database_url, tenant_id, engagement_id, args.days))
+        written = asyncio.run(_run(args.database_url, tenant_id, engagement_id, args.days, args.rebuild))
     except SQLAlchemyError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

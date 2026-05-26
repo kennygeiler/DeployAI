@@ -1,7 +1,24 @@
-import { render, screen } from "@testing-library/react";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MatrixEdge, MatrixNode } from "@/lib/bff/matrix-types";
+
+const { routerReplaceMock, pathnameMock, searchParamsRef } = vi.hoisted(() => ({
+  routerReplaceMock: vi.fn(),
+  pathnameMock: vi.fn(() => "/engagements/e1"),
+  searchParamsRef: { current: new URLSearchParams() as URLSearchParams },
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    replace: routerReplaceMock,
+    push: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+  }),
+  usePathname: () => pathnameMock(),
+  useSearchParams: () => searchParamsRef.current,
+}));
 
 // jsdom doesn't ship ResizeObserver / DOMMatrixReadOnly / requestAnimationFrame
 // in the shape ReactFlow expects. Stub them before importing the component.
@@ -118,5 +135,79 @@ describe("MatrixGraph", () => {
     );
     expect(screen.getByText("Surgery prep")).toBeTruthy();
     expect(screen.getByText(/Patient journeys/)).toBeTruthy();
+  });
+});
+
+describe("MatrixGraph stale-snapshot banner", () => {
+  beforeEach(() => {
+    pathnameMock.mockReturnValue("/engagements/e1");
+    searchParamsRef.current = new URLSearchParams("at=2026-05-01");
+    class RO {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", RO);
+  });
+
+  afterEach(() => {
+    routerReplaceMock.mockReset();
+  });
+
+  function stubSnapshotFetch(capturedAt: string): void {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              snapshot: {
+                captured_at: capturedAt,
+                nodes: [mkNode({ id: "snap-1", title: "Snapshot system" })],
+                edges: [],
+              },
+            }),
+          text: () => Promise.resolve(""),
+        }),
+      ),
+    );
+  }
+
+  it("shows the banner when captured_at predates the newest live updated_at by > 1 day", async () => {
+    stubSnapshotFetch("2026-05-01T00:00:00Z");
+    const liveNodes = [mkNode({ id: "live-1", updated_at: "2026-05-10T00:00:00Z" })];
+
+    render(<MatrixGraph engagementId="e1" nodes={liveNodes} edges={[]} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("matrix-snapshot-stale-banner")).toBeTruthy();
+    });
+    expect(screen.getByText(/Snapshot from 2026-05-01/)).toBeTruthy();
+    expect(screen.getByText(/matrix has changed since/)).toBeTruthy();
+  });
+
+  it("hides the banner when the gap is exactly 1 day (boundary)", async () => {
+    stubSnapshotFetch("2026-05-09T00:00:00Z");
+    const liveNodes = [mkNode({ id: "live-1", updated_at: "2026-05-10T00:00:00Z" })];
+
+    render(<MatrixGraph engagementId="e1" nodes={liveNodes} edges={[]} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("matrix-graph")).toBeTruthy();
+    });
+    expect(screen.queryByTestId("matrix-snapshot-stale-banner")).toBeNull();
+  });
+
+  it("hides the banner when no live nodes exist (cannot determine staleness)", async () => {
+    stubSnapshotFetch("2026-05-01T00:00:00Z");
+
+    render(<MatrixGraph engagementId="e1" nodes={[]} edges={[]} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("matrix-graph")).toBeTruthy();
+    });
+    expect(screen.queryByTestId("matrix-snapshot-stale-banner")).toBeNull();
   });
 });
