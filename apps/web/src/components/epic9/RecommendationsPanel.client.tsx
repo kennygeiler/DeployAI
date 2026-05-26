@@ -24,6 +24,18 @@ const PRIORITY_GROUP_LABEL: Record<RecommendationPriority, string> = {
   low: "Low priority",
 };
 
+export function dedupRecommendationBody(title: string, body: string): string {
+  const trimmed = body.trim();
+  const t = title.trim();
+  if (t.length === 0) {
+    return trimmed;
+  }
+  if (trimmed.toLowerCase().startsWith(t.toLowerCase())) {
+    return trimmed.slice(t.length).replace(/^[\s.:—–\n\r]+/, "");
+  }
+  return trimmed;
+}
+
 /**
  * Sprint 3.2 — deterministic "Recommended next actions" panel. Each card is
  * a predicate-fired recommendation tagged with the role responsible and
@@ -115,7 +127,9 @@ export function RecommendationsPanel({ engagementId }: { engagementId: string })
                         <PriorityBadge priority={rec.priority} />
                       </div>
                       <p className="text-ink-900 font-medium">{rec.title}</p>
-                      <p className="text-ink-700 whitespace-pre-line">{rec.body}</p>
+                      <p className="text-ink-700 whitespace-pre-line">
+                        {dedupRecommendationBody(rec.title, rec.body)}
+                      </p>
                     </li>
                   ))}
                 </ul>

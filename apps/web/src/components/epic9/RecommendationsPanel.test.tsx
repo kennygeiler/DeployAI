@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Recommendation } from "@/lib/internal/recommendations-cp";
 
-import { RecommendationsPanel } from "./RecommendationsPanel.client";
+import { RecommendationsPanel, dedupRecommendationBody } from "./RecommendationsPanel.client";
 
 function mkRec(overrides: Partial<Recommendation> = {}): Recommendation {
   return {
@@ -88,6 +88,44 @@ describe("RecommendationsPanel", () => {
     // BizDev label visible
     expect(screen.getAllByText("BizDev").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Strategist").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("strips a duplicated title prefix from the recommendation body", async () => {
+    mockFetch(() => ({
+      recommendations: [
+        mkRec({
+          id: "dup1",
+          priority: "high",
+          role: "biz_dev",
+          title: "Title",
+          body: "Title. Title. Do X next.",
+        }),
+        mkRec({
+          id: "dup2",
+          priority: "medium",
+          role: "deployment_strategist",
+          title: "Unrelated heading",
+          body: "Completely different body text.",
+        }),
+      ],
+    }));
+    render(<RecommendationsPanel engagementId="e1" />);
+    await waitFor(() => expect(screen.getByText("Title")).toBeTruthy());
+
+    // Duplicated body collapses to the actionable remainder only.
+    expect(screen.getByText("Title. Do X next.")).toBeTruthy();
+    expect(screen.queryByText("Title. Title. Do X next.")).toBeNull();
+    // Unrelated body left untouched.
+    expect(screen.getByText("Completely different body text.")).toBeTruthy();
+  });
+
+  it("dedupRecommendationBody handles common separator and case variants", () => {
+    expect(dedupRecommendationBody("Title", "Title. Title. Do X next.")).toBe("Title. Do X next.");
+    expect(dedupRecommendationBody("Title", "title: do the thing")).toBe("do the thing");
+    expect(dedupRecommendationBody("Title", "Title — do the thing")).toBe("do the thing");
+    expect(dedupRecommendationBody("Title", "Title\nDo the thing")).toBe("Do the thing");
+    expect(dedupRecommendationBody("Title", "Unrelated body.")).toBe("Unrelated body.");
+    expect(dedupRecommendationBody("", "Title. Do X.")).toBe("Title. Do X.");
   });
 
   it("renders the error inline when the BFF returns a non-OK response", async () => {
