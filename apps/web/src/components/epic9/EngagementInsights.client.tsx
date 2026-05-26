@@ -3,6 +3,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 
+import { TimestampLabel } from "@/components/common/TimestampLabel.client";
 import { Button } from "@/components/ui/button";
 import type { MatrixInsight } from "@/lib/bff/matrix-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
@@ -139,6 +140,7 @@ export function EngagementInsights({ engagementId }: { engagementId: string }) {
                   <span className="text-ink-600 font-mono text-xs uppercase">
                     {i.insight_type.replace(/_/g, " ")}
                   </span>
+                  <TimestampLabel value={i.created_at} prefix="created" />
                 </div>
                 <div className="flex gap-1">
                   <Button

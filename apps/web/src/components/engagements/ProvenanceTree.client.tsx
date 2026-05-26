@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { TimestampLabel } from "@/components/common/TimestampLabel.client";
 import { Button } from "@/components/ui/button";
 
 export type ProvenanceChainNode = {
@@ -26,20 +27,6 @@ export type ProvenanceChain = {
   truncatedAtDepth: number | null;
   truncatedNodeCount: number | null;
 };
-
-function formatOccurredAt(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) {
-    return iso;
-  }
-  return d.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 function buildChildIndex(
   nodes: ProvenanceChainNode[],
@@ -94,7 +81,7 @@ function TreeNode({
         )}
         <div className="min-w-0 flex-1 space-y-0.5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-ink-600 text-xs">{formatOccurredAt(node.occurredAt)}</span>
+            <TimestampLabel value={node.occurredAt} />
             <span className="bg-ink-100 text-ink-800 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase">
               {node.sourceKind.replace(/_/g, " ")}
             </span>
