@@ -16,7 +16,14 @@ from typing import Any
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from llm_provider_py.types import CapabilityMatrix, ChatMessage, StreamChunk
+from llm_provider_py.types import (
+    CapabilityMatrix,
+    ChatMessage,
+    StopReason,
+    StreamChunk,
+    TextDelta,
+    ToolStreamChunk,
+)
 from llm_provider_py.util import DEFAULT_CAPS, pseudo_embed
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
@@ -69,6 +76,22 @@ class _StubLLM:
         if body:
             yield StreamChunk(delta=body, done=False, tokens_used=0)
         yield StreamChunk(delta="", done=True, tokens_used=80)
+
+    async def chat_complete_stream_with_tools(
+        self,
+        messages: list[ChatMessage],
+        tools: list[dict[str, Any]],
+        *,
+        temperature: float = 0.0,
+        max_output_tokens: int = 1024,
+    ) -> AsyncIterator[ToolStreamChunk]:
+        _ = messages, tools, temperature, max_output_tokens
+        idx = self.calls
+        self.calls += 1
+        body = self._replies[idx] if idx < len(self._replies) else ""
+        if body:
+            yield TextDelta(content=body)
+        yield StopReason(reason="end_turn", usage={"input_tokens": 80, "output_tokens": 40})
 
     def embed(self, text: str) -> list[float]:
         return pseudo_embed(text, 16)
