@@ -51,6 +51,7 @@ from control_plane.api.routes.integrations_slack import (
 from control_plane.api.routes.internal_metrics import router as internal_metrics_router
 from control_plane.api.routes.internal_session import router as internal_session_router
 from control_plane.api.routes.ledger_internal import router as ledger_internal_router
+from control_plane.api.routes.lint_internal import router as lint_internal_router
 from control_plane.api.routes.meetings_internal import router as meetings_internal_router
 from control_plane.api.routes.oracle_internal import router as oracle_internal_router
 from control_plane.api.routes.phase_transitions import router as phase_transitions_internal_router
@@ -147,6 +148,7 @@ app.include_router(oracle_internal_router, prefix="/internal/v1")
 app.include_router(emails_internal_router, prefix="/internal/v1")
 app.include_router(seed_scenarios_internal_router, prefix="/internal/v1")
 app.include_router(synthesis_internal_router, prefix="/internal/v1")
+app.include_router(lint_internal_router, prefix="/internal/v1")
 app.include_router(scim_users_router, prefix="/scim/v2")
 
 
