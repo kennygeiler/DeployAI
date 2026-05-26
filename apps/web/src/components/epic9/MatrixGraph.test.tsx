@@ -136,6 +136,35 @@ describe("MatrixGraph", () => {
     expect(screen.getByText("Surgery prep")).toBeTruthy();
     expect(screen.getByText(/Patient journeys/)).toBeTruthy();
   });
+
+  it("routes stakeholder clicks to onStakeholderClick and other nodes to onNodeClick", () => {
+    const onNodeClick = vi.fn();
+    const onStakeholderClick = vi.fn();
+    render(
+      <MatrixGraph
+        nodes={[
+          mkNode({ id: "s1", node_type: "stakeholder", title: "Alice Sponsor" }),
+          mkNode({ id: "n1", node_type: "system", title: "LiDAR ingest" }),
+        ]}
+        edges={[]}
+        onNodeClick={onNodeClick}
+        onStakeholderClick={onStakeholderClick}
+      />,
+    );
+
+    const stakeholderNode = document.querySelector('[data-id="s1"]');
+    expect(stakeholderNode).toBeTruthy();
+    fireEvent.click(stakeholderNode as Element);
+    expect(onStakeholderClick).toHaveBeenCalledTimes(1);
+    expect(onStakeholderClick.mock.calls[0]?.[0]?.id).toBe("s1");
+    expect(onNodeClick).not.toHaveBeenCalled();
+
+    const systemNode = document.querySelector('[data-id="n1"]');
+    expect(systemNode).toBeTruthy();
+    fireEvent.click(systemNode as Element);
+    expect(onNodeClick).toHaveBeenCalledTimes(1);
+    expect(onNodeClick.mock.calls[0]?.[0]?.id).toBe("n1");
+  });
 });
 
 describe("MatrixGraph EDGE_STYLE map", () => {

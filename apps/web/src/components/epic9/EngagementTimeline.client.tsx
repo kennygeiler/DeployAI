@@ -1,9 +1,12 @@
 "use client";
 
+import { XIcon } from "lucide-react";
+import Link from "next/link";
 import * as React from "react";
 
 import { TimestampLabel } from "@/components/common/TimestampLabel.client";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
+import type { LedgerEvent } from "@/lib/internal/ledger-cp";
 
 type TimelineEvent = {
   id: string;
@@ -11,6 +14,14 @@ type TimelineEvent = {
   event_type: string;
   source_ref: string | null;
   summary: string;
+};
+
+export type StakeholderFilter = {
+  id: string;
+  title: string;
+  email: string | null;
+  evidenceEventIds: string[];
+  clearHref: string;
 };
 
 type WeekGroup = {
@@ -69,15 +80,73 @@ function groupByWeek(events: TimelineEvent[]): WeekGroup[] {
   return groups;
 }
 
-export function EngagementTimeline({ engagementId }: { engagementId: string }) {
+function ledgerToTimelineEvent(ev: LedgerEvent): TimelineEvent {
+  return {
+    id: ev.id,
+    occurred_at: ev.occurred_at,
+    event_type: ev.source_kind,
+    source_ref: ev.source_ref,
+    summary: ev.summary,
+  };
+}
+
+function ledgerMatchesStakeholder(ev: LedgerEvent, filter: StakeholderFilter): boolean {
+  if (filter.evidenceEventIds.includes(ev.id)) return true;
+  if (filter.email && ev.actor_id && ev.actor_id.toLowerCase() === filter.email.toLowerCase()) {
+    return true;
+  }
+  return false;
+}
+
+export function EngagementTimeline({
+  engagementId,
+  stakeholderFilter,
+}: {
+  engagementId: string;
+  stakeholderFilter?: StakeholderFilter;
+}) {
   const [events, setEvents] = React.useState<TimelineEvent[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [err, setErr] = React.useState<string | null>(null);
+  const filterId = stakeholderFilter?.id ?? null;
+  const filterEmail = stakeholderFilter?.email ?? null;
+  const filterEvidenceKey = stakeholderFilter?.evidenceEventIds.join(",") ?? "";
 
   React.useEffect(() => {
     let cancelled = false;
     void (async () => {
+      setLoading(true);
       try {
+        // Stakeholder filter requires actor_id + per-event ids only the ledger
+        // BFF exposes — fall back to the lighter /timeline route otherwise so
+        // the engagement-detail page surface stays cheap.
+        if (filterId) {
+          const r = await fetch(
+            `/api/bff/engagements/${encodeURIComponent(engagementId)}/ledger?limit=500`,
+            { cache: "no-store" },
+          );
+          if (cancelled) return;
+          if (!r.ok) {
+            setErr(await readStrategistBffErrorDescription(r));
+            setEvents([]);
+            return;
+          }
+          const body = (await r.json()) as { events?: LedgerEvent[] };
+          const ledger = Array.isArray(body.events) ? body.events : [];
+          const filter: StakeholderFilter = {
+            id: filterId,
+            title: stakeholderFilter?.title ?? "",
+            email: filterEmail,
+            evidenceEventIds: filterEvidenceKey ? filterEvidenceKey.split(",") : [],
+            clearHref: stakeholderFilter?.clearHref ?? "#",
+          };
+          const filtered = ledger
+            .filter((ev) => ledgerMatchesStakeholder(ev, filter))
+            .map(ledgerToTimelineEvent);
+          setErr(null);
+          setEvents(filtered);
+          return;
+        }
         const r = await fetch(`/api/bff/engagements/${encodeURIComponent(engagementId)}/timeline`, {
           cache: "no-store",
         });
@@ -104,21 +173,51 @@ export function EngagementTimeline({ engagementId }: { engagementId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [engagementId]);
+    // stakeholderFilter is captured by id/email/evidence — its onClear ref is
+    // stable from the parent and not a fetch input.
+  }, [engagementId, filterId, filterEmail, filterEvidenceKey, stakeholderFilter]);
 
   const groups = React.useMemo(() => groupByWeek(events), [events]);
 
   return (
     <section aria-labelledby="engagement-timeline-heading" className="space-y-3">
-      <h2 id="engagement-timeline-heading" className="text-ink-800 text-sm font-semibold">
-        Timeline
-      </h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 id="engagement-timeline-heading" className="text-ink-800 text-sm font-semibold">
+          Timeline
+        </h2>
+      </div>
+      {stakeholderFilter ? (
+        <div
+          role="group"
+          aria-label="Active timeline filters"
+          className="flex flex-wrap items-center gap-2"
+          data-testid="timeline-filter-rail"
+        >
+          <span
+            data-testid="stakeholder-chip"
+            className="border-border bg-paper-50 text-ink-800 inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs"
+          >
+            <span className="text-ink-500">Stakeholder:</span>
+            <span className="font-medium">{stakeholderFilter.title}</span>
+            <Link
+              href={stakeholderFilter.clearHref}
+              aria-label="Clear stakeholder filter"
+              data-testid="stakeholder-chip-clear"
+              className="text-ink-600 hover:text-ink-900 ml-1 inline-flex items-center justify-center rounded-full"
+            >
+              <XIcon className="size-3" aria-hidden />
+            </Link>
+          </span>
+        </div>
+      ) : null}
       {err ? <p className="text-error-700 text-sm">{err}</p> : null}
       {loading ? (
         <p className="text-ink-600 text-sm">Loading…</p>
       ) : err ? null : groups.length === 0 ? (
         <p className="text-ink-600 text-sm">
-          No interactions yet — paste one below or wait for ingestion.
+          {stakeholderFilter
+            ? `No timeline events match ${stakeholderFilter.title}.`
+            : "No interactions yet — paste one below or wait for ingestion."}
         </p>
       ) : (
         <div className="space-y-4">

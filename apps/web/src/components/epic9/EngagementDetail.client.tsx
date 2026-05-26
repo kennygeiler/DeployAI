@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -13,6 +14,7 @@ import { MatrixProposals } from "@/components/epic9/MatrixProposals.client";
 import { RecommendationsPanel } from "@/components/epic9/RecommendationsPanel.client";
 import { RoleLensFilter } from "@/components/epic9/RoleLensFilter.client";
 import { SectionWithTimeline } from "@/components/common/SectionWithTimeline.client";
+import { RecentActivityStrip } from "@/components/engagements/RecentActivityStrip.client";
 import { MatrixNodeDetail } from "@/components/engagements/MatrixNodeDetail.client";
 import { OracleChat } from "@/components/engagements/OracleChat.client";
 import { Button } from "@/components/ui/button";
@@ -96,6 +98,7 @@ type DetailResponse = {
  * `engagement_log_entries` journal; the matrix supersedes them.
  */
 export function EngagementDetail({ engagementId }: { engagementId: string }) {
+  const router = useRouter();
   const [data, setData] = React.useState<DetailResponse | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   const [newEmail, setNewEmail] = React.useState("");
@@ -230,6 +233,14 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
   const closeCitation = React.useCallback(() => {
     setCitation((c) => ({ ...c, open: false }));
   }, []);
+  const handleStakeholderClick = React.useCallback(
+    (node: MatrixNode) => {
+      router.push(
+        `/engagements/${encodeURIComponent(engagementId)}/timeline?timeline.stakeholder=${encodeURIComponent(node.id)}`,
+      );
+    },
+    [router, engagementId],
+  );
   const { nodes: matrixNodes, edges: matrixEdges } = React.useMemo(
     () => applyRoleLens(allMatrixNodes, allMatrixEdges, roleLens),
     [allMatrixNodes, allMatrixEdges, roleLens],
@@ -281,6 +292,8 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
               </div>
             </dl>
           </header>
+
+          <RecentActivityStrip engagementId={engagementId} />
 
           <section className="space-y-2">
             <h2 className="text-ink-800 text-sm font-semibold">Team</h2>
@@ -398,6 +411,7 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
                 edges={matrixEdges}
                 customTypes={data.matrix?.node_types ?? []}
                 onNodeClick={openCitation}
+                onStakeholderClick={handleStakeholderClick}
               />
             ) : matrixNodes.length === 0 ? (
               roleLens !== "all" && allMatrixNodes.length > 0 ? (
