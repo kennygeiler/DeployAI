@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MatrixEdge, MatrixNode } from "@/lib/bff/matrix-types";
@@ -49,7 +49,7 @@ beforeAll(() => {
 });
 
 // Import AFTER the stubs land.
-const { MatrixGraph } = await import("./MatrixGraph.client");
+const { MatrixGraph, EDGE_STYLE, BUILTIN_TYPE_ORDER } = await import("./MatrixGraph.client");
 
 function mkNode(overrides: Partial<MatrixNode> = {}): MatrixNode {
   return {
@@ -135,6 +135,94 @@ describe("MatrixGraph", () => {
     );
     expect(screen.getByText("Surgery prep")).toBeTruthy();
     expect(screen.getByText(/Patient journeys/)).toBeTruthy();
+  });
+});
+
+describe("MatrixGraph EDGE_STYLE map", () => {
+  const expectedTypes = [
+    "belongs_to",
+    "owns",
+    "sponsors",
+    "blocks",
+    "affects",
+    "threatens",
+    "owed_by",
+    "owed_to",
+    "depends_on",
+    "enables",
+  ];
+
+  it("has a non-empty stroke for every MATRIX_EDGE_TYPES entry", () => {
+    for (const t of expectedTypes) {
+      const entry = EDGE_STYLE[t];
+      expect(entry, `missing EDGE_STYLE entry for ${t}`).toBeTruthy();
+      expect(entry?.stroke, `empty stroke for ${t}`).toMatch(/^#[0-9a-f]{6}$/i);
+    }
+  });
+
+  it("covers exactly the 10 documented edge types", () => {
+    const keys = Object.keys(EDGE_STYLE).sort();
+    expect(keys).toEqual([...expectedTypes].sort());
+  });
+
+  it("uses distinct stroke colors across all edge types", () => {
+    const strokes = Object.values(EDGE_STYLE).map((s) => s.stroke);
+    expect(new Set(strokes).size).toBe(strokes.length);
+  });
+});
+
+describe("MatrixLegend overlay", () => {
+  beforeEach(() => {
+    class RO {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", RO);
+  });
+
+  it("renders 10 edge swatches and 7 node-type chips when expanded", () => {
+    const nodes: MatrixNode[] = [mkNode({ id: "n1", node_type: "system", title: "LiDAR" })];
+    render(<MatrixGraph nodes={nodes} edges={[]} />);
+    const legend = screen.getByTestId("matrix-legend");
+    expect(legend).toBeTruthy();
+    const trigger = legend.querySelector('[data-slot="collapsible-trigger"]');
+    expect(trigger).toBeTruthy();
+    fireEvent.click(trigger!);
+    const edgesList = screen.getByTestId("matrix-legend-edges");
+    expect(edgesList.querySelectorAll("li")).toHaveLength(10);
+    const nodesList = screen.getByTestId("matrix-legend-nodes");
+    expect(nodesList.querySelectorAll("li")).toHaveLength(BUILTIN_TYPE_ORDER.length);
+    expect(BUILTIN_TYPE_ORDER.length).toBe(7);
+  });
+
+  it("is collapsed by default to preserve canvas space", () => {
+    render(<MatrixGraph nodes={[mkNode()]} edges={[]} />);
+    const legend = screen.getByTestId("matrix-legend");
+    const trigger = legend.querySelector('[data-slot="collapsible-trigger"]');
+    expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("exposes color names via screen-reader-only text (not just hex)", () => {
+    render(<MatrixGraph nodes={[mkNode()]} edges={[]} />);
+    const legend = screen.getByTestId("matrix-legend");
+    const trigger = legend.querySelector('[data-slot="collapsible-trigger"]');
+    fireEvent.click(trigger!);
+    expect(screen.getAllByText(/^color /i).length).toBeGreaterThanOrEqual(17);
+  });
+
+  it("toggles open/closed via keyboard activation of the trigger", () => {
+    render(<MatrixGraph nodes={[mkNode()]} edges={[]} />);
+    const legend = screen.getByTestId("matrix-legend");
+    const trigger = legend.querySelector('[data-slot="collapsible-trigger"]') as HTMLButtonElement;
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    // Radix Collapsible triggers are native <button>s — keyboard "Enter"
+    // dispatches a click, which the click handler treats identically.
+    trigger.focus();
+    fireEvent.click(trigger);
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(trigger);
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
   });
 });
 
