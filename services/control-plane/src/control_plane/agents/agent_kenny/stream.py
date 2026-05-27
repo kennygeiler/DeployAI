@@ -20,6 +20,8 @@ from control_plane.agents.agent_kenny.types import (
     DeltaChunk,
     DoneChunk,
     ErrorChunk,
+    McpExternalCallChunk,
+    McpOutboundSkippedDisabledChunk,
     StreamChunk,
     ThinkingChunk,
     ToolCallChunk,
@@ -60,6 +62,22 @@ def format_chunk(chunk: StreamChunk) -> bytes:
         return _frame(
             "citation_external",
             {"kind": chunk.kind, "id": chunk.identifier},
+        )
+    if isinstance(chunk, McpExternalCallChunk):
+        return _frame(
+            "mcp_external_call",
+            {
+                "config_id": chunk.config_id,
+                "connector_kind": chunk.connector_kind,
+                "tool": chunk.tool,
+                "status": chunk.status,
+                "latency_ms": chunk.latency_ms,
+            },
+        )
+    if isinstance(chunk, McpOutboundSkippedDisabledChunk):
+        return _frame(
+            "mcp_outbound_skipped_disabled",
+            {"reason": chunk.reason},
         )
     if isinstance(chunk, AdversarialConcernChunk):
         return _frame(

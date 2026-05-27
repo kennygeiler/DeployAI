@@ -30,6 +30,15 @@ from control_plane.agents.agent_kenny.graph import (
     has_tool_calls_router,
     unverified_router,
 )
+from control_plane.agents.agent_kenny.mcp_client import (
+    McpKillSwitch,
+    McpOutboundClient,
+)
+from control_plane.agents.agent_kenny.mcp_loader import load_enabled_mcp_tools
+from control_plane.agents.agent_kenny.mcp_rate_limit import (
+    InMemoryMcpRateLimiter,
+    current_turn_id_var,
+)
 from control_plane.agents.agent_kenny.nodes.adversarial import adversarial_review
 from control_plane.agents.agent_kenny.nodes.citations import (
     extract_citations,
@@ -54,6 +63,7 @@ from control_plane.agents.agent_kenny.types import (
     CrossEngagementLeakError,
     DoneChunk,
     ErrorChunk,
+    McpOutboundSkippedDisabledChunk,
     StreamChunk,
 )
 from control_plane.domain.canonical_memory.agent_audit import AgentAuditTrace
@@ -65,16 +75,32 @@ _SECURITY_REJECT_REPLY = "I'm unable to answer that question."
 
 
 class KennyAgentService:
-    """Compose one Agent Kenny v2 turn via the LangGraph loop."""
+    """Compose one Agent Kenny v2 turn via the LangGraph loop.
+
+    Outbound MCP dependencies (``mcp_client``, ``mcp_kill_switch``,
+    ``mcp_rate_limiter``) are optional — passing ``None`` for all three
+    preserves the pre-Wave-3G behaviour where Kenny only has internal
+    tools. The integrations admin UI (Wave 2E) + the factory in
+    :mod:`mcp_factory` are what bring these up in production; tests
+    that don't exercise MCP can keep constructing
+    ``KennyAgentService(provider)`` with no other args.
+    """
 
     def __init__(
         self,
         provider: LLMProvider,
         cheap_provider: LLMProvider | None = None,
+        *,
+        mcp_client: McpOutboundClient | None = None,
+        mcp_kill_switch: McpKillSwitch | None = None,
+        mcp_rate_limiter: InMemoryMcpRateLimiter | None = None,
     ) -> None:
         self._provider = provider
         self._cheap = cheap_provider or provider
         self._graph = build_graph()
+        self._mcp_client = mcp_client
+        self._mcp_kill_switch = mcp_kill_switch
+        self._mcp_rate_limiter = mcp_rate_limiter
 
     async def reply_stream(
         self,
@@ -186,13 +212,85 @@ class KennyAgentService:
         moment: datetime,
         emit: Any,
     ) -> None:
-        # 1. retrieve
+        # 0. retrieve + per-turn rate-limit context + external MCP discovery.
         await retrieve_initial_context(session, state)
 
+        # Per-turn rate-limit bookkeeping (mcp_rate_limit.py). The
+        # ContextVar lets ``InMemoryMcpRateLimiter.acquire`` attribute the
+        # outbound call to this turn even though it doesn't take a
+        # turn_id argument. We always open + close so accounting stays
+        # symmetric even when no MCP is configured.
+        turn_id = uuid.uuid4()
+        ctx_token = current_turn_id_var.set(turn_id)
+        if self._mcp_rate_limiter is not None:
+            self._mcp_rate_limiter.open_turn(turn_id, state.tenant_id)
+        try:
+            # Kill-switch precheck (threat-model §5.5). Engaged → skip
+            # discovery this turn; the LLM still has internal tools.
+            kill_switched = False
+            if self._mcp_kill_switch is not None:
+                try:
+                    kill_switched = bool(await self._mcp_kill_switch.is_outbound_disabled(state.tenant_id))
+                except Exception:
+                    # A DB blip on the kill-switch read must not abort the
+                    # turn — fail-open (matches DbMcpKillSwitch's own
+                    # unknown-tenant posture).
+                    _log.exception("kenny v2 mcp kill switch read failed")
+                    kill_switched = False
+            state.mcp_outbound_disabled = kill_switched
+
+            if kill_switched:
+                if emit is not None:
+                    await emit(McpOutboundSkippedDisabledChunk())
+            elif self._mcp_client is not None:
+                try:
+                    state.external_tools = await load_enabled_mcp_tools(
+                        session,
+                        tenant_id=state.tenant_id,
+                        client=self._mcp_client,
+                    )
+                except Exception:
+                    # Discovery is best-effort: a load failure must not
+                    # crash the turn. mcp_loader logs structured records
+                    # for the operator.
+                    _log.exception("kenny v2 external mcp discovery failed")
+                    state.external_tools = []
+
+            await self._run_graph_inner(
+                session,
+                state,
+                actor_user_id=actor_user_id,
+                conversation_id=conversation_id,
+                moment=moment,
+                emit=emit,
+                turn_id=turn_id,
+            )
+        finally:
+            current_turn_id_var.reset(ctx_token)
+            if self._mcp_rate_limiter is not None:
+                self._mcp_rate_limiter.close_turn(turn_id)
+
+    async def _run_graph_inner(
+        self,
+        session: AsyncSession,
+        state: AgentState,
+        *,
+        actor_user_id: uuid.UUID,
+        conversation_id: uuid.UUID | None,
+        moment: datetime,
+        emit: Any,
+        turn_id: uuid.UUID,
+    ) -> None:
         # 2. main loop: llm_call -> dispatch_tools -> llm_call ...
         await call_llm_with_tools(self._provider, state, emit=emit)
         while has_tool_calls_router(state) == "dispatch_tools" and state.tool_calls_made < MAX_TOOL_CALLS_PER_TURN:
-            await dispatch_tools(session, state, emit=emit, turn_id_hint=None)
+            await dispatch_tools(
+                session,
+                state,
+                emit=emit,
+                turn_id_hint=turn_id,
+                mcp_client=self._mcp_client,
+            )
             await call_llm_with_tools(self._provider, state, emit=emit)
             # Guard: an LLM that keeps proposing tool calls past the cap
             # should be forced to stop with the budget exhausted.
