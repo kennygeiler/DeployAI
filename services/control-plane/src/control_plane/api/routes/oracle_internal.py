@@ -253,11 +253,17 @@ async def post_oracle_chat_stream_v2(
     mcp_client = getattr(request.app.state, "mcp_outbound_client", None)
     mcp_kill_switch = getattr(request.app.state, "mcp_kill_switch", None)
     mcp_rate_limiter = getattr(request.app.state, "mcp_rate_limiter", None)
+    # Phase 5.5 Wave C: the Voyage embedder is installed on app.state by
+    # mcp_factory.install_on_app_state. Resolves to None until Wave B
+    # lands the concrete VoyageClient — vector_search calls then surface
+    # as is_error tool_results without crashing the turn.
+    embedder = getattr(request.app.state, "embedder", None)
     service = KennyAgentService(
         resolved,
         mcp_client=mcp_client,
         mcp_kill_switch=mcp_kill_switch,
         mcp_rate_limiter=mcp_rate_limiter,
+        embedder=embedder,
     )
 
     try:

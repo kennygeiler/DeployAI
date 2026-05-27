@@ -18,7 +18,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -123,6 +123,7 @@ async def _dispatch(
     tenant_id: uuid.UUID,
     engagement_id: uuid.UUID,
     args: dict[str, Any],
+    embedder: Any = None,
 ) -> ToolResult:
     common: dict[str, Any] = {
         "tenant_id": tenant_id,
@@ -212,12 +213,18 @@ async def _dispatch(
             limit=int(args.get("limit", 25)),
         )
     if name == "vector_search":
+        if embedder is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="vector_search unavailable: no embedder configured on app.state",
+            )
         return await vector_search(
             session,
             **common,
             query=args["query"],
-            kinds=args.get("kinds"),
-            limit=int(args.get("limit", 25)),
+            kind=args.get("kind"),
+            limit=int(args.get("limit", 10)),
+            embedder=embedder,
         )
     if name == "propose_action":
         return await propose_action(
@@ -244,6 +251,7 @@ async def _dispatch(
 async def invoke_tool(
     name: str,
     body: ToolInvokeBody,
+    request: Request,
     session: Annotated[AsyncSession, Depends(get_app_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
     engagement_id: Annotated[uuid.UUID, Query()],
@@ -253,6 +261,7 @@ async def invoke_tool(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"unknown tool: {name!r}",
         )
+    embedder = getattr(request.app.state, "embedder", None)
     try:
         result = await _dispatch(
             name,
@@ -260,6 +269,7 @@ async def invoke_tool(
             tenant_id=tenant_id,
             engagement_id=engagement_id,
             args=body.args,
+            embedder=embedder,
         )
     except ToolError as exc:
         await session.rollback()

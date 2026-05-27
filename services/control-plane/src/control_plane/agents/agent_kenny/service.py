@@ -25,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.agents.agent_kenny.budget import charge_turn
+from control_plane.agents.agent_kenny.embeddings.voyage_client import VoyageEmbedder
 from control_plane.agents.agent_kenny.graph import (
     build_graph,
     has_tool_calls_router,
@@ -94,6 +95,7 @@ class KennyAgentService:
         mcp_client: McpOutboundClient | None = None,
         mcp_kill_switch: McpKillSwitch | None = None,
         mcp_rate_limiter: InMemoryMcpRateLimiter | None = None,
+        embedder: VoyageEmbedder | None = None,
     ) -> None:
         self._provider = provider
         self._cheap = cheap_provider or provider
@@ -101,6 +103,12 @@ class KennyAgentService:
         self._mcp_client = mcp_client
         self._mcp_kill_switch = mcp_kill_switch
         self._mcp_rate_limiter = mcp_rate_limiter
+        # Phase 5.5 Wave C: the Voyage embedder is passed through to
+        # ``dispatch_tools`` so the ``vector_search`` tool can embed the
+        # query string. ``None`` is the legal pre-Wave-B state — calls to
+        # ``vector_search`` will surface as is_error tool_results and the
+        # LLM falls back to ``keyword_search``.
+        self._embedder = embedder
 
     async def reply_stream(
         self,
@@ -290,6 +298,7 @@ class KennyAgentService:
                 emit=emit,
                 turn_id_hint=turn_id,
                 mcp_client=self._mcp_client,
+                embedder=self._embedder,
             )
             await call_llm_with_tools(self._provider, state, emit=emit)
             # Guard: an LLM that keeps proposing tool calls past the cap

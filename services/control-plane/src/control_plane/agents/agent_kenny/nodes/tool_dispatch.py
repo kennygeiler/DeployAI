@@ -32,6 +32,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from control_plane.agents.agent_kenny.embeddings.voyage_client import VoyageEmbedder
 from control_plane.agents.agent_kenny.mcp_client import McpOutboundClient
 from control_plane.agents.agent_kenny.mcp_loader import (
     find_loaded_config,
@@ -135,6 +136,7 @@ async def dispatch_tools(
     emit: Callable[[Any], Awaitable[None]] | None = None,
     turn_id_hint: Any = None,
     mcp_client: McpOutboundClient | None = None,
+    embedder: VoyageEmbedder | None = None,
 ) -> AgentState:
     """Run every pending tool call sequentially, append results to messages.
 
@@ -143,6 +145,12 @@ async def dispatch_tools(
     tests that don't exercise external dispatch), any external tool_use
     produced by the LLM is converted to an error tool_result so the loop
     still progresses.
+
+    ``embedder`` (Phase 5.5 Wave C) is the Voyage client ``vector_search``
+    uses to embed the query string. When the LLM emits a ``vector_search``
+    tool_use and ``embedder`` is ``None``, the call is converted to an
+    is_error tool_result so the LLM falls back to ``keyword_search``
+    instead of crashing the turn.
     """
     for call in state.pending_tool_calls:
         if state.tool_calls_made >= MAX_TOOL_CALLS_PER_TURN:
@@ -183,6 +191,10 @@ async def dispatch_tools(
         try:
             validate_input(spec.input_schema, raw_input)
             kwargs = _coerce_kwargs(name, raw_input)
+            if name == "vector_search":
+                if embedder is None:
+                    raise ToolError("vector_search unavailable: no embedder configured for this process")
+                kwargs["embedder"] = embedder
             result = await invoker(
                 session,
                 tenant_id=state.tenant_id,

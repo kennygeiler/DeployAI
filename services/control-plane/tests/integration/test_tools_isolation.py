@@ -387,13 +387,26 @@ async def test_keyword_search_isolated(app_session: None, fixture: dict[str, uui
 
 @pytest.mark.asyncio
 async def test_vector_search_isolated_placeholder(app_session: None, fixture: dict[str, uuid.UUID]) -> None:
-    """The placeholder never returns rows — but the scope contract still must hold."""
+    """Phase 5.5 Wave C: the real tool degrades cleanly when Wave A's column is absent.
+
+    Pre-migration the embedding column is missing on every source table,
+    so the per-kind queries each catch ``ProgrammingError`` and return
+    an empty list — exactly the behavior the placeholder used to fake.
+    The scope contract (tenant + engagement) is enforced inside the
+    per-kind SQL whether or not the column exists.
+    """
+
+    class _StubEmbedder:
+        async def embed(self, texts: list[str]) -> list[list[float]]:
+            return [[0.0] * 1024 for _ in texts]
+
     async for session in get_app_db_session():
         result = await vector_search(
             session,
             tenant_id=fixture["tenant_a"],
             engagement_id=fixture["eng_a1"],
             query="anything",
+            embedder=_StubEmbedder(),
         )
         await session.commit()
         assert result.rows == []
