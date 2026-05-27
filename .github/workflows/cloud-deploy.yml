@@ -59,7 +59,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Deploy postgres
-        run: flyctl deploy --config infra/fly/postgres/fly.toml --remote-only
+        # init/*.sql lives in infra/compose/postgres, not infra/fly/postgres,
+        # so the build context must point at the compose dir. See
+        # scripts/cloud-deploy.sh for the same dance.
+        run: |
+          flyctl deploy "$GITHUB_WORKSPACE/infra/compose/postgres" \
+            --config "$GITHUB_WORKSPACE/infra/fly/postgres/fly.toml" \
+            --dockerfile "$GITHUB_WORKSPACE/infra/compose/postgres/Dockerfile" \
+            --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
