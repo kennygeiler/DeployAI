@@ -1,6 +1,12 @@
+> **Archived 2026-05-27** — most of this runbook covered the Tauri edge agent (deleted 2026-05-23), the FOIA CLI
+> (deleted 2026-05-23), Sparkle/appcast release of the edge agent, and BMAD planning. Three of the nine sections
+> reference product lines that no longer exist. The still-applicable sections (monorepo smoke, CP integration
+> tests, hosted Gate 1) are covered by the current `docs/dev-environment.md`, `docs/ops/deployment.md`, and the
+> root `README.md`. Preserved verbatim for git history. Superseded by: those three docs.
+
 # Human operations runbook
 
-Steps a **person** must take that are not fully automated in-repo: secrets, cloud consoles, local toolchain, and optional release paths. For day-to-day dev installs, start with [dev-environment.md](./dev-environment.md).
+Steps a **person** must take that are not fully automated in-repo: secrets, cloud consoles, local toolchain, and optional release paths. For day-to-day dev installs, start with [dev-environment.md](../dev-environment.md).
 
 ---
 

@@ -1,3 +1,8 @@
+> **Archived 2026-05-27** — written when the repo plan still included `apps/edge-agent`, `apps/foia-cli`,
+> `infra/terraform/`, and `infra/helm/`. The first two were deleted on 2026-05-23; the latter two never landed.
+> The current "Repository layout" lives in the root `README.md` (the post-v2-ship rewrite). Preserved verbatim
+> for git history.
+
 # DeployAI — Repository Layout
 
 This document is the canonical reference for how the DeployAI monorepo is organized, which workspace each future piece of code belongs to, and how to add new workspaces cleanly.

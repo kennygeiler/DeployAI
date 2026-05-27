@@ -5,7 +5,7 @@
 | **Status** | Design / decision record. Phase 5 increment **5.1**. |
 | **Date** | 2026-05-22 |
 | **Drives** | Phase 5 increments 5.2–5.4 (schema, API, view, structured capture). |
-| **Roadmap** | [`deployai-source-of-truth-spec.md`](./deployai-source-of-truth-spec.md) §16 — Phase 5. |
+| **Roadmap** | Historical context in archived [`deployai-source-of-truth-spec.md`](../archive/product/deployai-source-of-truth-spec.md) §16. |
 | **Substrate** | [`docs/canonical-memory.md`](../canonical-memory.md) — the canonical-memory schema this model extends. |
 
 This document is the **decision record** for the deployment-matrix model. It is increment 5.1's deliverable: it does not ship code. Increment 5.2 builds the schema from it.

@@ -40,4 +40,4 @@ Use an **Entra ID app registration** (or enterprise application) with the **Open
 - **SCIM 2-0** — user provisioning; see [scim-setup.md](scim-setup.md) and Story 2-3.
 - **Web (Next.js)** — local dev may still use `x-deployai-tenant` / `x-deployai-role`; production browser sessions should use the control-plane cookies or bearer access tokens as wired by the web app in a later story.
 
-**Related:** [role-matrix](../authz/role-matrix.md) · [delivery status](../delivery-status.yaml)
+**Related:** [role-matrix](../authz/role-matrix.md) · [archived delivery status (pre-v2)](../archive/delivery-status.yaml)

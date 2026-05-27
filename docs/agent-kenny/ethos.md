@@ -1,8 +1,12 @@
 # Agent Kenny — Ethos and Architectural Decision
 
-**Status:** Authoritative for v2 design. Last updated 2026-05-26.
+**Status:** v2 build COMPLETE as of 2026-05-27. Phases 0 through 6 are all shipped on `main`. The next phase is
+cloud deploy (Fly.io + Cloudflare Access), not yet started. This document is the **load-bearing rationale** for
+the substrate Kenny runs on — every architectural choice below now corresponds to merged code.
+**Last updated:** 2026-05-27.
 **Audience:** Engineers building on the agent layer, advisors evaluating the architecture, future maintainers.
-**Companion:** [`scope-v2.md`](./scope-v2.md) for the phased build plan.
+**Companion:** [`scope-v2.md`](./scope-v2.md) for the phase-by-phase ship record. [`INDEX.md`](./INDEX.md) for the
+full Kenny doc map.
 
 ---
 
@@ -38,10 +42,10 @@ The retrieval engine becomes a navigator over curated views. Re-synthesis from r
 
 **What we adopted:**
 
-- **Compounding synthesis over re-synthesis.** Insights once produced are persisted as `matrix_insights` rows with citations. Kenny reads them as primary context, not the raw 30-day ledger window.
-- **Claim-level provenance.** Every claim inside a node's `attributes.description` carries an inline citation (`[event:UUID]` or `[node:UUID]`). Not just "this node was created by event X" — every *sentence* of curated prose ties back to a source.
-- **Lint pass.** A background worker that scans curated content for contradictions, stale claims, orphan references, and missing links. It does not modify content; it *flags* via ledger events that strategists or Kenny himself can resolve.
-- **Index over embeddings at moderate scale.** Karpathy's empirical observation that index-based retrieval beats embedding search up to ~1000 sources holds in our scale (BlueState seed = 7 stakeholders, 20 decisions, 13 risks, 249 ledger events; the extended XL fixture is ~10x). Vector search stays in the plan as a Phase 5 fallback for fuzzy recall, not as a Phase 0 critical dependency.
+- **Compounding synthesis over re-synthesis.** Insights once produced are persisted as `matrix_insights` rows with citations. Kenny reads them as primary context, not the raw 30-day ledger window. Shipped in Phase 0.5 (`services/control-plane/src/control_plane/workers/synthesizer.py`); event-triggered refresh on every relevant ledger emit.
+- **Claim-level provenance.** Every claim inside a node's `attributes.description` carries an inline citation (`[event:UUID]` or `[node:UUID]`). Not just "this node was created by event X" — every *sentence* of curated prose ties back to a source. Enforced by `claim_cite.py`; synthesized rows that fail validation get one retry and then emit `synthesis_validation_failed`.
+- **Lint pass.** A background worker that scans curated content for contradictions, stale claims, orphan references, missing links, and broken citations. It does not modify content; it *flags* via ledger events and the `lint_flags` table (Phase 0.6, `workers/wiki_lint.py`). Surfaced in the admin dashboard alongside hallucination rate.
+- **Index over embeddings at moderate scale.** Karpathy's empirical observation that index-based retrieval beats embedding search up to ~1000 sources holds in our scale (BlueState seed = 7 stakeholders, 20 decisions, 13 risks, 249 ledger events; the BlueState-XL fixture is ~10x). Vector search shipped in Phase 5.5 as the **fallback** path — `vector_search` tool drains Voyage-3 embeddings off the `embedding_jobs` queue, but curated synthesis remains the hot path.
 
 **What we deliberately rejected from his pattern:**
 
@@ -60,12 +64,12 @@ Before any LLM-produced reply is sent, a *second, cheaper* model is asked to int
 ### 3.4 Anthropic — Model Context Protocol (MCP)
 > https://modelcontextprotocol.io
 
-**Core argument we adopt:** an agent's tools should be a stable, discoverable protocol, not a hand-rolled per-integration shim. We expose our data to *external* MCP clients (an advisor running their own Claude desktop can query our matrix via a hosted MCP server) and *consume* external MCPs from inside Agent Kenny (Slack, Linear, GDrive, when a tenant enables them).
+**Core argument we adopt:** an agent's tools should be a stable, discoverable protocol, not a hand-rolled per-integration shim. We expose our data to *external* MCP clients (an advisor running their own Claude Desktop or IDE plugin can query the matrix via the inbound MCP server on port 3030 with a tenant API key — Phase 4) and *consume* external MCPs from inside Agent Kenny (Phase 5: catalog of slack / linear / gdrive / notion / github; Slack OAuth wired end-to-end, the rest return `501` until per-connector flows ship).
 
 ### 3.5 LangGraph
 > https://langchain-ai.github.io/langgraph/
 
-**Core argument we adopt:** multi-step agent loops need an explicit state machine, not nested function calls. We use LangGraph for orchestrating the *retrieve → reason → tool-call → verify → revise → emit* cycle. Tool definitions and LLM calls go through the Anthropic SDK directly; LangChain itself is rejected as superseded.
+**Core argument we adopt:** multi-step agent loops need an explicit state machine, not nested function calls. We use LangGraph for orchestrating the *retrieve → reason → tool-call → verify → revise → emit* cycle (Phase 2, `agents/agent_kenny/graph.py`). Tool definitions and LLM calls go through the Anthropic SDK directly with the native tool-use protocol (no text-tag fencing); LangChain itself is rejected as superseded.
 
 ---
 
@@ -134,13 +138,13 @@ DeployAI built the right primitives before we knew this was where we were going.
 
 ---
 
-## 6. What "good" looks like at v2 ship
+## 6. What "good" looks like — and now does
 
 A strategist asks Kenny:
 
 > *"Did anyone raise concerns about the Active Directory migration before we approved it in W22?"*
 
-Kenny, with the v2 plan in place, does:
+Kenny (v2-shipped, against BlueState-XL) does:
 
 1. **Retrieves curated index** — the matrix index synthesis says "AD migration" is a decision node with id `decision-ad-migration-uuid`.
 2. **Calls `walk_chain`** on the `proposal_accepted` event for that decision, upstream direction.
@@ -154,18 +158,38 @@ Kenny, with the v2 plan in place, does:
 
 Latency: ~6s. Token cost: ~$0.02. Every claim verifiable.
 
-That is the bar.
+That is the bar — and now the floor. The Phase 6 eval harness measures it on every CI run; the admin dashboard
+surfaces 7d trends. See [`eval.md`](./eval.md) for the harness and [`scope-v2.md`](./scope-v2.md) §11 for the
+exit criteria.
 
 ---
 
-## 7. Decisions that are open
+## 7. Decisions — now closed
 
-These get answered as we build:
+These were open at v2 kickoff; the build resolved each. Recorded here so future maintainers know *why*, not just *what*.
 
-- **Embedding model:** Voyage-3 (Anthropic) or `text-embedding-3-large` (OpenAI). Lean Voyage for vendor coherence.
-- **Apache AGE vs. recursive CTEs:** Install AGE if `walk_chain` performance degrades on XL fixture; otherwise CTEs suffice. Decision point at end of Phase 0.
-- **Adversarial reviewer model:** Haiku 4.5 (cheap, fast) vs. Sonnet 4.6 (more thorough). Start with Haiku, instrument the eval harness, escalate if false-positive rate on missed concerns > 5%.
-- **Lint cadence:** Event-triggered (lint affected rows after every relevant ledger emit) vs. nightly cron. Default to event-triggered with a nightly safety net.
+- **Embedding model — RESOLVED → Voyage-3 (1024-dim).** Phase 5.5 ships Voyage-3 through the embedder worker
+  (`workers/embedder.py`) with `vector(1024)` columns on `ledger_events`, `matrix_nodes`, `matrix_insights`,
+  `oracle_chat_turns` (migration `0050_pgvector_embeddings.py`). Vendor coherence with Anthropic + normalized cosine
+  fit was decisive; OpenAI deferred.
+- **Apache AGE vs. recursive CTEs — RESOLVED → AGE installed and mirroring matrix writes (Phase 0, migration
+  `0042_apache_age.py`).** The graph view (`deployai_matrix`) is populated by pg triggers that mirror
+  `matrix_nodes` / `matrix_edges` writes; Cypher helpers live in `agents/tools/graph.py`. Recursive CTEs remain
+  the fallback for environments without the extension, but AGE is the default path for `walk_chain`,
+  `get_matrix_neighbors`, and `get_matrix_subgraph`.
+- **Adversarial reviewer model — RESOLVED → Haiku 4.5 (default), with the option to escalate per tenant.** Phase 3
+  ships the reviewer as a second LLM call; the eval harness (Phase 6) tracks adversarial-concern false-positive
+  rate. Escalation to Sonnet 4.6 remains a per-tenant config knob if a deployment surfaces FN rate > 5%.
+- **Lint cadence — RESOLVED → event-triggered with nightly cron safety net.** `wiki_lint.py` enqueues lint after
+  every `proposal_accepted`, `matrix_node_updated`, `insight_opened`, `insight_closed` plus a 04:00 UTC sweep.
+  Stale `in_flight` outbound MCP rows are reaped by the same worker (Phase 5 §3.3.1).
+
+### Decisions still open
+
+- **Per-connector OAuth flows.** Slack OAuth is wired end-to-end through the Phase 5 Wave 3J catalog. Linear /
+  GDrive / Notion / GitHub return `501` until per-connector flows ship. Sequencing is product-priority-driven.
+- **Cloud deploy posture.** Fly.io + Cloudflare Access is the next phase. The compose stack is the supported
+  environment until then. Threat model under [`../security/self-host-surface.md`](../security/self-host-surface.md).
 
 ---
 

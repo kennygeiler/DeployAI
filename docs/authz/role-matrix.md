@@ -19,11 +19,11 @@ This document is the human-facing source for `packages/authz/src/matrix.ts` and 
 **Notes**
 
 - **`pending_assignment`** — issued on first OIDC login before a Platform Admin binds a customer tenant + V1 role (Story 2-2). No matrix actions; `can_access`/`canAccess` deny all capabilities while the user only holds this claim.
-- **`fde`** (Forward Deployed Engineer) and **`biz_dev`** — team roles added in Phase 2 (the team-tracking pivot; see `docs/product/deployai-source-of-truth-spec.md` §16). `fde` is operationally equivalent to `deployment_strategist` (both run the engagement). `biz_dev` has least-privilege `canonical:read` only for now — expand when the Phase 4 collaboration model lands.
+- **`fde`** (Forward Deployed Engineer) and **`biz_dev`** — team roles added during the team-tracking pivot (see archived `docs/archive/product/deployai-source-of-truth-spec.md` §16 for historical context). `fde` is operationally equivalent to `deployment_strategist` (both run the engagement). `biz_dev` has least-privilege `canonical:read` only for now.
 - **V1.5** — `customer_admin` and `successor_strategist` are active in product copy; matrix entries marked V1.5 are enforced in the same code path as V1 (no separate build today).
 - **⁺¹** — `external_auditor` has **`foia:export`** only for export-oriented APIs (not strategist browser surfaces). **`canonical:read`** is **denied** — Epic 12 Story 12.3: auditors must not read canonical memory via `/digest`, `/evidence/*`, BFF, etc.; future **`/auditor`** audit-evidence routes will use a separate action when implemented.
 - **Cross-tenant** — For resources with `kind: "tenant"`, only `platform_admin` may target a tenant id different from `actor.tenantId`.
-- **Web (dev)** — `apps/web/middleware.ts` still uses request header `x-deployai-role` for v1. Real SSO and cookies land in Story 2.2 (see [`delivery-status.yaml`](../delivery-status.yaml)).
+- **Web (dev)** — `apps/web/middleware.ts` still uses request header `x-deployai-role` for v1. Real SSO and cookies land later (historical delivery context: archived [`delivery-status.yaml`](../archive/delivery-status.yaml)).
 
 **Related**
 

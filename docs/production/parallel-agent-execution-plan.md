@@ -2,7 +2,7 @@
 
 **Purpose:** Order parallel work across lanes **I/D/Q/M/W/O** without breaking merge safety.
 
-**Defaults:** [product-strategy-ship-fast-decisions.md](./product-strategy-ship-fast-decisions.md) + [source-of-truth spec](../product/deployai-source-of-truth-spec.md) §13.
+**Defaults:** [product-strategy-ship-fast-decisions.md](./product-strategy-ship-fast-decisions.md) + archived [source-of-truth spec](../archive/product/deployai-source-of-truth-spec.md) §13 (historical).
 
 ## Phases (serial)
 
@@ -25,5 +25,5 @@ Serialize CP migration ownership (**Q-101**).
 
 ## Links
 
-- [**Canonical product spec (code truth)**](../product/deployai-source-of-truth-spec.md)
+- Root [**`README.md`**](../../README.md) + [**`docs/agent-kenny/INDEX.md`**](../agent-kenny/INDEX.md) (current canonical product surface; archived pre-v2 [source-of-truth spec](../archive/product/deployai-source-of-truth-spec.md))
 - [operations-and-release.md](./operations-and-release.md), [identity-and-tenancy.md](./identity-and-tenancy.md), [strategist-data-plane.md](./strategist-data-plane.md), [strategist-queues-and-replicas.md](./strategist-queues-and-replicas.md)

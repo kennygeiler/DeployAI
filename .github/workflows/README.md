@@ -231,4 +231,4 @@ Both approaches satisfy NFR64 at SLSA Level 2. If a StateRAMP 3PAO audit require
 
 - Root product requirements: `docs/archive/prd.md` §"Supply chain" + §"NFR62–NFR65" (archived)
 - Architecture rationale: `docs/archive/architecture.md` §"CI/CD" + §"Binding Constraints" (archived)
-- Current source of truth: `docs/product/deployai-source-of-truth-spec.md`
+- Current source of truth: root `README.md` + `docs/agent-kenny/INDEX.md` (pre-v2 spec archived at `docs/archive/product/deployai-source-of-truth-spec.md`)

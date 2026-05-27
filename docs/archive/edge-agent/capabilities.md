@@ -1,3 +1,7 @@
+> **Archived 2026-05-27** — the Tauri edge agent (`apps/edge-agent/`) was deleted on 2026-05-23 (compose comment).
+> No replacement; the v2 product captures via paste-in / OAuth ingest, not a desktop agent. Preserved for git
+> history. Superseded by: nothing — the product line was retired.
+
 # Edge Agent — Tauri capabilities (Story 11.1)
 
 This document maps each declared capability in `apps/edge-agent/src-tauri/tauri.conf.json` to its purpose and scope. Capability identifiers match the Epic 11 Story 11.1 acceptance criteria.

@@ -1,7 +1,14 @@
+# Archived 2026-05-27 — this BMAD-derived epic-level tracker pre-dates the v2 ship.
+# v2 delivery is tracked in git directly: `git log --oneline -50` shows phase ship order,
+# `docs/agent-kenny/scope-v2.md` carries the phase → merged-PR mapping in its STATUS table,
+# and the README's "What's in the box" section is the customer-facing inventory.
+# Preserved for git history. Superseded by: scope-v2.md STATUS section + git log.
+# =============================================================================
+#
 # DeployAI — delivery status (honest tracker)
 # =============================================================================
 # Canonical product/architecture reference:
-#   docs/product/deployai-source-of-truth-spec.md
+#   docs/product/deployai-source-of-truth-spec.md  [also archived 2026-05-27]
 # This file is the tracking counterpart to that document. Update BOTH in the
 # same PR that changes delivery status.
 #

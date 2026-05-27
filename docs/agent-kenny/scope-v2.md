@@ -1,8 +1,50 @@
 # Agent Kenny v2 — Scope and Phased Build Plan
 
-**Status:** Build plan, not yet started. Last updated 2026-05-26.
-**Companion:** [`ethos.md`](./ethos.md) for the architectural decision and inspiration.
+**Status:** v2 build COMPLETE as of 2026-05-27. Every phase below is shipped on `main`. This document is preserved
+as the historical record of *what* was built and *why* in that order. The original scope text is unedited below;
+each phase heading is marked with its ship status and merging-PR range.
+**Last updated:** 2026-05-27.
+**Companion:** [`ethos.md`](./ethos.md) for the architectural decision and inspiration. [`INDEX.md`](./INDEX.md)
+for the full Kenny doc map. [`eval.md`](./eval.md) for the Phase 6 harness.
 **Owner:** Kenny Geiler.
+
+---
+
+## STATUS — phase ship record
+
+| Phase | Status | Merged PR(s) | Land date |
+|---|---|---|---|
+| **Phase 0** — AGE + 10x fixtures | shipped | #225, #226, #227 | 2026-05-23 → 2026-05-25 |
+| **Phase 0.5** — Compounding synthesis layer | shipped | #228, #229 | 2026-05-25 |
+| **Phase 0.6** — Lint worker | shipped | #230 | 2026-05-25 |
+| **Phase 1** — 12-tool layer | shipped | #231 | 2026-05-25 |
+| **Phase 2** — LangGraph multi-step loop | shipped | #232, #233 (native tool-use follow-up) | 2026-05-25 |
+| **Phase 3** — Citation verification + adversarial review | shipped | #234 (+ #236 stub fix) | 2026-05-25 |
+| **Phase 4** — MCP inbound server | shipped | #235 | 2026-05-26 |
+| **Phase 5** — MCP outbound | shipped (10 PR waves) | see §STATUS-Phase-5 below | 2026-05-26 |
+| **Phase 5.5** — pgvector fuzzy fallback | shipped | #248, #249, #250 (Waves A / B / C) | 2026-05-26 |
+| **Phase 6** — Eval harness + dashboard | shipped | #251 (Wave B CI), #252 (Wave A harness), #253 (Wave C dashboard) | 2026-05-27 |
+
+**Next phase (not in this document):** cloud deploy on Fly.io + Cloudflare Access.
+
+### STATUS-Phase-5 — wave detail
+
+Phase 5 (MCP outbound) was the largest at 10 PRs across four waves. Wave 1 stood up the schema + external citation
+prefixes; Wave 2 built the outbound client, CP routes, rate limits, kill switch; Wave 3 wired the agent loop,
+admin UI, connector catalog, and audit / timeline surfacing.
+
+| Wave | Slice | PR |
+|---|---|---|
+| 1A | `tenant_mcp_configs` schema (migration `0048`) | #237 |
+| 1C | External citation prefixes (`[slack:…]`, etc.) | #238 |
+| 2D | Outbound MCP client (`mcp_client.py`) | #242 |
+| 2E | `tenant_mcp_configs` CP routes | #240 |
+| 2F | Kill-switch + rate limit (migration `0049`) | #241 |
+| 3G | Agent loop MCP tool merge | #246 |
+| 3H | Integrations admin UI | #245 |
+| 3I | Outbound MCP audit + timeline surfacing | #247 |
+| 3J | Connector catalog + OAuth env wiring (Slack end-to-end; Linear/GDrive/Notion/GitHub `501`) | #244 |
+| n/a | Phase 5 MCP outbound threat model (docs) | #239 |
 
 ---
 
@@ -33,7 +75,7 @@ The principles behind every phase are stated in [`ethos.md`](./ethos.md). This d
 
 ---
 
-## 2. Phase 0 — Foundations (1 wk)
+## 2. Phase 0 — Foundations (1 wk) — Shipped (PRs #225, #226, #227)
 
 ### 2.1 Apache AGE extension
 - **Migration:** `services/control-plane/alembic/versions/0043_apache_age.py` — `CREATE EXTENSION age; SELECT create_graph('deployai_matrix');`
@@ -62,7 +104,7 @@ The principles behind every phase are stated in [`ethos.md`](./ethos.md). This d
 
 ---
 
-## 3. Phase 0.5 — Compounding synthesis layer (1 wk)
+## 3. Phase 0.5 — Compounding synthesis layer (1 wk) — Shipped (PRs #228, #229)
 
 The substrate already has `matrix_insights` and `temporal_insights`. Today they are mostly one-shot. v2 makes synthesis a continuously-refreshed asset.
 
@@ -92,7 +134,7 @@ The substrate already has `matrix_insights` and `temporal_insights`. Today they 
 
 ---
 
-## 4. Phase 0.6 — Lint worker (3–4 d)
+## 4. Phase 0.6 — Lint worker (3–4 d) — Shipped (PR #230)
 
 ### 4.1 Scope
 - **`services/control-plane/src/control_plane/workers/wiki_lint.py`** — periodic + event-triggered.
@@ -117,7 +159,7 @@ The substrate already has `matrix_insights` and `temporal_insights`. Today they 
 
 ---
 
-## 5. Phase 1 — Tool layer (1 wk)
+## 5. Phase 1 — Tool layer (1 wk) — Shipped (PR #231)
 
 12 tools, pure functions, all tenant + engagement scoped. Each returns a structured `ToolResult` with rows + citations + truncation flag.
 
@@ -183,7 +225,7 @@ services/control-plane/src/control_plane/agents/tools/
 
 ---
 
-## 6. Phase 2 — LangGraph multi-step loop (2 wk)
+## 6. Phase 2 — LangGraph multi-step loop (2 wk) — Shipped (PRs #232, #233)
 
 ### 6.1 State machine
 
@@ -268,7 +310,7 @@ services/control-plane/src/control_plane/agents/agent_kenny/
 
 ---
 
-## 7. Phase 3 — Citation verification + adversarial review (1 wk)
+## 7. Phase 3 — Citation verification + adversarial review (1 wk) — Shipped (PR #234, stub fix #236)
 
 ### 7.1 Citation verification
 
@@ -315,7 +357,7 @@ apps/web/src/components/settings/HallucinationRateCard.client.tsx
 
 ---
 
-## 8. Phase 4 — MCP inbound server (1 wk)
+## 8. Phase 4 — MCP inbound server (1 wk) — Shipped (PR #235)
 
 Standalone uvicorn service exposing DeployAI as an MCP server. Advisors run their own Claude desktop (or any MCP client) with this configured → they query the matrix directly without going through DeployAI's UI.
 
@@ -363,7 +405,7 @@ services/control-plane/alembic/versions/0046_tenant_api_keys.py
 
 ---
 
-## 9. Phase 5 — MCP outbound (1–2 wk)
+## 9. Phase 5 — MCP outbound (1–2 wk) — Shipped (10 PRs across 4 waves; see STATUS-Phase-5 table above)
 
 Agent Kenny calls **external** MCP servers when reasoning needs data DeployAI doesn't own.
 
@@ -409,7 +451,7 @@ docs/security/mcp-outbound-threat-model.md
 
 ---
 
-## 10. Phase 5.5 — pgvector fuzzy fallback (3–4 d)
+## 10. Phase 5.5 — pgvector fuzzy fallback (3–4 d) — Shipped (PRs #248, #249, #250)
 
 Comes *after* MCP outbound because at our scale Karpathy's argument (index + curated synthesis beats embeddings at moderate scale) holds. We add vector search as a **fallback** for fuzzy recall, not the hot path.
 
@@ -432,7 +474,7 @@ Comes *after* MCP outbound because at our scale Karpathy's argument (index + cur
 
 ---
 
-## 11. Phase 6 — Eval harness + dashboard (1 wk)
+## 11. Phase 6 — Eval harness + dashboard (1 wk) — Shipped (PRs #251 Wave B CI, #252 Wave A harness, #253 Wave C dashboard)
 
 ### 11.1 Golden questions
 - 30 hand-curated questions targeting BlueState-XL. Categories:

@@ -10,4 +10,4 @@
 
 ## Record your choice
 
-Record tenant + CP endpoints for each hosted environment in your environment runbook; see the [source-of-truth spec](../product/deployai-source-of-truth-spec.md) §7 and §13 for the queue-durability contract.
+Record tenant + CP endpoints for each hosted environment in your environment runbook; see the archived [source-of-truth spec](../archive/product/deployai-source-of-truth-spec.md) §7 and §13 for the queue-durability contract.

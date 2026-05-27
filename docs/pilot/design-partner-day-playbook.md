@@ -15,7 +15,7 @@
 ## Who to call
 
 - **Platform / on-call** — see [`support-runbook.md`](./support-runbook.md).
-- **Product** — scope and known gaps from [`deployai-source-of-truth-spec.md`](../product/deployai-source-of-truth-spec.md) (§2, §14).
+- **Product** — current surface in root [`README.md`](../../README.md) + [`docs/agent-kenny/INDEX.md`](../agent-kenny/INDEX.md); historical scope and known gaps in archived [`deployai-source-of-truth-spec.md`](../archive/product/deployai-source-of-truth-spec.md) §2, §14.
 
 ## Retrospective (within 48h)
 

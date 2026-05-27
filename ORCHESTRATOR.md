@@ -43,9 +43,10 @@ or pauses for the owner.
 
 ## §3 Spec authority
 
-- `docs/product/deployai-source-of-truth-spec.md` §16 is the roadmap.
-  Main thread may amend §16 with a "scope note" commit when reality
-  diverges; owner re-reads at the next phase boundary.
+- v2 is shipped. Current product surface is the root `README.md` plus
+  `docs/agent-kenny/INDEX.md` (which links the ethos, scope, and eval
+  docs). The pre-v2 roadmap survives as historical context in archived
+  `docs/archive/product/deployai-source-of-truth-spec.md` §16.
 - `AGENTS.md` is binding for sub-agents. Main thread may amend it as
   patterns emerge (e.g. the no-task-ref-in-docstrings rule keeps
   tripping agents and should be added to §12).
