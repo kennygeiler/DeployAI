@@ -3,7 +3,7 @@
 Story 1.3 scaffold: FastAPI + Pydantic v2 + SQLAlchemy 2.x async + Alembic (empty) + uv-managed deps.
 
 - `GET /healthz` → `{"status": "ok"}` liveness probe.
-- Routes are implemented under `src/control_plane/api/routes/`; architecture overview in [`docs/product/deployai-source-of-truth-spec.md`](../../docs/product/deployai-source-of-truth-spec.md) §4.
+- Routes are implemented under `src/control_plane/api/routes/`; architecture overview in the root [`README.md`](../../README.md) and the Agent Kenny hub at [`docs/agent-kenny/INDEX.md`](../../docs/agent-kenny/INDEX.md). (Pre-v2 source-of-truth spec archived at [`docs/archive/product/deployai-source-of-truth-spec.md`](../../docs/archive/product/deployai-source-of-truth-spec.md) §4.)
 
 ## Local dev
 

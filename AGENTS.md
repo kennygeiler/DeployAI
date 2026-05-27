@@ -12,7 +12,7 @@ stop and ask the main thread before doing anything.
 ## §1 Read first, in this order
 
 1. **This file (binding).**
-2. `docs/product/deployai-source-of-truth-spec.md` § 16 — current roadmap.
+2. Root `README.md` + `docs/agent-kenny/INDEX.md` — current product surface and Kenny doc hub.
 3. The spawn-brief you were given — slice scope, file ownership,
    migration ID, exact paths.
 4. `CLAUDE.md` if present in the repo root.

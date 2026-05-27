@@ -40,4 +40,4 @@ Expected under **Option B** ([queue-durability-modes.md](./queue-durability-mode
 ## Escalation
 
 - **Engineering:** repo owner + CP logs (correlation id when available).
-- **Product truth:** [`deployai-source-of-truth-spec.md`](../product/deployai-source-of-truth-spec.md).
+- **Product truth:** root [`README.md`](../../README.md) + [`docs/agent-kenny/INDEX.md`](../agent-kenny/INDEX.md). (Pre-v2 [source-of-truth spec](../archive/product/deployai-source-of-truth-spec.md) archived.)

@@ -1,3 +1,6 @@
+> **Archived 2026-05-27** — the Tauri edge agent (`apps/edge-agent/`) was deleted on 2026-05-23. Preserved for
+> git history. Superseded by: nothing — product line retired.
+
 # Sparkle-compatible updates (Story 11.5)
 
 The edge agent does **not** embed Sparkle.framework today. Instead, the Tauri shell:

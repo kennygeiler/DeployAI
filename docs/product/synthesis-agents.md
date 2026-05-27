@@ -5,7 +5,7 @@
 | **Status** | Design / decision record. Phase 7 increment **7.1**. |
 | **Date** | 2026-05-23 |
 | **Drives** | Increments 7.2 (Oracle + CP `/insights` endpoint), 7.3 (BFF + UI surface), 7.4 (Master Strategist cross-engagement insights). |
-| **Roadmap** | [`deployai-source-of-truth-spec.md`](./deployai-source-of-truth-spec.md) §16 — Phase 7. |
+| **Roadmap** | Historical context in archived [`deployai-source-of-truth-spec.md`](../archive/product/deployai-source-of-truth-spec.md) §16. The v2 agent layer (Agent Kenny) supersedes this single-shot Oracle/Master Strategist design — see [`docs/agent-kenny/ethos.md`](../agent-kenny/ethos.md). |
 | **Builds on** | [`deployment-matrix-model.md`](./deployment-matrix-model.md) — the matrix property graph; [`matrix-extraction-agent.md`](./matrix-extraction-agent.md) — the Cartographer extraction pattern this design re-uses. |
 
 This document is the **decision record** for the synthesis layer that reads the matrix and produces cross-team insight, suggestions, learnings, and opportunity detection. It is increment 7.1's deliverable: it does not ship code. Increments 7.2–7.4 build the agents from it.

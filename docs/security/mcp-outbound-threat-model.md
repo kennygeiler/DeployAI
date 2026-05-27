@@ -273,7 +273,7 @@ This threat model does **not** cover:
   restricted to vetted endpoints.
 - **Generic web-app threats on the integrations admin UI** (CSRF, XSS) — existing baseline.
 - **DEK rotation / KMS provider hardening** — tenant-isolation Story 12.x.
-- **Compliance posture for storing third-party tokens** — tracked in `docs/compliance/`.
+- **Compliance posture for storing third-party tokens** — pre-v2 NIST AI RMF mapping archived under `docs/archive/compliance/nist-ai-rmf-mapping.md`; v2 compliance posture is owned by `docs/security/tenant-isolation.md` + this doc.
 - **Cross-engagement leak via external citations.** Phase 3's verifier records `[slack:…]` as
   `external` without DB-checking; protection is bounded by upstream workspace partitioning.
   Accepted residual per [`scope-v2.md`](../agent-kenny/scope-v2.md) §7.1.

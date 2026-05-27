@@ -1,3 +1,10 @@
+> **Archived 2026-05-27** — this mapping referenced Epic 12 stories (FOIA CLI, S3 Object Lock, `/auditor` shell,
+> break-glass E2E, edge agent) that were retired when the product pivoted from single-strategist GovTech sales
+> to team tool. The compliance posture for v2 is captured in `docs/security/` (tenant isolation, cross-tenant
+> fuzz, MCP outbound threat model). Preserved for git history. Superseded by:
+> `docs/security/tenant-isolation.md`, `docs/security/cross-tenant-fuzz.md`,
+> `docs/security/mcp-outbound-threat-model.md`.
+
 # NIST AI Risk Management Framework — DeployAI mapping
 
 **Document type:** Living mapping (Epic 12 Story 12.8).  

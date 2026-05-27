@@ -1,3 +1,7 @@
+> **Archived 2026-05-27** — the FOIA CLI (`apps/foia-cli/`) was deleted on 2026-05-23 alongside the edge agent.
+> The product pivoted away from the single-strategist GovTech-sales angle to a team-tool focus and FOIA-style
+> evidence export was descoped. Preserved for git history. Superseded by: nothing — feature retired.
+
 # FOIA / evidence bundle formats
 
 DeployAI uses versioned on-disk layouts for offline verification (FR61, NFR29). This document describes the formats the FOIA CLI (`apps/foia-cli`) understands today and how canonical-memory export bundles will extend it.

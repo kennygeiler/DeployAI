@@ -15,8 +15,8 @@ Operational docs for **hosted** strategist pilots. Planning context: [`docs/arch
 | [phase-0-checklist.md](./phase-0-checklist.md) | 16.6 | **Hosted verification** gate — JWT/tenant/CP loaders/queues/runbook (before visitors) |
 | [design-partner-day-playbook.md](./design-partner-day-playbook.md) | 16.6 | Day-of script + retro prompt |
 | [examples/pilot-surface.example.json](./examples/pilot-surface.example.json) | 16.4–16.5 | Sample `DEPLOYAI_PILOT_SURFACE_DATA_PATH` payload |
-| [deployai-source-of-truth-spec.md](../product/deployai-source-of-truth-spec.md) | Pilot + prod hosts | Canonical **code-aligned** deployment and architecture boundaries |
+| Root [`README.md`](../../README.md) + [`docs/agent-kenny/INDEX.md`](../agent-kenny/INDEX.md) | Pilot + prod hosts | Current canonical product surface (post-v2 ship) |
 
-**Product reference:** [`deployai-source-of-truth-spec.md`](../product/deployai-source-of-truth-spec.md) — canonical; see §13 for demo / pilot / production staging.
+**Product reference:** Root [`README.md`](../../README.md) and [`docs/agent-kenny/INDEX.md`](../agent-kenny/INDEX.md). Pre-v2 [source-of-truth spec](../archive/product/deployai-source-of-truth-spec.md) preserved for historical §13 demo / pilot / production staging guidance.
 
 **Strategist UX (Epic 16):** onboarding strip + **`/settings/integrations`** (M365 links, status, disconnect via BFF when JWT cookie present).

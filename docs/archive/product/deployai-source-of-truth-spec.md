@@ -1,3 +1,15 @@
+> **Archived 2026-05-27** — this 536-line spec was the consolidation point of pre-v2 planning artifacts (BMAD,
+> archived product briefs). It still references the Tauri edge agent, FOIA CLI, Phase 6.2a/b/c labels, "Mr.
+> Oracle," and Epic 12 — all retired. The post-v2-ship "source of truth" lives in:
+>
+> - Root `README.md` — customer / new-engineer landing
+> - `docs/agent-kenny/INDEX.md` — the Kenny-doc hub
+> - `docs/agent-kenny/ethos.md` — the architectural rationale
+> - `docs/agent-kenny/scope-v2.md` — the historical phase-by-phase ship record
+> - `docs/design/timeline-ledger.md` — the substrate data model
+>
+> Preserved verbatim for git history. Superseded by: the five docs above.
+
 # DeployAI — Source of Truth
 
 **The single canonical reference for DeployAI: product intent, architecture, real-vs-fixture status, and where to track delivery.**

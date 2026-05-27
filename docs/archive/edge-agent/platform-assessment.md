@@ -1,3 +1,6 @@
+> **Archived 2026-05-27** — the Tauri edge agent (`apps/edge-agent/`) was deleted on 2026-05-23. Preserved for
+> git history. Superseded by: nothing — product line retired.
+
 # Edge Agent Platform Assessment (Story 1.15)
 
 Date: 2026-04-23  

@@ -15,7 +15,7 @@ Run **before** external visitors. Record sign-off (ticket or PR comment) when co
 | 5 | Evidence slice | `DEPLOYAI_EVIDENCE_SOURCE=cp` + tenant isolation spot-check |
 | 6 | Queue mode | Documented per [`queue-durability-modes.md`](./queue-durability-modes.md) |
 | 7 | Runbook | [`support-runbook.md`](./support-runbook.md) linked from on-call channel; product catalog links it (see **Runbook spot-check** below) |
-| 8 | Limitations | [source-of-truth spec](../product/deployai-source-of-truth-spec.md) §14 reviewed with design partner |
+| 8 | Limitations | archived [source-of-truth spec](../archive/product/deployai-source-of-truth-spec.md) §14 reviewed with design partner |
 
 ---
 
@@ -96,11 +96,11 @@ Complete at least one path from [`oauth-from-web.md`](./oauth-from-web.md) (conn
 ### Gate 7 — Runbook spot-check
 
 - Publish [`support-runbook.md`](./support-runbook.md) in your **on-call / Slack / wiki** channel (paste URL).
-- Confirm the [source-of-truth spec](../product/deployai-source-of-truth-spec.md) §17 documentation map links this runbook — anyone triaging incidents has one hop to pilot triage steps.
+- Confirm the archived [source-of-truth spec](../archive/product/deployai-source-of-truth-spec.md) §17 documentation map links this runbook — anyone triaging incidents has one hop to pilot triage steps.
 
 ### Gate 8 — Limitations review
 
-- Walk the **[source-of-truth spec](../product/deployai-source-of-truth-spec.md)** §3, §7 and §14 with the design partner (fixtures, queues, meeting presence scope) — no surprise “CI vs reality” gaps during their session.
+- Walk the **archived [source-of-truth spec](../archive/product/deployai-source-of-truth-spec.md)** §3, §7 and §14 with the design partner (fixtures, queues, meeting presence scope) — no surprise “CI vs reality” gaps during their session.
 
 ---
 

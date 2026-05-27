@@ -5,7 +5,7 @@
 | **Status** | Design / decision record. Phase 6 increment **6.2b**. |
 | **Date** | 2026-05-22 |
 | **Drives** | Increment 6.2c (the agent module + `/extract` endpoint + chained ingest). |
-| **Roadmap** | [`deployai-source-of-truth-spec.md`](./deployai-source-of-truth-spec.md) §16 — Phase 6. |
+| **Roadmap** | Historical context in archived [`deployai-source-of-truth-spec.md`](../archive/product/deployai-source-of-truth-spec.md) §16 (the v2 roadmap is in [`docs/agent-kenny/scope-v2.md`](../agent-kenny/scope-v2.md)). |
 | **Builds on** | [`deployment-matrix-model.md`](./deployment-matrix-model.md) — the matrix property graph; and increment 6.2a — the `matrix_proposals` review loop. |
 
 This document is the **decision record** for the matrix extraction agent that produces proposals into the 6.2a review loop. It is increment 6.2b's deliverable: it does not ship code. Increment 6.2c builds the module from it.
@@ -14,7 +14,7 @@ This document is the **decision record** for the matrix extraction agent that pr
 
 ## 1. Why — the loop in one paragraph
 
-Phase 6.1 lands interactions as canonical events. Phase 6.2a accepts/rejects proposed matrix entities into the matrix, citing the source event. **What's missing is the producer of those proposals** — a Cartographer-style agent that reads an event (plus the engagement's current matrix for context) and emits typed node/edge proposals with rationales. That is 6.2c. 6.2b decides the agent's *shape*: what triggers it, how it talks to the LLM, what it returns, and how it survives failures.
+The ingest pipeline lands interactions as canonical events. The review loop accepts/rejects proposed matrix entities into the matrix, citing the source event. **What's missing is the producer of those proposals** — a Cartographer-style agent that reads an event (plus the engagement's current matrix for context) and emits typed node/edge proposals with rationales. This document is the design record for that agent (since shipped under `services/cartographer/`).
 
 ---
 
