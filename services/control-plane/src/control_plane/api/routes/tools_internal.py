@@ -32,6 +32,7 @@ from control_plane.agents.tools.analysis import (
     get_decision_history,
     get_engagement_summary,
     get_open_risks,
+    list_matrix_nodes_by_type,
 )
 from control_plane.agents.tools.escalate import propose_action
 from control_plane.agents.tools.ledger import query_ledger, walk_chain
@@ -204,6 +205,13 @@ async def _dispatch(
         )
     if name == "get_engagement_summary":
         return await get_engagement_summary(session, **common)
+    if name == "list_matrix_nodes_by_type":
+        return await list_matrix_nodes_by_type(
+            session,
+            **common,
+            node_type=args["node_type"],
+            limit=int(args.get("limit", 50)),
+        )
     if name == "keyword_search":
         return await keyword_search(
             session,

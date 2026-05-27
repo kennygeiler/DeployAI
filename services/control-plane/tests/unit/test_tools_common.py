@@ -59,7 +59,7 @@ def test_tool_error_is_value_error() -> None:
     assert issubclass(ToolError, ValueError)
 
 
-def test_registry_contains_all_twelve_tools() -> None:
+def test_registry_contains_all_thirteen_tools() -> None:
     expected = {
         "query_ledger",
         "walk_chain",
@@ -70,12 +70,13 @@ def test_registry_contains_all_twelve_tools() -> None:
         "get_decision_history",
         "get_open_risks",
         "get_engagement_summary",
+        "list_matrix_nodes_by_type",
         "keyword_search",
         "vector_search",
         "propose_action",
     }
     assert expected.issubset(TOOL_REGISTRY.keys())
-    assert len(expected) == 12
+    assert len(expected) == 13
 
 
 def test_each_tool_spec_has_json_schema_shape() -> None:

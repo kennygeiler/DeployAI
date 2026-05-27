@@ -59,6 +59,7 @@ from control_plane.agents.tools.analysis import (
     get_decision_history,
     get_engagement_summary,
     get_open_risks,
+    list_matrix_nodes_by_type,
 )
 from control_plane.agents.tools.escalate import propose_action
 from control_plane.agents.tools.ledger import query_ledger, walk_chain
@@ -82,6 +83,7 @@ _INVOKERS: dict[str, Callable[..., Awaitable[ToolResult]]] = {
     "get_decision_history": get_decision_history,
     "get_open_risks": get_open_risks,
     "get_engagement_summary": get_engagement_summary,
+    "list_matrix_nodes_by_type": list_matrix_nodes_by_type,
     "keyword_search": keyword_search,
     "vector_search": vector_search,
     "propose_action": propose_action,
