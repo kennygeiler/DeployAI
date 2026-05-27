@@ -55,11 +55,7 @@ export const AGENT_ACTIVITY_CHIP_SOURCE_KINDS: Record<AgentActivityChip, readonl
   // Wave 3G will emit a dedicated ``tool_call`` kind; until then the
   // chip narrows to the agent's other observable kinds so the chip
   // doesn't render empty. Documented in the component header.
-  tool_calls_internal: [
-    "llm_proposal_created",
-    "proposal_accepted",
-    "proposal_rejected",
-  ],
+  tool_calls_internal: ["llm_proposal_created", "proposal_accepted", "proposal_rejected"],
   external_mcp: [...MCP_OUTBOUND_CALL_SOURCE_KINDS],
   synthesis: ["insight_opened", "recommendation_emitted"],
   adversarial_concerns: [

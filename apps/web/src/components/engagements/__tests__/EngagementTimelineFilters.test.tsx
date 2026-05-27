@@ -35,9 +35,7 @@ describe("EngagementTimelineFilters", () => {
 
   it("invokes onChange with the chip on click, and null on click-to-clear", () => {
     const onChange = vi.fn<(c: AgentActivityChip | null) => void>();
-    const { rerender } = render(
-      <EngagementTimelineFilters selected={null} onChange={onChange} />,
-    );
+    const { rerender } = render(<EngagementTimelineFilters selected={null} onChange={onChange} />);
     fireEvent.click(screen.getByTestId("agent-activity-chip-external_mcp"));
     expect(onChange).toHaveBeenCalledWith("external_mcp");
 

@@ -261,11 +261,7 @@ export function EngagementTimeline({
       };
     }
 
-    if (
-      source.kind === "ledger" &&
-      inLedger &&
-      (sourceKinds.length > 0 || agentChip !== null)
-    ) {
+    if (source.kind === "ledger" && inLedger && (sourceKinds.length > 0 || agentChip !== null)) {
       if (broadenedForRef.current !== eventId) {
         broadenedForRef.current = eventId;
         const t = window.setTimeout(() => {

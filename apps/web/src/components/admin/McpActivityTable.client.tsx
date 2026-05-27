@@ -35,10 +35,12 @@ function deriveStatus(kind: string, detail: Detail): { label: string; cls: strin
     }
     return { label: "ok", cls: "bg-emerald-100 text-emerald-900" };
   }
-  if (kind === "mcp_outbound_blocked") return { label: "blocked", cls: "bg-amber-100 text-amber-900" };
+  if (kind === "mcp_outbound_blocked")
+    return { label: "blocked", cls: "bg-amber-100 text-amber-900" };
   if (kind === "mcp_outbound_rate_limited")
     return { label: "rate-limited", cls: "bg-amber-100 text-amber-900" };
-  if (kind === "mcp_outbound_denied") return { label: "denied", cls: "bg-error-100 text-error-900" };
+  if (kind === "mcp_outbound_denied")
+    return { label: "denied", cls: "bg-error-100 text-error-900" };
   if (kind === "mcp_outbound_killswitch_changed")
     return { label: "kill switch", cls: "bg-error-100 text-error-900" };
   if (isMcpConfigKind(kind)) return { label: "config change", cls: "bg-amber-100 text-amber-900" };
@@ -158,7 +160,8 @@ export function McpActivityTable() {
             <tbody className="divide-border divide-y">
               {rows.map((row) => {
                 const detail = row.detail as Detail;
-                const connector = readString(detail, "connector_kind") ?? readString(detail, "connector");
+                const connector =
+                  readString(detail, "connector_kind") ?? readString(detail, "connector");
                 const tool = readString(detail, "tool") ?? readString(detail, "tool_name");
                 const latency = readNumber(detail, "latency_ms");
                 const status = deriveStatus(row.source_kind, detail);

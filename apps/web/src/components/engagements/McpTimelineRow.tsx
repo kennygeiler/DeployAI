@@ -80,7 +80,10 @@ const CONFIG_LABELS: Record<string, string> = {
 };
 
 export type McpTimelineRowProps = {
-  event: Pick<LedgerEvent, "id" | "occurred_at" | "source_kind" | "summary" | "detail" | "actor_id">;
+  event: Pick<
+    LedgerEvent,
+    "id" | "occurred_at" | "source_kind" | "summary" | "detail" | "actor_id"
+  >;
   /**
    * Optional test hook + parent-scoped row id. Same shape as the other
    * timeline rows so the existing event-jump scroll mechanism keeps
