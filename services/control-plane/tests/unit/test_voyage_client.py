@@ -122,6 +122,7 @@ async def test_embed_missing_key_emits_zero_vectors_with_warning(
 ) -> None:
     """Unset key → zero-vectors + one warning. Local-dev fallback path."""
     monkeypatch.delenv("VOYAGE_API_KEY", raising=False)
+    monkeypatch.setattr(voyage_client, "_resolve_api_key", lambda: "")
 
     warnings_emitted: list[logging.LogRecord] = []
 
@@ -152,6 +153,7 @@ async def test_embed_missing_key_warns_only_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("VOYAGE_API_KEY", raising=False)
+    monkeypatch.setattr(voyage_client, "_resolve_api_key", lambda: "")
 
     warnings_emitted: list[logging.LogRecord] = []
 
