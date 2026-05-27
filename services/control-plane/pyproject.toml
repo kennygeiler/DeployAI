@@ -48,6 +48,13 @@ dependencies = [
   "pgvector>=0.3.0",
 ]
 
+[project.scripts]
+# v2 Phase 5.5 Wave B — Voyage-3 embedding backfill worker (scope-v2 §10.2).
+# Equivalent to `python -m control_plane.cli.embedder`. The docker-compose
+# `embedder` service uses the module form so the entrypoint stays consistent
+# whether or not the wheel is installed.
+deployai-embedder = "control_plane.cli.embedder:main"
+
 [tool.uv.sources]
 deployai-tenancy = { path = "../_shared/tenancy", editable = true }
 deployai-authz = { path = "../_shared/authz", editable = true }
