@@ -19,6 +19,9 @@ from sqlalchemy import text
 
 import control_plane.bootstrap  # noqa: F401  # configure logging + OTel before other control_plane imports
 from control_plane.api.routes.adjudication_queue import router as adjudication_queue_internal_router
+from control_plane.api.routes.agent_kenny_dashboard_internal import (
+    router as agent_kenny_dashboard_internal_router,
+)
 from control_plane.api.routes.audit_internal import router as audit_internal_router
 from control_plane.api.routes.auth import router as auth_router
 from control_plane.api.routes.auth_oidc import auth_entry_router, oidc_router
@@ -177,6 +180,7 @@ app.include_router(tenant_api_keys_internal_router, prefix="/internal/v1")
 app.include_router(tenant_mcp_configs_internal_router, prefix="/internal/v1")
 app.include_router(tenant_mcp_killswitch_internal_router, prefix="/internal/v1")
 app.include_router(tenant_mcp_audit_internal_router, prefix="/internal/v1")
+app.include_router(agent_kenny_dashboard_internal_router, prefix="/internal/v1")
 app.include_router(audit_internal_router, prefix="/internal/v1")
 app.include_router(webhooks_internal_router, prefix="/internal/v1")
 app.include_router(meetings_internal_router, prefix="/internal/v1")
