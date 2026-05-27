@@ -213,6 +213,12 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # v2 Phase 4 — MCP inbound server (scope-v2 §8). Exposes engagement matrix +
   # ledger over the Model Context Protocol so an advisor's Claude desktop (or
