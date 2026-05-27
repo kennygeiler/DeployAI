@@ -18,6 +18,11 @@
  * four return HTTP 501 from the CP OAuth routes until per-connector
  * flows land in a follow-up wave; the UI hides the "Connect" button for
  * those and the admin supplies a long-lived token via the form instead.
+ *
+ * Wave 3I additions (bottom of file): `connectorDisplayName` +
+ * `connectorBadgeClass` + `CONNECTOR_BADGE_COLORS` for the timeline + admin
+ * audit row renderers. They reuse this catalog's `displayName` field so
+ * the label set never drifts from the source of truth above.
  */
 
 export type ConnectorKind = "slack" | "linear" | "gdrive" | "notion" | "github";
@@ -129,4 +134,40 @@ export const CONNECTOR_KINDS: ConnectorKind[] = ["slack", "linear", "gdrive", "n
 /** Convenience accessor — narrower than `MCP_CONNECTOR_CATALOG[kind]` at call sites. */
 export function getConnectorSpec(kind: ConnectorKind): ConnectorSpec {
   return MCP_CONNECTOR_CATALOG[kind];
+}
+
+// ---------------------------------------------------------------------------
+// Wave 3I — badge helpers for timeline + admin audit row renderers
+// ---------------------------------------------------------------------------
+
+/**
+ * Tailwind utility classes for the connector badge background + text.
+ * Each pair is keyed off the connector's known brand color so the eye
+ * groups runs from the same source. Kept as static literals so the
+ * Tailwind JIT picks them up — do not build class names by string
+ * concatenation here.
+ */
+export const CONNECTOR_BADGE_COLORS: Record<ConnectorKind, string> = {
+  slack: "bg-purple-100 text-purple-900 border-purple-300",
+  linear: "bg-indigo-100 text-indigo-900 border-indigo-300",
+  gdrive: "bg-emerald-100 text-emerald-900 border-emerald-300",
+  notion: "bg-stone-100 text-stone-900 border-stone-300",
+  github: "bg-slate-100 text-slate-900 border-slate-300",
+};
+
+/** Fallback styling for an unknown connector kind (defensive). */
+export const CONNECTOR_BADGE_FALLBACK = "bg-ink-100 text-ink-800 border-ink-300";
+
+function isKnownKind(kind: string): kind is ConnectorKind {
+  return (CONNECTOR_KINDS as readonly string[]).includes(kind);
+}
+
+/** Human-friendly connector label (resolves to displayName from the catalog). */
+export function connectorDisplayName(kind: string): string {
+  return isKnownKind(kind) ? MCP_CONNECTOR_CATALOG[kind].displayName : kind;
+}
+
+/** Tailwind class string for a connector badge. */
+export function connectorBadgeClass(kind: string): string {
+  return isKnownKind(kind) ? CONNECTOR_BADGE_COLORS[kind] : CONNECTOR_BADGE_FALLBACK;
 }

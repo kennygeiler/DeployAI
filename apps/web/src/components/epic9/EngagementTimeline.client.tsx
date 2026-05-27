@@ -7,10 +7,21 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { TimestampLabel } from "@/components/common/TimestampLabel.client";
+import {
+  EngagementTimelineFilters,
+  resolveAgentActivitySourceKinds,
+  type AgentActivityChip,
+} from "@/components/engagements/EngagementTimelineFilters";
+import { McpTimelineRow } from "@/components/engagements/McpTimelineRow";
 import { Button } from "@/components/ui/button";
 import { HorizontalTimeline } from "@/components/epic9/HorizontalTimeline.client";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 import type { LedgerEvent } from "@/lib/internal/ledger-cp";
+import {
+  isMcpConfigKind,
+  isMcpKillswitchKind,
+  isMcpOutboundCallKind,
+} from "@/lib/internal/ledger-cp";
 
 type TimelineEvent = {
   id: string;
@@ -123,6 +134,7 @@ export function EngagementTimeline({
   const [loading, setLoading] = React.useState(true);
   const [err, setErr] = React.useState<string | null>(null);
   const [sourceKinds, setSourceKinds] = React.useState<string[]>(initialSourceKinds);
+  const [agentChip, setAgentChip] = React.useState<AgentActivityChip | null>(null);
   const [highlightedId, setHighlightedId] = React.useState<string | null>(null);
   const itemRefs = React.useRef<Map<string, HTMLLIElement>>(new Map());
   const jumpHandledRef = React.useRef<string | null>(null);
@@ -171,17 +183,39 @@ export function EngagementTimeline({
     };
   }, [engagementId, affectsNodeId, eventId]);
 
+  // Compose the active filter: explicit per-source-kind chips combine
+  // with the agent-activity chip group (Wave 3I). When the agent chip is
+  // active we union its source_kinds with whatever the strategist already
+  // picked, so toggling "External (MCP)" never *hides* an unrelated kind
+  // the user was already inspecting.
+  const activeSourceKinds = React.useMemo<readonly string[]>(() => {
+    const chipKinds = resolveAgentActivitySourceKinds(agentChip, {
+      includeMcpAuxiliary: true,
+    });
+    if (chipKinds.length === 0) return sourceKinds;
+    if (sourceKinds.length === 0) return chipKinds;
+    return Array.from(new Set([...sourceKinds, ...chipKinds]));
+  }, [sourceKinds, agentChip]);
+
+  // id → full LedgerEvent lookup so the custom MCP row renderer can read
+  // the redacted detail blob (connector_kind, tool, latency_ms) that the
+  // thinner TimelineEvent shape strips out.
+  const ledgerById = React.useMemo<Map<string, LedgerEvent>>(() => {
+    if (source.kind !== "ledger") return new Map();
+    return new Map(source.events.map((ev) => [ev.id, ev]));
+  }, [source]);
+
   const events = React.useMemo<TimelineEvent[]>(() => {
     if (source.kind === "timeline") return source.events;
-    const allow = sourceKinds.length === 0 ? null : new Set(sourceKinds);
+    const allow = activeSourceKinds.length === 0 ? null : new Set(activeSourceKinds);
     return source.events
       .filter((ev) => (allow ? allow.has(ev.source_kind) : true))
       .map(ledgerToTimelineEvent);
-  }, [source, sourceKinds]);
+  }, [source, activeSourceKinds]);
 
   const horizontalEvents = React.useMemo(() => {
     if (source.kind === "ledger") {
-      const allow = sourceKinds.length === 0 ? null : new Set(sourceKinds);
+      const allow = activeSourceKinds.length === 0 ? null : new Set(activeSourceKinds);
       return source.events
         .filter((ev) => (allow ? allow.has(ev.source_kind) : true))
         .map((ev) => ({
@@ -199,7 +233,7 @@ export function EngagementTimeline({
       summary: ev.summary,
       actor_kind: null,
     }));
-  }, [source, sourceKinds, events]);
+  }, [source, activeSourceKinds, events]);
 
   // Event-jump: scroll & highlight once events have rendered. Broaden the
   // source-kind filter automatically if the target is filtered out, otherwise
@@ -227,11 +261,12 @@ export function EngagementTimeline({
       };
     }
 
-    if (source.kind === "ledger" && inLedger && sourceKinds.length > 0) {
+    if (source.kind === "ledger" && inLedger && (sourceKinds.length > 0 || agentChip !== null)) {
       if (broadenedForRef.current !== eventId) {
         broadenedForRef.current = eventId;
         const t = window.setTimeout(() => {
           setSourceKinds([]);
+          setAgentChip(null);
           toast("Cleared filters to show this event");
         }, 0);
         return () => clearTimeout(t);
@@ -249,7 +284,7 @@ export function EngagementTimeline({
       toast("Event not on this page");
       return;
     }
-  }, [eventId, loading, source, events, sourceKinds]);
+  }, [eventId, loading, source, events, sourceKinds, agentChip]);
 
   const groups = React.useMemo(() => groupByWeek(events), [events]);
 
@@ -331,6 +366,7 @@ export function EngagementTimeline({
           </Button>
         </div>
       </div>
+      <EngagementTimelineFilters selected={agentChip} onChange={setAgentChip} />
       {affectsFilter || sourceKinds.length > 0 ? (
         <div
           role="group"
@@ -401,6 +437,12 @@ export function EngagementTimeline({
               <ul className="border-border divide-border divide-y rounded-lg border text-sm">
                 {g.events.map((ev) => {
                   const isHighlighted = highlightedId === ev.id;
+                  const kind = ev.event_type;
+                  const isMcp =
+                    isMcpOutboundCallKind(kind) ||
+                    isMcpConfigKind(kind) ||
+                    isMcpKillswitchKind(kind);
+                  const mcpEvent = isMcp ? ledgerById.get(ev.id) : undefined;
                   return (
                     <li
                       key={ev.id}
@@ -412,16 +454,22 @@ export function EngagementTimeline({
                         (isHighlighted ? "bg-warning-100 ring-warning-400 ring-2" : "")
                       }
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <TimestampLabel value={ev.occurred_at} className="text-ink-700" />
-                        <span className="bg-ink-100 text-ink-800 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase">
-                          {ev.event_type}
-                        </span>
-                      </div>
-                      <p className="text-ink-700 whitespace-pre-line">{ev.summary}</p>
-                      {ev.source_ref ? (
-                        <p className="text-ink-500 font-mono text-xs">{ev.source_ref}</p>
-                      ) : null}
+                      {isMcp && mcpEvent ? (
+                        <McpTimelineRow event={mcpEvent} />
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between gap-3">
+                            <TimestampLabel value={ev.occurred_at} className="text-ink-700" />
+                            <span className="bg-ink-100 text-ink-800 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase">
+                              {ev.event_type}
+                            </span>
+                          </div>
+                          <p className="text-ink-700 whitespace-pre-line">{ev.summary}</p>
+                          {ev.source_ref ? (
+                            <p className="text-ink-500 font-mono text-xs">{ev.source_ref}</p>
+                          ) : null}
+                        </>
+                      )}
                     </li>
                   );
                 })}

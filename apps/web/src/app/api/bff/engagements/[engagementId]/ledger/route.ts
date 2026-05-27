@@ -40,6 +40,20 @@ const ALLOWED_SOURCE_KINDS = new Set([
   "audit_decision",
   "insight_snoozed",
   "followup_task_created",
+  // v2 Phase 5 Wave 3I — outbound MCP audit + config-change kinds. Wave 2D
+  // emits the call-status kinds from ``mcp_client.py``; Wave 2E/2F emit
+  // the config + killswitch + oauth-rotation kinds. The "External (MCP)"
+  // timeline chip filters to the call subset; the admin audit panel
+  // surfaces the same rows tenant-wide.
+  "mcp_outbound_call",
+  "mcp_outbound_blocked",
+  "mcp_outbound_rate_limited",
+  "mcp_outbound_denied",
+  "mcp_outbound_killswitch_changed",
+  "mcp_config_created",
+  "mcp_config_updated",
+  "mcp_config_deleted",
+  "mcp_oauth_token_rotated",
 ]);
 
 function parseLimit(raw: string | null): number | { error: NextResponse } {
