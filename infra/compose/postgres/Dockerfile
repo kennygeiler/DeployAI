@@ -24,3 +24,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY init/*.sql /docker-entrypoint-initdb.d/
+
+# Fly mounts the persistent volume root-owned; the postgres base image
+# can't chown it from non-root. This shim chowns $PGDATA as root before
+# delegating to docker-entrypoint.sh. Harmless under docker-compose
+# (volume there is already postgres-owned).
+COPY fly-entrypoint.sh /usr/local/bin/fly-entrypoint.sh
+RUN chmod +x /usr/local/bin/fly-entrypoint.sh
+ENTRYPOINT ["fly-entrypoint.sh"]
+CMD ["postgres"]

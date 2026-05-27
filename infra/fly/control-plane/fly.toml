@@ -28,7 +28,11 @@ primary_region = "iad"
   build-target = ""
 
 [deploy]
-  release_command = "alembic upgrade head"
+  # Alembic migrations use multi-statement DDL blocks that asyncpg refuses
+  # ("cannot insert multiple commands into a prepared statement"). The shell
+  # swap rewrites DATABASE_URL to use psycopg for the migration run only;
+  # the app process continues to use the asyncpg URL from the secret.
+  release_command = "sh -c 'DATABASE_URL=$(echo \"$DATABASE_URL\" | sed s/+asyncpg/+psycopg/) alembic upgrade head'"
   strategy = "rolling"
 
 [env]

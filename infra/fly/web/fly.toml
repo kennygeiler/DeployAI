@@ -36,20 +36,27 @@ primary_region = "iad"
 [env]
   PORT = "3000"
   NODE_ENV = "production"
+  # Next.js standalone server defaults to binding 127.0.0.1, which Fly's
+  # edge proxy can't reach. Force 0.0.0.0 so the machine accepts traffic
+  # from the proxy.
+  HOSTNAME = "0.0.0.0"
 
 [http_service]
   internal_port = 3000
   force_https = true
-  auto_stop_machines  = "stop"   # cheap to cold-start a Next.js node
-  auto_start_machines = true
-  min_machines_running = 0
+  auto_stop_machines  = "off"
+  auto_start_machines = false
+  min_machines_running = 1
 
   [[http_service.checks]]
     grace_period  = "30s"
     interval      = "15s"
     method        = "GET"
-    # `/` 307s to `/engagements`; counts as a healthy response.
-    path          = "/"
+    # /api/health is a static 200 (apps/web/src/app/api/health/route.ts).
+    # `/` 307s to `/engagements`, but that path is auth-gated by the
+    # strategist middleware and returns 403 without `x-deployai-role`,
+    # which Fly treats as unhealthy and restarts the machine.
+    path          = "/api/health"
     protocol      = "http"
     timeout       = "5s"
     tls_skip_verify = false

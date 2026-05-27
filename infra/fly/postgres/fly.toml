@@ -23,6 +23,9 @@ primary_region = "iad"
 
 [build]
   dockerfile = "../../compose/postgres/Dockerfile"
+  # NOTE: deploy must pass `infra/compose/postgres` as build-context path arg
+  # to flyctl so init/*.sql lands in context. scripts/cloud-deploy.sh handles
+  # this; running `flyctl deploy --config <this>` from repo root will FAIL.
 
 [deploy]
   strategy = "immediate"   # postgres can't do rolling
@@ -30,6 +33,10 @@ primary_region = "iad"
 [env]
   POSTGRES_DB   = "deployai"
   POSTGRES_USER = "deployai"
+  # Fly mounts the volume at /var/lib/postgresql/data with a lost+found
+  # dir already present, which initdb refuses (non-empty dir). Pointing
+  # PGDATA at a subdirectory dodges that.
+  PGDATA        = "/var/lib/postgresql/data/pgdata"
   # POSTGRES_PASSWORD lives in `fly secrets set`.
 
 [[mounts]]
