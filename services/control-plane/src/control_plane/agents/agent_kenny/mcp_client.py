@@ -430,9 +430,12 @@ class McpOutboundClient:
             if "error" in envelope and envelope["error"] is not None:
                 error_kind = "protocol_error"
                 err_payload = envelope["error"]
-                error_message = (err_payload.get("message") if isinstance(err_payload, dict) else str(err_payload))[
-                    :240
-                ]
+                if isinstance(err_payload, dict):
+                    raw_msg = err_payload.get("message")
+                    msg_str = str(raw_msg) if raw_msg is not None else ""
+                else:
+                    msg_str = str(err_payload)
+                error_message = msg_str[:240]
                 raise McpProtocolError(f"upstream jsonrpc error: {error_message}")
             if "result" not in envelope:
                 error_kind = "protocol_error"
