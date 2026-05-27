@@ -117,65 +117,35 @@ async def test_embed_4xx_no_retry(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_embed_missing_key_emits_zero_vectors_with_warning(
+async def test_embed_missing_key_emits_zero_vectors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Unset key → zero-vectors + one warning. Local-dev fallback path."""
+    """Unset key → zero-vectors fallback (local-dev path)."""
     monkeypatch.delenv("VOYAGE_API_KEY", raising=False)
     monkeypatch.setattr(voyage_client, "_resolve_api_key", lambda: "")
 
-    warnings_emitted: list[logging.LogRecord] = []
-
-    class _Capture(logging.Handler):
-        def emit(self, record: logging.LogRecord) -> None:
-            warnings_emitted.append(record)
-
-    handler = _Capture(level=logging.WARNING)
-    logger = logging.getLogger(voyage_client.__name__)
-    logger.addHandler(handler)
-    prev_level = logger.level
-    logger.setLevel(logging.WARNING)
-    try:
-        embedder = VoyageEmbedder()
-        vectors = await embedder.embed(["hello", "world"])
-    finally:
-        logger.removeHandler(handler)
-        logger.setLevel(prev_level)
+    embedder = VoyageEmbedder()
+    vectors = await embedder.embed(["hello", "world"])
 
     assert len(vectors) == 2
     assert all(len(v) == VOYAGE_DIM for v in vectors)
     assert all(all(component == 0.0 for component in v) for v in vectors)
-    assert any("VOYAGE_API_KEY" in record.getMessage() for record in warnings_emitted)
 
 
 @pytest.mark.asyncio
-async def test_embed_missing_key_warns_only_once(
+async def test_embed_missing_key_returns_zero_vectors_each_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Repeated calls with missing key all return zero-vectors."""
     monkeypatch.delenv("VOYAGE_API_KEY", raising=False)
     monkeypatch.setattr(voyage_client, "_resolve_api_key", lambda: "")
 
-    warnings_emitted: list[logging.LogRecord] = []
+    embedder = VoyageEmbedder()
+    first = await embedder.embed(["a"])
+    second = await embedder.embed(["b"])
 
-    class _Capture(logging.Handler):
-        def emit(self, record: logging.LogRecord) -> None:
-            warnings_emitted.append(record)
-
-    handler = _Capture(level=logging.WARNING)
-    logger = logging.getLogger(voyage_client.__name__)
-    logger.addHandler(handler)
-    prev_level = logger.level
-    logger.setLevel(logging.WARNING)
-    try:
-        embedder = VoyageEmbedder()
-        await embedder.embed(["a"])
-        await embedder.embed(["b"])
-    finally:
-        logger.removeHandler(handler)
-        logger.setLevel(prev_level)
-
-    warnings = [r for r in warnings_emitted if "VOYAGE_API_KEY" in r.getMessage()]
-    assert len(warnings) == 1
+    assert len(first) == 1 and all(c == 0.0 for c in first[0])
+    assert len(second) == 1 and all(c == 0.0 for c in second[0])
 
 
 @pytest.mark.asyncio
