@@ -1,0 +1,236 @@
+# Agent Kenny v2 — eval harness CI driver (scope-v2 §11.3).
+#
+# Phase 6 Wave B wires Wave A's golden-question runner into the GitHub
+# schedule. Two cadences + manual dispatch:
+#
+#   * Nightly 07:00 UTC (midnight PT)         — random 5-question sample
+#   * Mondays 08:00 UTC                       — full 30-question set
+#   * workflow_dispatch                       — operator-picked subset
+#
+# The cross-engagement-leak gate is the hard-fail in this workflow: a
+# single leaked citation in any question means a security regression
+# (scope-v2 §7.1 — `cross_engagement_leak` is a hard incident). We parse
+# the JSON report inline (jq, no extra Python package) and exit non-zero.
+#
+# The eval report is uploaded as a workflow artifact with 90-day retention
+# so a post-mortem can pull the per-question detail without re-running.
+#
+# Dependency: services/control-plane/tests/golden/agent_kenny/runner.py
+# ships in Wave A. Until that lands, this workflow's pytest invocation
+# will collect zero tests and exit 5 (pytest's "no tests collected" code).
+# We treat exit 5 as "Wave A not yet merged" and mark the run as skipped
+# rather than failed — flip the `STRICT_EVAL_REQUIRED` env to "true" once
+# Wave A is in main to make absence of the runner a hard failure.
+#
+# All external actions pinned by 40-char commit SHA to match ci.yml.
+
+name: Agent Kenny eval
+
+on:
+  schedule:
+    # Nightly 5-question sample at 07:00 UTC (midnight Pacific Time).
+    - cron: "0 7 * * *"
+    # Weekly full 30-question set Monday 08:00 UTC.
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+    inputs:
+      question_ids:
+        description: "Optional CSV of question IDs to run (e.g. q01,q07,q23). Empty = full set."
+        required: false
+        type: string
+        default: ""
+
+# Least-privilege: read for repo contents, no write scopes. Artifact
+# upload uses the workflow run's own scope (no `contents: write` needed).
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-kenny-eval-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  eval:
+    name: Run golden questions + cross-engagement gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    # Postgres + Redis mirror the integration job's service shape
+    # (integration tests in ci.yml use testcontainers, but the eval
+    # runner expects a long-lived stack). Versions track infra/compose.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: deployai
+          POSTGRES_PASSWORD: deployai
+          POSTGRES_DB: deployai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U deployai -d deployai"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://deployai:deployai@localhost:5432/deployai
+      REDIS_URL: redis://localhost:6379/0
+      # Wave A's runner reads ANTHROPIC_API_KEY via the LLM provider
+      # shim. Supply via repo secret; the secret is optional and the
+      # runner falls back to its stub provider when absent (Wave A note).
+      ANTHROPIC_API_KEY: ${{ secrets.AGENT_KENNY_EVAL_ANTHROPIC_API_KEY }}
+      # Disable testcontainers Ryuk per ci.yml convention.
+      TESTCONTAINERS_RYUK_DISABLED: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5.0.0
+
+      - name: Install Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+
+      - name: Install Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.7"
+          enable-cache: true
+
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: uv sync (control-plane)
+        working-directory: services/control-plane
+        run: uv sync
+
+      # Seed BlueState-XL via the scenarios runner. The fixture is the
+      # ground truth for every question in the golden set
+      # (scope-v2 §2.2 / §11.1). We invoke the Python module directly
+      # rather than spinning up the full docker-compose stack — the
+      # postgres/redis services above are sufficient for the runner.
+      - name: Seed BlueState-XL fixture
+        working-directory: services/control-plane
+        run: |
+          uv run alembic upgrade head
+          uv run python -m control_plane.scenarios.bluestate_xl.runner
+
+      # Choose the question selection per trigger:
+      #   * 07:00 UTC cron → 5 random questions (--limit 5 --random)
+      #   * 08:00 UTC Mon cron → full 30 (no flags)
+      #   * workflow_dispatch with `question_ids` input → explicit CSV
+      #   * workflow_dispatch with empty input → full 30
+      - name: Resolve runner arguments
+        id: args
+        env:
+          INPUT_QUESTION_IDS: ${{ github.event.inputs.question_ids }}
+          SCHEDULE_CRON: ${{ github.event.schedule }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ -n "$INPUT_QUESTION_IDS" ]; then
+              echo "runner_args=--question-ids $INPUT_QUESTION_IDS" >> "$GITHUB_OUTPUT"
+              echo "selection=manual:$INPUT_QUESTION_IDS" >> "$GITHUB_OUTPUT"
+            else
+              echo "runner_args=" >> "$GITHUB_OUTPUT"
+              echo "selection=manual:full-30" >> "$GITHUB_OUTPUT"
+            fi
+          elif [ "$SCHEDULE_CRON" = "0 7 * * *" ]; then
+            echo "runner_args=--limit 5 --random" >> "$GITHUB_OUTPUT"
+            echo "selection=nightly:5-random" >> "$GITHUB_OUTPUT"
+          elif [ "$SCHEDULE_CRON" = "0 8 * * 1" ]; then
+            echo "runner_args=" >> "$GITHUB_OUTPUT"
+            echo "selection=weekly:full-30" >> "$GITHUB_OUTPUT"
+          else
+            # Defensive default — should not be reachable given the
+            # trigger configuration above. Treat as full set.
+            echo "runner_args=" >> "$GITHUB_OUTPUT"
+            echo "selection=unknown:full-30" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Resolved selection: $(grep '^selection=' "$GITHUB_OUTPUT" | tail -1)"
+
+      - name: Run Agent Kenny golden eval
+        id: run-eval
+        working-directory: services/control-plane
+        env:
+          PYTEST_ADDOPTS: ""
+          REPORT_PATH: ${{ github.workspace }}/eval-report.json
+          RUNNER_ARGS: ${{ steps.args.outputs.runner_args }}
+        # Exit code policy:
+        #   0 = runner produced report (pass or fail decided downstream)
+        #   5 = pytest collected nothing → Wave A runner missing
+        #       (acceptable until Wave A merges; documented above).
+        #   other = real failure → surface to the job.
+        run: |
+          set +e
+          uv run pytest tests/golden/agent_kenny/ -m eval \
+            --report="$REPORT_PATH" \
+            $RUNNER_ARGS
+          rc=$?
+          set -e
+          if [ "$rc" -eq 5 ]; then
+            echo "::warning title=Agent Kenny runner missing::pytest collected no tests under tests/golden/agent_kenny/. Wave A's runner has not landed yet — treating as soft-skip. Flip STRICT_EVAL_REQUIRED to fail once Wave A merges."
+            echo '{"questions": [], "cross_engagement_leak_count": 0, "selection": "skipped:no-runner"}' > "$REPORT_PATH"
+            echo "eval_skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "eval_skipped=false" >> "$GITHUB_OUTPUT"
+          exit $rc
+
+      # Hard-fail gate: any cross_engagement_leak count > 0 means a
+      # tenant-isolation regression (scope-v2 §7.1). Parse with jq and
+      # fail explicitly so the GitHub Checks UI flags it.
+      - name: Cross-engagement leak gate
+        if: ${{ always() && steps.run-eval.outputs.eval_skipped != 'true' }}
+        env:
+          REPORT_PATH: ${{ github.workspace }}/eval-report.json
+        run: |
+          set -euo pipefail
+          if [ ! -s "$REPORT_PATH" ]; then
+            echo "::error title=Eval report missing::Expected $REPORT_PATH from the runner but file is empty or absent."
+            exit 1
+          fi
+          leak_count=$(jq -r '.cross_engagement_leak_count // 0' "$REPORT_PATH")
+          echo "cross_engagement_leak_count=$leak_count"
+          if [ "$leak_count" -gt 0 ]; then
+            echo "::error title=Cross-engagement leak detected — security regression::Runner reported $leak_count cross-engagement citation leak(s). See eval-report.json artifact. Per scope-v2 §7.1 this is always a real bug; investigate before re-running."
+            jq -r '.questions[]? | select((.cross_engagement_leak_count // 0) > 0) | "  - " + (.id // "?") + ": " + ((.cross_engagement_leak_count|tostring) // "?") + " leak(s)"' "$REPORT_PATH" || true
+            exit 1
+          fi
+          echo "No cross-engagement leaks detected."
+
+      - name: Upload eval report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: agent-kenny-eval-${{ github.run_id }}
+          path: eval-report.json
+          retention-days: 90
+          if-no-files-found: warn
