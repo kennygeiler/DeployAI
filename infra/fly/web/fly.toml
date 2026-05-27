@@ -1,0 +1,60 @@
+# Fly.io app config for DeployAI web (Next.js 16 BFF + UI).
+#
+# Build: uses apps/web/Dockerfile (same image as compose).
+# Deploy: `fly deploy --config infra/fly/web/fly.toml --remote-only`
+#         (run from repo root).
+#
+# Secrets (set via `fly secrets set`):
+#   DEPLOYAI_INTERNAL_API_KEY    same as the control-plane's; the BFF
+#                                forwards this on every internal call.
+#   CONTROL_PLANE_INTERNAL_URL   `http://deployai-control-plane.internal:8000`
+#                                (Fly 6PN — only siblings in the same org
+#                                can reach this hostname).
+#   NEXT_PUBLIC_CONTROL_PLANE_URL  Public CP URL the browser hits for SSE.
+#                                Typically `https://api.<your-domain>` if
+#                                you front the CP with Cloudflare Access
+#                                separately; or proxy through web BFF.
+#   NEXTAUTH_SECRET               Random 32-byte secret for auth cookie
+#                                  signing (only if NextAuth is wired —
+#                                  Cloudflare Access can replace this).
+#
+# Cloudflare Access — when you point Cloudflare at this app's public
+# hostname, every request arrives with a verified
+# `CF-Access-Authenticated-User-Email` header. The web middleware reads
+# that, compares against `DEPLOYAI_ADMIN_EMAILS` (on the CP), and decides
+# admin-vs-viewer. See docs/ops/cloud-deploy.md §6.
+
+app  = "deployai-web"
+primary_region = "iad"
+
+[build]
+  dockerfile = "../../../apps/web/Dockerfile"
+
+[deploy]
+  strategy = "rolling"
+
+[env]
+  PORT = "3000"
+  NODE_ENV = "production"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines  = "stop"   # cheap to cold-start a Next.js node
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period  = "30s"
+    interval      = "15s"
+    method        = "GET"
+    # `/` 307s to `/engagements`; counts as a healthy response.
+    path          = "/"
+    protocol      = "http"
+    timeout       = "5s"
+    tls_skip_verify = false
+
+[[vm]]
+  cpu_kind  = "shared"
+  cpus      = 1
+  memory    = "512mb"

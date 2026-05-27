@@ -1,0 +1,36 @@
+# Fly.io app config for DeployAI embedder worker (Voyage-3 backfill).
+#
+# Build: reuses the control-plane image — same code lives in the same wheel;
+# the entrypoint is overridden via `[processes]`.
+# Deploy: `fly deploy --config infra/fly/embedder/fly.toml --remote-only`
+#
+# No public HTTP — this is a poll loop. Healthcheck is a process-level
+# Python no-op so Fly can confirm the container is alive.
+#
+# Secrets:
+#   DATABASE_URL       same Postgres as control-plane (writes embeddings back)
+#   VOYAGE_API_KEY     Voyage AI key (optional; falls back to zero-vec when unset)
+
+app  = "deployai-embedder"
+primary_region = "iad"
+
+[build]
+  dockerfile = "../../../services/control-plane/Dockerfile"
+
+[processes]
+  embedder = "python -m control_plane.cli.embedder"
+
+[deploy]
+  strategy = "rolling"
+
+[env]
+  EMBEDDER_LOG_LEVEL = "INFO"
+
+[[vm]]
+  cpu_kind  = "shared"
+  cpus      = 1
+  memory    = "512mb"
+  processes = ["embedder"]
+
+# No [http_service] — this is a worker. Fly tracks liveness via the
+# process exit code; a crash triggers a restart automatically.

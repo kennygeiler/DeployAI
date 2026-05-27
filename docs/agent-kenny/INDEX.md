@@ -83,6 +83,7 @@ gates CI.
 | Enable an outbound MCP for a tenant | `/admin/integrations` — Slack OAuth wired; Linear/GDrive/Notion/GitHub return `501` for now |
 | Incident response: kill all outbound MCPs for a tenant | `/admin/integrations` → kill-switch toggle (sets `app_tenants.mcp_outbound_disabled = true`; per-call short-circuit) |
 | Mint a tenant API key for the inbound MCP server | `/admin/api-keys` |
+| Deploy to cloud (Fly.io + Cloudflare Access) | [`docs/ops/cloud-deploy.md`](../ops/cloud-deploy.md) (step-by-step runbook) + [`docs/ops/cloud-deploy-architecture.md`](../ops/cloud-deploy-architecture.md) (topology + trust boundaries) |
 
 ---
 
