@@ -21,9 +21,7 @@ from pathlib import Path
 
 import yaml
 
-WORKFLOW_PATH = (
-    Path(__file__).resolve().parents[4] / ".github" / "workflows" / "agent-kenny-eval.yml"
-)
+WORKFLOW_PATH = Path(__file__).resolve().parents[4] / ".github" / "workflows" / "agent-kenny-eval.yml"
 
 
 def _load_workflow() -> dict:
@@ -68,13 +66,9 @@ def test_eval_job_has_cross_engagement_gate() -> None:
         "(expected a step whose name contains 'Cross-engagement')"
     )
 
-    gate = next(
-        step for step in job["steps"] if "Cross-engagement" in step.get("name", "")
-    )
+    gate = next(step for step in job["steps"] if "Cross-engagement" in step.get("name", ""))
     run_script = gate.get("run", "")
-    assert "cross_engagement_leak_count" in run_script, (
-        "gate step does not reference cross_engagement_leak_count"
-    )
+    assert "cross_engagement_leak_count" in run_script, "gate step does not reference cross_engagement_leak_count"
     assert "exit 1" in run_script, "gate step does not exit non-zero on leak"
 
 
@@ -84,8 +78,7 @@ def test_artifact_upload_is_configured() -> None:
     upload_steps = [
         step
         for step in job["steps"]
-        if isinstance(step.get("uses"), str)
-        and step["uses"].startswith("actions/upload-artifact@")
+        if isinstance(step.get("uses"), str) and step["uses"].startswith("actions/upload-artifact@")
     ]
     assert upload_steps, "eval job has no upload-artifact step"
     upload = upload_steps[0]
@@ -93,14 +86,10 @@ def test_artifact_upload_is_configured() -> None:
     assert with_block.get("name", "").startswith("agent-kenny-eval-"), (
         "artifact name must be prefixed agent-kenny-eval-"
     )
-    assert int(with_block.get("retention-days", 0)) == 90, (
-        "artifact retention must be 90 days"
-    )
+    assert int(with_block.get("retention-days", 0)) == 90, "artifact retention must be 90 days"
 
 
 def test_permissions_are_least_privilege() -> None:
     wf = _load_workflow()
     perms = wf.get("permissions") or {}
-    assert perms.get("contents") == "read", (
-        "workflow-level permissions must be contents: read (no write scopes)"
-    )
+    assert perms.get("contents") == "read", "workflow-level permissions must be contents: read (no write scopes)"
