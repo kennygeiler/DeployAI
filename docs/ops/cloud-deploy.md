@@ -129,6 +129,32 @@ fly secrets set \
 
 ---
 
+## 3.1 (Recommended) Wire CI auto-deploy on every `main` push
+
+`.github/workflows/cloud-deploy.yml` ships with this repo. Once you set
+one repo secret it auto-deploys every push to `main` and writes the
+URLs to GitHub's Environments UI (sidebar + commit-level
+"View deployment" links).
+
+```bash
+# On your laptop, get a long-lived Fly token:
+fly auth token
+
+# Then in the GitHub repo → Settings → Secrets and variables → Actions → New repository secret:
+# Name: FLY_API_TOKEN
+# Value: <paste the token>
+```
+
+That's it. The next push to `main` triggers the workflow. Order is
+enforced (postgres → control-plane → web / mcp-server / embedder in
+parallel). The Postgres job is no-op after the first run if nothing
+changed in `infra/compose/postgres/`.
+
+You can still deploy manually anytime via `scripts/cloud-deploy.sh` or
+trigger a one-shot from the Actions tab (`workflow_dispatch`).
+
+---
+
 ## 4. First deploy (in order)
 
 ```bash
