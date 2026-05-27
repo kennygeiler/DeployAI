@@ -38,6 +38,22 @@ For a denser fixture, the onboarding wizard exposes two more seeds: **BlueState-
 ~2.5k ledger events, ~70 stakeholders) and **DeployAI Portfolio** (5 sibling engagements × 26 weeks, used to verify
 tenant + engagement isolation).
 
+### Cloud deploy (Fly.io + Cloudflare Access)
+
+```bash
+brew install flyctl && fly auth login
+# Create apps + Postgres + Redis; set secrets — see docs/ops/cloud-deploy.md §2-3
+scripts/cloud-deploy.sh        # deploys all 5 services in order
+# Then wire Cloudflare Access in front of app.<your-domain> and api.<your-domain>
+# — see docs/ops/cloud-deploy.md §5
+```
+
+Single-tenant pilot cost: ~$5-30/mo + LLM usage (Claude pay-as-you-go + Voyage embeddings). Cloudflare Access
+free tier covers up to 50 users.
+
+Full runbook: [`docs/ops/cloud-deploy.md`](./docs/ops/cloud-deploy.md). Architecture / trust boundaries:
+[`docs/ops/cloud-deploy-architecture.md`](./docs/ops/cloud-deploy-architecture.md).
+
 ---
 
 ## What's in the box
@@ -119,7 +135,7 @@ record, every phase is shipped.
 | Agent framework | LangGraph for the multi-step state machine. Anthropic SDK direct for tool-use; LangChain itself is rejected |
 | Agent protocol | Model Context Protocol (MCP) — inbound server + outbound client (catalog: slack / linear / gdrive / notion / github) |
 | Infra (local) | docker-compose. Postgres / Redis / MinIO / MCP-server / web / control-plane all `make dev` |
-| Infra (cloud) | Next phase — Fly.io + Cloudflare Access. Not yet shipped |
+| Infra (cloud) | Fly.io (5 apps: postgres / control-plane / web / mcp-server / embedder) + Cloudflare Access (free-tier email allowlist) |
 | Build / monorepo | pnpm workspaces + Turborepo on the TS side; uv per Python service |
 
 ---
@@ -136,6 +152,8 @@ record, every phase is shipped.
 | `packages/authz/` | TS + Python role/action matrix (shared) |
 | `packages/contracts/`, `packages/design-tokens/`, `packages/shared-ui/` | Cross-workspace types + design system |
 | `infra/compose/` | Reference local stack — docker-compose, seed scripts (BlueState 26-week, BlueState-XL 5-year, Portfolio 5-engagement) |
+| `infra/fly/` | Cloud deploy — fly.toml per service (postgres / control-plane / web / mcp-server / embedder). See `docs/ops/cloud-deploy.md` |
+| `scripts/cloud-deploy.sh` | Wrapper script: deploys all 5 Fly apps in the right order |
 | `docs/agent-kenny/` | The hub for Agent Kenny — start at [`docs/agent-kenny/INDEX.md`](./docs/agent-kenny/INDEX.md) |
 | `docs/security/` | Threat models — MCP outbound boundary, cross-tenant fuzz, tenant isolation, self-host attack surface |
 | `docs/design/` | Engineering design records — timeline ledger, post-F polish, citation envelope |
@@ -164,7 +182,11 @@ record, every phase is shipped.
 **For operators / pilots:**
 
 - [`docs/dev-environment.md`](./docs/dev-environment.md) — toolchains, pnpm + uv workflows, compose stack
-- [`docs/ops/deployment.md`](./docs/ops/deployment.md) — host requirements, env vars
+- [`docs/ops/cloud-deploy.md`](./docs/ops/cloud-deploy.md) — Fly.io + Cloudflare Access operator runbook (5 services, secrets, smoke checks)
+- [`docs/ops/cloud-deploy-architecture.md`](./docs/ops/cloud-deploy-architecture.md) — topology + trust boundaries + where each secret lives
+- [`infra/fly/`](./infra/fly/) — fly.toml per service (control-plane / web / mcp-server / embedder / postgres)
+- [`scripts/cloud-deploy.sh`](./scripts/cloud-deploy.sh) — wrapper for the 5 `fly deploy` calls in order
+- [`docs/ops/deployment.md`](./docs/ops/deployment.md) — host requirements, env vars (legacy single-host doc)
 - [`docs/ops/observability.md`](./docs/ops/observability.md) — JSON logs, Prometheus metrics, OTLP
 - [`docs/ops/backup.md`](./docs/ops/backup.md) — `make backup` + retention
 
@@ -197,8 +219,10 @@ citation verification + adversarial review, MCP inbound + outbound, pgvector fuz
 eval harness in CI, hallucination dashboard. No paying customers yet — the next milestone is putting it in front
 of a real deployment team with their own engagement data.
 
-**Next phase (not yet shipped):** cloud deploy on Fly.io + Cloudflare Access. Tracked separately from this v2
-ship; the local-compose stack is the supported environment until then.
+**Cloud deploy:** Fly.io + Cloudflare Access configs and operator runbook landed alongside v2. See
+[`docs/ops/cloud-deploy.md`](./docs/ops/cloud-deploy.md) for the step-by-step (apps, secrets, Cloudflare
+Access wiring, smoke checks, day-2 ops, cost notes, teardown). The local-compose stack remains the
+fastest way to demo; cloud is for when you want to put it in front of a customer.
 
 ---
 

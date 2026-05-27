@@ -1,0 +1,62 @@
+# Fly.io app config for DeployAI control-plane (FastAPI).
+#
+# Build: uses services/control-plane/Dockerfile (same image as compose).
+# Deploy: `fly deploy --config infra/fly/control-plane/fly.toml --remote-only`
+#         (run from repo root so the Dockerfile context is correct).
+#
+# Secrets (set via `fly secrets set` — NEVER inline here):
+#   DATABASE_URL                postgresql+asyncpg://...   (Fly Postgres app, internal 6PN DNS)
+#   REDIS_URL                   redis://default:<pw>@<host>:6379
+#   DEPLOYAI_INTERNAL_API_KEY   shared with web BFF + mcp-server (rotate quarterly)
+#   ANTHROPIC_API_KEY           Claude API
+#   VOYAGE_API_KEY              embeddings (optional; falls back to zero-vec)
+#   DEPLOYAI_SLACK_CLIENT_ID    Slack outbound MCP OAuth (optional)
+#   DEPLOYAI_SLACK_CLIENT_SECRET
+#   DEPLOYAI_SLACK_REDIRECT_URI
+#   DEPLOYAI_ADMIN_EMAILS       comma-separated allowlist for admin role
+#                               (everything else gets viewer)
+#
+# The release_command runs `alembic upgrade head` before each deploy
+# rotates traffic, so a bad migration aborts the deploy.
+
+app  = "deployai-control-plane"
+primary_region = "iad"
+
+[build]
+  dockerfile = "../../../services/control-plane/Dockerfile"
+  # Run from repo root so the build context picks up packages/ + uv.lock + .python-version
+  build-target = ""
+
+[deploy]
+  release_command = "alembic upgrade head"
+  strategy = "rolling"
+
+[env]
+  # Non-secret defaults. Real values for DATABASE_URL / API keys land via `fly secrets set`.
+  PORT = "8000"
+  DEPLOYAI_AGENT_KENNY_V2_ENABLED = "1"
+  DEPLOYAI_LLM_PROVIDER = "anthropic"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines  = "off"   # CP holds an httpx pool; don't reap mid-stream
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period  = "30s"
+    interval      = "15s"
+    method        = "GET"
+    path          = "/health"
+    protocol      = "http"
+    timeout       = "5s"
+    tls_skip_verify = false
+
+[[vm]]
+  cpu_kind  = "shared"
+  cpus      = 1
+  memory    = "1gb"
+
+# Internal 6PN DNS exposes this app to siblings as `deployai-control-plane.internal:8000`.
+# embedder + mcp-server reach it that way; web reaches it via the same hostname.

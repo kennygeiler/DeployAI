@@ -1,0 +1,57 @@
+# Fly.io app config for DeployAI self-hosted Postgres 16 + pgvector + Apache AGE.
+#
+# WHY SELF-HOSTED: Apache AGE (Cypher graph queries — migration 0042) is not
+# available on Fly Managed Postgres (MPG / Supabase). pgvector IS available
+# there, but AGE is not. So we ship our own image. Mirror of
+# `infra/compose/postgres/Dockerfile` — pgvector base + AGE 1.6.0 layered.
+#
+# Build: reuses infra/compose/postgres/Dockerfile.
+# Deploy: `fly deploy --config infra/fly/postgres/fly.toml --remote-only`
+#
+# Persistence: 10GB Fly volume mounted at /var/lib/postgresql/data.
+# Backup: `fly ssh console -a deployai-postgres -C "pg_dump -U deployai
+# deployai | gzip > /var/lib/postgresql/data/backups/<ts>.sql.gz"` on a
+# Fly cron, OR (recommended) point a separate process at the S3 backup
+# script in `scripts/backup.sh` once you wire S3 creds.
+#
+# Secrets:
+#   POSTGRES_PASSWORD   strong random password; consumed by the
+#                       pgvector base image at init time.
+
+app  = "deployai-postgres"
+primary_region = "iad"
+
+[build]
+  dockerfile = "../../compose/postgres/Dockerfile"
+
+[deploy]
+  strategy = "immediate"   # postgres can't do rolling
+
+[env]
+  POSTGRES_DB   = "deployai"
+  POSTGRES_USER = "deployai"
+  # POSTGRES_PASSWORD lives in `fly secrets set`.
+
+[[mounts]]
+  source      = "deployai_pg_data"
+  destination = "/var/lib/postgresql/data"
+
+[[services]]
+  internal_port = 5432
+  protocol = "tcp"
+  auto_stop_machines  = "off"   # database; never stop
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.tcp_checks]]
+    grace_period  = "30s"
+    interval      = "15s"
+    timeout       = "5s"
+
+  # No public ports — only internal 6PN siblings (`deployai-postgres.internal:5432`)
+  # can connect. The DATABASE_URL secret on control-plane / embedder uses that hostname.
+
+[[vm]]
+  cpu_kind  = "shared"
+  cpus      = 1
+  memory    = "1gb"

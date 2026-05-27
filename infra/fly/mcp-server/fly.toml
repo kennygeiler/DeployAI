@@ -1,0 +1,45 @@
+# Fly.io app config for DeployAI MCP inbound server.
+#
+# Build: uses services/mcp-server/Dockerfile.
+# Deploy: `fly deploy --config infra/fly/mcp-server/fly.toml --remote-only`
+#
+# Public endpoint — third-party MCP clients (Claude Desktop, custom agents)
+# connect from OUTSIDE the Cloudflare Access perimeter via a bearer token
+# minted from the control-plane. So the MCP server gets its own public
+# hostname WITHOUT Cloudflare Access in front; auth happens inside the app.
+#
+# Secrets:
+#   DATABASE_URL              same Postgres as control-plane (read-only views)
+#   DEPLOYAI_INTERNAL_API_KEY shared with CP for token verification
+
+app  = "deployai-mcp-server"
+primary_region = "iad"
+
+[build]
+  dockerfile = "../../../services/mcp-server/Dockerfile"
+
+[deploy]
+  strategy = "rolling"
+
+[env]
+  PORT = "3030"
+
+[http_service]
+  internal_port = 3030
+  force_https = true
+  auto_stop_machines  = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period  = "20s"
+    interval      = "15s"
+    method        = "GET"
+    path          = "/health"
+    protocol      = "http"
+    timeout       = "5s"
+
+[[vm]]
+  cpu_kind  = "shared"
+  cpus      = 1
+  memory    = "512mb"
