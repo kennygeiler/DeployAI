@@ -61,6 +61,20 @@ export function MatrixProposals({
   const [kind, setKind] = React.useState<KindFilter>("all");
   const [typeFilter, setTypeFilter] = React.useState<string>("all");
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = React.useState(false);
+
+  const pendingProposals = React.useMemo(
+    () => proposals.filter((p) => p.status === "pending"),
+    [proposals],
+  );
+  const pendingNodeCount = React.useMemo(
+    () => pendingProposals.filter((p) => p.proposal_kind === "node").length,
+    [pendingProposals],
+  );
+  const pendingEdgeCount = React.useMemo(
+    () => pendingProposals.filter((p) => p.proposal_kind === "edge").length,
+    [pendingProposals],
+  );
 
   const titleById = React.useMemo(
     () => new Map(nodes.map((n) => [n.id, n.title] as const)),
@@ -167,6 +181,61 @@ export function MatrixProposals({
     [decideOne, markBusy, onChanged],
   );
 
+  const handleBulkAcceptPending = React.useCallback(async () => {
+    if (pendingProposals.length < 2 || bulkBusy) {
+      return;
+    }
+    const confirmed =
+      typeof window === "undefined"
+        ? true
+        : window.confirm(
+            `Accept ${pendingProposals.length} pending proposals? This will create ` +
+              `${pendingNodeCount} node(s) and ${pendingEdgeCount} edge(s) in the matrix.`,
+          );
+    if (!confirmed) {
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      const r = await fetch(
+        `/api/internal/v1/engagements/${encodeURIComponent(engagementId)}/proposals/accept-bulk`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filter: { status: "pending" } }),
+        },
+      );
+      if (!r.ok) {
+        toast.error("Could not accept pending proposals", {
+          description: (await readStrategistBffErrorDescription(r)).slice(0, 240),
+        });
+        return;
+      }
+      const json = (await r.json()) as {
+        accepted?: number;
+        failed?: { id: string; error: string }[];
+        skipped?: number;
+      };
+      const accepted = json.accepted ?? 0;
+      const failedCount = json.failed?.length ?? 0;
+      if (failedCount > 0) {
+        toast.success(`Accepted ${accepted} / failed ${failedCount}`);
+      } else {
+        toast.success(`Accepted ${accepted} pending proposal(s)`);
+      }
+      await onChanged();
+    } finally {
+      setBulkBusy(false);
+    }
+  }, [
+    bulkBusy,
+    engagementId,
+    onChanged,
+    pendingEdgeCount,
+    pendingNodeCount,
+    pendingProposals.length,
+  ]);
+
   const filtered = React.useMemo(() => {
     return proposals.filter((p) => {
       if (kind !== "all" && p.proposal_kind !== kind) {
@@ -267,6 +336,19 @@ export function MatrixProposals({
         <p className="text-ink-600 text-xs">
           {filtered.length} of {proposals.length} proposal(s) — {groups.length} unique
         </p>
+        {pendingProposals.length >= 2 ? (
+          <div className="ml-auto">
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              disabled={bulkBusy}
+              onClick={() => void handleBulkAcceptPending()}
+            >
+              {bulkBusy ? "Accepting…" : `Accept all pending (${pendingProposals.length})`}
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       {groups.length === 0 ? (

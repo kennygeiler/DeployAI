@@ -29,6 +29,7 @@ ALLOWED_SOURCE_KINDS: frozenset[str] = frozenset(
         "llm_proposal_created",
         "proposal_accepted",
         "proposal_rejected",
+        "proposals_bulk_accepted",
         "matrix_node_created",
         "matrix_node_updated",
         "matrix_node_deleted",

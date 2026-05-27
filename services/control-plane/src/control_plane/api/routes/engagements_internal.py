@@ -908,20 +908,23 @@ async def list_matrix_proposals(
     return list(r.scalars().all())
 
 
-@router.post(
-    "/{engagement_id}/proposals/{proposal_id}/accept",
-    response_model=MatrixProposalRead,
-    dependencies=[Depends(require_internal)],
-)
-async def accept_matrix_proposal(
+async def _accept_one_proposal(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
     engagement_id: uuid.UUID,
-    proposal_id: uuid.UUID,
-    body: MatrixProposalDecision,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
-    tenant_id: Annotated[uuid.UUID, Query()],
+    proposal: MatrixProposal,
+    actor_id: str | None,
+    allowed_node_types: frozenset[str] | set[str] | None = None,
 ) -> MatrixProposal:
-    await _require_engagement(session, tenant_id, engagement_id)
-    proposal = await _require_proposal(session, engagement_id, proposal_id)
+    """Accept one matrix proposal: commit the proposed node or edge.
+
+    The caller owns the transaction — this helper flushes (so the new row's
+    id is visible) and emits the ``proposal_accepted`` ledger event, but
+    never commits. The single-accept route wraps a commit around it; the
+    bulk-accept route commits each call independently so a payload that
+    blows up does not roll back the rows that already landed.
+    """
     if proposal.status != "pending":
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -940,7 +943,9 @@ async def accept_matrix_proposal(
     if proposal.proposal_kind == "node":
         node_type = payload.get("node_type") if isinstance(payload.get("node_type"), str) else ""
         title = payload.get("title") if isinstance(payload.get("title"), str) else ""
-        allowed = await resolve_allowed_node_types(session, tenant_id)
+        allowed = allowed_node_types
+        if allowed is None:
+            allowed = await resolve_allowed_node_types(session, tenant_id)
         if not node_type or not title or node_type not in allowed:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -1022,7 +1027,7 @@ async def accept_matrix_proposal(
 
     proposal.status = "accepted"
     proposal.decided_at = datetime.now(UTC)
-    proposal.decided_by = body.actor_id
+    proposal.decided_by = actor_id
     await session.flush()
     affects: list[tuple[str, uuid.UUID]] = []
     if proposal.result_node_id is not None:
@@ -1047,13 +1052,37 @@ async def accept_matrix_proposal(
         engagement_id=engagement_id,
         occurred_at=datetime.now(UTC),
         actor_kind="user",
-        actor_id=body.actor_id,
+        actor_id=actor_id,
         source_kind="proposal_accepted",
         source_ref=proposal.id,
         summary=f"proposal accepted: {proposal.proposal_kind}"[:500],
         detail=accept_detail,
         caused_by=caused_by,
         affects=affects,
+    )
+    return proposal
+
+
+@router.post(
+    "/{engagement_id}/proposals/{proposal_id}/accept",
+    response_model=MatrixProposalRead,
+    dependencies=[Depends(require_internal)],
+)
+async def accept_matrix_proposal(
+    engagement_id: uuid.UUID,
+    proposal_id: uuid.UUID,
+    body: MatrixProposalDecision,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+) -> MatrixProposal:
+    await _require_engagement(session, tenant_id, engagement_id)
+    proposal = await _require_proposal(session, engagement_id, proposal_id)
+    await _accept_one_proposal(
+        session,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        proposal=proposal,
+        actor_id=body.actor_id,
     )
     await session.commit()
     await session.refresh(proposal)
@@ -1100,6 +1129,191 @@ async def reject_matrix_proposal(
     await session.commit()
     await session.refresh(proposal)
     return proposal
+
+
+# --- Matrix proposals — bulk accept ------------------------------------------
+#
+# One endpoint, two input modes (mutually exclusive): an explicit ``proposal_ids``
+# list, or a ``filter`` block (e.g. ``{"status": "pending", "proposal_kind":
+# "node"}``). The caller may not pass both. Implementation is a thin wrapper
+# over ``_accept_one_proposal`` — no validation logic is duplicated. Nodes are
+# accepted before edges in the same batch so an edge proposal that references
+# a node also being accepted has its FK target in place.
+
+_BULK_ACCEPT_BATCH_CAP = 500
+
+
+class BulkAcceptFilter(BaseModel):
+    """Filter expression for ``BulkAcceptBody.filter`` — server-side selection."""
+
+    status: str | None = Field(default="pending", max_length=50)
+    proposal_kind: str | None = Field(default=None, max_length=50)
+
+
+class BulkAcceptBody(BaseModel):
+    """Bulk-accept body: pass an explicit id list OR a filter, not both."""
+
+    proposal_ids: list[uuid.UUID] | None = None
+    filter: BulkAcceptFilter | None = None
+    actor_id: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def one_of_ids_or_filter(self) -> BulkAcceptBody:
+        if (self.proposal_ids is None) == (self.filter is None):
+            raise ValueError("provide exactly one of proposal_ids, filter")
+        if self.proposal_ids is not None and len(self.proposal_ids) == 0:
+            raise ValueError("proposal_ids must not be empty")
+        return self
+
+
+class BulkAcceptFailure(BaseModel):
+    id: uuid.UUID
+    error: str
+
+
+class BulkAcceptResponse(BaseModel):
+    accepted: int
+    failed: list[BulkAcceptFailure]
+    skipped: int
+
+
+@router.post(
+    "/{engagement_id}/proposals/accept-bulk",
+    response_model=BulkAcceptResponse,
+    dependencies=[Depends(require_internal)],
+)
+async def bulk_accept_matrix_proposals(
+    engagement_id: uuid.UUID,
+    body: BulkAcceptBody,
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+) -> BulkAcceptResponse:
+    """Accept a batch of matrix proposals in one request.
+
+    Order: node proposals first, edges second (edge payloads may reference
+    node ids that just landed in this same batch). Each accept lands in its
+    own transaction so one bad payload does not roll back its neighbours.
+    Returns a per-id failure list alongside the accepted count.
+    """
+    await _require_engagement(session, tenant_id, engagement_id)
+
+    if body.proposal_ids is not None and len(body.proposal_ids) > _BULK_ACCEPT_BATCH_CAP:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"batch size exceeds cap ({_BULK_ACCEPT_BATCH_CAP})",
+        )
+
+    # Load the candidate rows. For an explicit list we keep the caller's
+    # order intact (within kind) so test expectations are stable; for filter
+    # mode we order by ``created_at`` like the list endpoint does.
+    skipped = 0
+    candidates: list[MatrixProposal] = []
+    if body.proposal_ids is not None:
+        rows_q = await session.execute(
+            select(MatrixProposal).where(
+                MatrixProposal.tenant_id == tenant_id,
+                MatrixProposal.engagement_id == engagement_id,
+                MatrixProposal.id.in_(body.proposal_ids),
+            )
+        )
+        rows = list(rows_q.scalars().all())
+        by_id = {row.id: row for row in rows}
+        for pid in body.proposal_ids:
+            row = by_id.get(pid)
+            if row is None:
+                # not visible to this engagement/tenant — treat as skipped
+                skipped += 1
+                continue
+            candidates.append(row)
+    else:
+        assert body.filter is not None
+        stmt = select(MatrixProposal).where(
+            MatrixProposal.tenant_id == tenant_id,
+            MatrixProposal.engagement_id == engagement_id,
+        )
+        if body.filter.status is not None:
+            stmt = stmt.where(MatrixProposal.status == body.filter.status)
+        if body.filter.proposal_kind is not None:
+            stmt = stmt.where(MatrixProposal.proposal_kind == body.filter.proposal_kind)
+        rows_q = await session.execute(stmt.order_by(MatrixProposal.created_at))
+        candidates = list(rows_q.scalars().all())
+        if len(candidates) > _BULK_ACCEPT_BATCH_CAP:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"batch size exceeds cap ({_BULK_ACCEPT_BATCH_CAP})",
+            )
+
+    # Always accept nodes before edges — edges may FK-reference a node id
+    # that is also being accepted in this batch.
+    node_proposals = [p for p in candidates if p.proposal_kind == "node"]
+    edge_proposals = [p for p in candidates if p.proposal_kind == "edge"]
+    other = [p for p in candidates if p.proposal_kind not in ("node", "edge")]
+    ordered = node_proposals + edge_proposals + other
+
+    # Resolve allowed node types once for the whole batch (the helper
+    # accepts a pre-resolved set so per-row callers do not re-query).
+    allowed_node_types = await resolve_allowed_node_types(session, tenant_id)
+
+    accepted_count = 0
+    failures: list[BulkAcceptFailure] = []
+    node_accepted = 0
+    edge_accepted = 0
+    other_skipped = 0
+
+    for proposal in ordered:
+        proposal_id = proposal.id
+        try:
+            await _accept_one_proposal(
+                session,
+                tenant_id=tenant_id,
+                engagement_id=engagement_id,
+                proposal=proposal,
+                actor_id=body.actor_id,
+                allowed_node_types=allowed_node_types,
+            )
+            await session.commit()
+            accepted_count += 1
+            if proposal.proposal_kind == "node":
+                node_accepted += 1
+            elif proposal.proposal_kind == "edge":
+                edge_accepted += 1
+            else:
+                other_skipped += 1
+        except HTTPException as exc:
+            await session.rollback()
+            failures.append(BulkAcceptFailure(id=proposal_id, error=str(exc.detail)))
+        except Exception as exc:  # defensive: never abort the batch
+            await session.rollback()
+            failures.append(BulkAcceptFailure(id=proposal_id, error=str(exc)[:500]))
+
+    # One audit row that records the batch outcome. Lives outside the
+    # per-row transactions so it always lands, even when every row failed.
+    audit_detail: dict[str, Any] = {
+        "requested": len(candidates),
+        "accepted": accepted_count,
+        "failed_count": len(failures),
+        "skipped": skipped,
+        "kinds_summary": {
+            "node_accepted": node_accepted,
+            "edge_accepted": edge_accepted,
+            "other": other_skipped,
+        },
+    }
+    await emit_ledger_event(
+        session,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        occurred_at=datetime.now(UTC),
+        actor_kind="user",
+        actor_id=body.actor_id,
+        source_kind="proposals_bulk_accepted",
+        source_ref=None,
+        summary=f"bulk accept: {accepted_count}/{len(candidates)} accepted"[:500],
+        detail=audit_detail,
+    )
+    await session.commit()
+
+    return BulkAcceptResponse(accepted=accepted_count, failed=failures, skipped=skipped)
 
 
 # --- Audit-the-AI: reject an LLM-produced proposal post-hoc (G2.c) -----------

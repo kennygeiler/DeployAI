@@ -234,6 +234,133 @@ describe("MatrixProposals", () => {
     expect(screen.getByText("Dana —sponsors→ LiDAR")).toBeTruthy();
   });
 
+  // --- Bulk-accept "Accept all pending" button --------------------------------
+
+  it("hides the bulk-accept button when fewer than 2 proposals are pending", () => {
+    render(
+      <MatrixProposals
+        engagementId="e1"
+        proposals={[mkProposal({ id: "p1" })]}
+        nodes={[]}
+        onChanged={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /Accept all pending/ })).toBeNull();
+  });
+
+  it("shows the bulk-accept button when 2+ proposals are pending", () => {
+    render(
+      <MatrixProposals
+        engagementId="e1"
+        proposals={[
+          mkProposal({ id: "p1", payload: { node_type: "system", title: "A" } }),
+          mkProposal({ id: "p2", payload: { node_type: "system", title: "B" } }),
+        ]}
+        nodes={[]}
+        onChanged={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /Accept all pending \(2\)/ })).toBeTruthy();
+  });
+
+  it("clicking bulk-accept prompts for confirmation and aborts on cancel", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => false),
+    );
+    const onChanged = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <MatrixProposals
+        engagementId="e1"
+        proposals={[
+          mkProposal({ id: "p1", payload: { node_type: "system", title: "A" } }),
+          mkProposal({ id: "p2", payload: { node_type: "system", title: "B" } }),
+        ]}
+        nodes={[]}
+        onChanged={onChanged}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /Accept all pending/ }));
+    expect(window.confirm).toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  it("confirming bulk-accept posts to BFF with filter:pending and refetches", async () => {
+    const calls: Array<{ url: string; method: string; body: string | null }> = [];
+    const fetchMock = vi.fn((url: string, init?: { method?: string; body?: string }) => {
+      calls.push({ url, method: init?.method ?? "GET", body: init?.body ?? null });
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ accepted: 2, failed: [], skipped: 0 }),
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => true),
+    );
+    const onChanged = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <MatrixProposals
+        engagementId="eng-42"
+        proposals={[
+          mkProposal({ id: "p1", payload: { node_type: "system", title: "A" } }),
+          mkProposal({ id: "p2", payload: { node_type: "system", title: "B" } }),
+        ]}
+        nodes={[]}
+        onChanged={onChanged}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /Accept all pending/ }));
+    await waitFor(() => expect(calls.length).toBeGreaterThan(0));
+    const posted = calls[0]!;
+    expect(posted.url).toBe("/api/internal/v1/engagements/eng-42/proposals/accept-bulk");
+    expect(posted.method).toBe("POST");
+    expect(posted.body).toContain('"filter"');
+    expect(posted.body).toContain('"status":"pending"');
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+  });
+
+  it("shows a partial-failure toast count when some rows fail", async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({ accepted: 3, failed: [{ id: "x", error: "bad" }], skipped: 0 }),
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => true),
+    );
+    const toastModule = await import("sonner");
+    const successSpy = vi.spyOn(toastModule.toast, "success").mockImplementation(() => "");
+    const user = userEvent.setup();
+    render(
+      <MatrixProposals
+        engagementId="e1"
+        proposals={[
+          mkProposal({ id: "p1", payload: { node_type: "system", title: "A" } }),
+          mkProposal({ id: "p2", payload: { node_type: "system", title: "B" } }),
+        ]}
+        nodes={[]}
+        onChanged={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /Accept all pending/ }));
+    await waitFor(() => expect(successSpy).toHaveBeenCalled());
+    const message = String(successSpy.mock.calls[0]?.[0] ?? "");
+    expect(message).toContain("Accepted 3");
+    expect(message).toContain("failed 1");
+    successSpy.mockRestore();
+  });
+
   it("expanding a group reveals each underlying proposal with its rationale", async () => {
     const user = userEvent.setup();
     render(

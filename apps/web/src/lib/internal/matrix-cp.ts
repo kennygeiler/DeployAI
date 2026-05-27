@@ -159,6 +159,47 @@ export function cpRejectMatrixProposal(
 }
 
 /**
+ * Bulk accept matrix proposals — the CP route wraps the single-accept code
+ * path per row, ordering node proposals before edge proposals so that an
+ * edge in the same batch whose `from_node_id` is also being accepted lands
+ * after its node target. Partial success is allowed; failed rows come back
+ * in `failed`. See ``services/control-plane/.../engagements_internal.py``
+ * ``bulk_accept_matrix_proposals``.
+ */
+export type BulkAcceptProposalsBody =
+  | { proposal_ids: string[]; actor_id?: string | null }
+  | {
+      filter: { status?: string | null; proposal_kind?: string | null };
+      actor_id?: string | null;
+    };
+
+export type BulkAcceptProposalsResult = {
+  accepted: number;
+  failed: { id: string; error: string }[];
+  skipped: number;
+};
+
+export async function cpBulkAcceptMatrixProposals(
+  tenantId: string,
+  engagementId: string,
+  body: BulkAcceptProposalsBody,
+): Promise<BulkAcceptProposalsResult> {
+  const url =
+    `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}` +
+    `/proposals/accept-bulk?tenant_id=${encodeURIComponent(tenantId)}`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { ...cpHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    throw new Error(`cp matrix proposals accept-bulk ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as BulkAcceptProposalsResult;
+}
+
+/**
  * Run the Phase 6.2c Cartographer extractor on one canonical event. Returns
  * the proposals it produced (or the existing ones, since the endpoint is
  * idempotent by event id unless `force=true`).
