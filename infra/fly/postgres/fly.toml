@@ -33,6 +33,10 @@ primary_region = "iad"
 [env]
   POSTGRES_DB   = "deployai"
   POSTGRES_USER = "deployai"
+  # Fly mounts the volume at /var/lib/postgresql/data with a lost+found
+  # dir already present, which initdb refuses (non-empty dir). Pointing
+  # PGDATA at a subdirectory dodges that.
+  PGDATA        = "/var/lib/postgresql/data/pgdata"
   # POSTGRES_PASSWORD lives in `fly secrets set`.
 
 [[mounts]]
