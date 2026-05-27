@@ -42,11 +42,11 @@ on:
 
 permissions:
   contents: read
-  deployments: write   # write to the GitHub Deployments API
+  deployments: write # write to the GitHub Deployments API
 
 concurrency:
   group: cloud-deploy
-  cancel-in-progress: false   # never cancel a live deploy mid-flight
+  cancel-in-progress: false # never cancel a live deploy mid-flight
 
 jobs:
   postgres:
