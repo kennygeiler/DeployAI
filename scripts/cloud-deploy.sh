@@ -19,7 +19,18 @@ deploy_one() {
   echo "================================================================"
   echo "  Deploying $name"
   echo "================================================================"
-  fly deploy --config "infra/fly/$name/fly.toml" --remote-only
+  if [ "$name" = "postgres" ]; then
+    # Postgres image + init SQL live in infra/compose/postgres; pass that
+    # dir as the build-context arg so init/*.sql is COPY-able. --config
+    # must be absolute since flyctl resolves relative paths against the
+    # positional working-dir arg.
+    fly deploy "$REPO_ROOT/infra/compose/postgres" \
+      --config "$REPO_ROOT/infra/fly/postgres/fly.toml" \
+      --dockerfile "$REPO_ROOT/infra/compose/postgres/Dockerfile" \
+      --remote-only
+  else
+    fly deploy --config "infra/fly/$name/fly.toml" --remote-only
+  fi
 }
 
 services=(postgres control-plane embedder mcp-server web)

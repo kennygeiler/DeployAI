@@ -23,6 +23,9 @@ primary_region = "iad"
 
 [build]
   dockerfile = "../../compose/postgres/Dockerfile"
+  # NOTE: deploy must pass `infra/compose/postgres` as build-context path arg
+  # to flyctl so init/*.sql lands in context. scripts/cloud-deploy.sh handles
+  # this; running `flyctl deploy --config <this>` from repo root will FAIL.
 
 [deploy]
   strategy = "immediate"   # postgres can't do rolling
