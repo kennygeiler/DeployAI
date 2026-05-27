@@ -48,6 +48,12 @@ scripts/cloud-deploy.sh        # deploys all 5 services in order
 # — see docs/ops/cloud-deploy.md §5
 ```
 
+After the first manual deploy works, set the `FLY_API_TOKEN` repo secret
+and the [`cloud-deploy.yml`](./.github/workflows/cloud-deploy.yml)
+workflow auto-redeploys on every push to `main`, writing live URLs back
+to GitHub's Environments UI (repo sidebar + per-commit "View deployment"
+links). See `docs/ops/cloud-deploy.md §3.1`.
+
 Single-tenant pilot cost: ~$5-30/mo + LLM usage (Claude pay-as-you-go + Voyage embeddings). Cloudflare Access
 free tier covers up to 50 users.
 

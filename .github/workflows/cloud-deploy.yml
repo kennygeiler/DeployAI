@@ -1,0 +1,124 @@
+# Auto-deploy to Fly.io on push to `main`.
+#
+# Order matters — control-plane runs alembic via `release_command`, so
+# Postgres must exist first. The 5 services land in two waves:
+#   wave A: postgres (independent)
+#   wave B: control-plane (waits for postgres)
+#   wave C: web / mcp-server / embedder (depend on control-plane schema)
+#
+# Each service writes its deployment URL back to GitHub's Environments
+# so the repo sidebar shows the live URL + each commit gets a
+# "View deployment" link.
+#
+# Required repo secret:
+#   FLY_API_TOKEN  — `fly auth token` then paste into
+#                    Settings → Secrets and variables → Actions → New
+#
+# Trigger:
+#   - push to main → deploy all 5 (sequential where required, parallel
+#     where safe)
+#   - workflow_dispatch → manual one-shot from the Actions tab
+
+name: cloud-deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/web/**"
+      - "services/**"
+      - "packages/**"
+      - "infra/fly/**"
+      - "infra/compose/postgres/**"
+      - "scripts/cloud-deploy.sh"
+      - ".github/workflows/cloud-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Deploy a single service (postgres / control-plane / web / mcp-server / embedder), or leave blank for all"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  deployments: write   # write to the GitHub Deployments API
+
+concurrency:
+  group: cloud-deploy
+  cancel-in-progress: false   # never cancel a live deploy mid-flight
+
+jobs:
+  postgres:
+    name: Deploy postgres
+    if: ${{ github.event.inputs.service == '' || github.event.inputs.service == 'postgres' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: production-postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy postgres
+        run: flyctl deploy --config infra/fly/postgres/fly.toml --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  control-plane:
+    name: Deploy control-plane
+    needs: postgres
+    if: ${{ always() && (needs.postgres.result == 'success' || needs.postgres.result == 'skipped') && (github.event.inputs.service == '' || github.event.inputs.service == 'control-plane') }}
+    runs-on: ubuntu-latest
+    environment:
+      name: production-control-plane
+      url: https://deployai-control-plane.fly.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy control-plane (runs alembic upgrade head as release_command)
+        run: flyctl deploy --config infra/fly/control-plane/fly.toml --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  embedder:
+    name: Deploy embedder
+    needs: control-plane
+    if: ${{ always() && needs.control-plane.result == 'success' && (github.event.inputs.service == '' || github.event.inputs.service == 'embedder') }}
+    runs-on: ubuntu-latest
+    environment:
+      name: production-embedder
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --config infra/fly/embedder/fly.toml --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  mcp-server:
+    name: Deploy mcp-server
+    needs: control-plane
+    if: ${{ always() && needs.control-plane.result == 'success' && (github.event.inputs.service == '' || github.event.inputs.service == 'mcp-server') }}
+    runs-on: ubuntu-latest
+    environment:
+      name: production-mcp-server
+      url: https://deployai-mcp-server.fly.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --config infra/fly/mcp-server/fly.toml --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  web:
+    name: Deploy web
+    needs: control-plane
+    if: ${{ always() && needs.control-plane.result == 'success' && (github.event.inputs.service == '' || github.event.inputs.service == 'web') }}
+    runs-on: ubuntu-latest
+    environment:
+      name: production-web
+      url: https://deployai-web.fly.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --config infra/fly/web/fly.toml --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
