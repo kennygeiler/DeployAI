@@ -18,6 +18,8 @@ gates CI.
 |---|---|---|
 | [`ethos.md`](./ethos.md) | Architectural rationale: ledger is the wiki, Kenny is its disciplined librarian, every claim cites its source, every synthesis compounds. The load-bearing decision doc. | First. Read in full before changing the agent or its tools. |
 | [`scope-v2.md`](./scope-v2.md) | Phase-by-phase build record — Phases 0 through 6, with merged-PR pointers and a Phase 5 wave table. Now historical, kept verbatim. | When you need to understand *why something was built in that order* or trace a feature back to its merging PR. |
+| [`graph-substrate.md`](./graph-substrate.md) | How the 4-layer substrate stores + traverses matrix knowledge — canonical Postgres tables, the AGE Cypher overlay, the curated synthesis layer, and the pgvector fuzzy fallback. Walks one end-to-end traversal example using the real tool names. | After `ethos.md`. Read before adding a new agent tool, a new synthesis kind, or anything that walks the matrix graph. |
+| [`llm-wiki-origin.md`](./llm-wiki-origin.md) | What we kept + changed from Karpathy's *LLM Wiki* gist. Documents the substrate-as-wiki adaptation, curated-reads-with-vector-fallback ordering, and the human-in-loop accept queue that replaces "LLM writes directly". | When evaluating the architecture against alternative knowledge-substrate patterns, or before pitching the design to someone who's read the gist. |
 | [`eval.md`](./eval.md) | The 30-golden-question eval harness against BlueState-XL: what it measures, CI cadence, how to run locally, how to interpret a `cross_engagement_leak` failure. | When a CI eval fails, when you're adding a new golden question, or when adjusting agent behavior. |
 
 ### Adjacent design + security docs (not in `agent-kenny/` but Kenny-critical)
