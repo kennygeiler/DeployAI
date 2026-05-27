@@ -256,12 +256,12 @@ async def test_engagement_scope_filters_other_engagements(
 ) -> None:
     """An engagement_id from a foreign engagement must return zero hits."""
     tid = seeded["tenant_id"]
-    bogus_eng = uuid.uuid4()
+    foreign_eng = seeded["foreign_engagement_id"]
     async for session in get_app_db_session():
         result = await vector_search(
             session,
             tenant_id=tid,
-            engagement_id=bogus_eng,
+            engagement_id=foreign_eng,
             query="active directory",
             kind="ledger",
             embedder=_FixedEmbedder(_vec(1.0)),
