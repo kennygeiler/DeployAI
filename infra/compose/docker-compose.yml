@@ -168,6 +168,10 @@ services:
       DEPLOYAI_SLACK_CLIENT_ID: ${SLACK_CLIENT_ID:-}
       DEPLOYAI_SLACK_CLIENT_SECRET: ${SLACK_CLIENT_SECRET:-}
       DEPLOYAI_SLACK_REDIRECT_URI: ${SLACK_OAUTH_REDIRECT_URI:-}
+      # v2 — enable Agent Kenny v2 stream-v2 endpoint (LangGraph + citations +
+      # adversarial review). Phases 0-6 shipped; default on. Set to empty in
+      # env to fall back to v1 stream behaviour.
+      DEPLOYAI_AGENT_KENNY_V2_ENABLED: ${DEPLOYAI_AGENT_KENNY_V2_ENABLED:-1}
     ports:
       - "${CONTROL_PLANE_PORT:-8000}:8000"
     depends_on:
