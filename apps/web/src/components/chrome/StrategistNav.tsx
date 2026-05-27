@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, Cable, Search, Settings } from "lucide-react";
+import { Briefcase, Cable, Gauge, Search, Settings } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -21,12 +21,14 @@ const primary: readonly NavItem[] = [
   { href: "/engagements", label: "Engagements", icon: Briefcase },
   { href: "/search", label: "Search", icon: Search },
   { href: "/settings", label: "Settings", icon: Settings },
-  // v2 Phase 5 Wave 3I — outbound MCP audit. The "Admin" surface is a
-  // single page today (last 50 outbound calls); when more admin tools
-  // land we can group them under a shared route. Lucide's ``Cable``
-  // icon reads as "external connector" without overloading the wrench
-  // we'd normally use for Settings.
-  { href: "/admin/agent-kenny-mcp-activity", label: "Admin", icon: Cable },
+  // v2 Phase 5 Wave 3I — outbound MCP audit. The "Admin" surface grew
+  // a second tab in Phase 6 Wave C (the Agent Kenny telemetry
+  // dashboard). Both surfaces are tenant-scoped + read-only; the labels
+  // keep the verbs ("activity" / "dashboard") so a strategist scanning
+  // the sidebar knows which page tells them what. Lucide's ``Cable``
+  // icon reads as "external connector"; ``Gauge`` as "health readout".
+  { href: "/admin/agent-kenny-mcp-activity", label: "Admin · MCP activity", icon: Cable },
+  { href: "/admin/agent-kenny-dashboard", label: "Admin · Agent Kenny dashboard", icon: Gauge },
 ];
 
 export function StrategistNav() {
