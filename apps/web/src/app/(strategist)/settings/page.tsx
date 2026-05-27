@@ -28,6 +28,10 @@ export default async function SettingsPage() {
           <a className="underline" href="/settings/email-import">
             {t("settings.emailImportLink")}
           </a>
+          {" · "}
+          <a className="underline" href="/admin/agent-kenny-mcp-activity">
+            Agent Kenny — MCP activity
+          </a>
         </p>
       </header>
       <LlmConfigForm />

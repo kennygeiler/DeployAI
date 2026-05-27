@@ -31,7 +31,63 @@ export const ALLOWED_SOURCE_KINDS: ReadonlySet<string> = new Set([
   "insight_snoozed",
   "followup_task_created",
   "oracle_chat_turn",
+  // v2 Phase 5 Wave 3I — outbound MCP activity (Wave 2D emits these from
+  // ``mcp_client.py``). The timeline filter chip "External (MCP)" toggles
+  // the four call-status kinds; the config-change + kill-switch +
+  // oauth-rotation kinds get rendered with a distinct tag.
+  "mcp_outbound_call",
+  "mcp_outbound_blocked",
+  "mcp_outbound_rate_limited",
+  "mcp_outbound_denied",
+  "mcp_outbound_killswitch_changed",
+  "mcp_config_created",
+  "mcp_config_updated",
+  "mcp_config_deleted",
+  "mcp_oauth_token_rotated",
 ]);
+
+/**
+ * The subset of source_kinds that represent an actual outbound call
+ * attempt to an external MCP server (success or failure). The "External
+ * (MCP)" timeline filter chip and the admin audit panel both narrow to
+ * this set. Distinct from ``MCP_CONFIG_SOURCE_KINDS`` (tenant-admin
+ * configuration changes) and ``MCP_KILLSWITCH_SOURCE_KIND`` (incident
+ * response toggle) so each can be rendered with its own tag.
+ */
+export const MCP_OUTBOUND_CALL_SOURCE_KINDS: readonly string[] = [
+  "mcp_outbound_call",
+  "mcp_outbound_blocked",
+  "mcp_outbound_rate_limited",
+  "mcp_outbound_denied",
+] as const;
+
+export const MCP_CONFIG_SOURCE_KINDS: readonly string[] = [
+  "mcp_config_created",
+  "mcp_config_updated",
+  "mcp_config_deleted",
+  "mcp_oauth_token_rotated",
+] as const;
+
+export const MCP_KILLSWITCH_SOURCE_KIND = "mcp_outbound_killswitch_changed";
+
+/** Union of every MCP-related source kind (call + config + killswitch). */
+export const MCP_ALL_SOURCE_KINDS: readonly string[] = [
+  ...MCP_OUTBOUND_CALL_SOURCE_KINDS,
+  ...MCP_CONFIG_SOURCE_KINDS,
+  MCP_KILLSWITCH_SOURCE_KIND,
+] as const;
+
+export function isMcpOutboundCallKind(kind: string): boolean {
+  return (MCP_OUTBOUND_CALL_SOURCE_KINDS as readonly string[]).includes(kind);
+}
+
+export function isMcpConfigKind(kind: string): boolean {
+  return (MCP_CONFIG_SOURCE_KINDS as readonly string[]).includes(kind);
+}
+
+export function isMcpKillswitchKind(kind: string): boolean {
+  return kind === MCP_KILLSWITCH_SOURCE_KIND;
+}
 
 export const zLedgerEventAffect = z.object({
   entity_kind: z.string(),
