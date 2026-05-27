@@ -212,7 +212,7 @@ def _build_default_embedder() -> VoyageEmbedder | None:
     except ImportError:
         return None
     try:
-        return VoyageEmbedder()  # type: ignore[abstract]
+        return VoyageEmbedder()  # type: ignore[misc]
     except Exception:  # pragma: no cover — defensive
         _log.exception("VoyageEmbedder() init failed; vector_search will be unavailable")
         return None
