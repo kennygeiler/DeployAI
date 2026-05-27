@@ -19,8 +19,14 @@ from control_plane.agents.agent_kenny.embeddings.voyage_client import (
 
 @pytest.fixture(autouse=True)
 def _reset_warn_state(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Each test gets a fresh "have we warned yet" state."""
+    """Each test gets a fresh "have we warned yet" state + a clean env.
+
+    The CI runner may have ``VOYAGE_API_KEY`` populated via compose ``.env``;
+    the missing-key tests need a guaranteed-empty env. Tests that need the
+    key set re-monkeypatch.
+    """
     monkeypatch.setattr(voyage_client, "_warned_missing_key", False)
+    monkeypatch.delenv("VOYAGE_API_KEY", raising=False)
 
 
 def _ok_payload(n: int, *, dim: int = VOYAGE_DIM) -> dict[str, object]:
