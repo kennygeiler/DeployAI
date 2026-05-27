@@ -36,6 +36,10 @@ primary_region = "iad"
 [env]
   PORT = "3000"
   NODE_ENV = "production"
+  # Next.js standalone server defaults to binding 127.0.0.1, which Fly's
+  # edge proxy can't reach. Force 0.0.0.0 so the machine accepts traffic
+  # from the proxy.
+  HOSTNAME = "0.0.0.0"
 
 [http_service]
   internal_port = 3000
