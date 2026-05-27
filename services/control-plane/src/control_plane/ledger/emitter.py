@@ -76,6 +76,11 @@ ALLOWED_SOURCE_KINDS: frozenset[str] = frozenset(
         "mcp_config_updated",
         "mcp_config_deleted",
         "mcp_oauth_token_rotated",
+        # v2 Phase 5 Wave 2F — outbound-MCP kill-switch admin flip
+        # (threat-model §5.5 Option B). Every flip-on or flip-off lands
+        # one ledger row so the audit timeline shows who turned the
+        # switch and when. Detail: ``{disabled: bool, actor_id: str}``.
+        "mcp_outbound_killswitch_changed",
     }
 )
 

@@ -25,6 +25,14 @@ class AppTenant(Base):
     scim_bearer_token_hash: Mapped[str | None] = mapped_column(Text(), nullable=True, index=True, unique=True)
     tenant_dek_ciphertext: Mapped[str | None] = mapped_column(Text(), nullable=True)
     tenant_dek_key_id: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    # v2 Phase 5 Wave 2F — outbound-MCP kill switch (threat-model §5.5
+    # Option B). True ⇒ Agent Kenny refuses to make ANY external MCP
+    # call for this tenant. Flipped via
+    # ``agents/agent_kenny/mcp_kill_switch_admin.set_mcp_outbound_disabled``,
+    # read via ``DbMcpKillSwitch.is_outbound_disabled`` (5s in-memory cache).
+    mcp_outbound_disabled: Mapped[bool] = mapped_column(
+        Boolean(), nullable=False, server_default="false", default=False
+    )
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
     users: Mapped[list[AppUser]] = relationship("AppUser", back_populates="tenant", cascade="all, delete-orphan")
