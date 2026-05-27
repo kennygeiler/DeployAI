@@ -16,6 +16,7 @@ from control_plane.agents.tools.analysis import (
     get_decision_history,
     get_engagement_summary,
     get_open_risks,
+    list_matrix_nodes_by_type,
 )
 from control_plane.db import clear_engine_cache, get_app_db_session
 
@@ -60,14 +61,18 @@ def _ins_node(
     node_type: str,
     title: str,
     status: str | None = None,
+    description: str | None = None,
+    evidence_event_ids: list[uuid.UUID] | None = None,
 ) -> uuid.UUID:
     nid = uuid.uuid4()
+    attributes_json = json.dumps({"description": description}) if description else "{}"
+    evidence_literal = "{" + ",".join(str(e) for e in evidence_event_ids) + "}" if evidence_event_ids else "{}"
     with engine.begin() as c:
         c.execute(
             text(
                 "INSERT INTO matrix_nodes "
                 "  (id, tenant_id, engagement_id, node_type, title, status, attributes, evidence_event_ids) "
-                "VALUES (:i, :t, :e, :nt, :ti, :s, '{}'::jsonb, '{}'::uuid[])"
+                "VALUES (:i, :t, :e, :nt, :ti, :s, CAST(:a AS jsonb), CAST(:ev AS uuid[]))"
             ),
             {
                 "i": str(nid),
@@ -76,6 +81,8 @@ def _ins_node(
                 "nt": node_type,
                 "ti": title,
                 "s": status,
+                "a": attributes_json,
+                "ev": evidence_literal,
             },
         )
     return nid
@@ -238,3 +245,240 @@ async def test_get_engagement_summary_empty_engagement(
         assert result.rows[0]["total_insights"] == 0
         # ensures helper does not blow up on completely empty data
         _ = timedelta  # appease linter for unused import in case
+
+
+# ---- Phase 1 follow-up: union risk reads + list_matrix_nodes_by_type -------
+
+
+@pytest.mark.asyncio
+async def test_get_open_risks_returns_node_rows_when_no_insights(
+    app_session: None, postgres_engine: Engine, seeded: dict[str, uuid.UUID]
+) -> None:
+    """5 risk nodes seeded, zero insights → 5 rows from the node source."""
+    tid = seeded["tenant_id"]
+    eid = seeded["engagement_id"]
+    node_ids: list[uuid.UUID] = []
+    for i in range(5):
+        node_ids.append(
+            _ins_node(
+                postgres_engine,
+                tenant_id=tid,
+                engagement_id=eid,
+                node_type="risk",
+                title=f"Raw risk {i}",
+                description=f"Detail body for risk {i}",
+            )
+        )
+
+    async for session in get_app_db_session():
+        result = await get_open_risks(session, tenant_id=tid, engagement_id=eid)
+        await session.commit()
+        assert len(result.rows) == 5
+        for row in result.rows:
+            assert row["source"] == "node"
+            assert row["id"] in {str(nid) for nid in node_ids}
+            assert row["title"].startswith("Raw risk")
+            assert row["description"].startswith("Detail body")
+
+
+@pytest.mark.asyncio
+async def test_get_open_risks_unions_insights_first_then_nodes(
+    app_session: None, postgres_engine: Engine, seeded: dict[str, uuid.UUID]
+) -> None:
+    """3 risk nodes + 2 risk insights → 5 rows, insights ordered first."""
+    tid = seeded["tenant_id"]
+    eid = seeded["engagement_id"]
+    high = _ins_risk_insight(postgres_engine, tenant_id=tid, engagement_id=eid, severity="high", title="h-ins")
+    low = _ins_risk_insight(postgres_engine, tenant_id=tid, engagement_id=eid, severity="low", title="l-ins")
+    for i in range(3):
+        _ins_node(
+            postgres_engine,
+            tenant_id=tid,
+            engagement_id=eid,
+            node_type="risk",
+            title=f"raw-risk-{i}",
+            description=f"raw body {i}",
+        )
+
+    async for session in get_app_db_session():
+        result = await get_open_risks(session, tenant_id=tid, engagement_id=eid)
+        await session.commit()
+        assert len(result.rows) == 5
+        sources = [r["source"] for r in result.rows]
+        assert sources[:2] == ["insight", "insight"], sources
+        assert sources[2:] == ["node", "node", "node"], sources
+        # High severity comes first within the insight bucket.
+        assert result.rows[0]["id"] == str(high)
+        assert result.rows[1]["id"] == str(low)
+
+
+@pytest.mark.asyncio
+async def test_get_open_risks_citations_include_node_evidence_events(
+    app_session: None, postgres_engine: Engine, seeded: dict[str, uuid.UUID]
+) -> None:
+    """Each matrix_node row contributes its evidence_event_ids as citations."""
+    tid = seeded["tenant_id"]
+    eid = seeded["engagement_id"]
+    ev = _ins_event(
+        postgres_engine,
+        tenant_id=tid,
+        engagement_id=eid,
+        source_kind="manual_capture",
+        occurred_at=datetime(2026, 4, 1, tzinfo=UTC),
+    )
+    _ins_node(
+        postgres_engine,
+        tenant_id=tid,
+        engagement_id=eid,
+        node_type="risk",
+        title="evidence-bearing risk",
+        description="see source event",
+        evidence_event_ids=[ev],
+    )
+
+    async for session in get_app_db_session():
+        result = await get_open_risks(session, tenant_id=tid, engagement_id=eid)
+        await session.commit()
+        kinds = {(c.kind, str(c.id)) for c in result.citations}
+        assert ("event", str(ev)) in kinds
+
+
+@pytest.mark.asyncio
+async def test_list_matrix_nodes_by_type_stakeholder_only(
+    app_session: None, postgres_engine: Engine, seeded: dict[str, uuid.UUID]
+) -> None:
+    """stakeholder filter returns stakeholders only, with description text."""
+    tid = seeded["tenant_id"]
+    eid = seeded["engagement_id"]
+    s1 = _ins_node(
+        postgres_engine,
+        tenant_id=tid,
+        engagement_id=eid,
+        node_type="stakeholder",
+        title="Alice",
+        description="Executive sponsor for the deployment.",
+    )
+    _ins_node(
+        postgres_engine,
+        tenant_id=tid,
+        engagement_id=eid,
+        node_type="risk",
+        title="ignored risk",
+    )
+    _ins_node(
+        postgres_engine,
+        tenant_id=tid,
+        engagement_id=eid,
+        node_type="decision",
+        title="ignored decision",
+    )
+
+    async for session in get_app_db_session():
+        result = await list_matrix_nodes_by_type(
+            session,
+            tenant_id=tid,
+            engagement_id=eid,
+            node_type="stakeholder",
+        )
+        await session.commit()
+        assert len(result.rows) == 1
+        assert result.rows[0]["id"] == str(s1)
+        assert result.rows[0]["node_type"] == "stakeholder"
+        assert "Executive sponsor" in result.rows[0]["description"]
+
+
+@pytest.mark.asyncio
+async def test_list_matrix_nodes_by_type_invalid_type_returns_validation_error(
+    app_session: None, postgres_engine: Engine, seeded: dict[str, uuid.UUID]
+) -> None:
+    """Off-catalog node_type with no rows → validation_error surface."""
+    tid = seeded["tenant_id"]
+    eid = seeded["engagement_id"]
+    async for session in get_app_db_session():
+        result = await list_matrix_nodes_by_type(
+            session,
+            tenant_id=tid,
+            engagement_id=eid,
+            node_type="not_a_real_type",
+        )
+        await session.commit()
+        assert len(result.rows) == 1
+        assert "validation_error" in result.rows[0]
+        assert result.detail and "not in the built-in catalog" in result.detail
+
+
+@pytest.mark.asyncio
+async def test_list_matrix_nodes_by_type_honors_limit(
+    app_session: None, postgres_engine: Engine, seeded: dict[str, uuid.UUID]
+) -> None:
+    """Seed 15 stakeholder nodes, limit=10 → exactly 10 rows + truncated=True."""
+    tid = seeded["tenant_id"]
+    eid = seeded["engagement_id"]
+    for i in range(15):
+        _ins_node(
+            postgres_engine,
+            tenant_id=tid,
+            engagement_id=eid,
+            node_type="stakeholder",
+            title=f"s-{i}",
+            description=f"desc-{i}",
+        )
+
+    async for session in get_app_db_session():
+        result = await list_matrix_nodes_by_type(
+            session,
+            tenant_id=tid,
+            engagement_id=eid,
+            node_type="stakeholder",
+            limit=10,
+        )
+        await session.commit()
+        # rows is capped at the limit; truncated flag is True.
+        assert len(result.rows) == 10
+        assert result.truncated is True
+
+
+@pytest.mark.asyncio
+async def test_list_matrix_nodes_by_type_citations_from_evidence_events(
+    app_session: None, postgres_engine: Engine, seeded: dict[str, uuid.UUID]
+) -> None:
+    """evidence_event_ids → ``event`` citations on the result."""
+    tid = seeded["tenant_id"]
+    eid = seeded["engagement_id"]
+    ev1 = _ins_event(
+        postgres_engine,
+        tenant_id=tid,
+        engagement_id=eid,
+        source_kind="manual_capture",
+        occurred_at=datetime(2026, 4, 1, tzinfo=UTC),
+    )
+    ev2 = _ins_event(
+        postgres_engine,
+        tenant_id=tid,
+        engagement_id=eid,
+        source_kind="manual_capture",
+        occurred_at=datetime(2026, 4, 2, tzinfo=UTC),
+    )
+    n1 = _ins_node(
+        postgres_engine,
+        tenant_id=tid,
+        engagement_id=eid,
+        node_type="decision",
+        title="d-with-evidence",
+        description="cited",
+        evidence_event_ids=[ev1, ev2],
+    )
+
+    async for session in get_app_db_session():
+        result = await list_matrix_nodes_by_type(
+            session,
+            tenant_id=tid,
+            engagement_id=eid,
+            node_type="decision",
+        )
+        await session.commit()
+        kinds = {(c.kind, str(c.id)) for c in result.citations}
+        assert ("node", str(n1)) in kinds
+        assert ("event", str(ev1)) in kinds
+        assert ("event", str(ev2)) in kinds
+        assert result.rows[0]["evidence_event_ids"] == [str(ev1), str(ev2)]

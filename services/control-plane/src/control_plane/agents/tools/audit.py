@@ -51,11 +51,18 @@ async def emit_tool_invocation(
     duration_ms: float,
     truncated: bool = False,
     turn_id: uuid.UUID | None = None,
+    extra_detail: dict[str, Any] | None = None,
 ) -> uuid.UUID:
     """Append one ``agent_tool_invocation`` row tied to a tool call.
 
     Returns the ledger event id so the caller can stitch ``caused_by`` from
     later citation-verification events in Phase 3.
+
+    ``extra_detail`` lets a caller surface tool-specific facts (e.g.
+    ``insight_count`` / ``node_count`` for union-style readers) into the
+    audit row without polluting :func:`hash_tool_input`. Reserved keys
+    (``tool_name``, ``input_hash``, ``row_count``, ``duration_ms``,
+    ``truncated``, ``turn_id``) cannot be overridden.
     """
     summary = f"tool:{tool_name} rows={row_count} dur={duration_ms:.1f}ms"
     detail: dict[str, Any] = {
@@ -67,6 +74,12 @@ async def emit_tool_invocation(
     }
     if turn_id is not None:
         detail["turn_id"] = str(turn_id)
+    if extra_detail:
+        reserved = {"tool_name", "input_hash", "row_count", "duration_ms", "truncated", "turn_id"}
+        for key, value in extra_detail.items():
+            if key in reserved:
+                continue
+            detail[key] = value
     row = await emit_ledger_event(
         session,
         tenant_id=tenant_id,
