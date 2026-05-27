@@ -204,18 +204,17 @@ def _build_default_embedder() -> VoyageEmbedder | None:
     they need a stub embedder injected at lifespan time.
     """
     try:
-        # Wave B will add ``VoyageClient`` alongside the existing
-        # protocol. Importing it lazily keeps Wave C's tests happy
-        # without a hard dependency on Wave B's modules.
+        # Wave B's concrete class. Import lazily so Wave C's tests don't
+        # require Wave B's full deps tree at collection time.
         from control_plane.agents.agent_kenny.embeddings.voyage_client import (
-            VoyageClient,  # type: ignore[attr-defined]
+            VoyageEmbedder,
         )
     except ImportError:
         return None
     try:
-        return VoyageClient.from_env()  # type: ignore[no-any-return]
-    except Exception:  # pragma: no cover — defensive, Wave B owns the constructor
-        _log.exception("VoyageClient.from_env failed; vector_search will be unavailable")
+        return VoyageEmbedder()
+    except Exception:  # pragma: no cover — defensive
+        _log.exception("VoyageEmbedder() init failed; vector_search will be unavailable")
         return None
 
 
