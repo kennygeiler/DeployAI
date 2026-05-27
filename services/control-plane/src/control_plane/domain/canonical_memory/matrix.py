@@ -19,11 +19,17 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import ForeignKey, Index, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from control_plane.domain.base import Base
+
+# v2 Phase 5.5 — Voyage-3 embedding width. Mirrors EMBEDDING_DIM in
+# migration 20260613_0050_pgvector_embeddings.py. Keep in lockstep — the
+# DB column shape is the source of truth, the ORM is its mirror.
+EMBEDDING_DIM = 1024
 
 # Catalogs of valid node_type / edge_type values. Treated as data, not schema:
 # adopting teams add custom types here (or via a future per-tenant catalog
@@ -138,6 +144,12 @@ class MatrixNode(Base):
         nullable=False,
         server_default=text("now()"),
         onupdate=text("now()"),
+    )
+    # v2 Phase 5.5 — Voyage-3 embedding of the node's title + curated
+    # description, written asynchronously by the embedder worker (Wave B).
+    embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(EMBEDDING_DIM),
+        nullable=True,
     )
 
     __table_args__ = (
@@ -351,6 +363,12 @@ class MatrixInsight(Base):
     )
     decided_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     decided_by: Mapped[str | None] = mapped_column(nullable=True)
+    # v2 Phase 5.5 — Voyage-3 embedding of the synthesized insight body,
+    # written asynchronously by the embedder worker (Wave B).
+    embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(EMBEDDING_DIM),
+        nullable=True,
+    )
 
     __table_args__ = (
         Index(

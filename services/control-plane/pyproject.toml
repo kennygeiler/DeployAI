@@ -41,6 +41,11 @@ dependencies = [
   "jinja2>=3.1.6",
   "markdown>=3.10.2",
   "langgraph>=0.2.0",
+  # v2 Phase 5.5 — pgvector SQLAlchemy types for the embedding columns
+  # on ledger_events / matrix_nodes / oracle_chat_turns / matrix_insights.
+  # The extension itself is installed by migration 0050; this Python
+  # dependency provides the ``Vector`` type the ORMs map onto.
+  "pgvector>=0.3.0",
 ]
 
 [tool.uv.sources]
@@ -122,6 +127,11 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["langgraph", "langgraph.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# pgvector ships without a py.typed marker; treat as untyped to stay green.
+module = ["pgvector", "pgvector.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

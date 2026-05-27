@@ -13,11 +13,17 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import CheckConstraint, ForeignKey, Index, PrimaryKeyConstraint, String, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from control_plane.domain.base import Base
+
+# v2 Phase 5.5 — Voyage-3 embedding width. Mirrors EMBEDDING_DIM in
+# migration 20260613_0050_pgvector_embeddings.py. Keep in lockstep — the
+# DB column shape is the source of truth, the ORM is its mirror.
+EMBEDDING_DIM = 1024
 
 
 class LedgerEvent(Base):
@@ -55,6 +61,14 @@ class LedgerEvent(Base):
         JSONB,
         nullable=False,
         server_default=text("'{}'::jsonb"),
+    )
+    # v2 Phase 5.5 — Voyage-3 embedding of the event summary + detail
+    # signal, written asynchronously by the embedder worker (Wave B).
+    # Nullable because rows pre-date the embedder and freshly-inserted
+    # rows wait in ``embedding_jobs`` until the worker drains them.
+    embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(EMBEDDING_DIM),
+        nullable=True,
     )
 
     __table_args__ = (
