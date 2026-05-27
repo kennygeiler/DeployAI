@@ -39,6 +39,7 @@ from control_plane.agents.agent_kenny.mcp_kill_switch import DbMcpKillSwitch
 from control_plane.agents.agent_kenny.mcp_rate_limit import InMemoryMcpRateLimiter
 
 if TYPE_CHECKING:
+    from control_plane.agents.agent_kenny.embeddings.voyage_client import VoyageEmbedder
     from control_plane.agents.agent_kenny.mcp_client import (
         McpKillSwitch,
         McpRateLimiter,
@@ -168,6 +169,13 @@ def install_on_app_state(app: Any, *, engine: AsyncEngine) -> None:
 
     The ``httpx.AsyncClient`` carries a connection pool + TLS config so
     we don't reopen sockets per call. Closed in :func:`shutdown_on_app_state`.
+
+    Phase 5.5 Wave C: also installs ``app.state.embedder`` so
+    ``KennyAgentService`` can pull the Voyage client without a per-
+    request rebuild. The Wave C placeholder resolves to ``None`` until
+    Wave B's :class:`VoyageClient` lands; the agent loop already
+    tolerates a missing embedder by surfacing an is_error tool_result
+    for ``vector_search`` calls.
     """
     session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     http_client = httpx.AsyncClient()
@@ -180,6 +188,34 @@ def install_on_app_state(app: Any, *, engine: AsyncEngine) -> None:
     app.state.mcp_outbound_http = http_client
     app.state.mcp_kill_switch = get_mcp_kill_switch(session_factory)
     app.state.mcp_rate_limiter = get_mcp_rate_limiter()
+    app.state.embedder = _build_default_embedder()
+
+
+def _build_default_embedder() -> VoyageEmbedder | None:
+    """Construct the process-wide :class:`VoyageEmbedder` if Wave B is wired.
+
+    Wave B (the real Voyage client) lands the concrete
+    ``VoyageClient`` implementation. Until then, this returns ``None``
+    so ``vector_search`` falls back gracefully; once Wave B merges, this
+    helper switches to ``return VoyageClient.from_env()``.
+
+    Kept as a thin seam (rather than inlined) so the Wave B PR is a
+    one-line edit + so tests can monkeypatch this single symbol when
+    they need a stub embedder injected at lifespan time.
+    """
+    try:
+        # Wave B's concrete class. Import lazily so Wave C's tests don't
+        # require Wave B's full deps tree at collection time.
+        from control_plane.agents.agent_kenny.embeddings.voyage_client import (
+            VoyageEmbedder,
+        )
+    except ImportError:
+        return None
+    try:
+        return VoyageEmbedder()
+    except Exception:  # pragma: no cover — defensive
+        _log.exception("VoyageEmbedder() init failed; vector_search will be unavailable")
+        return None
 
 
 async def shutdown_on_app_state(app: Any) -> None:

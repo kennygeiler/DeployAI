@@ -121,15 +121,36 @@ async def test_keyword_search_rejects_empty_query(
 
 
 @pytest.mark.asyncio
-async def test_vector_search_returns_placeholder_truncated_result(
+async def test_vector_search_returns_empty_when_unembedded(
     app_session: None, postgres_engine: Engine, seeded: dict[str, uuid.UUID]
 ) -> None:
+    """Phase 5.5 Wave C: vector_search returns empty + non-truncated when no embeddings exist.
+
+    Pre-Wave-A the source tables don't even carry an ``embedding``
+    column; the tool detects this via :class:`ProgrammingError` and
+    surfaces an empty hit list so the agent loop falls back to
+    ``keyword_search``. Post-Wave-A but pre-Wave-B (column exists,
+    rows unembedded) the same outcome holds via ``embedding IS NOT NULL``.
+    """
+
+    class _StubEmbedder:
+        async def embed(self, texts: list[str]) -> list[list[float]]:
+            return [[0.0] * 1024 for _ in texts]
+
     tid = seeded["tenant_id"]
     eid = seeded["engagement_id"]
     async for session in get_app_db_session():
-        result = await vector_search(session, tenant_id=tid, engagement_id=eid, query="anything")
+        result = await vector_search(
+            session,
+            tenant_id=tid,
+            engagement_id=eid,
+            query="anything",
+            embedder=_StubEmbedder(),
+        )
         await session.commit()
         assert result.rows == []
-        assert result.truncated is True
+        # No overflow when there are no hits; truncated flag is reserved
+        # for the "more hits than limit" signal.
+        assert result.truncated is False
         assert result.detail is not None
-        assert "Phase 5.5" in result.detail
+        assert "vector_search" in result.detail
