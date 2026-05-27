@@ -1,21 +1,30 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Fly.io-specific entrypoint shim.
 #
-# Fly mounts the persistent volume at /var/lib/postgresql/data with uid=0/gid=0
-# and mode 0755, which is unwritable for the postgres user. The stock postgres
-# image expects to chown $PGDATA itself, but when it boots non-root that fails
-# with "Permission denied". This shim, which always runs as root, prepares the
-# mount + PGDATA subdirectory and then delegates to the stock entrypoint.
+# Fly mounts the persistent volume at /var/lib/postgresql/data root-owned
+# (uid=0/gid=0, mode 0755), which the postgres image's own entrypoint
+# can't chown when it drops to the postgres user. We run as root first,
+# ensure $PGDATA is a postgres-owned subdir, and then delegate.
 #
-# It is a no-op on docker-compose, where the volume is already postgres-owned.
+# Verbose by design — log_shipper drops some early stdout, the `echo`
+# lines give us a paper trail in `fly logs` either way.
 
-set -e
+set -x
+
+PGDATA="${PGDATA:-/var/lib/postgresql/data/pgdata}"
+export PGDATA
+
+echo "fly-entrypoint: starting as $(id)"
+echo "fly-entrypoint: PGDATA=$PGDATA"
+ls -la /var/lib/postgresql/data || true
 
 if [ "$(id -u)" = "0" ]; then
-  : "${PGDATA:=/var/lib/postgresql/data}"
-  mkdir -p "$PGDATA"
-  chown postgres:postgres "$PGDATA"
-  chmod 0700 "$PGDATA"
+  mkdir -p "$PGDATA" || true
+  chown postgres:postgres "$PGDATA" || true
+  chmod 0700 "$PGDATA" || true
 fi
+
+ls -la "$PGDATA" || true
+echo "fly-entrypoint: delegating to docker-entrypoint.sh $*"
 
 exec docker-entrypoint.sh "$@"
