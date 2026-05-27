@@ -119,34 +119,60 @@ async def test_embed_4xx_no_retry(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.asyncio
 async def test_embed_missing_key_emits_zero_vectors_with_warning(
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Unset key → zero-vectors + one warning. Local-dev fallback path."""
     monkeypatch.delenv("VOYAGE_API_KEY", raising=False)
 
-    embedder = VoyageEmbedder()
-    with caplog.at_level(logging.WARNING, logger=voyage_client.__name__):
+    warnings_emitted: list[logging.LogRecord] = []
+
+    class _Capture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            warnings_emitted.append(record)
+
+    handler = _Capture(level=logging.WARNING)
+    logger = logging.getLogger(voyage_client.__name__)
+    logger.addHandler(handler)
+    prev_level = logger.level
+    logger.setLevel(logging.WARNING)
+    try:
+        embedder = VoyageEmbedder()
         vectors = await embedder.embed(["hello", "world"])
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(prev_level)
 
     assert len(vectors) == 2
     assert all(len(v) == VOYAGE_DIM for v in vectors)
     assert all(all(component == 0.0 for component in v) for v in vectors)
-    assert any("VOYAGE_API_KEY" in record.getMessage() for record in caplog.records)
+    assert any("VOYAGE_API_KEY" in record.getMessage() for record in warnings_emitted)
 
 
 @pytest.mark.asyncio
 async def test_embed_missing_key_warns_only_once(
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     monkeypatch.delenv("VOYAGE_API_KEY", raising=False)
 
-    embedder = VoyageEmbedder()
-    with caplog.at_level(logging.WARNING, logger=voyage_client.__name__):
+    warnings_emitted: list[logging.LogRecord] = []
+
+    class _Capture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            warnings_emitted.append(record)
+
+    handler = _Capture(level=logging.WARNING)
+    logger = logging.getLogger(voyage_client.__name__)
+    logger.addHandler(handler)
+    prev_level = logger.level
+    logger.setLevel(logging.WARNING)
+    try:
+        embedder = VoyageEmbedder()
         await embedder.embed(["a"])
         await embedder.embed(["b"])
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(prev_level)
 
-    warnings = [r for r in caplog.records if "VOYAGE_API_KEY" in r.getMessage()]
+    warnings = [r for r in warnings_emitted if "VOYAGE_API_KEY" in r.getMessage()]
     assert len(warnings) == 1
 
 
