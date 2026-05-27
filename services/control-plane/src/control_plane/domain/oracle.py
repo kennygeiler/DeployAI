@@ -11,6 +11,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     TIMESTAMP,
     CheckConstraint,
@@ -26,6 +27,11 @@ from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from control_plane.domain.base import Base
+
+# v2 Phase 5.5 — Voyage-3 embedding width. Mirrors EMBEDDING_DIM in
+# migration 20260613_0050_pgvector_embeddings.py. Keep in lockstep — the
+# DB column shape is the source of truth, the ORM is its mirror.
+EMBEDDING_DIM = 1024
 
 
 class OracleConversation(Base):
@@ -105,6 +111,12 @@ class OracleChatTurn(Base):
         TIMESTAMP(timezone=True),
         nullable=False,
         server_default=text("now()"),
+    )
+    # v2 Phase 5.5 — Voyage-3 embedding of the turn content, written
+    # asynchronously by the embedder worker (Wave B).
+    embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(EMBEDDING_DIM),
+        nullable=True,
     )
 
     __table_args__ = (
