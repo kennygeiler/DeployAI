@@ -52,8 +52,11 @@ primary_region = "iad"
     grace_period  = "30s"
     interval      = "15s"
     method        = "GET"
-    # `/` 307s to `/engagements`; counts as a healthy response.
-    path          = "/"
+    # /api/health is a static 200 (apps/web/src/app/api/health/route.ts).
+    # `/` 307s to `/engagements`, but that path is auth-gated by the
+    # strategist middleware and returns 403 without `x-deployai-role`,
+    # which Fly treats as unhealthy and restarts the machine.
+    path          = "/api/health"
     protocol      = "http"
     timeout       = "5s"
     tls_skip_verify = false
