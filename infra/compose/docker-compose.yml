@@ -190,6 +190,30 @@ services:
       retries: 20
       start_period: 15s
 
+  # v2 Phase 5.5 Wave B — Voyage-3 embedding backfill worker (scope-v2 §10.2).
+  # Polls the ``embedding_jobs`` queue created by Wave A's migration, batches
+  # up to 50 source rows per Voyage call, and writes the resulting vectors
+  # back into the source table's ``embedding`` column. Embedding-backed
+  # vector_search is the *fallback* retrieval path (see ethos.md); local dev
+  # without a VOYAGE_API_KEY still works — the worker emits zero-vectors and
+  # logs a warning, which is the right local-dev degradation.
+  embedder:
+    build:
+      context: ../..
+      dockerfile: services/control-plane/Dockerfile
+    image: deployai/control-plane:local-dev
+    command: ["python", "-m", "control_plane.cli.embedder"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${CONTROL_PLANE_DATABASE_URL:-postgresql+asyncpg://deployai:deployai-local-dev@postgres:5432/deployai}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      LOG_LEVEL: ${EMBEDDER_LOG_LEVEL:-INFO}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
   # v2 Phase 4 — MCP inbound server (scope-v2 §8). Exposes engagement matrix +
   # ledger over the Model Context Protocol so an advisor's Claude desktop (or
   # any MCP client) can query DeployAI directly with a tenant-minted bearer
