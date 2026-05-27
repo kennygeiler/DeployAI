@@ -98,10 +98,18 @@ fly secrets set \
   --app deployai-control-plane
 
 # Web BFF
+#
+# `DEPLOYAI_CONTROL_PLANE_URL` (NOT `CONTROL_PLANE_INTERNAL_URL`) is what
+# apps/web/src/lib/internal/control-plane.ts reads. Setting the wrong name
+# causes Kenny chat + every BFF→CP call to fail with "service unreachable".
+#
+# `DEPLOYAI_LOCAL_DEV_ROLE_INJECT=1` is INSECURE — auto-injects an admin
+# role into every request. Use only until Cloudflare Access is wired (§6).
 fly secrets set \
   DEPLOYAI_INTERNAL_API_KEY="${INTERNAL_KEY}" \
-  CONTROL_PLANE_INTERNAL_URL="http://deployai-control-plane.internal:8000" \
-  NEXT_PUBLIC_CONTROL_PLANE_URL="https://api.<your-domain>" \
+  DEPLOYAI_CONTROL_PLANE_URL="http://deployai-control-plane.internal:8000" \
+  NEXT_PUBLIC_CONTROL_PLANE_URL="https://deployai-control-plane.fly.dev" \
+  DEPLOYAI_LOCAL_DEV_ROLE_INJECT="1" \
   --app deployai-web
 
 # MCP inbound server (public)
@@ -278,23 +286,36 @@ works, then add it.
 
 ## 7. Seed the first tenant
 
-`make seed-app` from the repo root won't work against Fly Postgres
-because it talks to localhost. Instead:
+**Why this matters:** the dev-role-inject middleware uses tenant id
+`11111111-1111-1111-1111-111111111111` as the default actor tenant when
+`DEPLOYAI_LOCAL_DEV_ROLE_INJECT=1` is set. That tenant row must exist in
+`app_tenants` or every BFF → CP call 404s ("That queue item was not found").
+Onboarding wizard's `/api/bff/tenant/llm-config` probe needs it too.
+
+**Path A — direct SQL (fastest, ~5s):**
 
 ```bash
-# Open a shell on the control-plane machine
-fly ssh console --app deployai-control-plane
-
-# Inside the container:
-python -m control_plane.cli.init \
-  --tenant-name "<your org>" \
-  --user-email <your email> \
-  --engagement-name "First engagement"
+fly ssh console --app deployai-postgres -C \
+  "psql -U deployai -d deployai -c \"INSERT INTO app_tenants (id, name) VALUES ('11111111-1111-1111-1111-111111111111', 'dev') ON CONFLICT DO NOTHING;\""
 ```
 
-Or use the `/onboarding` wizard the first time you load
-`https://app.<your-domain>` — Sprint 1's first-run wizard handles this
-when the DB is empty.
+**Path B — BlueState seed via the onboarding wizard's button:**
+
+Visit `https://deployai-web.fly.dev/onboarding`, click
+**Load BlueState demo (26-week scenario)**. Creates the tenant + 1
+engagement + ~7 stakeholders + 20 decisions + 13 risks + 182 snapshots
+in ~10s. Good for first-time demos.
+
+**Path C — host-side script against the cloud CP:**
+
+```bash
+DEPLOYAI_CP_BASE_URL=https://deployai-control-plane.fly.dev \
+DEPLOYAI_INTERNAL_API_KEY=<your-key> \
+python3 infra/compose/seed/seed_app.py
+```
+
+Requires the same `INTERNAL_API_KEY` you set on the CP. Use this when
+you want the synthetic `Acme County` engagement instead of BlueState.
 
 ---
 
