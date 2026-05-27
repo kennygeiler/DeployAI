@@ -95,15 +95,36 @@ except metadata.PackageNotFoundError:  # editable/unbuilt installs
 
 
 @asynccontextmanager
-async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
+async def _lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
+    from control_plane.agents.agent_kenny.mcp_factory import (
+        install_on_app_state,
+        shutdown_on_app_state,
+    )
     from control_plane.db import get_engine
     from control_plane.infra.metrics import install_db_statement_listener
     from control_plane.otel import shutdown_opentelemetry
 
-    install_db_statement_listener(get_engine())
+    engine = get_engine()
+    install_db_statement_listener(engine)
+    # Wave 3G: stash the singleton McpOutboundClient + kill switch +
+    # rate limiter on app.state so the stream-v2 route can pull them
+    # without rebuilding per-request (the in-memory caches need to
+    # outlive a single request).
+    try:
+        install_on_app_state(app_instance, engine=engine)
+    except Exception:  # pragma: no cover — defensive belt
+        import logging
+
+        logging.getLogger(__name__).exception("mcp_factory.install_on_app_state failed")
     try:
         yield
     finally:
+        try:
+            await shutdown_on_app_state(app_instance)
+        except Exception:  # pragma: no cover — defensive belt
+            import logging
+
+            logging.getLogger(__name__).exception("mcp_factory.shutdown_on_app_state failed")
         shutdown_opentelemetry()
 
 

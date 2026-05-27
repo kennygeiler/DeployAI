@@ -18,7 +18,7 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from llm_provider_py.types import LLMProvider
 from pydantic import BaseModel, ConfigDict, Field
@@ -232,6 +232,7 @@ async def post_oracle_chat_stream(
     dependencies=[Depends(require_internal)],
 )
 async def post_oracle_chat_stream_v2(
+    request: Request,
     engagement_id: uuid.UUID,
     body: OracleChatRequest,
     session: Annotated[AsyncSession, Depends(get_app_db_session)],
@@ -244,7 +245,20 @@ async def post_oracle_chat_stream_v2(
 
     await _require_engagement(session, tenant_id, engagement_id)
     resolved = await resolve_tenant_llm_provider(session, tenant_id, llm)
-    service = KennyAgentService(resolved)
+    # Wave 3G: pull the outbound-MCP singletons from app.state (installed
+    # by main.py's _lifespan via mcp_factory.install_on_app_state). Falls
+    # back to None when the lifespan hasn't installed them (test cases
+    # that build the FastAPI app without the lifespan hook still work,
+    # they just don't get external MCP).
+    mcp_client = getattr(request.app.state, "mcp_outbound_client", None)
+    mcp_kill_switch = getattr(request.app.state, "mcp_kill_switch", None)
+    mcp_rate_limiter = getattr(request.app.state, "mcp_rate_limiter", None)
+    service = KennyAgentService(
+        resolved,
+        mcp_client=mcp_client,
+        mcp_kill_switch=mcp_kill_switch,
+        mcp_rate_limiter=mcp_rate_limiter,
+    )
 
     try:
         chunks = await service.reply_stream(

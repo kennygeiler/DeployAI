@@ -114,6 +114,17 @@ class AgentState:
     final_tokens: int = 0
     security_rejected: bool = False
     error: str | None = None
+    # Pre-loaded external MCP tools available to the LLM this turn.
+    # Each entry: ``(TenantMcpConfig, list[McpToolSpec])`` from
+    # :func:`control_plane.agents.agent_kenny.mcp_loader.load_enabled_mcp_tools`.
+    # ``Any`` typed to avoid importing the loader's types into the state
+    # module — the dispatcher reads them back via the same loader API.
+    external_tools: list[Any] = field(default_factory=list)
+    # True when the per-tenant kill switch was on at turn start, so
+    # ``external_tools`` was deliberately left empty. The service driver
+    # uses this to emit the one-shot ``mcp_outbound_skipped_disabled``
+    # SSE frame.
+    mcp_outbound_disabled: bool = False
 
 
 # Stream chunk discriminated union.
@@ -174,6 +185,44 @@ class CitationExternalChunk:
 
 
 @dataclass(frozen=True)
+class McpExternalCallChunk:
+    """One outbound MCP tool call surfaced to the chat UI (Wave 3G).
+
+    Emitted from ``tool_dispatch`` after every external invocation —
+    successful or typed-failure — so the UI can render "Kenny is asking
+    Slack…" indicators next to the rest of the agent stream. The payload
+    intentionally mirrors the audit-ledger row fields ``config_id /
+    connector_kind / tool / status / latency_ms`` so the SSE frame and
+    the audit trail tell the same story.
+
+    ``status`` matches :data:`McpToolResultStatus` plus the typed-failure
+    strings the dispatcher produces (e.g. ``"rate_limited"``,
+    ``"not_allowed"``, ``"disabled"``, ``"transport_error"``,
+    ``"protocol_error"``). The UI maps these to icons; old clients fall
+    back to the literal string.
+    """
+
+    config_id: str
+    connector_kind: str
+    tool: str
+    status: str
+    latency_ms: int
+
+
+@dataclass(frozen=True)
+class McpOutboundSkippedDisabledChunk:
+    """Surfaced once per turn when the kill switch suppressed MCP discovery.
+
+    Threat-model §5.5 — the per-tenant ``app_tenants.mcp_outbound_disabled``
+    flag is engaged, so Wave 3G's loader did not pull any external tools
+    into the LLM's tool list this turn. Kenny still has the internal
+    tools; this frame just tells the UI to render a passive notice.
+    """
+
+    reason: str = "kill_switch_engaged"
+
+
+@dataclass(frozen=True)
 class AdversarialConcernChunk:
     concern_text: str
     severity: AdversarialSeverity
@@ -204,6 +253,8 @@ StreamChunk = (
     | CitationUnverifiedChunk
     | CrossEngagementLeakChunk
     | CitationExternalChunk
+    | McpExternalCallChunk
+    | McpOutboundSkippedDisabledChunk
     | AdversarialConcernChunk
     | DoneChunk
     | ErrorChunk
@@ -302,6 +353,8 @@ __all__ = [
     "DeltaChunk",
     "DoneChunk",
     "ErrorChunk",
+    "McpExternalCallChunk",
+    "McpOutboundSkippedDisabledChunk",
     "ParsedCitation",
     "StreamChunk",
     "ThinkingChunk",
