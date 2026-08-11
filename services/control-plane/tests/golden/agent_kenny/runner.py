@@ -1,26 +1,38 @@
-"""Agent Kenny v2 golden-question runner (scope-v2 §11.2, Phase 6 Wave A).
+"""Agent Kenny v2 golden-question runner (scope-v2 §11.2, tickets G1/G4/G5).
 
 Drives the ``/internal/v1/engagements/{eid}/oracle/chat/stream-v2``
 endpoint against a freshly-seeded BlueState-XL fixture, parses the SSE
 frame stream, and emits per-question metrics + an aggregate report.
 
-Public surface — three callables and the three Pydantic models in
-:mod:`types`. Everything else is intentionally underscored.
+Public surface — three callables, the CLI entry point, and the Pydantic
+models in :mod:`types`. Everything else is intentionally underscored.
 
-Hard constraints (per the Wave A spec):
+Hard constraints:
 
 - 30 questions hard count.
 - BlueState-XL fixture seed reused — never re-seeded inline.
-- No CI workflow file (Wave B).
-- No dashboard page (Wave C).
+
+CLI (ticket G1)::
+
+    uv run python -m tests.golden.agent_kenny.runner \\
+        --limit 5 --random --seed 7 --report /tmp/eval-report.json
+
+Run from ``services/control-plane``. With no ``DATABASE_URL`` in the
+environment the CLI starts the same pgvector testcontainer the
+integration conftest uses, migrates it, seeds BlueState-XL, and drives
+the FastAPI app in-process over ``ASGITransport``. With no LLM API key
+the app resolves the stub provider, so the run completes offline —
+that is the deterministic path the PR gate in ``ci.yml`` relies on.
 """
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import logging
 import os
+import random
 import re
 import time
 import uuid
@@ -60,6 +72,11 @@ _IDK_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bi'?m unable to answer\b", re.IGNORECASE),
     re.compile(r"\bno (?:information|data|evidence) (?:about|on|for)\b", re.IGNORECASE),
     re.compile(r"\binsufficient (?:data|evidence|information)\b", re.IGNORECASE),
+    # The agent service substitutes "(no response)" when the model produced
+    # zero visible text (service.py). A contentless reply is a non-answer,
+    # same as the empty string _detect_idk already treats as IDK — this is
+    # also what makes stub-provider runs deterministic for the PR gate.
+    re.compile(r"^\s*\(no response\)\s*$"),
 )
 
 
@@ -215,6 +232,9 @@ def _empty_result(question: Question, *, elapsed_ms: int, error: str) -> Questio
         expected_kind_match=not question.expected_kinds,
         cross_engagement_leak=False,
         error=error,
+        substring_pass=question.should_idk,
+        judged_pass=None,
+        is_negative_control=question.is_negative_control,
     )
 
 
@@ -247,7 +267,19 @@ def _classify_frames(question: Question, frames: list[_Frame], *, latency_ms: in
 
     citations_total = citations_verified + citations_unverified + citations_external
     idk = _detect_idk(final_text)
-    expected_pass = _expected_pass(question, final_text=final_text, idk=idk, leak=cross_engagement_leak)
+    substring_pass = _expected_pass(question, final_text=final_text, idk=idk, leak=cross_engagement_leak)
+    # Ticket G4 — second-tier LLM judge. Substring pre-filter first: the
+    # judge only runs when the cheap check failed on a factual question
+    # with a non-empty reply. ``_llm_judge_match`` itself gates on
+    # EVAL_LLM_JUDGE=1 and silently skips on the stub provider.
+    judged_pass: bool | None = None
+    if not substring_pass and not question.should_idk and final_text:
+        judged_pass = _llm_judge_match(question, final_text)
+        if judged_pass is True and idk:
+            # The judge cannot overrule a detected refusal on a factual
+            # question — an IDK reply is a fail regardless of semantics.
+            judged_pass = False
+    expected_pass = substring_pass or judged_pass is True
     expected_kind_match = _expected_kind_match(question, citation_kinds_seen)
 
     return QuestionResult(
@@ -267,6 +299,9 @@ def _classify_frames(question: Question, frames: list[_Frame], *, latency_ms: in
         expected_kind_match=expected_kind_match,
         cross_engagement_leak=cross_engagement_leak,
         error=None,
+        substring_pass=substring_pass,
+        judged_pass=judged_pass,
+        is_negative_control=question.is_negative_control,
     )
 
 
@@ -316,17 +351,18 @@ def _expected_kind_match(question: Question, kinds_seen: set[str]) -> bool:
 
 
 def _llm_judge_match(question: Question, final_text: str) -> bool | None:
-    """Optional semantic-match check via the existing LLM provider.
+    """Optional semantic-match check via the configured LLM provider.
 
     Off by default. Enable by setting ``EVAL_LLM_JUDGE=1``. Returns:
 
     - ``True`` / ``False`` when the judge ran successfully.
-    - ``None`` when the judge is disabled or the provider isn't available.
+    - ``None`` when the judge is disabled, the provider isn't available,
+      or the resolved provider is the stub (a stub "verdict" would be
+      noise, so it is skipped silently — ticket G4).
 
-    Wave A only wires this into ``run_question`` if the gate is on AND the
-    user passes ``--judge`` via the runner CLI (Wave B). For now substring
-    match drives ``expected_pass``; this helper is shipped so Wave B can
-    flip it on without redesigning the runner shape.
+    ``_classify_frames`` calls this as the second tier behind the cheap
+    substring pre-filter: only substring FAILURES on factual questions
+    reach the judge, so a passing run costs zero LLM calls.
     """
     if os.environ.get("EVAL_LLM_JUDGE", "").strip() not in ("1", "true", "yes", "on"):
         return None
@@ -342,6 +378,8 @@ def _llm_judge_match(question: Question, final_text: str) -> bool | None:
         provider = get_llm_provider()
     except Exception:
         return None
+    if str(getattr(provider, "id", "")).startswith("stub"):
+        return None
     needles = "; ".join(question.expected_answer_contains)
     prompt = (
         "You are a strict eval judge. Reply with a single word: YES or NO.\n"
@@ -356,7 +394,7 @@ def _llm_judge_match(question: Question, final_text: str) -> bool | None:
         )
     except Exception:
         return None
-    return reply.strip().upper().startswith("YES")
+    return bool(reply.strip().upper().startswith("YES"))
 
 
 # --- Aggregation + report -----------------------------------------------------
@@ -373,13 +411,18 @@ async def run_all(
     seed_days: int = 365,
     report_dir: Path | None = None,
     write_report: bool = True,
+    questions: list[Question] | None = None,
 ) -> RunReport:
     """Seed BlueState-XL fresh, run every question (or a subset), aggregate.
 
     ``client`` MUST be supplied by the caller — the runner does not own
-    the ASGI transport / DB engine wiring; the integration test (or a
-    future CLI in Wave B) constructs the ``AsyncClient`` against either a
+    the ASGI transport / DB engine wiring; the integration test and the
+    CLI (``main`` below) construct the ``AsyncClient`` against either a
     real CP deployment or the FastAPI app via ``ASGITransport``.
+
+    ``questions`` overrides YAML loading with a pre-selected list (the
+    CLI uses this for ``--limit/--random`` sampling). ``question_ids``
+    filters the loaded set by id; passing both is rejected.
 
     ``seed_fn`` defaults to
     :func:`control_plane.scenarios.bluestate_xl.runner.apply_bluestate_xl_scenario`
@@ -391,12 +434,17 @@ async def run_all(
     """
     if client is None:
         raise ValueError("run_all requires an httpx.AsyncClient; the harness does not own transport wiring")
-    questions = load_questions()
-    if question_ids is not None:
-        wanted = set(question_ids)
-        questions = [q for q in questions if q.id in wanted]
-        if not questions:
-            raise ValueError(f"no questions matched ids={question_ids}")
+    if questions is not None and question_ids is not None:
+        raise ValueError("pass either questions or question_ids, not both")
+    if questions is None:
+        questions = load_questions()
+        if question_ids is not None:
+            wanted = set(question_ids)
+            questions = [q for q in questions if q.id in wanted]
+            if not questions:
+                raise ValueError(f"no questions matched ids={question_ids}")
+    elif not questions:
+        raise ValueError("questions list is empty")
 
     effective_tenant = tenant_id or _default_tenant_id()
     effective_engagement = engagement_id or _default_engagement_id()
@@ -471,7 +519,17 @@ def _aggregate(results: list[QuestionResult], *, started_at: datetime, finished_
     idk = sum(1 for r in results if r.idk)
     citations_total = sum(r.citations_total for r in results)
     unverified = sum(r.citations_unverified for r in results)
-    hallucination_rate = (unverified / citations_total) if citations_total else 0.0
+    # Ticket G4 — honest hallucination denominator. A factual reply with
+    # ZERO citations is fully unverified, not perfectly clean: each such
+    # answer contributes one phantom unverified citation to both sides of
+    # the ratio (a single zero-citation factual answer scores 1.0).
+    # Exemptions: declines (idk), empty replies, and negative controls,
+    # where a citation-free decline is the correct outcome.
+    uncited_factual = sum(
+        1 for r in results if r.citations_total == 0 and r.final_text and not r.idk and not r.is_negative_control
+    )
+    denominator = citations_total + uncited_factual
+    hallucination_rate = ((unverified + uncited_factual) / denominator) if denominator else 0.0
     leaks = sum(1 for r in results if r.cross_engagement_leak)
 
     latencies = sorted(r.latency_ms for r in results)
@@ -486,7 +544,7 @@ def _aggregate(results: list[QuestionResult], *, started_at: datetime, finished_
         sub_leaks = sum(1 for r in subset if r.cross_engagement_leak)
         by_category.append(
             CategoryDistribution(
-                category=cat,  # type: ignore[arg-type]
+                category=cat,
                 total=len(subset),
                 passes=sub_passes,
                 idk=sub_idk,
@@ -535,9 +593,282 @@ def _default_engagement_id() -> uuid.UUID:
     return uuid.UUID("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee")
 
 
+# --- CLI (ticket G1) ----------------------------------------------------------
+#
+# ``python -m tests.golden.agent_kenny.runner`` from services/control-plane.
+# The CLI owns the full harness lifecycle so CI needs zero pytest plumbing:
+# Postgres (existing DATABASE_URL or a fresh pgvector testcontainer),
+# migrations, BlueState-XL seed, in-process ASGI transport, report file.
+
+
+def _default_seed() -> int:
+    """Deterministic default sampling seed.
+
+    In CI this is ``GITHUB_RUN_ID`` so a nightly run can be reproduced
+    locally with ``--seed <run_id>``; outside CI it is 0 so repeated
+    local invocations pick the same sample unless ``--seed`` is given.
+    """
+    raw = os.environ.get("GITHUB_RUN_ID", "").strip()
+    if raw.isdigit():
+        return int(raw)
+    return 0
+
+
+def select_questions(
+    questions: list[Question],
+    *,
+    question_ids: list[str] | None = None,
+    limit: int | None = None,
+    randomize: bool = False,
+    seed: int = 0,
+) -> list[Question]:
+    """Resolve the CLI's selection flags into a concrete question list.
+
+    ``question_ids`` wins outright (explicit subset, order preserved,
+    unknown ids are an error). Otherwise ``--random`` samples ``limit``
+    questions (or shuffles all of them) with a seeded RNG so CI runs are
+    reproducible; without ``--random``, ``limit`` takes the first N in
+    YAML order.
+    """
+    if question_ids:
+        by_id = {q.id: q for q in questions}
+        missing = [qid for qid in question_ids if qid not in by_id]
+        if missing:
+            raise ValueError(f"unknown question ids: {missing}")
+        return [by_id[qid] for qid in question_ids]
+    selected = list(questions)
+    if randomize:
+        rng = random.Random(seed)
+        if limit is not None and limit < len(selected):
+            return rng.sample(selected, limit)
+        rng.shuffle(selected)
+        return selected
+    if limit is not None:
+        return selected[:limit]
+    return selected
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="python -m tests.golden.agent_kenny.runner",
+        description="Run the Agent Kenny golden-question eval end-to-end.",
+    )
+    parser.add_argument("--limit", type=int, default=None, metavar="N", help="run only N questions")
+    parser.add_argument(
+        "--random",
+        action="store_true",
+        help="sample the --limit subset randomly (seeded; see --seed) instead of taking YAML order",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        metavar="S",
+        help="RNG seed for --random (default: GITHUB_RUN_ID when set, else 0)",
+    )
+    parser.add_argument(
+        "--question-ids",
+        type=str,
+        default=None,
+        metavar="a,b",
+        help="comma-separated explicit subset (mutually exclusive with --limit/--random)",
+    )
+    parser.add_argument(
+        "--report",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="where to write the JSON report (default: eval-reports/agent-kenny-<ts>.json)",
+    )
+    parser.add_argument(
+        "--runtime",
+        choices=("legacy", "langgraph"),
+        default="legacy",
+        help="agent runtime; exported as DEPLOYAI_AGENT_RUNTIME (ticket D2 flag)",
+    )
+    parser.add_argument(
+        "--seed-days",
+        type=int,
+        default=30,
+        metavar="D",
+        help="BlueState-XL snapshot-backfill horizon in days (default 30; production fixture uses 1825)",
+    )
+    return parser
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = build_arg_parser()
+    args = parser.parse_args(argv)
+    if args.question_ids and (args.limit is not None or args.random):
+        parser.error("--question-ids is mutually exclusive with --limit/--random")
+    if args.limit is not None and args.limit < 1:
+        parser.error("--limit must be >= 1")
+    if args.seed is None:
+        args.seed = _default_seed()
+    return args
+
+
+async def _amain(args: argparse.Namespace) -> RunReport:
+    """Full harness lifecycle. Returns the aggregated report.
+
+    ``main`` writes the report file, prints the summary, and maps the
+    report to the process exit code.
+    """
+    # Env the app reads — set BEFORE importing control_plane.main.
+    os.environ["DEPLOYAI_AGENT_KENNY_V2_ENABLED"] = "1"
+    os.environ["DEPLOYAI_AGENT_RUNTIME"] = args.runtime
+    os.environ.setdefault("DEPLOYAI_INTERNAL_API_KEY", "agent-kenny-eval-cli")
+
+    questions = load_questions()
+    ids = [s.strip() for s in args.question_ids.split(",") if s.strip()] if args.question_ids else None
+    selected = select_questions(
+        questions,
+        question_ids=ids,
+        limit=args.limit,
+        randomize=args.random,
+        seed=args.seed,
+    )
+    print(f"selected {len(selected)}/{len(questions)} questions: {[q.id for q in selected]}")
+
+    # Postgres: reuse an externally provided DATABASE_URL, otherwise spin
+    # the same pgvector testcontainer image the integration conftest uses.
+    from tests.conftest import _PGVECTOR_IMAGE, _bootstrap_extensions, _run_alembic_upgrade
+
+    container = None
+    external_url = os.environ.get("DATABASE_URL", "").strip()
+    try:
+        if external_url:
+            db_url = _psycopg_url(external_url)
+            print(f"using external DATABASE_URL ({db_url.split('@')[-1]})")
+        else:
+            try:
+                from testcontainers.postgres import PostgresContainer  # type: ignore[import-untyped]
+            except ImportError as exc:  # pragma: no cover
+                raise RuntimeError("no DATABASE_URL and testcontainers not installed — run `uv sync`") from exc
+            print(f"starting {_PGVECTOR_IMAGE} testcontainer (no DATABASE_URL in env)...")
+            container = PostgresContainer(
+                image=_PGVECTOR_IMAGE,
+                username="deployai",
+                password="deployai-eval",
+                dbname="deployai",
+            )
+            container.start()
+            db_url = _psycopg_url(container.get_connection_url())
+
+        _bootstrap_extensions(db_url)
+        _run_alembic_upgrade(db_url)
+
+        os.environ["DATABASE_URL"] = db_url
+        from control_plane.db import clear_engine_cache
+        from control_plane.main import app
+        from control_plane.scenarios.bluestate_xl import ENGAGEMENT_ID as XL_ENGAGEMENT_ID
+        from control_plane.scenarios.bluestate_xl import TENANT_ID as XL_TENANT_ID
+        from control_plane.scenarios.bluestate_xl.runner import apply_bluestate_xl_scenario
+
+        clear_engine_cache()
+
+        tenant_id = uuid.UUID(XL_TENANT_ID)
+        engagement_id = uuid.UUID(XL_ENGAGEMENT_ID)
+
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        seed_engine = create_async_engine(db_url)
+        try:
+            session_factory = async_sessionmaker(seed_engine, expire_on_commit=False)
+            async with session_factory() as session:
+                summary = await apply_bluestate_xl_scenario(session, tenant_id=tenant_id, days=args.seed_days)
+                await session.commit()
+            print(
+                f"seeded BlueState-XL: {summary.ledger_event_count} ledger events, "
+                f"{summary.snapshot_count} snapshots (days={args.seed_days})"
+            )
+        finally:
+            await seed_engine.dispose()
+
+        from httpx import ASGITransport
+
+        transport = ASGITransport(app=app)
+        client = AsyncClient(transport=transport, base_url="http://test", timeout=120.0)
+        client.headers["X-DeployAI-Internal-Key"] = os.environ["DEPLOYAI_INTERNAL_API_KEY"]
+        try:
+            report = await run_all(
+                client=client,
+                tenant_id=tenant_id,
+                engagement_id=engagement_id,
+                write_report=False,
+                questions=selected,
+            )
+        finally:
+            await client.aclose()
+            clear_engine_cache()
+    finally:
+        if container is not None:
+            container.stop()
+
+    return report
+
+
+def _psycopg_url(url: str) -> str:
+    """Normalise any postgres URL to the psycopg3 driver.
+
+    psycopg3 serves both sides of the harness: alembic's sync engine and
+    the app's async engine (same driver string the integration fixtures
+    use), so one URL string works everywhere.
+    """
+    normalised = re.sub(r"^postgresql\+[a-z0-9]+://", "postgresql://", url)
+    return normalised.replace("postgresql://", "postgresql+psycopg://", 1)
+
+
+def _print_summary(report: RunReport, report_path: Path) -> None:
+    print(f"\n=== Agent Kenny eval report ({report_path}) ===")
+    print(f"questions: {report.total_questions}")
+    print(f"pass_rate: {report.pass_rate:.2f}")
+    print(f"idk_rate: {report.idk_rate:.2f}")
+    print(f"hallucination_rate: {report.hallucination_rate:.2f}")
+    print(f"cross_engagement_leak_count: {report.cross_engagement_leak_count}")
+    print(f"latency p50/p95/p99 ms: {report.latency_p50_ms}/{report.latency_p95_ms}/{report.latency_p99_ms}")
+    for r in report.results:
+        verdict = "PASS" if r.expected_pass else "FAIL"
+        judge = "" if r.judged_pass is None else f" judged={r.judged_pass}"
+        err = f" error={r.error}" if r.error else ""
+        leak = " LEAK" if r.cross_engagement_leak else ""
+        print(f"  {r.id} [{r.category}] {verdict} substring={r.substring_pass}{judge}{leak}{err}")
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entry point. Exit codes: 0 = clean run; 1 = at least one
+    question hit a transport/harness error; 2 = cross-engagement leak
+    detected (the CI leak gate also re-checks the report with jq)."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    args = _parse_args(argv)
+    report = asyncio.run(_amain(args))
+
+    report_path: Path | None = args.report
+    if report_path is None:
+        ts = report.started_at.strftime("%Y%m%dT%H%M%SZ")
+        report_path = _DEFAULT_REPORT_DIR / f"agent-kenny-{ts}.json"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
+
+    _print_summary(report, report_path)
+
+    if report.cross_engagement_leak_count > 0:
+        return 2
+    if any(r.error for r in report.results):
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+
 __all__ = [
     "QUESTIONS_PATH",
+    "build_arg_parser",
     "load_questions",
+    "main",
     "run_all",
     "run_question",
+    "select_questions",
 ]
