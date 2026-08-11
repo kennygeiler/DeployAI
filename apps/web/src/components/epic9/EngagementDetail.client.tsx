@@ -22,6 +22,7 @@ import type { Engagement, EngagementMember } from "@/lib/bff/engagement-types";
 import type { MatrixEdge, MatrixNode, MatrixProposal } from "@/lib/bff/matrix-types";
 import type { Section } from "@/lib/bff/temporal-filter";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
+import { displayNameForPerson, initialsFor } from "@/lib/labels";
 import { applyRoleLens, type RoleLens } from "@/lib/matrix/role-lens";
 
 const PHASE_LABEL: Record<string, string> = {
@@ -301,19 +302,26 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
               <p className="text-ink-600 text-sm">No members assigned yet.</p>
             ) : (
               <ul className="divide-y divide-line rounded-card bg-surface text-sm shadow-card">
-                {data.members.map((m) => (
+                {data.members.map((m) => {
+                  const name = displayNameForPerson(m);
+                  return (
                   <li
                     key={m.id}
                     className="flex items-center justify-between gap-3 px-3 py-2 transition-colors hover:bg-hover"
                   >
-                    <span className="inline-flex items-center gap-2.5 font-mono text-xs text-ink">
+                    <span className="inline-flex items-center gap-2.5 text-sm text-ink">
                       <span
                         aria-hidden="true"
                         className="flex size-6 shrink-0 items-center justify-center rounded-full bg-hover-2 text-[10px] font-semibold text-ink-600 shadow-hairline"
                       >
-                        {m.user_id.slice(0, 1).toUpperCase()}
+                        {initialsFor(name)}
                       </span>
-                      {m.user_id}
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium">{name}</span>
+                        {m.email && m.email !== name ? (
+                          <span className="text-ink-500 block truncate text-xs">{m.email}</span>
+                        ) : null}
+                      </span>
                     </span>
                     <div className="flex items-center gap-3">
                       <span className="inline-flex rounded-full bg-hover px-2 py-0.5 text-xs text-ink-600 shadow-hairline">
@@ -333,7 +341,8 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
                       </Button>
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
             <div className="space-y-2 rounded-card bg-surface p-3 shadow-card">

@@ -10,7 +10,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import type { LedgerEvent } from "@/lib/internal/ledger-cp";
-import { humanSourceKindLabel } from "@/lib/labels";
+import { formatActorId, humanSourceKindLabel } from "@/lib/labels";
 
 function formatOccurredAt(iso: string): string {
   const d = new Date(iso);
@@ -61,7 +61,9 @@ export function TimelineEventDrawer({
                 <h3 className="text-ink-700 text-xs font-semibold uppercase">Actor</h3>
                 <p className="text-ink-700">
                   {event.actor_kind}
-                  {event.actor_id ? <span className="font-mono"> {event.actor_id}</span> : null}
+                  {event.actor_id ? (
+                    <span className="font-mono"> {formatActorId(event.actor_id)}</span>
+                  ) : null}
                 </p>
               </section>
 

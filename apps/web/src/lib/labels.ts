@@ -217,6 +217,17 @@ export function shortId(id: string): string {
   return trimmed.length > 8 ? `${trimmed.slice(0, 8)}…` : trimmed;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Actor ids are sometimes opaque UUIDs and sometimes readable handles
+ * ("agent-kenny", "on-call-sre"). Shorten only the opaque ones.
+ */
+export function formatActorId(id: string): string {
+  const trimmed = id.trim();
+  return UUID_RE.test(trimmed) ? shortId(trimmed) : trimmed;
+}
+
 /**
  * Best human name for a person: display_name, then email, then a shortened
  * id — never a raw UUID.

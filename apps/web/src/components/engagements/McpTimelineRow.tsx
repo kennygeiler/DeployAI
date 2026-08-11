@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { TimestampLabel } from "@/components/common/TimestampLabel.client";
 import type { LedgerEvent } from "@/lib/internal/ledger-cp";
+import { formatActorId } from "@/lib/labels";
 import {
   isMcpConfigKind,
   isMcpKillswitchKind,
@@ -121,7 +122,7 @@ export function McpTimelineRow({ event, testId }: McpTimelineRowProps): React.Re
               : "Outbound MCP re-enabled (kill switch OFF)"}
         </p>
         {event.actor_id ? (
-          <p className="text-ink-500 font-mono text-xs">actor {event.actor_id}</p>
+          <p className="text-ink-500 font-mono text-xs">actor {formatActorId(event.actor_id)}</p>
         ) : null}
       </div>
     );

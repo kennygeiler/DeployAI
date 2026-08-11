@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import type { LedgerEvent } from "@/lib/internal/ledger-cp";
-import { humanSourceKindLabel } from "@/lib/labels";
+import { formatActorId, humanSourceKindLabel } from "@/lib/labels";
 
 const ROW_HEIGHT = 88;
 const OVERSCAN = 8;
@@ -90,7 +90,7 @@ export function TimelineList({
                   <p className="text-ink-700 line-clamp-2 text-sm">{ev.summary}</p>
                   <div className="text-ink-500 flex w-full items-center gap-2 text-xs">
                     <span>{ev.actor_kind}</span>
-                    {ev.actor_id ? <span className="font-mono">{ev.actor_id}</span> : null}
+                    {ev.actor_id ? <span className="font-mono">{formatActorId(ev.actor_id)}</span> : null}
                     {ev.affects.length > 0 ? (
                       <span className="ml-auto">{ev.affects.length} affected</span>
                     ) : null}
