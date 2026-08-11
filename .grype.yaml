@@ -1,9 +1,2 @@
 # Grype triage ignores. Every entry needs a justification and a removal plan.
-ignore:
-  # vitest 2.1.9 — GHSA-5xrq-8626-4rwp (vitest API-server RCE when the
-  # browser-mode/API server is network-exposed). Dev/test-only dependency:
-  # vitest never ships in a production image (web Dockerfile is a standalone
-  # Next build; Python services carry no node_modules), and we do not run
-  # vitest with --api exposed. Remove this entry when vitest is upgraded to
-  # a fixed major (backlog: "Upgrade vitest to 3.x" follow-up from Wave 1).
-  - vulnerability: GHSA-5xrq-8626-4rwp
+ignore: []
