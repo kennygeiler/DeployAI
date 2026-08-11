@@ -100,7 +100,7 @@ export function RecommendationsPanel({ engagementId }: { engagementId: string })
       <h2 id="engagement-recommendations-heading" className="text-ink-800 text-sm font-semibold">
         Recommended next actions
       </h2>
-      {err ? <p className="text-error-700 text-sm">{err}</p> : null}
+      {err ? <p className="text-red-ink text-sm">{err}</p> : null}
       {loading ? (
         <p className="text-ink-600 text-sm">Loading…</p>
       ) : err ? null : recommendations.length === 0 ? (
@@ -156,9 +156,9 @@ function RoleBadge({ role }: { role: RecommendationRole }) {
 function PriorityBadge({ priority }: { priority: RecommendationPriority }) {
   const classes =
     priority === "high"
-      ? "bg-error-100 text-error-900"
+      ? "bg-red-tint text-red-ink"
       : priority === "medium"
-        ? "bg-warning-100 text-warning-900"
+        ? "bg-orange-tint text-orange-ink"
         : "bg-ink-100 text-ink-800";
   return (
     <span

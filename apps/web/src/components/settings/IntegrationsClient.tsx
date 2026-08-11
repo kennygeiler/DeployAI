@@ -172,7 +172,7 @@ export function IntegrationsClient({
             Add integration
           </Button>
         </div>
-        {loadError ? <p className="text-error-700 text-sm">{loadError}</p> : null}
+        {loadError ? <p className="text-red-ink text-sm">{loadError}</p> : null}
         {configs.length === 0 ? (
           <p className="text-ink-600 text-sm" data-testid="configs-empty">
             No integrations configured yet. Click <em>Add integration</em> to wire one up.
@@ -304,8 +304,7 @@ function KillSwitchPanel({
   return (
     <section
       className={
-        "rounded-md border p-4 " +
-        (isOn ? "border-error-500 bg-error-50" : "border-border bg-bg-subtle")
+        "rounded-md border p-4 " + (isOn ? "border-red bg-red-tint" : "border-border bg-bg-subtle")
       }
       data-testid="killswitch-panel"
       aria-live="polite"
@@ -316,7 +315,7 @@ function KillSwitchPanel({
             Outbound MCP killed: <span data-testid="killswitch-state">{isOn ? "ON" : "OFF"}</span>
           </h2>
           {isOn ? (
-            <p className="text-error-700 mt-1 text-sm" data-testid="killswitch-warning">
+            <p className="text-red-ink mt-1 text-sm" data-testid="killswitch-warning">
               Agent Kenny cannot call any external MCP server while this is on. All in-flight calls
               return <code>McpOutboundDisabled</code>.
             </p>
@@ -555,7 +554,7 @@ function ConfigDialog({
               required
               aria-invalid={nameInvalid}
             />
-            {nameInvalid ? <p className="text-error-700 text-xs">Name is required.</p> : null}
+            {nameInvalid ? <p className="text-red-ink text-xs">Name is required.</p> : null}
           </div>
           <div className="space-y-2">
             <Label htmlFor="cfg-kind">Connector</Label>
@@ -591,7 +590,7 @@ function ConfigDialog({
               aria-invalid={endpointInvalid}
             />
             {endpoint && endpointInvalid ? (
-              <p className="text-error-700 text-xs">Endpoint must be a valid https:// URL.</p>
+              <p className="text-red-ink text-xs">Endpoint must be a valid https:// URL.</p>
             ) : null}
           </div>
           <div className="space-y-2">

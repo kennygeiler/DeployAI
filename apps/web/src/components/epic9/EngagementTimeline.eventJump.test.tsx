@@ -100,8 +100,8 @@ describe("EngagementTimeline — event jump", () => {
 
     expect(scrollIntoViewMock).toHaveBeenCalled();
     const li = screen.getByTestId(`timeline-event-${EVENT_ID}`);
-    expect(li.className).toMatch(/bg-warning-100/);
-    expect(li.className).toMatch(/ring-warning-400/);
+    expect(li.className).toMatch(/bg-orange-tint/);
+    expect(li.className).toMatch(/ring-orange/);
   });
 
   it("clears the source-kind filter and toasts when the target event would be filtered out", async () => {

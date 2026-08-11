@@ -144,7 +144,7 @@ export function EngagementInsights({ engagementId, onExplain }: EngagementInsigh
           {refreshing ? "Refreshing…" : "Refresh insights"}
         </Button>
       </div>
-      {err ? <p className="text-error-700 text-sm">{err}</p> : null}
+      {err ? <p className="text-red-ink text-sm">{err}</p> : null}
       {loading ? (
         <p className="text-ink-600 text-sm">Loading…</p>
       ) : insights.length === 0 ? (

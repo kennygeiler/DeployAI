@@ -102,7 +102,7 @@ export function EventSearch() {
         </p>
       </div>
 
-      {visibleErr ? <p className="text-error-700 text-sm">{visibleErr}</p> : null}
+      {visibleErr ? <p className="text-red-ink text-sm">{visibleErr}</p> : null}
 
       {visibleStatus === "idle" && !visibleErr ? (
         <p className="text-ink-600 text-sm">

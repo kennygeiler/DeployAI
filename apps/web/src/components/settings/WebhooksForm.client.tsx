@@ -141,7 +141,7 @@ export function WebhooksForm() {
         </p>
       </div>
 
-      {err ? <p className="text-error-700 text-sm">{err}</p> : null}
+      {err ? <p className="text-red-ink text-sm">{err}</p> : null}
 
       <form onSubmit={onCreate} className="border-border space-y-4 rounded-md border p-4">
         <h3 className="text-sm font-semibold">Add webhook</h3>
@@ -397,7 +397,7 @@ function WebhookRow({
                         ) : null}
                         {" · "}
                         <span className="text-ink-600">{d.attempts} attempt(s)</span>
-                        {d.error ? <div className="text-error-700 break-all">{d.error}</div> : null}
+                        {d.error ? <div className="text-red-ink break-all">{d.error}</div> : null}
                       </li>
                     ))}
                   </ul>

@@ -295,7 +295,7 @@ export function OnboardingWizard() {
         </p>
       </header>
 
-      {err ? <p className="text-error-700 text-sm">{err}</p> : null}
+      {err ? <p className="text-red-ink text-sm">{err}</p> : null}
       {busy && step === 0 ? (
         <p role="status" aria-label="Loading scenario" className="text-ink-700 text-sm">
           Loading scenario (this can take 20–60 seconds)…

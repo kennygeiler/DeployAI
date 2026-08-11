@@ -414,7 +414,7 @@ export function EngagementTimeline({
           ))}
         </div>
       ) : null}
-      {err ? <p className="text-error-700 text-sm">{err}</p> : null}
+      {err ? <p className="text-red-ink text-sm">{err}</p> : null}
       {loading ? (
         <p className="text-ink-600 text-sm">Loading…</p>
       ) : err ? null : view === "horizontal" ? (
@@ -451,7 +451,7 @@ export function EngagementTimeline({
                       aria-current={isHighlighted ? "true" : undefined}
                       className={
                         "space-y-1 px-3 py-2 transition-colors " +
-                        (isHighlighted ? "bg-warning-100 ring-warning-400 ring-2" : "")
+                        (isHighlighted ? "bg-orange-tint ring-orange ring-2" : "")
                       }
                     >
                       {isMcp && mcpEvent ? (

@@ -8,8 +8,7 @@ const nextConfig: NextConfig = {
   // (workspace checkouts, user-level lockfiles) Next.js otherwise guesses
   // the wrong workspace root and Turbopack refuses to compile.
   turbopack: {
-    // TEMP-LOCAL: widened for worktree verification; revert to ("..", "..").
-    root: join(__dirname, "..", "..", "..", "..", ".."),
+    root: join(__dirname, "..", ".."),
   },
 };
 
