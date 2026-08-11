@@ -95,6 +95,40 @@
   --radius-xl: calc(var(--radius) + 8px);
 }
 
+/*
+ * Beautiful UI loading primitives (component 01) — shimmer sweep and
+ * pixel-grid pulse. Colors ride the surface-ladder vars so both themes work;
+ * durations honor the reduced-motion clamp at the bottom of this file.
+ */
+@keyframes bui-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes bui-pixel-pulse {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.bui-shimmer {
+  background: linear-gradient(90deg, var(--hover) 25%, var(--hover-2) 37%, var(--hover) 63%);
+  background-size: 400% 100%;
+  animation: bui-shimmer 1.6s var(--easing-standard) infinite;
+}
+
+.bui-pixel {
+  animation: bui-pixel-pulse 1.2s var(--easing-standard) infinite;
+}
+
 html,
 body {
   font-family: var(--font-sans);
