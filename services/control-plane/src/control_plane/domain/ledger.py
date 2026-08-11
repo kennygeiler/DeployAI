@@ -109,12 +109,21 @@ class LedgerEventCause(Base):
         ForeignKey("ledger_events.id", ondelete="CASCADE"),
         nullable=False,
     )
+    # Denormalized from the parent event (migration 0051) so RLS can scope
+    # this junction table directly. Nullable in the ORM; a BEFORE INSERT
+    # trigger fills it from ledger_events when a writer omits it.
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("app_tenants.id", ondelete="CASCADE"),
+        nullable=True,
+    )
 
     __table_args__ = (
         PrimaryKeyConstraint("event_id", "caused_by_id"),
         CheckConstraint("event_id != caused_by_id", name="ledger_event_causes_no_self_link"),
         Index("ix_ledger_cause_forward", "event_id"),
         Index("ix_ledger_cause_reverse", "caused_by_id"),
+        Index("ix_ledger_event_causes_tenant", "tenant_id"),
     )
 
 
@@ -130,10 +139,19 @@ class LedgerEventAffects(Base):
     )
     entity_kind: Mapped[str] = mapped_column(String(length=40), nullable=False)
     entity_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    # Denormalized from the parent event (migration 0051) so RLS can scope
+    # this junction table directly. Nullable in the ORM; a BEFORE INSERT
+    # trigger fills it from ledger_events when a writer omits it.
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("app_tenants.id", ondelete="CASCADE"),
+        nullable=True,
+    )
 
     __table_args__ = (
         PrimaryKeyConstraint("event_id", "entity_kind", "entity_id"),
         Index("ix_ledger_affects_entity", "entity_kind", "entity_id"),
+        Index("ix_ledger_event_affects_tenant", "tenant_id"),
     )
 
 

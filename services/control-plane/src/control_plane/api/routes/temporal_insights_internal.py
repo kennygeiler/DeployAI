@@ -11,8 +11,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from control_plane.api.routes.engagements_internal import require_internal
-from control_plane.db import get_app_db_session
+from control_plane.config.internal_auth import require_tenant_scoped
+from control_plane.db import get_tenant_db_session
 from control_plane.domain.app_identity.models import AppTenant
 from control_plane.domain.engagement import Engagement
 from control_plane.domain.ledger import (
@@ -71,10 +71,10 @@ class IntelligenceRunResponse(BaseModel):
 @router.get(
     "",
     response_model=list[TemporalInsightRead],
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def list_temporal_insights(
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
     engagement_id: Annotated[uuid.UUID | None, Query()] = None,
     status_: Annotated[str | None, Query(alias="status", max_length=32)] = None,
@@ -121,12 +121,12 @@ async def list_temporal_insights(
 @router.patch(
     "/{insight_id}",
     response_model=TemporalInsightRead,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def patch_temporal_insight(
     insight_id: uuid.UUID,
     body: TemporalInsightPatch,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> TemporalInsightRead:
     if body.status not in TEMPORAL_STATUSES:
@@ -166,11 +166,11 @@ async def patch_temporal_insight(
 @intelligence_router.post(
     "/run",
     response_model=IntelligenceRunResponse,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def run_intelligence(
     body: IntelligenceRunRequest,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> IntelligenceRunResponse:
     if await session.get(AppTenant, tenant_id) is None:

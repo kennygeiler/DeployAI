@@ -21,8 +21,9 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from control_plane.api.routes.engagements_internal import _require_engagement, require_internal
-from control_plane.db import get_app_db_session
+from control_plane.api.routes.engagements_internal import _require_engagement
+from control_plane.config.internal_auth import require_tenant_scoped
+from control_plane.db import get_tenant_db_session
 from control_plane.domain.ledger import LedgerEvent, LedgerEventAffects, LedgerEventCause
 
 router = APIRouter(prefix="/engagements", tags=["internal-ledger"])
@@ -69,11 +70,11 @@ class LedgerPage(BaseModel):
 @router.get(
     "/{engagement_id}/ledger",
     response_model=LedgerPage,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def list_ledger_events(
     engagement_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
     cursor: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=_MAX_LIMIT)] = _DEFAULT_LIMIT,
@@ -139,12 +140,12 @@ async def list_ledger_events(
 @router.get(
     "/{engagement_id}/ledger/{event_id}",
     response_model=LedgerEventDetailRead,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def get_ledger_event(
     engagement_id: uuid.UUID,
     event_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> LedgerEventDetailRead:
     await _require_engagement(session, tenant_id, engagement_id)
@@ -205,12 +206,12 @@ class LedgerChainResponse(BaseModel):
 @router.get(
     "/{engagement_id}/ledger/{event_id}/chain",
     response_model=LedgerChainResponse,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def get_ledger_event_chain(
     engagement_id: uuid.UUID,
     event_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
     direction: Annotated[str, Query(pattern="^(upstream|downstream|both)$")] = "both",
     max_depth: Annotated[int, Query(ge=1, le=_MAX_CHAIN_DEPTH)] = _DEFAULT_CHAIN_DEPTH,

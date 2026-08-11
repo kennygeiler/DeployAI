@@ -62,6 +62,9 @@ from control_plane.api.routes.platform import router as platform_router
 from control_plane.api.routes.schema_proposals import router as schema_proposals_internal_router
 from control_plane.api.routes.scim import router as scim_users_router
 from control_plane.api.routes.seed_scenarios_internal import router as seed_scenarios_internal_router
+from control_plane.api.routes.service_tokens_internal import (
+    router as service_tokens_internal_router,
+)
 from control_plane.api.routes.strategist_integration_records import (
     router as strategist_integration_records_internal_router,
 )
@@ -177,6 +180,7 @@ app.include_router(temporal_insights_internal_router, prefix="/internal/v1")
 app.include_router(temporal_intelligence_router, prefix="/internal/v1")
 app.include_router(tenants_internal_router, prefix="/internal/v1")
 app.include_router(tenant_api_keys_internal_router, prefix="/internal/v1")
+app.include_router(service_tokens_internal_router, prefix="/internal/v1")
 app.include_router(tenant_mcp_configs_internal_router, prefix="/internal/v1")
 app.include_router(tenant_mcp_killswitch_internal_router, prefix="/internal/v1")
 app.include_router(tenant_mcp_audit_internal_router, prefix="/internal/v1")

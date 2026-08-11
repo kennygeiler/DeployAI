@@ -32,6 +32,23 @@ _CANONICAL_TABLES: tuple[str, ...] = (
     "canonical_memory_events",
     "tombstones",
     "schema_proposals",
+    # A3a expansion tables (harness table set in fuzz/cross_tenant.py).
+    # app_tenants last: TRUNCATE ... CASCADE from the registry sweeps every
+    # FK-carrying child the fuzz run created (engagements, ledger, matrix,
+    # oracle, embedding_jobs, ...), including rows not listed here.
+    "embedding_jobs",
+    "agent_audit_traces",
+    "oracle_chat_turns",
+    "oracle_conversations",
+    "temporal_insights",
+    "matrix_insights",
+    "matrix_edges",
+    "matrix_nodes",
+    "ledger_events",
+    "engagement_members",
+    "engagements",
+    "app_users",
+    "app_tenants",
 )
 
 

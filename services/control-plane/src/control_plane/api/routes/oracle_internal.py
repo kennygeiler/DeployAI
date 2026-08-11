@@ -42,11 +42,9 @@ from control_plane.agents.oracle_chat import (
     OracleStreamDelta,
     OracleStreamDone,
 )
-from control_plane.api.routes.engagements_internal import (
-    _require_engagement,
-    require_internal,
-)
-from control_plane.db import get_app_db_session
+from control_plane.api.routes.engagements_internal import _require_engagement
+from control_plane.config.internal_auth import require_tenant_scoped
+from control_plane.db import get_tenant_db_session
 from control_plane.domain.oracle import OracleChatTurn, OracleConversation
 
 _KENNY_V2_ENV_FLAG = "DEPLOYAI_AGENT_KENNY_V2_ENABLED"
@@ -110,12 +108,12 @@ class OracleHistoryResponse(BaseModel):
 @router.post(
     "/{engagement_id}/oracle/chat",
     response_model=OracleChatResponse,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def post_oracle_chat(
     engagement_id: uuid.UUID,
     body: OracleChatRequest,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
     actor_id: Annotated[uuid.UUID, Depends(_actor_uuid)],
     llm: Annotated[LLMProvider, Depends(get_llm_provider)],
@@ -160,12 +158,12 @@ _log = logging.getLogger(__name__)
 
 @router.post(
     "/{engagement_id}/oracle/chat/stream",
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def post_oracle_chat_stream(
     engagement_id: uuid.UUID,
     body: OracleChatRequest,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
     actor_id: Annotated[uuid.UUID, Depends(_actor_uuid)],
     llm: Annotated[LLMProvider, Depends(get_llm_provider)],
@@ -229,13 +227,13 @@ async def post_oracle_chat_stream(
 
 @router.post(
     "/{engagement_id}/oracle/chat/stream-v2",
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def post_oracle_chat_stream_v2(
     request: Request,
     engagement_id: uuid.UUID,
     body: OracleChatRequest,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
     actor_id: Annotated[uuid.UUID, Depends(_actor_uuid)],
     llm: Annotated[LLMProvider, Depends(get_llm_provider)],
@@ -319,11 +317,11 @@ async def post_oracle_chat_stream_v2(
 @router.get(
     "/{engagement_id}/oracle/history",
     response_model=OracleHistoryResponse,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def get_oracle_history(
     engagement_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
     actor_id: Annotated[uuid.UUID, Depends(_actor_uuid)],
 ) -> OracleHistoryResponse:

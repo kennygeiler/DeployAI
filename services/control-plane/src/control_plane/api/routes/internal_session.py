@@ -4,24 +4,14 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from control_plane.auth.session_service import issue_tokens
-from control_plane.config.internal_api import verify_internal_key
+from control_plane.config.internal_auth import require_internal
 from control_plane.config.settings import get_settings
 
 router = APIRouter(prefix="/test", tags=["internal-session"])
-
-
-def require_internal(
-    x_deployai_internal_key: str | None = Header(default=None, alias="X-DeployAI-Internal-Key"),
-) -> None:
-    if not verify_internal_key(x_deployai_internal_key):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing X-DeployAI-Internal-Key",
-        )
 
 
 class MintSessionBody(BaseModel):
