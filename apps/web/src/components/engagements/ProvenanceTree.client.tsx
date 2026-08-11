@@ -31,14 +31,40 @@ export type ProvenanceChain = {
 function buildChildIndex(
   nodes: ProvenanceChainNode[],
   edges: ProvenanceChainEdge[],
+  rootEventId: string,
 ): { byId: Map<string, ProvenanceChainNode>; childrenOf: Map<string, string[]> } {
   const byId = new Map<string, ProvenanceChainNode>();
   for (const n of nodes) byId.set(n.id, n);
-  const childrenOf = new Map<string, string[]>();
+
+  // The chain endpoint returns edges oriented root -> upstream cause
+  // (fromEventId is the root/nearer event). Rather than trusting either
+  // orientation, treat edges as undirected and derive parent -> children by
+  // BFS from the root, so the tree renders correctly even if the API's edge
+  // direction changes again.
+  const adjacency = new Map<string, string[]>();
+  const link = (a: string, b: string) => {
+    const arr = adjacency.get(a) ?? [];
+    arr.push(b);
+    adjacency.set(a, arr);
+  };
   for (const e of edges) {
-    const arr = childrenOf.get(e.toEventId) ?? [];
-    arr.push(e.fromEventId);
-    childrenOf.set(e.toEventId, arr);
+    link(e.fromEventId, e.toEventId);
+    link(e.toEventId, e.fromEventId);
+  }
+
+  const childrenOf = new Map<string, string[]>();
+  const seen = new Set<string>([rootEventId]);
+  const queue = [rootEventId];
+  while (queue.length > 0) {
+    const current = queue.shift() as string;
+    for (const neighbor of adjacency.get(current) ?? []) {
+      if (seen.has(neighbor)) continue;
+      seen.add(neighbor);
+      const arr = childrenOf.get(current) ?? [];
+      arr.push(neighbor);
+      childrenOf.set(current, arr);
+      queue.push(neighbor);
+    }
   }
   return { byId, childrenOf };
 }
@@ -136,8 +162,8 @@ export function ProvenanceTree({
   defaultExpanded?: boolean;
 }) {
   const { byId, childrenOf } = React.useMemo(
-    () => buildChildIndex(chain.nodes, chain.edges),
-    [chain.nodes, chain.edges],
+    () => buildChildIndex(chain.nodes, chain.edges, chain.rootEventId),
+    [chain.nodes, chain.edges, chain.rootEventId],
   );
   const root = byId.get(chain.rootEventId);
   if (!root) {

@@ -29,6 +29,7 @@ from control_plane.domain.engagement import Engagement, EngagementMember
 from control_plane.domain.ledger import LedgerEvent
 from control_plane.domain.review_inbox import ReviewItem
 from control_plane.services.engagement_legibility import (
+    TELEMETRY_SOURCE_KINDS,
     actor_display_name,
     bucket_for_source_kind,
     humanize_event_title,
@@ -197,6 +198,9 @@ async def _load_counts(session: AsyncSession, tenant_id: uuid.UUID, engagement_i
 async def _load_recent_changes(
     session: AsyncSession, tenant_id: uuid.UUID, engagement_id: uuid.UUID
 ) -> list[SummaryRecentChange]:
+    # Agent-run telemetry is excluded in SQL (not post-filtered) so the
+    # "last 10" are 10 real domain changes, never telemetry-padded — see
+    # TELEMETRY_SOURCE_KINDS in engagement_legibility.
     events = list(
         (
             await session.execute(
@@ -204,6 +208,7 @@ async def _load_recent_changes(
                 .where(
                     LedgerEvent.tenant_id == tenant_id,
                     LedgerEvent.engagement_id == engagement_id,
+                    LedgerEvent.source_kind.notin_(TELEMETRY_SOURCE_KINDS),
                 )
                 .order_by(LedgerEvent.occurred_at.desc(), LedgerEvent.recorded_at.desc())
                 .limit(_RECENT_CHANGES_LIMIT)
