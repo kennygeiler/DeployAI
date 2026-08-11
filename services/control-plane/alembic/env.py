@@ -41,7 +41,12 @@ from control_plane.domain.base import Base
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers=False: when migrations run in-process (the
+    # integration/fuzz conftest calls `command.upgrade` against the
+    # testcontainer), the default True would silently disable every
+    # already-created `control_plane.*` logger for the rest of the pytest
+    # session.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Deployment override: when DATABASE_URL is set it wins over the alembic.ini
 # placeholder, so `alembic upgrade head` runs against the real database.
