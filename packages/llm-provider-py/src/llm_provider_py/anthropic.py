@@ -32,7 +32,15 @@ from llm_provider_py.util import (
 )
 
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
-DEFAULT_MODEL = "claude-sonnet-4-20250514"
+DEFAULT_MODEL = "claude-sonnet-5"
+
+# Claude 5-family models reject the `temperature` parameter
+# (invalid_request_error: "`temperature` is deprecated for this model").
+_NO_TEMPERATURE_PREFIXES = ("claude-sonnet-5", "claude-opus-5", "claude-fable-5")
+
+
+def _model_supports_temperature(model: str) -> bool:
+    return not model.startswith(_NO_TEMPERATURE_PREFIXES)
 
 
 class AnthropicProvider:
@@ -132,7 +140,7 @@ class AnthropicProvider:
         }
         if system:
             body["system"] = system
-        if temperature is not None:
+        if temperature is not None and _model_supports_temperature(self._model):
             body["temperature"] = temperature
         return body
 
@@ -205,7 +213,7 @@ class AnthropicProvider:
         }
         if system:
             body["system"] = system
-        if temperature is not None:
+        if temperature is not None and _model_supports_temperature(self._model):
             body["temperature"] = temperature
         return body
 

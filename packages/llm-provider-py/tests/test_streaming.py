@@ -65,7 +65,8 @@ async def test_anthropic_chat_complete_stream_mocked(monkeypatch: pytest.MonkeyP
 
     monkeypatch.setattr(AnthropicProvider, "_iter_sse_events", fake_iter_events)  # type: ignore[assignment]
 
-    p = AnthropicProvider(api_key="sk-test")
+    # model pinned pre-5: Claude 5-family models omit `temperature` from the body
+    p = AnthropicProvider(api_key="sk-test", model="claude-opus-4-1")
     out: list[StreamChunk] = []
     async for c in p.chat_complete_stream(
         [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}],
@@ -160,3 +161,12 @@ def test_chat_complete_backward_compat_signature() -> None:
     out = p.chat_complete([{"role": "user", "content": "abc"}])
     assert isinstance(out, str)
     assert out.startswith("stub:")
+
+
+def test_claude5_models_omit_temperature() -> None:
+    p = AnthropicProvider(api_key="sk-test", model="claude-sonnet-5")
+    body = p._build_stream_body([{"role": "user", "content": "hi"}], temperature=0.3, max_output_tokens=64)
+    assert "temperature" not in body
+    legacy = AnthropicProvider(api_key="sk-test", model="claude-opus-4-1")
+    legacy_body = legacy._build_stream_body([{"role": "user", "content": "hi"}], temperature=0.3, max_output_tokens=64)
+    assert legacy_body["temperature"] == 0.3
