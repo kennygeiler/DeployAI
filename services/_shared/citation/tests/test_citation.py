@@ -44,3 +44,33 @@ def test_rejects_bad_phase() -> None:
     bad["retrieval_phase"] = "nope"
     with pytest.raises(ValueError):
         CitationEnvelopeV01.model_validate(bad)
+
+
+# --- signed_timestamp RFC 3339 fixtures (ticket B6) ---
+# Keep these strings identical to the fixtures in
+# packages/contracts/tests/envelope.contract.test.ts so regex drift between
+# citation.py and citation-envelope.ts fails BOTH test suites.
+VALID_SIGNED_TIMESTAMPS = [
+    "2026-08-11T12:00:00Z",
+    "2026-08-11T12:00:00.123Z",
+    "2026-08-11T12:00:00+02:00",
+    "2026-08-11T12:00:00.5-07:00",
+]
+INVALID_SIGNED_TIMESTAMPS = [
+    "yesterday",
+    "2026-08-11",  # date only
+    "2026-08-11T12:00:00",  # missing timezone
+    "",
+]
+
+
+@pytest.mark.parametrize("ts", VALID_SIGNED_TIMESTAMPS)
+def test_accepts_rfc3339_signed_timestamp(ts: str) -> None:
+    m = CitationEnvelopeV01.model_validate({**_VALID, "signed_timestamp": ts})
+    assert m.signed_timestamp == ts
+
+
+@pytest.mark.parametrize("ts", INVALID_SIGNED_TIMESTAMPS)
+def test_rejects_non_rfc3339_signed_timestamp(ts: str) -> None:
+    with pytest.raises(ValueError):
+        CitationEnvelopeV01.model_validate({**_VALID, "signed_timestamp": ts})

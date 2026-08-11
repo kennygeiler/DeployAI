@@ -39,6 +39,13 @@ uv run python -m control_plane.scenarios.bluestate_xl.runner
 uv run python -m tests.golden.agent_kenny.runner --limit 5 --random
 ```
 
+> **KNOWN BROKEN** — the `python -m tests.golden.agent_kenny.runner` invocation
+> above does not work: `runner.py` has no `__main__` entry point and the
+> `--limit/--random/--question-ids` flags are not implemented. Fixing the
+> runner CLI is backlog ticket **G1**
+> (`docs/plans/2026-08-11-pilot-refresh-backlog.md`); until it lands, treat
+> this section as the intended interface, not a working command.
+
 For a specific subset: `--question-ids q07,q23`.
 
 ## Interpreting `cross_engagement_leak` failures

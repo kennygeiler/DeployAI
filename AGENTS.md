@@ -93,7 +93,7 @@ Lockfile races are a leading cause of merge conflicts in parallel work.
   it throws an internal NEXT_REDIRECT signal that the catch will
   swallow. Compute the decision inside try; call redirect outside.
 
-### Python (control-plane / cartographer)
+### Python (control-plane and other Python services)
 - `from __future__ import annotations` in every new module.
 - Type-hint every new function. `mypy` must pass with no new errors.
 - Use SQLAlchemy 2.x async sessions; FastAPI `Depends` for injection.

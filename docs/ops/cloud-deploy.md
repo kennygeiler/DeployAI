@@ -4,6 +4,14 @@ Status: ready to deploy as of 2026-05-27. v2 build complete on `main`. This
 runbook stands alone — you should be able to follow it end-to-end without
 spelunking the codebase.
 
+> **WARNING — no authentication is implemented yet.** The Cloudflare Access
+> wiring in §5 puts a login wall *in front of* the apps, but the header-reading
+> middleware that would turn the CF-verified email into an app identity (§6)
+> **was never written** (backlog ticket A1). A deploy following this runbook
+> today either has no user identity at all, or — if you set
+> `DEPLOYAI_LOCAL_DEV_ROLE_INJECT=1` per §3 — grants **admin to every request**.
+> Do not put customer data on such a deploy.
+
 ---
 
 ## 0. Why this stack
@@ -13,7 +21,7 @@ spelunking the codebase.
 | Compute | Fly.io (`shared-cpu-1x` machines) | Cheap, fast cold starts, internal 6PN DNS lets services talk privately, no VPC config. |
 | Postgres | Self-hosted Fly app (`infra/fly/postgres`) | Fly Managed Postgres lacks Apache AGE (Cypher / mig 0042). pgvector IS there, but AGE isn't, and AGE is load-bearing for graph traversal. So we ship our own image. |
 | Redis | `fly redis create` (Upstash-backed) | Token-bucket rate-limit counters + session cache. Free tier covers our usage. |
-| Auth | Cloudflare Access (free tier, ≤50 users) | Email allowlist + magic-link / OTP IdP. CF injects `CF-Access-Authenticated-User-Email` on every request. App reads it; no separate auth code needed. |
+| Auth | **NOT YET IMPLEMENTED** (planned: Cloudflare Access, free tier ≤50 users) | CF Access would inject `CF-Access-Authenticated-User-Email` on every request, but the app-side code that reads that header does not exist yet (§6, backlog ticket A1). Today the app has no real login. |
 | Admin/viewer split | `DEPLOYAI_ADMIN_EMAILS` env var on control-plane | Comma-separated list; CF-verified email compared against it. Everyone else gets viewer. |
 | Object storage | MinIO container OR Cloudflare R2 | Free for our volume. Wire later if you turn on the S3 backup path. |
 | TSA | freetsa-stub container (compose has one) | Free time-stamping for ledger chain notarisation. Wire optional. |
@@ -103,8 +111,13 @@ fly secrets set \
 # apps/web/src/lib/internal/control-plane.ts reads. Setting the wrong name
 # causes Kenny chat + every BFF→CP call to fail with "service unreachable".
 #
-# `DEPLOYAI_LOCAL_DEV_ROLE_INJECT=1` is INSECURE — auto-injects an admin
-# role into every request. Use only until Cloudflare Access is wired (§6).
+# ┌─────────────────────────────────────────────────────────────────────┐
+# │ INSECURE — `DEPLOYAI_LOCAL_DEV_ROLE_INJECT=1` auto-injects an ADMIN │
+# │ role into EVERY request. Anyone who can reach the URL is admin.     │
+# │ The §6 header-check middleware that would replace it was never      │
+# │ written (backlog ticket A1), so there is currently no secure        │
+# │ alternative. Deploy only demo/seed data with this flag set.        │
+# └─────────────────────────────────────────────────────────────────────┘
 fly secrets set \
   DEPLOYAI_INTERNAL_API_KEY="${INTERNAL_KEY}" \
   DEPLOYAI_CONTROL_PLANE_URL="http://deployai-control-plane.internal:8000" \

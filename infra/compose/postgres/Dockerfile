@@ -6,6 +6,10 @@ ARG AGE_VERSION=1.6.0
 ARG AGE_PG_LINE=PG16
 ENV DEBIAN_FRONTEND=noninteractive
 
+# AGE download: archive.apache.org keeps every release permanently, while
+# dlcdn.apache.org only carries the latest and 404s once AGE_VERSION rotates
+# out — so try the archive first and fall back to the CDN (both verified
+# serving apache-age-1.6.0-src.tar.gz as of 2026-08-11).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
@@ -14,8 +18,10 @@ RUN apt-get update \
         flex \
         bison \
         postgresql-server-dev-16 \
-    && curl -fsSL "https://dlcdn.apache.org/age/${AGE_PG_LINE}/${AGE_VERSION}/apache-age-${AGE_VERSION}-src.tar.gz" \
-         -o /tmp/age.tar.gz \
+    && { curl -fsSL "https://archive.apache.org/dist/age/${AGE_PG_LINE}/${AGE_VERSION}/apache-age-${AGE_VERSION}-src.tar.gz" \
+           -o /tmp/age.tar.gz \
+         || curl -fsSL "https://dlcdn.apache.org/age/${AGE_PG_LINE}/${AGE_VERSION}/apache-age-${AGE_VERSION}-src.tar.gz" \
+           -o /tmp/age.tar.gz ; } \
     && mkdir -p /tmp/age-src \
     && tar -xzf /tmp/age.tar.gz -C /tmp/age-src --strip-components=1 \
     && make -C /tmp/age-src install \

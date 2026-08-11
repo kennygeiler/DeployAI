@@ -31,6 +31,18 @@ export const citationSupersessionOverriddenSchema = z.object({
 export type CitationSupersessionOverridden = z.infer<typeof citationSupersessionOverriddenSchema>;
 
 /**
+ * RFC 3339 timestamp pattern for `signed_timestamp`.
+ * MUST stay byte-identical in sync with the Python validator regex at
+ * `services/_shared/citation/src/deployai_citation/citation.py:23`
+ * (`_is_rfc3339_utcish`) — cross-language drift on this field is exactly
+ * what backlog ticket B6 reconciled. Shared valid/invalid fixture strings
+ * are asserted in `tests/envelope.contract.test.ts` and
+ * `services/_shared/citation/tests/test_citation.py`.
+ */
+export const SIGNED_TIMESTAMP_RFC3339_REGEX =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+/**
  * Mandatory envelope for any agent output that cites canonical memory (FR27).
  * Zod is the authoring source; JSON Schema is emitted to `schema/` for CI and Python.
  */
@@ -42,8 +54,10 @@ export const CitationEnvelopeSchema = z
     evidence_span: evidenceSpanSchema,
     retrieval_phase: retrievalPhaseSchema,
     confidence_score: z.number().min(0).max(1),
-    /** ISO 8601 timestamp string (RFC 3339 profile). */
-    signed_timestamp: z.string().min(1),
+    /** ISO 8601 timestamp string (RFC 3339 profile) — same regex as Python (citation.py:23). */
+    signed_timestamp: z.string().regex(SIGNED_TIMESTAMP_RFC3339_REGEX, {
+      message: "signed_timestamp must be an ISO 8601 / RFC 3339 string",
+    }),
     supersession: citationSupersessionOverriddenSchema.optional(),
   })
   .superRefine((val, ctx) => {

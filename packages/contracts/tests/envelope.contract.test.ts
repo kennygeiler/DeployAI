@@ -53,4 +53,31 @@ describe("CitationEnvelopeSchema (v0.1.0)", () => {
     });
     expect(r.success).toBe(true);
   });
+
+  // --- signed_timestamp RFC 3339 fixtures (ticket B6) ---
+  // Keep these strings identical to the fixtures in
+  // services/_shared/citation/tests/test_citation.py so regex drift between
+  // citation-envelope.ts and citation.py fails BOTH test suites.
+  const validSignedTimestamps = [
+    "2026-08-11T12:00:00Z",
+    "2026-08-11T12:00:00.123Z",
+    "2026-08-11T12:00:00+02:00",
+    "2026-08-11T12:00:00.5-07:00",
+  ];
+  const invalidSignedTimestamps = [
+    "yesterday",
+    "2026-08-11", // date only
+    "2026-08-11T12:00:00", // missing timezone
+    "",
+  ];
+
+  it.each(validSignedTimestamps)("accepts RFC 3339 signed_timestamp %s", (ts) => {
+    const r = CitationEnvelopeSchema.safeParse({ ...valid, signed_timestamp: ts });
+    expect(r.success).toBe(true);
+  });
+
+  it.each(invalidSignedTimestamps)("rejects non-RFC 3339 signed_timestamp %j", (ts) => {
+    const r = CitationEnvelopeSchema.safeParse({ ...valid, signed_timestamp: ts });
+    expect(r.success).toBe(false);
+  });
 });

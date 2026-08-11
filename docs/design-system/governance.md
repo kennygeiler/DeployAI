@@ -23,7 +23,7 @@
 ## Optional / org-owned (enable when ready)
 
 - **Chromatic secret:** add repository secret `CHROMATIC_PROJECT_TOKEN` to enable the steps above; leave unset to skip Chromatic only (build + artifact + PR comment still run).
-- **VPAT evidence (7.15):** [`apps/tools/vpat-aggregator/`](../../apps/tools/vpat-aggregator) writes a versioned JSON stub under `artifacts/vpat/`. [`.github/workflows/vpat-evidence.yml`](../../.github/workflows/vpat-evidence.yml) runs on `workflow_dispatch` and on `release: published` and uploads that folder as a workflow artifact; an **S3 sync** block is commented until `AWS` OIDC, bucket, and program sign-off (Epic 13 / infra) exist.
+- **VPAT evidence (7.15): removed.** The `apps/tools/vpat-aggregator` stub was deleted with the dead-workspace cleanup (`adbce18`, part of `apps/tools`), and the orphaned `vpat-evidence.yml` workflow + root `vpat:aggregate` script were removed in Wave 0 hygiene. If Epic 13 VPAT evidence is picked back up, restore both from git history (`git show 561bd48 -- apps/tools/vpat-aggregator .github/workflows/vpat-evidence.yml`).
 
 - **ESLint “no raw `<button>`”** (Story 7.12): `no-restricted-syntax` in `apps/web/eslint.config.mjs` on `src/**` (shadcn primitives under `src/components/ui/**` are lint-ignored, so the Button file is exempt). New code should use shadcn `<Button>`.
 - **CI / merge (path-gated jobs):** `schema`, `fuzz`, and `compose-smoke` use a `prep` + `paths-filter` pattern so the heavy job is **skipped** (success) on irrelevant PRs instead of leaving required checks as **“expected”** — see [`.github/workflows/README.md`](../../.github/workflows/README.md) §Required checks.
