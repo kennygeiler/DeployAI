@@ -217,9 +217,54 @@ async def persist_turn(
     return state
 
 
+async def persist_concern_payload(
+    session: AsyncSession,
+    state: AgentState,
+    *,
+    moment: datetime,
+) -> None:
+    """Write the structured concerns onto the audit row + emit the ledger event.
+
+    Runs after :func:`persist_turn` so ``state.final_turn_id`` is set.
+    Shared by both drivers (the legacy service loop and the LangGraph
+    persist node) — moved here from ``service.py`` in pilot-refresh D2 so
+    neither runtime imports the other.
+    """
+    if not state.adversarial_concern_objs:
+        return
+    if state.final_turn_id is None:
+        return
+    payload = [{"concern_text": c.concern_text, "severity": c.severity} for c in state.adversarial_concern_objs]
+    verified = sum(1 for c in state.adversarial_concern_objs if c.severity == "info")
+    audit = (
+        await session.execute(select(AgentAuditTrace).where(AgentAuditTrace.turn_id == state.final_turn_id))
+    ).scalar_one_or_none()
+    if audit is not None:
+        audit.adversarial_concerns_text = payload
+        audit.verified_concerns_count = verified
+        await session.flush()
+    await emit_ledger_event(
+        session,
+        tenant_id=state.tenant_id,
+        engagement_id=state.engagement_id,
+        occurred_at=moment,
+        actor_kind="agent:kenny",
+        actor_id=str(state.final_turn_id),
+        source_kind="agent_concern_logged",
+        source_ref=state.final_turn_id,
+        summary=f"adversarial reviewer logged {len(payload)} concern(s)"[:500],
+        detail={
+            "turn_id": str(state.final_turn_id),
+            "concerns": payload[:20],
+            "verified_concerns_count": verified,
+        },
+    )
+
+
 __all__ = [
     "_ConversationNotFound",
     "_ConversationNotFoundError",
     "get_or_create_conversation",
+    "persist_concern_payload",
     "persist_turn",
 ]

@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { decideSync } from "@deployai/authz";
 
-import { getActorFromHeaders } from "@/lib/internal/actor";
+import { getActorFromHeaders, getActorIdFromHeaders } from "@/lib/internal/actor";
 import { cpCreateInsightFollowup } from "@/lib/internal/insights-cp";
 import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
 import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strategist-queues-route-guard";
@@ -38,7 +38,10 @@ export async function POST(request: NextRequest, ctx: Ctx) {
   } catch {
     return NextResponse.json({ error: "invalid json body" }, { status: 400 });
   }
-  const body = parseFollowupBody(raw);
+  // F2 — the inbox UI omits owner_user_id; default to the acting user so
+  // "follow up on this" is one click instead of a uuid-entry form.
+  const fallbackOwner = await getActorIdFromHeaders();
+  const body = parseFollowupBody(raw, fallbackOwner);
   if (body === null) {
     return NextResponse.json(
       { error: "owner_user_id (uuid) and due_date (YYYY-MM-DD) required" },
@@ -53,11 +56,12 @@ export async function POST(request: NextRequest, ctx: Ctx) {
   }
 }
 
-function parseFollowupBody(raw: unknown): FollowupBody | null {
+function parseFollowupBody(raw: unknown, fallbackOwner: string | null): FollowupBody | null {
   if (raw === null || typeof raw !== "object") return null;
-  const owner = (raw as { owner_user_id?: unknown }).owner_user_id;
+  const explicit = (raw as { owner_user_id?: unknown }).owner_user_id;
+  const owner = typeof explicit === "string" ? explicit : (fallbackOwner ?? "");
   const due = (raw as { due_date?: unknown }).due_date;
-  if (typeof owner !== "string" || !UUID_RE.test(owner)) return null;
+  if (!UUID_RE.test(owner)) return null;
   if (typeof due !== "string" || !ISO_DATE.test(due)) return null;
   return { owner_user_id: owner, due_date: due };
 }

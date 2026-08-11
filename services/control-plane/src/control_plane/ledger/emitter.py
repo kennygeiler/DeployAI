@@ -107,6 +107,26 @@ ALLOWED_SOURCE_KINDS: frozenset[str] = frozenset(
         "killswitch_queue_purge_failed",
         "killswitch_secrets_deleted",
         "killswitch_secrets_delete_failed",
+        # Pilot-refresh ticket D4 — in-turn HITL approvals (LangGraph
+        # interrupt). One row when the agent pauses on an approval-gated
+        # tool call, and one for the human decision, so the audit timeline
+        # shows what the agent asked and who answered.
+        "agent_approval_requested",
+        "agent_approval_granted",
+        "agent_approval_denied",
+        # Pilot-refresh Wave 2, E-lane (Review Inbox, tickets E1-E4).
+        # ``review_item_*`` cover the async-HITL queue lifecycle (the item
+        # kind — agent_escalation / citation_dispute / commitment_confirmation
+        # — travels in detail). ``human_escalation_answer`` is the canonical
+        # knowledge-flywheel write: a human's answer to an escalated question,
+        # with citations, that future agent turns can ground on.
+        # ``proposal_auto_accepted`` marks E4 confidence-threshold accepts so
+        # auditors can tell machine accepts from human ones.
+        "review_item_created",
+        "review_item_resolved",
+        "review_item_dismissed",
+        "human_escalation_answer",
+        "proposal_auto_accepted",
     }
 )
 
@@ -256,7 +276,7 @@ async def _maybe_enqueue_synthesis(
 
     triggers: list[tuple[str, uuid.UUID]] = []
     src = event.source_kind
-    if src == "proposal_accepted":
+    if src in ("proposal_accepted", "proposal_auto_accepted"):
         hint = detail.get("node_type")
         node_type: str | None = hint if isinstance(hint, str) else None
         affected_nodes = [tid for kind, tid in affects if kind == "matrix_node"]
@@ -317,6 +337,8 @@ async def _lookup_matrix_node_type(
 _LINT_TRIGGER_SOURCE_KINDS: frozenset[str] = frozenset(
     {
         "proposal_accepted",
+        # E4 auto-accepts touch the substrate exactly like a human accept.
+        "proposal_auto_accepted",
         "matrix_node_updated",
         "insight_opened",
         "insight_closed",

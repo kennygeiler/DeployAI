@@ -13,6 +13,7 @@ from typing import Any
 
 from control_plane.agents.agent_kenny.types import (
     AdversarialConcernChunk,
+    ApprovalRequiredChunk,
     CitationExternalChunk,
     CitationUnverifiedChunk,
     CitationVerifiedChunk,
@@ -78,6 +79,16 @@ def format_chunk(chunk: StreamChunk) -> bytes:
         return _frame(
             "mcp_outbound_skipped_disabled",
             {"reason": chunk.reason},
+        )
+    if isinstance(chunk, ApprovalRequiredChunk):
+        return _frame(
+            "approval_required",
+            {
+                "question": chunk.question,
+                "tool": chunk.tool,
+                "args_summary": chunk.args_summary,
+                "thread_id": chunk.thread_id,
+            },
         )
     if isinstance(chunk, AdversarialConcernChunk):
         return _frame(

@@ -2,10 +2,21 @@ import type { MatrixInsight } from "@/lib/bff/matrix-types";
 
 export type GroupSeverity = "critical" | "warning" | "info";
 
-export type InsightGroup = {
+/**
+ * Structural subset the grouping helpers need. Satisfied by both
+ * `MatrixInsight` and the F2 `UnifiedInsight` (which keeps the
+ * `insight_type` field name for exactly this reason).
+ */
+export type GroupableInsight = {
+  insight_type: string;
+  severity: string;
+  created_at: string;
+};
+
+export type InsightGroup<T extends GroupableInsight = MatrixInsight> = {
   kind: string;
   severityMax: GroupSeverity;
-  insights: MatrixInsight[];
+  insights: T[];
 };
 
 const SEVERITY_RANK: Record<GroupSeverity, number> = {
@@ -14,8 +25,8 @@ const SEVERITY_RANK: Record<GroupSeverity, number> = {
   info: 1,
 };
 
-export function toGroupSeverity(severity: MatrixInsight["severity"]): GroupSeverity {
-  if (severity === "high") return "critical";
+export function toGroupSeverity(severity: string): GroupSeverity {
+  if (severity === "high" || severity === "critical") return "critical";
   if (severity === "medium") return "warning";
   return "info";
 }
@@ -27,12 +38,12 @@ export function humanizeKind(kind: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
 }
 
-export function isOpenByDefault(group: InsightGroup): boolean {
+export function isOpenByDefault(group: InsightGroup<GroupableInsight>): boolean {
   return group.severityMax !== "info";
 }
 
-export function groupByKind(insights: MatrixInsight[]): InsightGroup[] {
-  const buckets = new Map<string, MatrixInsight[]>();
+export function groupByKind<T extends GroupableInsight>(insights: T[]): InsightGroup<T>[] {
+  const buckets = new Map<string, T[]>();
   for (const insight of insights) {
     const list = buckets.get(insight.insight_type);
     if (list) {
@@ -42,7 +53,7 @@ export function groupByKind(insights: MatrixInsight[]): InsightGroup[] {
     }
   }
 
-  const groups: InsightGroup[] = [];
+  const groups: InsightGroup<T>[] = [];
   for (const [kind, list] of buckets) {
     const sorted = [...list].sort((a, b) => compareCreatedAtDesc(a.created_at, b.created_at));
     const severityMax = sorted.reduce<GroupSeverity>((acc, item) => {

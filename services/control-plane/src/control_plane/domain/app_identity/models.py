@@ -6,7 +6,18 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import TIMESTAMP, Boolean, CheckConstraint, ForeignKey, String, Text, UniqueConstraint, func, text
+from sqlalchemy import (
+    TIMESTAMP,
+    Boolean,
+    CheckConstraint,
+    Double,
+    ForeignKey,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -96,6 +107,12 @@ class TenantLlmConfig(Base):
     secondary_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
     secondary_api_key: Mapped[str | None] = mapped_column(Text(), nullable=True)
     secondary_model_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Pilot-refresh E4 — confidence-thresholded auto-accept for matrix
+    # proposals. NULL threshold = auto-accept off; sampling_audit_rate is the
+    # 0..1 fraction of would-be auto-accepts held for human spot-check
+    # (deterministic by proposal id; see services/proposal_auto_accept.py).
+    proposal_auto_accept_threshold: Mapped[float | None] = mapped_column(Double(), nullable=True)
+    sampling_audit_rate: Mapped[float] = mapped_column(Double(), nullable=False, server_default=text("0"), default=0.0)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
@@ -107,6 +124,15 @@ class TenantLlmConfig(Base):
         CheckConstraint(
             "secondary_provider IS NULL OR secondary_provider IN ('anthropic', 'openai', 'stub')",
             name="ck_tenant_llm_configs_secondary_provider",
+        ),
+        CheckConstraint(
+            "proposal_auto_accept_threshold IS NULL "
+            "OR (proposal_auto_accept_threshold >= 0 AND proposal_auto_accept_threshold <= 1)",
+            name="ck_tenant_llm_configs_auto_accept_threshold",
+        ),
+        CheckConstraint(
+            "sampling_audit_rate >= 0 AND sampling_audit_rate <= 1",
+            name="ck_tenant_llm_configs_sampling_audit_rate",
         ),
     )
 

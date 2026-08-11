@@ -209,6 +209,67 @@ export async function cpStreamOracleChatV2(
   return r;
 }
 
+// D4 — in-turn HITL approvals. The `approval_required` SSE frame carries the
+// thread_id; the decision endpoint resumes the paused turn and returns the
+// completed reply non-streaming (same shape family as the JSON chat path).
+export const zOracleApprovalDecision = z.object({
+  approved: z.boolean(),
+  note: z.string().max(500).optional(),
+});
+export type OracleApprovalDecision = z.infer<typeof zOracleApprovalDecision>;
+
+export const zOracleApprovalPayload = z.object({
+  question: z.string(),
+  tool: z.string(),
+  args_summary: z.string(),
+  thread_id: z.string(),
+});
+export type OracleApprovalPayload = z.infer<typeof zOracleApprovalPayload>;
+
+export const zOracleApprovalResume = z.object({
+  status: z.enum(["done", "approval_required"]),
+  turn_id: _UUID.nullish(),
+  conversation_id: _UUID.nullish(),
+  content: z.string().nullish(),
+  tokens_used: z.number().int().nonnegative().nullish(),
+  approval: zOracleApprovalPayload.nullish(),
+});
+export type OracleApprovalResume = z.infer<typeof zOracleApprovalResume>;
+
+export async function cpPostOracleApprovalDecision(
+  tenantId: string,
+  engagementId: string,
+  actorId: string,
+  threadId: string,
+  body: OracleApprovalDecision,
+): Promise<OracleApprovalResume> {
+  const url =
+    `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}` +
+    `/oracle/approvals/${encodeURIComponent(threadId)}` +
+    `?tenant_id=${encodeURIComponent(tenantId)}`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { ...cpHeaders(actorId), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (r.status === 404) {
+    throw new OracleApprovalNotFoundError();
+  }
+  if (!r.ok) {
+    throw new Error(`cp oracle approval ${r.status}: ${await r.text()}`);
+  }
+  const raw: unknown = await r.json();
+  return zOracleApprovalResume.parse(raw);
+}
+
+export class OracleApprovalNotFoundError extends Error {
+  constructor() {
+    super("approval not found");
+    this.name = "OracleApprovalNotFoundError";
+  }
+}
+
 export async function cpGetOracleHistory(
   tenantId: string,
   engagementId: string,

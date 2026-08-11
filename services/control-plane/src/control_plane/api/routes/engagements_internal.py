@@ -55,7 +55,7 @@ from control_plane.config.internal_auth import (  # noqa: F401
     require_tenant_scoped,
 )
 from control_plane.db import get_tenant_db_session
-from control_plane.domain.app_identity.models import AppTenant, AppUser
+from control_plane.domain.app_identity.models import AppTenant, AppUser, TenantLlmConfig
 from control_plane.domain.canonical_memory.events import CanonicalMemoryEvent
 from control_plane.domain.canonical_memory.identity import IdentityNode
 from control_plane.domain.canonical_memory.matrix import (
@@ -77,6 +77,10 @@ from control_plane.domain.member_roles import resolve_allowed_member_roles
 from control_plane.domain.strategist_queues import StrategistActionQueueItem
 from control_plane.ledger import emit_ledger_event
 from control_plane.phases.machine import DEPLOYMENT_PHASES, default_phase
+from control_plane.services.proposal_auto_accept import (
+    AutoAcceptSettings,
+    decide_auto_accept,
+)
 from control_plane.webhooks.dispatcher import dispatch as dispatch_webhook
 
 # Roles a user can hold on an engagement — the cross-functional team.
@@ -912,6 +916,9 @@ async def _accept_one_proposal(
     proposal: MatrixProposal,
     actor_id: str | None,
     allowed_node_types: frozenset[str] | set[str] | None = None,
+    actor_kind: str = "user",
+    source_kind: str = "proposal_accepted",
+    extra_detail: dict[str, Any] | None = None,
 ) -> MatrixProposal:
     """Accept one matrix proposal: commit the proposed node or edge.
 
@@ -920,6 +927,10 @@ async def _accept_one_proposal(
     never commits. The single-accept route wraps a commit around it; the
     bulk-accept route commits each call independently so a payload that
     blows up does not roll back the rows that already landed.
+
+    E4 auto-accept reuses this path with ``source_kind="proposal_auto_accepted"``
+    and ``actor_kind="system"`` so machine accepts stay distinguishable in the
+    ledger while sharing every validation rule with human accepts.
     """
     if proposal.status != "pending":
         raise HTTPException(
@@ -1042,14 +1053,16 @@ async def _accept_one_proposal(
         accepted_node_type = payload.get("node_type")
         if isinstance(accepted_node_type, str) and accepted_node_type:
             accept_detail["node_type"] = accepted_node_type
+    if extra_detail:
+        accept_detail.update(extra_detail)
     await emit_ledger_event(
         session,
         tenant_id=tenant_id,
         engagement_id=engagement_id,
         occurred_at=datetime.now(UTC),
-        actor_kind="user",
+        actor_kind=actor_kind,
         actor_id=actor_id,
-        source_kind="proposal_accepted",
+        source_kind=source_kind,
         source_ref=proposal.id,
         summary=f"proposal accepted: {proposal.proposal_kind}"[:500],
         detail=accept_detail,
@@ -1057,6 +1070,76 @@ async def _accept_one_proposal(
         affects=affects,
     )
     return proposal
+
+
+async def _load_auto_accept_settings(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+) -> AutoAcceptSettings:
+    """Read the E4 policy knobs off the tenant's settings row (off when absent)."""
+    row = (
+        await session.execute(select(TenantLlmConfig).where(TenantLlmConfig.tenant_id == tenant_id))
+    ).scalar_one_or_none()
+    if row is None:
+        return AutoAcceptSettings(threshold=None)
+    return AutoAcceptSettings(
+        threshold=row.proposal_auto_accept_threshold,
+        sampling_audit_rate=row.sampling_audit_rate,
+    )
+
+
+async def apply_proposal_auto_accept(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    engagement_id: uuid.UUID,
+    proposals: list[MatrixProposal],
+    settings: AutoAcceptSettings | None = None,
+) -> list[MatrixProposal]:
+    """E4 — apply the confidence-threshold policy to freshly created proposals.
+
+    Returns the proposals that were auto-accepted. Proposals sampled for
+    audit stay ``pending`` and gain ``payload.sampling_audit = true`` so the
+    review UI can badge them; everything else is untouched. The caller owns
+    the transaction. A proposal whose payload fails accept-time validation
+    stays queued rather than failing the request — auto-accept must never
+    make extraction stricter than human review.
+    """
+    if settings is None:
+        settings = await _load_auto_accept_settings(session, tenant_id)
+    if not settings.enabled:
+        return []
+    accepted: list[MatrixProposal] = []
+    for proposal in proposals:
+        if proposal.status != "pending":
+            continue
+        decision = decide_auto_accept(proposal.id, proposal.payload, settings)
+        if decision.action == "audit":
+            proposal.payload = {**(proposal.payload or {}), "sampling_audit": True}
+        elif decision.action == "accept":
+            try:
+                await _accept_one_proposal(
+                    session,
+                    tenant_id=tenant_id,
+                    engagement_id=engagement_id,
+                    proposal=proposal,
+                    actor_id="auto_accept",
+                    actor_kind="system",
+                    source_kind="proposal_auto_accepted",
+                    extra_detail={
+                        "auto_accepted": True,
+                        "confidence": decision.confidence,
+                        "threshold": decision.threshold,
+                    },
+                )
+            except HTTPException:
+                # Invalid payloads queue for a human instead of 422-ing the
+                # extraction request that created them.
+                continue
+            accepted.append(proposal)
+    if accepted or settings.sampling_audit_rate > 0:
+        await session.flush()
+    return accepted
 
 
 @router.post(
@@ -1492,6 +1575,15 @@ async def extract_engagement_proposals(
                     "source_event_id": str(r.source_event_id),
                 },
             )
+        # E4 — confidence-thresholded auto-accept with deterministic sampling
+        # audit. No-op unless the tenant set a threshold AND the extractor
+        # emitted a payload confidence.
+        await apply_proposal_auto_accept(
+            session,
+            tenant_id=tenant_id,
+            engagement_id=engagement_id,
+            proposals=created,
+        )
     await session.commit()
     for r in created:
         await session.refresh(r)

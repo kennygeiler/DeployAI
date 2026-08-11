@@ -15,6 +15,11 @@
 #   expected_min_citations: int            # lower bound on citations.total
 #   expected_kinds: [str, ...]             # citation kinds expected in reply
 #   should_idk: bool                       # must contain an IDK / refusal marker
+#   is_negative_control: bool              # optional (default false); true on the
+#                                          # six `negative` questions — a decline
+#                                          # with zero citations is the CORRECT
+#                                          # outcome, so the hallucination metric
+#                                          # must not penalise it (ticket G4)
 
 # --- Direct lookup (8) ---------------------------------------------------------
 
@@ -157,6 +162,7 @@
   expected_min_citations: 0
   expected_kinds: []
   should_idk: true
+  is_negative_control: true
 
 - id: q-018
   category: negative
@@ -165,6 +171,7 @@
   expected_min_citations: 0
   expected_kinds: []
   should_idk: true
+  is_negative_control: true
 
 - id: q-019
   category: negative
@@ -173,6 +180,7 @@
   expected_min_citations: 0
   expected_kinds: []
   should_idk: true
+  is_negative_control: true
 
 - id: q-020
   category: negative
@@ -181,6 +189,7 @@
   expected_min_citations: 0
   expected_kinds: []
   should_idk: true
+  is_negative_control: true
 
 - id: q-021
   category: negative
@@ -189,6 +198,7 @@
   expected_min_citations: 0
   expected_kinds: []
   should_idk: true
+  is_negative_control: true
 
 - id: q-022
   category: negative
@@ -197,6 +207,7 @@
   expected_min_citations: 0
   expected_kinds: []
   should_idk: true
+  is_negative_control: true
 
 # --- Cross-engagement protection (4) -------------------------------------------
 #

@@ -1,14 +1,15 @@
-"""KennyAgentService — drives the Phase 2 LangGraph loop (scope-v2 §6).
+"""KennyAgentService — one public surface, two interchangeable drivers.
 
 Public surface: :meth:`reply_stream` returns an async iterator of
 :class:`StreamChunk` instances. The route layer wraps each chunk in an
-SSE frame and writes it to the client.
+SSE frame and writes it to the client. :meth:`resume_approval` continues
+a turn paused on a human-in-the-loop approval (LangGraph runtime only).
 
-This driver walks the same nodes the LangGraph topology declares (see
-``graph.py``), but does so imperatively so the live ``AsyncSession`` and
-emit sink can travel through. A future Phase 3 / Phase 6 refactor may
-swap this for native LangGraph execution if checkpointed replay becomes
-necessary.
+Driver selection (pilot-refresh D2): ``DEPLOYAI_AGENT_RUNTIME=langgraph``
+routes execution through the checkpointed StateGraph in ``runtime.py``;
+the default (``legacy``) keeps the hand-rolled loop below, which walks
+the same node names in the same order with the same shared routers. The
+legacy driver is retained until the D6 parity gate clears its deletion.
 """
 
 from __future__ import annotations
@@ -21,13 +22,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 from llm_provider_py.types import LLMProvider
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.agents.agent_kenny.budget import charge_turn
 from control_plane.agents.agent_kenny.embeddings.voyage_client import VoyageEmbedder
 from control_plane.agents.agent_kenny.graph import (
-    build_graph,
     has_tool_calls_router,
     unverified_router,
 )
@@ -49,11 +48,21 @@ from control_plane.agents.agent_kenny.nodes.llm_call import call_llm_with_tools
 from control_plane.agents.agent_kenny.nodes.persist import (
     _ConversationNotFound,
     get_or_create_conversation,
+    persist_concern_payload,
     persist_turn,
 )
 from control_plane.agents.agent_kenny.nodes.retrieve import retrieve_initial_context
 from control_plane.agents.agent_kenny.nodes.revise import revise_if_unverified
 from control_plane.agents.agent_kenny.nodes.tool_dispatch import dispatch_tools
+from control_plane.agents.agent_kenny.runtime import (
+    RUNTIME_LANGGRAPH,
+    KennyRuntime,
+    ResumeResult,
+    agent_runtime,
+    parse_thread_id,
+    resume_langgraph_turn,
+    run_langgraph_turn,
+)
 from control_plane.agents.agent_kenny.types import (
     MAX_TOOL_CALLS_PER_TURN,
     TURN_HARD_TIMEOUT_S,
@@ -67,7 +76,6 @@ from control_plane.agents.agent_kenny.types import (
     McpOutboundSkippedDisabledChunk,
     StreamChunk,
 )
-from control_plane.domain.canonical_memory.agent_audit import AgentAuditTrace
 from control_plane.ledger import emit_ledger_event
 
 _log = logging.getLogger(__name__)
@@ -99,7 +107,6 @@ class KennyAgentService:
     ) -> None:
         self._provider = provider
         self._cheap = cheap_provider or provider
-        self._graph = build_graph()
         self._mcp_client = mcp_client
         self._mcp_kill_switch = mcp_kill_switch
         self._mcp_rate_limiter = mcp_rate_limiter
@@ -220,8 +227,12 @@ class KennyAgentService:
         moment: datetime,
         emit: Any,
     ) -> None:
+        use_langgraph = agent_runtime() == RUNTIME_LANGGRAPH
+
         # 0. retrieve + per-turn rate-limit context + external MCP discovery.
-        await retrieve_initial_context(session, state)
+        # Under the LangGraph runtime, retrieve is the graph's first node.
+        if not use_langgraph:
+            await retrieve_initial_context(session, state)
 
         # Per-turn rate-limit bookkeeping (mcp_rate_limit.py). The
         # ContextVar lets ``InMemoryMcpRateLimiter.acquire`` attribute the
@@ -233,45 +244,133 @@ class KennyAgentService:
         if self._mcp_rate_limiter is not None:
             self._mcp_rate_limiter.open_turn(turn_id, state.tenant_id)
         try:
-            # Kill-switch precheck (threat-model §5.5). Engaged → skip
-            # discovery this turn; the LLM still has internal tools.
-            kill_switched = False
-            if self._mcp_kill_switch is not None:
-                try:
-                    kill_switched = bool(await self._mcp_kill_switch.is_outbound_disabled(state.tenant_id))
-                except Exception:
-                    # A DB blip on the kill-switch read must not abort the
-                    # turn — fail-open (matches DbMcpKillSwitch's own
-                    # unknown-tenant posture).
-                    _log.exception("kenny v2 mcp kill switch read failed")
-                    kill_switched = False
+            kill_switched, external_tools = await self._load_external_context(session, tenant_id=state.tenant_id)
             state.mcp_outbound_disabled = kill_switched
+            state.external_tools = external_tools
+            if kill_switched and emit is not None:
+                await emit(McpOutboundSkippedDisabledChunk())
 
-            if kill_switched:
-                if emit is not None:
-                    await emit(McpOutboundSkippedDisabledChunk())
-            elif self._mcp_client is not None:
+            if use_langgraph:
+                ctx = KennyRuntime(
+                    session=session,
+                    provider=self._provider,
+                    cheap_provider=self._cheap,
+                    emit=emit,
+                    turn_id=turn_id,
+                    moment=moment,
+                    actor_user_id=actor_user_id,
+                    conversation_id=conversation_id,
+                    mcp_client=self._mcp_client,
+                    embedder=self._embedder,
+                    external_tools=external_tools,
+                )
+                await run_langgraph_turn(ctx, state)
+            else:
+                await self._run_graph_inner(
+                    session,
+                    state,
+                    actor_user_id=actor_user_id,
+                    conversation_id=conversation_id,
+                    moment=moment,
+                    emit=emit,
+                    turn_id=turn_id,
+                )
+        finally:
+            current_turn_id_var.reset(ctx_token)
+            if self._mcp_rate_limiter is not None:
+                self._mcp_rate_limiter.close_turn(turn_id)
+
+    async def _load_external_context(
+        self,
+        session: AsyncSession,
+        *,
+        tenant_id: uuid.UUID,
+    ) -> tuple[bool, list[Any]]:
+        """Kill-switch precheck + best-effort external MCP tool discovery.
+
+        Shared by both drivers and by approval resumes. Engaged kill
+        switch → no discovery this turn; the LLM still has internal
+        tools. Both probes fail-open/soft so a DB blip or a discovery
+        failure never aborts the turn.
+        """
+        kill_switched = False
+        if self._mcp_kill_switch is not None:
+            try:
+                kill_switched = bool(await self._mcp_kill_switch.is_outbound_disabled(tenant_id))
+            except Exception:
+                # Threat-model §5.5: fail-open (matches DbMcpKillSwitch's
+                # own unknown-tenant posture).
+                _log.exception("kenny v2 mcp kill switch read failed")
+                kill_switched = False
+        external_tools: list[Any] = []
+        if not kill_switched and self._mcp_client is not None:
+            try:
+                external_tools = await load_enabled_mcp_tools(
+                    session,
+                    tenant_id=tenant_id,
+                    client=self._mcp_client,
+                )
+            except Exception:
+                # Discovery is best-effort: mcp_loader logs structured
+                # records for the operator.
+                _log.exception("kenny v2 external mcp discovery failed")
+                external_tools = []
+        return kill_switched, external_tools
+
+    async def resume_approval(
+        self,
+        session: AsyncSession,
+        *,
+        thread_id: str,
+        approved: bool,
+        note: str,
+        actor_user_id: uuid.UUID,
+        now: datetime | None = None,
+    ) -> ResumeResult:
+        """Resume a turn paused on an in-turn approval (LangGraph runtime).
+
+        Raises :class:`ApprovalNotPendingError` when the thread has no
+        pending interrupt, and ``ValueError`` when the thread id is
+        malformed. The resumed run executes under the same hard timeout
+        as a live turn.
+        """
+        parsed = parse_thread_id(thread_id)
+        if parsed is None:
+            raise ValueError("malformed thread id")
+        tenant_id, _engagement_id, conversation_key = parsed
+        moment = now or datetime.now(UTC)
+        turn_id = uuid.uuid4()
+        ctx_token = current_turn_id_var.set(turn_id)
+        if self._mcp_rate_limiter is not None:
+            self._mcp_rate_limiter.open_turn(turn_id, tenant_id)
+        try:
+            _kill_switched, external_tools = await self._load_external_context(session, tenant_id=tenant_id)
+
+            async def _discard(_chunk: Any) -> None:
+                return None
+
+            conversation_id: uuid.UUID | None = None
+            if not conversation_key.startswith("turn-"):
                 try:
-                    state.external_tools = await load_enabled_mcp_tools(
-                        session,
-                        tenant_id=state.tenant_id,
-                        client=self._mcp_client,
-                    )
-                except Exception:
-                    # Discovery is best-effort: a load failure must not
-                    # crash the turn. mcp_loader logs structured records
-                    # for the operator.
-                    _log.exception("kenny v2 external mcp discovery failed")
-                    state.external_tools = []
-
-            await self._run_graph_inner(
-                session,
-                state,
+                    conversation_id = uuid.UUID(conversation_key)
+                except ValueError:
+                    conversation_id = None
+            ctx = KennyRuntime(
+                session=session,
+                provider=self._provider,
+                cheap_provider=self._cheap,
+                emit=_discard,
+                turn_id=turn_id,
+                moment=moment,
                 actor_user_id=actor_user_id,
                 conversation_id=conversation_id,
-                moment=moment,
-                emit=emit,
-                turn_id=turn_id,
+                mcp_client=self._mcp_client,
+                embedder=self._embedder,
+                external_tools=external_tools,
+            )
+            return await asyncio.wait_for(
+                resume_langgraph_turn(ctx, thread_id=thread_id, approved=approved, note=note),
+                timeout=TURN_HARD_TIMEOUT_S,
             )
         finally:
             current_turn_id_var.reset(ctx_token)
@@ -420,7 +519,7 @@ class KennyAgentService:
             moment=moment,
         )
 
-        await _persist_concern_payload(session, state, moment=moment)
+        await persist_concern_payload(session, state, moment=moment)
 
         assert state.final_turn_id is not None
         assert state.final_conversation_id is not None
@@ -435,50 +534,6 @@ class KennyAgentService:
                 final_text=state.final_text,
             )
         )
-
-
-async def _persist_concern_payload(
-    session: AsyncSession,
-    state: AgentState,
-    *,
-    moment: datetime,
-) -> None:
-    """Write the structured concerns onto the audit row + emit the ledger event.
-
-    persist.py owns row creation (Phase 2 land, out of scope for this
-    PR); the Phase 3 columns + ``agent_concern_logged`` ledger emit land
-    here so the audit table carries the structured payload without
-    re-touching the persist node.
-    """
-    if not state.adversarial_concern_objs:
-        return
-    if state.final_turn_id is None:
-        return
-    payload = [{"concern_text": c.concern_text, "severity": c.severity} for c in state.adversarial_concern_objs]
-    verified = sum(1 for c in state.adversarial_concern_objs if c.severity == "info")
-    audit = (
-        await session.execute(select(AgentAuditTrace).where(AgentAuditTrace.turn_id == state.final_turn_id))
-    ).scalar_one_or_none()
-    if audit is not None:
-        audit.adversarial_concerns_text = payload
-        audit.verified_concerns_count = verified
-        await session.flush()
-    await emit_ledger_event(
-        session,
-        tenant_id=state.tenant_id,
-        engagement_id=state.engagement_id,
-        occurred_at=moment,
-        actor_kind="agent:kenny",
-        actor_id=str(state.final_turn_id),
-        source_kind="agent_concern_logged",
-        source_ref=state.final_turn_id,
-        summary=f"adversarial reviewer logged {len(payload)} concern(s)"[:500],
-        detail={
-            "turn_id": str(state.final_turn_id),
-            "concerns": payload[:20],
-            "verified_concerns_count": verified,
-        },
-    )
 
 
 __all__ = ["KennyAgentService"]

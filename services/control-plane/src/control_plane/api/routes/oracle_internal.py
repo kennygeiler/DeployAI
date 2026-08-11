@@ -25,15 +25,16 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from control_plane.agents.agent_kenny import ApprovalNotPendingError, KennyAgentService
 from control_plane.agents.agent_kenny import (
     BudgetExhaustedError as KennyBudgetExhaustedError,
 )
 from control_plane.agents.agent_kenny import (
     ConversationNotFoundError as KennyConversationNotFoundError,
 )
-from control_plane.agents.agent_kenny import KennyAgentService
+from control_plane.agents.agent_kenny.runtime import parse_thread_id
 from control_plane.agents.agent_kenny.stream import format_chunk as format_kenny_chunk
-from control_plane.agents.agent_kenny.types import DoneChunk, ErrorChunk
+from control_plane.agents.agent_kenny.types import ApprovalRequiredChunk, DoneChunk, ErrorChunk
 from control_plane.agents.llm import get_llm_provider, resolve_tenant_llm_provider
 from control_plane.agents.oracle_chat import (
     BudgetExhaustedError,
@@ -295,6 +296,16 @@ async def post_oracle_chat_stream_v2(
                         await session.commit()
                         committed = True
                     yield format_kenny_chunk(chunk)
+                elif isinstance(chunk, ApprovalRequiredChunk):
+                    # D4: the turn is paused on a human approval. Commit so
+                    # the agent_approval_requested ledger row survives; the
+                    # LangGraph checkpoint persists via its own pool. The
+                    # stream ends after this frame (no `done`); the client
+                    # resumes via POST /oracle/approvals/{thread_id}.
+                    if not committed:
+                        await session.commit()
+                        committed = True
+                    yield format_kenny_chunk(chunk)
                 elif isinstance(chunk, ErrorChunk):
                     if not committed:
                         await session.rollback()
@@ -311,6 +322,119 @@ async def post_oracle_chat_stream_v2(
         _frames(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-store"},
+    )
+
+
+class OracleApprovalDecisionRequest(BaseModel):
+    approved: bool
+    note: str | None = Field(default=None, max_length=500)
+
+
+class OracleApprovalPayload(BaseModel):
+    question: str
+    tool: str
+    args_summary: str
+    thread_id: str
+
+
+class OracleApprovalResumeResponse(BaseModel):
+    """Outcome of resuming an approval-paused turn.
+
+    ``status == "done"``: the turn completed; the reply fields mirror the
+    non-streaming chat response (this endpoint is deliberately
+    non-streaming — it matches the web client's existing JSON fallback
+    tier, so no new stream re-attachment machinery is needed).
+    ``status == "approval_required"``: the resumed run paused on another
+    approval; ``approval`` carries the new prompt for the same thread.
+    """
+
+    status: str
+    turn_id: uuid.UUID | None = None
+    conversation_id: uuid.UUID | None = None
+    content: str | None = None
+    tokens_used: int | None = None
+    approval: OracleApprovalPayload | None = None
+
+
+@router.post(
+    "/{engagement_id}/oracle/approvals/{thread_id}",
+    response_model=OracleApprovalResumeResponse,
+    dependencies=[Depends(require_tenant_scoped)],
+)
+async def post_oracle_approval_decision(
+    request: Request,
+    engagement_id: uuid.UUID,
+    thread_id: str,
+    body: OracleApprovalDecisionRequest,
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
+    tenant_id: Annotated[uuid.UUID, Query()],
+    actor_id: Annotated[uuid.UUID, Depends(_actor_uuid)],
+    llm: Annotated[LLMProvider, Depends(get_llm_provider)],
+) -> OracleApprovalResumeResponse:
+    """Resume a turn paused on an in-turn approval (pilot-refresh D4)."""
+    if not _kenny_v2_enabled():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+
+    parsed = parse_thread_id(thread_id)
+    if parsed is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="malformed thread id")
+    thread_tenant, thread_engagement, _key = parsed
+    # The thread key carries its own tenant/engagement scope — it must
+    # match the authenticated route scope or the thread does not exist
+    # for this caller.
+    if thread_tenant != tenant_id or thread_engagement != engagement_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="approval not found")
+
+    await _require_engagement(session, tenant_id, engagement_id)
+    resolved = await resolve_tenant_llm_provider(session, tenant_id, llm)
+    service = KennyAgentService(
+        resolved,
+        mcp_client=getattr(request.app.state, "mcp_outbound_client", None),
+        mcp_kill_switch=getattr(request.app.state, "mcp_kill_switch", None),
+        mcp_rate_limiter=getattr(request.app.state, "mcp_rate_limiter", None),
+        embedder=getattr(request.app.state, "embedder", None),
+    )
+    try:
+        outcome = await service.resume_approval(
+            session,
+            thread_id=thread_id,
+            approved=body.approved,
+            note=(body.note or "").strip(),
+            actor_user_id=actor_id,
+            now=datetime.now(UTC),
+        )
+    except ApprovalNotPendingError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="approval not found") from exc
+    except TimeoutError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail="turn_timeout") from exc
+    except Exception:
+        await session.rollback()
+        _log.exception("kenny approval resume failed")
+        raise
+
+    await session.commit()
+    if outcome.status == "approval_required":
+        approval = outcome.approval
+        assert approval is not None
+        return OracleApprovalResumeResponse(
+            status="approval_required",
+            approval=OracleApprovalPayload(
+                question=approval.question,
+                tool=approval.tool,
+                args_summary=approval.args_summary,
+                thread_id=approval.thread_id,
+            ),
+        )
+    done = outcome.done
+    assert done is not None
+    return OracleApprovalResumeResponse(
+        status="done",
+        turn_id=done.turn_id,
+        conversation_id=done.conversation_id,
+        content=done.final_text,
+        tokens_used=done.tokens,
     )
 
 

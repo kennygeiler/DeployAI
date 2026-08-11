@@ -192,6 +192,55 @@ jobs:
           uv run pytest tests/integration/ -m integration -q
 
   # ------------------------------------------------------------------
+  # Agent Kenny eval — deterministic PR gate (tickets G1/G5). Runs a
+  # fixed 5-question subset (negative + cross-engagement) through the
+  # golden-question runner CLI with the STUB provider against a fresh
+  # pgvector testcontainer: fast, no LLM key, fully deterministic. The
+  # jq check blocks the PR on any cross-engagement leak or subset
+  # failure. Full/nightly evals live in agent-kenny-eval.yml.
+  # ------------------------------------------------------------------
+  agent-kenny-pr-gate:
+    name: Agent Kenny eval gate (deterministic subset)
+    needs: [smoke, changes]
+    if: needs.changes.outputs.control_plane == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.7"
+          enable-cache: true
+
+      - name: Deterministic eval subset (stub provider, Docker)
+        working-directory: services/control-plane
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: "true"
+          DEPLOYAI_LLM_PROVIDER: "stub"
+          REPORT_PATH: ${{ github.workspace }}/eval-report-pr.json
+        run: |
+          set -euo pipefail
+          uv sync
+          uv run python -m tests.golden.agent_kenny.runner \
+            --question-ids q-017,q-018,q-019,q-023,q-024 \
+            --seed 0 \
+            --report "$REPORT_PATH"
+          jq -e '.cross_engagement_leak_count == 0 and .pass_rate == 1' "$REPORT_PATH" > /dev/null || {
+            echo "::error title=Agent Kenny PR gate failed::Deterministic subset did not pass cleanly (pass_rate < 1 or cross-engagement leak). See step output above."
+            exit 1
+          }
+
+  # ------------------------------------------------------------------
   # services/_shared/ingestlib — package unit tests (idempotency, NFR12
   # helpers). Ticket B3 folded the former `services/ingest` "service"
   # (pure helpers, no I/O) into `services/_shared/ingestlib`.
@@ -242,6 +291,7 @@ jobs:
     outputs:
       mcp_server: ${{ steps.resolve.outputs.mcp_server }}
       llm_provider_py: ${{ steps.resolve.outputs.llm_provider_py }}
+      control_plane: ${{ steps.resolve.outputs.control_plane }}
     steps:
       - name: Path filter (pull request)
         if: github.event_name == 'pull_request'
@@ -257,16 +307,25 @@ jobs:
             llm_provider_py:
               - "packages/llm-provider-py/**"
               - ".github/workflows/ci.yml"
+            control_plane:
+              - "services/control-plane/**"
+              - ".github/workflows/ci.yml"
 
       - name: Resolve outputs (push = always run)
         id: resolve
         run: |
           if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
-            echo "mcp_server=true" >> "$GITHUB_OUTPUT"
-            echo "llm_provider_py=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "mcp_server=true"
+              echo "llm_provider_py=true"
+              echo "control_plane=true"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "mcp_server=${{ steps.filter.outputs.mcp_server }}" >> "$GITHUB_OUTPUT"
-            echo "llm_provider_py=${{ steps.filter.outputs.llm_provider_py }}" >> "$GITHUB_OUTPUT"
+            {
+              echo "mcp_server=${{ steps.filter.outputs.mcp_server }}"
+              echo "llm_provider_py=${{ steps.filter.outputs.llm_provider_py }}"
+              echo "control_plane=${{ steps.filter.outputs.control_plane }}"
+            } >> "$GITHUB_OUTPUT"
           fi
 
   # ------------------------------------------------------------------

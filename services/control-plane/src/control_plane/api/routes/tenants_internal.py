@@ -447,6 +447,9 @@ class TenantLlmConfigRead(BaseModel):
     secondary_model_name: str | None
     secondary_api_key_masked: str | None
     has_secondary_api_key: bool
+    # Pilot-refresh E4 — proposal auto-accept policy (null threshold = off).
+    proposal_auto_accept_threshold: float | None
+    sampling_audit_rate: float
     updated_at: datetime
 
 
@@ -462,6 +465,10 @@ class TenantLlmConfigWrite(BaseModel):
     secondary_provider: str | None = Field(default=None, max_length=50)
     secondary_model_name: str | None = Field(default=None, max_length=200)
     secondary_api_key: str | None = Field(default=None, max_length=500)
+    # E4 — only touched when the field key is sent (exclude_unset semantics),
+    # so existing callers that never mention the policy leave it unchanged.
+    proposal_auto_accept_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    sampling_audit_rate: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 def _to_read(row: TenantLlmConfig) -> TenantLlmConfigRead:
@@ -475,6 +482,8 @@ def _to_read(row: TenantLlmConfig) -> TenantLlmConfigRead:
         secondary_model_name=row.secondary_model_name,
         secondary_api_key_masked=_mask_api_key(row.secondary_api_key),
         has_secondary_api_key=bool(row.secondary_api_key),
+        proposal_auto_accept_threshold=row.proposal_auto_accept_threshold,
+        sampling_audit_rate=row.sampling_audit_rate,
         updated_at=row.updated_at,
     )
 
@@ -531,6 +540,8 @@ async def put_tenant_llm_config(
             secondary_provider=body.secondary_provider,
             secondary_model_name=body.secondary_model_name,
             secondary_api_key=body.secondary_api_key,
+            proposal_auto_accept_threshold=body.proposal_auto_accept_threshold,
+            sampling_audit_rate=body.sampling_audit_rate if body.sampling_audit_rate is not None else 0.0,
         )
         session.add(row)
     else:
@@ -554,6 +565,12 @@ async def put_tenant_llm_config(
                 # when the caller actually sent a non-null value.
                 if body.secondary_api_key is not None:
                     row.secondary_api_key = body.secondary_api_key
+        # E4 policy knobs: only touch what the caller explicitly sent, so a
+        # provider-only PUT can never silently switch auto-accept off.
+        if "proposal_auto_accept_threshold" in fields:
+            row.proposal_auto_accept_threshold = body.proposal_auto_accept_threshold
+        if "sampling_audit_rate" in fields and body.sampling_audit_rate is not None:
+            row.sampling_audit_rate = body.sampling_audit_rate
         row.updated_at = now
     await session.commit()
     await session.refresh(row)

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { CheckIcon, TriangleAlertIcon } from "lucide-react";
 
 import { OracleMessage } from "@/components/engagements/OracleMessage.client";
+import { ApprovalCard } from "@/components/ui/approval-card";
 import { Button } from "@/components/ui/button";
 import { PixelLoader, ShimmerLines } from "@/components/ui/shimmer";
 import { Textarea } from "@/components/ui/textarea";
@@ -53,6 +54,27 @@ type V2InlineNote =
   | { kind: "cross_engagement_leak"; citationKind: string; id: string }
   | { kind: "adversarial_concern"; concern: string; severity: "info" | "warning" | "blocking" };
 
+/** `approval_required` frame payload — the turn paused on a HITL approval. */
+type V2PendingApproval = {
+  question: string;
+  tool: string;
+  argsSummary: string;
+  threadId: string;
+};
+
+type ApprovalResumeResponse = {
+  status: "done" | "approval_required";
+  turn_id?: string | null;
+  conversation_id?: string | null;
+  content?: string | null;
+  approval?: {
+    question: string;
+    tool: string;
+    args_summary: string;
+    thread_id: string;
+  } | null;
+};
+
 /**
  * Right-side collapsible Agent Kenny chat panel. Single-turn POST against
  * the BFF (G1.a CP route returns JSON; SSE upgrade is a follow-up). Loads
@@ -69,6 +91,11 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
   const [reasoning, setReasoning] = React.useState<V2Reasoning[]>([]);
   const [citationBadges, setCitationBadges] = React.useState<V2CitationBadge[]>([]);
   const [inlineNotes, setInlineNotes] = React.useState<V2InlineNote[]>([]);
+  const [pendingApproval, setPendingApproval] = React.useState<V2PendingApproval | null>(null);
+  const [approvalSubmitting, setApprovalSubmitting] = React.useState(false);
+  // The message/optimistic-turn context of the paused turn, so the resume
+  // response can finalize the transcript exactly like the JSON path does.
+  const approvalContextRef = React.useRef<{ message: string; optimisticId: string } | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   const loadedRef = React.useRef(false);
   // Presentational only — powers the "Thought for Ns" trace header
@@ -172,6 +199,7 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
       ok: boolean;
       turn?: { turn_id: string; conversation_id: string };
       acc?: string;
+      approval?: V2PendingApproval;
     }> => {
       if (!r.body) return { ok: false };
       const reader = r.body.getReader();
@@ -179,6 +207,7 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
       let buffer = "";
       let acc = "";
       let done: { turn_id: string; conversation_id: string } | null = null;
+      let approval: V2PendingApproval | null = null;
       let streamError: string | null = null;
       for (;;) {
         const { value, done: rdrDone } = await reader.read();
@@ -275,6 +304,16 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
                     severity: sev,
                   },
                 ]);
+              } else if (eventName === "approval_required" && typeof frame.thread_id === "string") {
+                // D4: the turn paused on a HITL approval — the stream ends
+                // after this frame (no `done`); the ApprovalCard resumes it.
+                approval = {
+                  question:
+                    typeof frame.question === "string" ? frame.question : "Approve this action?",
+                  tool: typeof frame.tool === "string" ? frame.tool : "",
+                  argsSummary: typeof frame.args_summary === "string" ? frame.args_summary : "",
+                  threadId: frame.thread_id,
+                };
               } else if (eventName === "done") {
                 if (typeof frame.final_text === "string" && frame.final_text) {
                   acc = frame.final_text;
@@ -314,6 +353,11 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
         if (rdrDone) break;
       }
 
+      if (!streamError && !done && approval) {
+        // Paused, not failed — do NOT fall back to the JSON path (that
+        // would start a second turn while this one awaits its decision).
+        return { ok: true, approval };
+      }
       if (streamError || !done) {
         setStreamingContent(null);
         await sendJsonFallback(message, optimisticId);
@@ -390,6 +434,15 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
       }
 
       const consumed = await consumeStream(r, message, optimisticId);
+      if (consumed.ok && consumed.approval) {
+        // Turn paused on a HITL approval: keep the optimistic user turn,
+        // surface the ApprovalCard, and wait for the human decision.
+        approvalContextRef.current = { message, optimisticId };
+        setPendingApproval(consumed.approval);
+        setStreamingContent(null);
+        streamOk = true;
+        return;
+      }
       if (!consumed.ok || !consumed.turn) {
         return;
       }
@@ -441,6 +494,75 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
     }
   }, [conversationId, consumeStream, engagementId, input, sending, sendJsonFallback]);
 
+  const decideApproval = React.useCallback(
+    async (approved: boolean) => {
+      const approval = pendingApproval;
+      if (!approval || approvalSubmitting) return;
+      setApprovalSubmitting(true);
+      try {
+        const r = await fetch(
+          `/api/bff/engagements/${encodeURIComponent(engagementId)}/oracle/approvals/${encodeURIComponent(approval.threadId)}`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ approved }),
+          },
+        );
+        if (!r.ok) {
+          const desc = await readStrategistBffErrorDescription(r);
+          toast.error("Could not submit the decision", { description: desc.slice(0, 240) });
+          return;
+        }
+        const body = (await r.json()) as ApprovalResumeResponse;
+        if (body.status === "approval_required" && body.approval) {
+          // The resumed run paused on another approval for the same thread.
+          setPendingApproval({
+            question: body.approval.question,
+            tool: body.approval.tool,
+            argsSummary: body.approval.args_summary,
+            threadId: body.approval.thread_id,
+          });
+          return;
+        }
+        const turnId = body.turn_id;
+        const convoId = body.conversation_id;
+        if (body.status === "done" && turnId && convoId) {
+          const ctx = approvalContextRef.current;
+          const content = body.content ?? "";
+          setConversationId(convoId);
+          setTurns((prev) =>
+            prev
+              .filter((t) => t.id !== ctx?.optimisticId)
+              .concat([
+                {
+                  id: `user-${turnId}`,
+                  role: "user",
+                  content: ctx?.message ?? "",
+                  created_at: new Date().toISOString(),
+                },
+                {
+                  id: turnId,
+                  role: "oracle",
+                  content,
+                  created_at: new Date().toISOString(),
+                },
+              ]),
+          );
+          setPendingApproval(null);
+          approvalContextRef.current = null;
+          setErr(null);
+          return;
+        }
+        toast.error("Could not submit the decision");
+      } catch {
+        toast.error("Could not submit the decision");
+      } finally {
+        setApprovalSubmitting(false);
+      }
+    },
+    [approvalSubmitting, engagementId, pendingApproval],
+  );
+
   const clear = React.useCallback(() => {
     setTurns([]);
     setConversationId(null);
@@ -448,6 +570,8 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
     setReasoning([]);
     setCitationBadges([]);
     setInlineNotes([]);
+    setPendingApproval(null);
+    approvalContextRef.current = null;
     setErr(null);
     setThoughtSeconds(null);
     setTraceOpen(false);
@@ -691,6 +815,29 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
                     ),
                   )}
                 </ul>
+              ) : null}
+
+              {/* In-turn HITL approval (D4): the agent paused before an
+                  approval-gated tool call; the decision resumes the turn. */}
+              {pendingApproval ? (
+                <div className="mt-3" data-testid="oracle-approval-card">
+                  <ApprovalCard
+                    question={pendingApproval.question}
+                    options={[
+                      {
+                        id: "action",
+                        label: pendingApproval.tool,
+                        description: pendingApproval.argsSummary || undefined,
+                      },
+                    ]}
+                    selectedId="action"
+                    acceptLabel="Approve"
+                    declineLabel="Deny"
+                    disabled={approvalSubmitting}
+                    onAccept={() => void decideApproval(true)}
+                    onDecline={() => void decideApproval(false)}
+                  />
+                </div>
               ) : null}
 
               {streamingContent !== null ? (

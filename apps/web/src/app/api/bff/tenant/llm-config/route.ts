@@ -86,6 +86,31 @@ export async function PUT(req: Request) {
       { status: 400 },
     );
   }
+  // E4 — proposal auto-accept policy knobs. Forward only when the caller
+  // mentions them so a provider-only save can never silently flip the policy.
+  const touchesThreshold = "proposal_auto_accept_threshold" in body;
+  const threshold = body.proposal_auto_accept_threshold;
+  if (
+    touchesThreshold &&
+    threshold !== null &&
+    (typeof threshold !== "number" || threshold < 0 || threshold > 1)
+  ) {
+    return new NextResponse(
+      "Bad Request: proposal_auto_accept_threshold must be between 0 and 1 (or null)",
+      { status: 400 },
+    );
+  }
+  const touchesAuditRate = "sampling_audit_rate" in body;
+  const auditRate = body.sampling_audit_rate;
+  if (
+    touchesAuditRate &&
+    auditRate !== null &&
+    (typeof auditRate !== "number" || auditRate < 0 || auditRate > 1)
+  ) {
+    return new NextResponse("Bad Request: sampling_audit_rate must be between 0 and 1", {
+      status: 400,
+    });
+  }
   try {
     const cfg = await cpPutTenantLlmConfig(g.tid, {
       provider: body.provider,
@@ -107,6 +132,10 @@ export async function PUT(req: Request) {
                 ? body.secondary_api_key
                 : null,
           }
+        : {}),
+      ...(touchesThreshold ? { proposal_auto_accept_threshold: threshold ?? null } : {}),
+      ...(touchesAuditRate && typeof auditRate === "number"
+        ? { sampling_audit_rate: auditRate }
         : {}),
     });
     emitTenantAuditEventBackground(

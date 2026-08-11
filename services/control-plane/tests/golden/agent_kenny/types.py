@@ -52,6 +52,10 @@ class Question(BaseModel):
     expected_min_citations: int = Field(ge=0)
     expected_kinds: list[CitationKind] = Field(default_factory=list)
     should_idk: bool
+    # Negative controls expect a decline: an answer with zero citations is
+    # the CORRECT outcome, so the hallucination denominator fix (ticket G4)
+    # must not count their citation-free replies as unverified.
+    is_negative_control: bool = False
 
 
 class QuestionResult(BaseModel):
@@ -80,6 +84,16 @@ class QuestionResult(BaseModel):
     expected_kind_match: bool
     cross_engagement_leak: bool
     error: str | None = None
+    # Ticket G4 — honest pass metrics. ``substring_pass`` is the cheap
+    # case-insensitive substring check; ``judged_pass`` is the optional
+    # LLM-judge verdict (None = judge not run: disabled, stub provider,
+    # or the substring check already passed). ``expected_pass`` remains
+    # the headline verdict: substring_pass OR judged_pass is True.
+    substring_pass: bool = False
+    judged_pass: bool | None = None
+    # Mirrored from the question so aggregation can exempt negative
+    # controls from the zero-citation hallucination penalty.
+    is_negative_control: bool = False
 
 
 class CategoryDistribution(BaseModel):

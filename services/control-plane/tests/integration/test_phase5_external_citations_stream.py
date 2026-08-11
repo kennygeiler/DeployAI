@@ -37,6 +37,7 @@ from llm_provider_py.util import DEFAULT_CAPS, pseudo_embed
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from control_plane.agents.agent_kenny.checkpointer import close_checkpointer
 from control_plane.agents.llm import get_llm_provider
 from control_plane.db import clear_engine_cache
 from control_plane.main import app
@@ -146,11 +147,15 @@ def _ins_user(engine: Engine, tenant_id: uuid.UUID, user_id: uuid.UUID) -> None:
         )
 
 
-@pytest_asyncio.fixture
-async def k_client(postgres_engine: Engine, monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[AsyncClient]:
+@pytest_asyncio.fixture(params=["legacy", "langgraph"])
+async def k_client(
+    request: pytest.FixtureRequest, postgres_engine: Engine, monkeypatch: pytest.MonkeyPatch
+) -> AsyncIterator[AsyncClient]:
+    """One client per runtime — runs against both drivers (pilot-refresh D3)."""
     monkeypatch.setenv("DATABASE_URL", _async_url(postgres_engine))
     monkeypatch.setenv("DEPLOYAI_INTERNAL_API_KEY", "phase5-external-key")
     monkeypatch.setenv("DEPLOYAI_AGENT_KENNY_V2_ENABLED", "1")
+    monkeypatch.setenv("DEPLOYAI_AGENT_RUNTIME", str(request.param))
     clear_engine_cache()
     transport = ASGITransport(app=app)
     client = AsyncClient(transport=transport, base_url="http://test")
@@ -159,6 +164,7 @@ async def k_client(postgres_engine: Engine, monkeypatch: pytest.MonkeyPatch) -> 
         yield client
     finally:
         await client.aclose()
+        await close_checkpointer()
         clear_engine_cache()
 
 

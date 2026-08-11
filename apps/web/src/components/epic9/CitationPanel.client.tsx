@@ -1,7 +1,11 @@
 "use client";
 
+import { FlagIcon } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -39,16 +43,23 @@ export function CitationPanel({
   title,
   open,
   onClose,
+  turnId = null,
 }: {
   engagementId: string;
   ids: string[];
   title: string;
   open: boolean;
   onClose: () => void;
+  /** Chat-turn context, when the citations came from an answer (E3 disputes). */
+  turnId?: string | null;
 }) {
   const [events, setEvents] = React.useState<CitationEvent[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
+  const [disputingId, setDisputingId] = React.useState<string | null>(null);
+  const [disputeReason, setDisputeReason] = React.useState("");
+  const [disputedIds, setDisputedIds] = React.useState<Set<string>>(new Set());
+  const [disputeBusy, setDisputeBusy] = React.useState(false);
 
   const idsKey = ids.join(",");
 
@@ -101,6 +112,42 @@ export function CitationPanel({
     };
   }, [open, engagementId, idsKey, ids.length]);
 
+  // E3 — dispute a citation: files a review_item(kind=citation_dispute) via
+  // the BFF; the Review Inbox resolves it and the eval loop consumes it.
+  const submitDispute = React.useCallback(
+    async (citationId: string) => {
+      const reason = disputeReason.trim();
+      if (!reason) {
+        toast.error("A short reason is required to flag a citation");
+        return;
+      }
+      setDisputeBusy(true);
+      try {
+        const r = await fetch(
+          `/api/bff/engagements/${encodeURIComponent(engagementId)}/citations/dispute`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ turn_id: turnId, citation_id: citationId, reason }),
+          },
+        );
+        if (!r.ok) {
+          toast.error("Could not flag citation", {
+            description: (await readStrategistBffErrorDescription(r)).slice(0, 240),
+          });
+          return;
+        }
+        setDisputedIds((prev) => new Set(prev).add(citationId));
+        setDisputingId(null);
+        setDisputeReason("");
+        toast.success("Citation flagged for review");
+      } finally {
+        setDisputeBusy(false);
+      }
+    },
+    [engagementId, turnId, disputeReason],
+  );
+
   return (
     <Sheet
       open={open}
@@ -140,13 +187,57 @@ export function CitationPanel({
                 <li key={ev.id} className="space-y-1 px-3 py-2">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-ink-700 text-xs">{formatOccurredAt(ev.occurred_at)}</span>
-                    <span className="bg-ink-100 text-ink-800 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase">
-                      {ev.event_type}
+                    <span className="flex items-center gap-1.5">
+                      <span className="bg-ink-100 text-ink-800 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase">
+                        {ev.event_type}
+                      </span>
+                      {disputedIds.has(ev.id) ? (
+                        <span className="rounded bg-orange-tint px-1.5 py-0.5 font-mono text-[10px] uppercase text-orange-ink">
+                          flagged
+                        </span>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-1.5 text-[10px]"
+                          aria-label={`Flag citation ${ev.id} as wrong`}
+                          aria-expanded={disputingId === ev.id}
+                          onClick={() => {
+                            setDisputingId((prev) => (prev === ev.id ? null : ev.id));
+                            setDisputeReason("");
+                          }}
+                        >
+                          <FlagIcon aria-hidden className="size-3" />
+                          Flag
+                        </Button>
+                      )}
                     </span>
                   </div>
                   <p className="text-ink-800 whitespace-pre-line">{ev.summary}</p>
                   {ev.source_ref ? (
                     <p className="text-ink-500 font-mono text-xs break-all">{ev.source_ref}</p>
+                  ) : null}
+                  {disputingId === ev.id ? (
+                    <div className="flex items-center gap-2 pt-1">
+                      <Input
+                        aria-label="Why is this citation wrong?"
+                        value={disputeReason}
+                        onChange={(e) => setDisputeReason(e.target.value)}
+                        placeholder="Why is this citation wrong?"
+                        autoComplete="off"
+                        className="h-7 text-xs"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        disabled={disputeBusy}
+                        onClick={() => void submitDispute(ev.id)}
+                      >
+                        Submit
+                      </Button>
+                    </div>
                   ) : null}
                 </li>
               ))}
