@@ -1,4 +1,6 @@
-# Auto-deploy to Fly.io on push to `main`.
+# Auto-deploy to Fly.io after CI passes on `main` (Wave 0 C3 — deploys
+# used to trigger on raw push and race CI; now `workflow_run` gates on
+# the CI workflow's success).
 #
 # Order matters — control-plane runs alembic via `release_command`, so
 # Postgres must exist first. The 5 services land in two waves:
@@ -15,24 +17,20 @@
 #                    Settings → Secrets and variables → Actions → New
 #
 # Trigger:
-#   - push to main → deploy all 5 (sequential where required, parallel
-#     where safe)
+#   - workflow_run on "CI" (branch main, conclusion success) → deploy
+#     all 5 iff deploy-relevant paths changed (see `ci-gate` job —
+#     `on.paths` filtering is not native to workflow_run, so the path
+#     check is done with `git diff` in-job)
 #   - workflow_dispatch → manual one-shot from the Actions tab
+#     (bypasses the path check, still requires no CI conclusion)
 
 name: cloud-deploy
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "apps/web/**"
-      - "services/**"
-      - "packages/**"
-      - "infra/fly/**"
-      - "infra/compose/postgres/**"
-      - "scripts/cloud-deploy.sh"
-      - ".github/workflows/cloud-deploy.yml"
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       service:
@@ -49,9 +47,61 @@ concurrency:
   cancel-in-progress: false # never cancel a live deploy mid-flight
 
 jobs:
+  # ------------------------------------------------------------------
+  # ci-gate — the only entry point to every deploy job below.
+  #   1. Refuses to proceed unless the triggering CI run succeeded
+  #      (workflow_dispatch is the manual override path).
+  #   2. Re-implements the old `on.paths` filter: workflow_run has no
+  #      native path filtering, so we `git diff` the CI run's head SHA
+  #      against its first parent. For the squash/merge-commit flow on
+  #      `main`, HEAD^1 is exactly the previous `main` tip; for a
+  #      multi-commit direct push this under-approximates (only the
+  #      last commit is diffed) — acceptable, since workflow_dispatch
+  #      covers the rare miss.
+  # ------------------------------------------------------------------
+  ci-gate:
+    name: Gate on CI success + changed paths
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.paths.outputs.deploy }}
+      sha: ${{ steps.paths.outputs.sha }}
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check deploy-relevant paths
+        id: paths
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "workflow_dispatch — deploying unconditionally."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! git rev-parse HEAD^1 >/dev/null 2>&1; then
+            echo "No parent commit — deploying to be safe."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only HEAD^1 HEAD > /tmp/changed.txt
+          echo "Changed files:"; cat /tmp/changed.txt
+          if grep -qE '^(apps/web/|services/|packages/|infra/fly/|infra/compose/postgres/|scripts/cloud-deploy\.sh|\.github/workflows/cloud-deploy\.yml)' /tmp/changed.txt; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No deploy-relevant paths changed — skipping deploy."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+
   postgres:
     name: Deploy postgres
-    if: ${{ github.event.inputs.service == '' || github.event.inputs.service == 'postgres' }}
+    needs: ci-gate
+    if: ${{ needs.ci-gate.outputs.deploy == 'true' && (github.event.inputs.service == '' || github.event.inputs.service == 'postgres') }}
     runs-on: ubuntu-latest
     environment:
       name: production-postgres
@@ -72,8 +122,13 @@ jobs:
 
   control-plane:
     name: Deploy control-plane
-    needs: postgres
-    if: ${{ always() && (needs.postgres.result == 'success' || needs.postgres.result == 'skipped') && (github.event.inputs.service == '' || github.event.inputs.service == 'control-plane') }}
+    needs: [ci-gate, postgres]
+    # `always() && postgres skipped-or-success` preserves the single-service
+    # workflow_dispatch flow, so the ci-gate output must be re-checked
+    # explicitly here — "postgres skipped" now also happens when the gate
+    # itself blocked the run. Downstream jobs (web / mcp-server / embedder)
+    # require control-plane success, so they inherit the gate transitively.
+    if: ${{ always() && needs.ci-gate.outputs.deploy == 'true' && (needs.postgres.result == 'success' || needs.postgres.result == 'skipped') && (github.event.inputs.service == '' || github.event.inputs.service == 'control-plane') }}
     runs-on: ubuntu-latest
     environment:
       name: production-control-plane
