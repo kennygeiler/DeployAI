@@ -13,6 +13,7 @@ from control_plane.services.engagement_legibility import (
     ATTENTION_STALE_DAYS,
     RECENT_CHANGE_BUCKETS,
     SOURCE_KIND_BUCKETS,
+    TELEMETRY_SOURCE_KINDS,
     actor_display_name,
     attention_score,
     bucket_for_source_kind,
@@ -48,6 +49,71 @@ class TestSourceKindBuckets:
 
     def test_unknown_source_kind_falls_back_to_other(self) -> None:
         assert bucket_for_source_kind("something_never_seen") == "other"
+
+
+class TestTelemetrySourceKinds:
+    """The digest exclusion set — agent-run telemetry never reaches recent_changes."""
+
+    def test_every_telemetry_kind_is_a_real_emitter_kind(self) -> None:
+        """Guards against typos: the set must be a subset of the emitter vocabulary."""
+        unknown = TELEMETRY_SOURCE_KINDS - ALLOWED_SOURCE_KINDS
+        assert not unknown, f"telemetry kinds unknown to the emitter: {sorted(unknown)}"
+
+    def test_agent_operation_kinds_are_telemetry(self) -> None:
+        for kind in (
+            "agent_tool_invocation",
+            "oracle_chat_turn",
+            "oracle_conversation_started",
+            "propose_action",
+            "agent_synthesis_emitted",
+            "synthesis_failed",
+            "agent_audit_concern",
+            "agent_concern_logged",
+            "agent_approval_requested",
+            "agent_approval_granted",
+            "agent_approval_denied",
+            "review_item_created",
+            "review_item_dismissed",
+            "mcp_tool_invocation",
+            "mcp_outbound_call",
+            "mcp_outbound_rate_limited",
+            "mcp_outbound_egress_blocked",
+            "killswitch_queue_purged",
+        ):
+            assert kind in TELEMETRY_SOURCE_KINDS, kind
+
+    def test_domain_kinds_are_not_telemetry(self) -> None:
+        for kind in (
+            "email_ingest",
+            "meeting_webhook",
+            "manual_capture",
+            "llm_proposal_created",
+            "proposal_accepted",
+            "proposal_rejected",
+            "proposal_auto_accepted",
+            "matrix_node_created",
+            "insight_opened",
+            "insight_closed",
+            "engagement_phase_change",
+            "member_added",
+            "member_removed",
+            "followup_task_created",
+            "human_escalation_answer",
+            "recommendation_emitted",
+            "recommendation_actioned",
+            "settings_change",
+            "mcp_outbound_killswitch_changed",
+        ):
+            assert kind not in TELEMETRY_SOURCE_KINDS, kind
+
+    def test_agent_bucket_still_reachable_without_telemetry(self) -> None:
+        """The "agent" bucket survives the exclusion via agent-loop outcomes
+        surfaced to humans (recommendations, escalation answers)."""
+        reachable = {kind for kind, bucket in SOURCE_KIND_BUCKETS.items() if bucket == "agent"}
+        non_telemetry = reachable - TELEMETRY_SOURCE_KINDS
+        assert non_telemetry, "every agent-bucketed kind is excluded as telemetry"
+        assert "human_escalation_answer" in non_telemetry
+        assert "recommendation_emitted" in non_telemetry
 
 
 class TestHumanizeEventTitle:
