@@ -7,6 +7,8 @@ Kept free of DB and HTTP concerns so every convention chosen here is
 unit-testable in isolation:
 
 - ``SOURCE_KIND_BUCKETS`` — coarse ledger ``source_kind`` → display bucket map.
+- ``TELEMETRY_SOURCE_KINDS`` — agent-run telemetry kinds excluded from the
+  strategist-facing recent-changes digest.
 - ``humanize_event_title`` — strips boilerplate "kind:" prefixes from ledger
   summaries so the UI shows the human part.
 - ``user_display_name`` / ``actor_display_name`` — display-name derivation for
@@ -65,7 +67,10 @@ SOURCE_KIND_BUCKETS: dict[str, str] = {
     "proposal_auto_accepted": "proposal",
     "proposals_bulk_accepted": "proposal",
     "audit_decision": "proposal",
-    # agent activity (Kenny, oracle, synthesis, review inbox, approvals)
+    # agent-loop outcomes surfaced to humans (recommendations, escalation
+    # answers). Raw agent-run telemetry also maps here for surfaces that show
+    # everything (admin timeline), but the strategist digest excludes it via
+    # TELEMETRY_SOURCE_KINDS below.
     "oracle_chat_turn": "agent",
     "oracle_conversation_started": "agent",
     "recommendation_emitted": "agent",
@@ -126,6 +131,65 @@ SOURCE_KIND_BUCKETS: dict[str, str] = {
 def bucket_for_source_kind(source_kind: str) -> str:
     """Map a ledger ``source_kind`` to its coarse display bucket ("other" when unknown)."""
     return SOURCE_KIND_BUCKETS.get(source_kind, "other")
+
+
+# Agent-run telemetry: ledger kinds that record how the agent (or the MCP /
+# kill-switch machinery around it) operated, not what changed on the deal.
+# Per the legibility principle ("evidence on demand, telemetry never" —
+# docs/plans/2026-08-11-pilot-refresh-backlog.md Part 5) these belong on the
+# admin dashboard only, so the engagement summary's recent-changes digest
+# filters them out server-side (SQL NOT IN). Domain changes — decisions,
+# risks, stakeholders, proposals, commitments, human escalation answers,
+# member changes, ingest of real interactions — are deliberately NOT listed
+# here and keep flowing to the digest.
+TELEMETRY_SOURCE_KINDS: frozenset[str] = frozenset(
+    {
+        # agent reply / turn telemetry
+        "oracle_chat_turn",
+        "oracle_conversation_started",
+        # synthesis pipeline bookkeeping
+        "agent_synthesis_emitted",
+        "synthesis_failed",
+        "synthesis_validation_failed",
+        "synthesis_stale_flagged",
+        # agent tool layer (the "tool:keyword_search rows=0" rows)
+        "agent_tool_invocation",
+        "propose_action",
+        # adversarial-review bookkeeping
+        "agent_audit_concern",
+        "agent_concern_logged",
+        "agent_hallucination_unresolved",
+        "agent_cross_engagement_leak",
+        # in-turn approval bookkeeping (the human decision that matters lands
+        # as a domain event, e.g. proposal_accepted / human_escalation_answer)
+        "agent_approval_requested",
+        "agent_approval_granted",
+        "agent_approval_denied",
+        # review-inbox queue bookkeeping (the answer itself is
+        # human_escalation_answer, which stays)
+        "review_item_created",
+        "review_item_resolved",
+        "review_item_dismissed",
+        # MCP inbound-server audit
+        "mcp_resource_read",
+        "mcp_tool_invocation",
+        "mcp_auth_failed",
+        # MCP outbound-call audit (calls, blocks, rate limits, egress guard)
+        "mcp_outbound_call",
+        "mcp_outbound_blocked",
+        "mcp_outbound_rate_limited",
+        "mcp_outbound_denied",
+        "mcp_outbound_egress_blocked",
+        # integration kill-switch internals (the admin flip,
+        # mcp_outbound_killswitch_changed, is a human action and stays)
+        "killswitch_oauth_revoked",
+        "killswitch_oauth_revoke_failed",
+        "killswitch_queue_purged",
+        "killswitch_queue_purge_failed",
+        "killswitch_secrets_deleted",
+        "killswitch_secrets_delete_failed",
+    }
+)
 
 
 # Boilerplate prefixes the ledger emit sites prepend to summaries (e.g.
@@ -275,6 +339,7 @@ __all__ = [
     "RECENT_CHANGE_BUCKETS",
     "RISK_CLOSED_STATUSES",
     "SOURCE_KIND_BUCKETS",
+    "TELEMETRY_SOURCE_KINDS",
     "actor_display_name",
     "attention_score",
     "bucket_for_source_kind",

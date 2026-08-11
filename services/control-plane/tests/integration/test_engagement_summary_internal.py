@@ -339,6 +339,108 @@ async def test_summary_exact_counts_and_shapes(s_client: AsyncClient, postgres_e
 
 
 @pytest.mark.asyncio
+async def test_summary_recent_changes_exclude_agent_telemetry(s_client: AsyncClient, postgres_engine: Engine) -> None:
+    """Telemetry is filtered in SQL, so the last-10 window holds 10 real changes."""
+    tid = uuid.uuid4()
+    _ins_tenant(postgres_engine, tid)
+    eid = _seed_engagement(postgres_engine, tid)
+
+    base = datetime(2026, 8, 1, 12, 0, tzinfo=UTC)
+    # 10 old domain events...
+    for i in range(10):
+        _seed_ledger_event(
+            postgres_engine,
+            tid,
+            eid,
+            occurred_at=base + timedelta(hours=i),
+            source_kind="email_ingest",
+            summary=f"domain event {i}",
+        )
+    # ...then a newer burst of agent telemetry that must not crowd them out.
+    telemetry = [
+        ("agent_tool_invocation", "tool:keyword_search rows=0 dur=1.9ms"),
+        ("oracle_chat_turn", "oracle answered a question"),
+        ("agent_synthesis_emitted", "synthesis refreshed: decision provenance"),
+        ("agent_approval_requested", "approval requested: send_email"),
+        ("review_item_created", "review item created: agent_escalation"),
+        ("mcp_outbound_call", "mcp call: crm.lookup"),
+        ("killswitch_queue_purged", "kill switch purged 3 jobs"),
+    ]
+    for i, (kind, summary) in enumerate(telemetry):
+        _seed_ledger_event(
+            postgres_engine,
+            tid,
+            eid,
+            occurred_at=base + timedelta(days=1, hours=i),
+            source_kind=kind,
+            summary=summary,
+            actor_kind="agent",
+            actor_id="kenny",
+        )
+
+    r = await s_client.get(f"/internal/v1/engagements/{eid}/summary?tenant_id={tid}")
+    assert r.status_code == 200, r.text
+    changes = r.json()["recent_changes"]
+    assert len(changes) == 10
+    assert all(c["kind"] != "agent" for c in changes)
+    titles = {c["title"] for c in changes}
+    assert titles == {f"domain event {i}" for i in range(10)}
+
+
+@pytest.mark.asyncio
+async def test_summary_all_telemetry_yields_empty_recent_changes(
+    s_client: AsyncClient, postgres_engine: Engine
+) -> None:
+    """Only agent activity happened → recent_changes is empty, never telemetry-padded."""
+    tid = uuid.uuid4()
+    _ins_tenant(postgres_engine, tid)
+    eid = _seed_engagement(postgres_engine, tid)
+
+    base = datetime(2026, 8, 1, 12, 0, tzinfo=UTC)
+    for i in range(5):
+        _seed_ledger_event(
+            postgres_engine,
+            tid,
+            eid,
+            occurred_at=base + timedelta(hours=i),
+            source_kind="agent_tool_invocation",
+            summary=f"tool:keyword_search rows=0 dur={i}.9ms",
+            actor_kind="agent",
+            actor_id="kenny",
+        )
+
+    r = await s_client.get(f"/internal/v1/engagements/{eid}/summary?tenant_id={tid}")
+    assert r.status_code == 200, r.text
+    assert r.json()["recent_changes"] == []
+
+
+@pytest.mark.asyncio
+async def test_summary_agent_bucket_kept_for_human_escalation_answer(
+    s_client: AsyncClient, postgres_engine: Engine
+) -> None:
+    """Agent-loop outcomes surfaced to humans still flow to the digest."""
+    tid = uuid.uuid4()
+    _ins_tenant(postgres_engine, tid)
+    eid = _seed_engagement(postgres_engine, tid)
+    _seed_ledger_event(
+        postgres_engine,
+        tid,
+        eid,
+        occurred_at=datetime(2026, 8, 1, 12, 0, tzinfo=UTC),
+        source_kind="human_escalation_answer",
+        summary="human escalation answer: use the staging tenant for the pilot",
+        actor_id="sarah.chen@deployai.com",
+    )
+
+    r = await s_client.get(f"/internal/v1/engagements/{eid}/summary?tenant_id={tid}")
+    assert r.status_code == 200, r.text
+    changes = r.json()["recent_changes"]
+    assert len(changes) == 1
+    assert changes[0]["kind"] == "agent"
+    assert changes[0]["title"] == "use the staging tenant for the pilot"
+
+
+@pytest.mark.asyncio
 async def test_summary_unknown_engagement_404(s_client: AsyncClient, postgres_engine: Engine) -> None:
     tid = uuid.uuid4()
     _ins_tenant(postgres_engine, tid)
