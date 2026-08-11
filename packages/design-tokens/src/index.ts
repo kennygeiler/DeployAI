@@ -2,8 +2,8 @@
  * @deployai/design-tokens — single source of truth for DeployAI design tokens.
  *
  * Satisfies UX-DR1 (color/spacing/shadow/radius/elevation) and UX-DR2 (typography).
- * Every consumer surface — `apps/web`, `apps/edge-agent`, future `packages/shared-ui`
- * components, and Storybook stories — imports from this package.
+ * Every consumer surface — `apps/web`, `apps/edge-agent`, and Storybook
+ * stories — imports from this package.
  */
 
 export { colors, ink, paper, stone, evidence, signal, nullState, destructive } from "./colors.js";

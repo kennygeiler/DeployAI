@@ -15,8 +15,7 @@ COPY services/_shared/tenancy /repo/services/_shared/tenancy
 COPY services/_shared/citation /repo/services/_shared/citation
 COPY services/_shared/authz /repo/services/_shared/authz
 COPY services/_shared/runtime /repo/services/_shared/runtime
-COPY services/ingest /repo/services/ingest
-COPY services/cartographer /repo/services/cartographer
+COPY services/_shared/ingestlib /repo/services/_shared/ingestlib
 COPY packages/llm-provider-py /repo/packages/llm-provider-py
 
 COPY services/control-plane/pyproject.toml \

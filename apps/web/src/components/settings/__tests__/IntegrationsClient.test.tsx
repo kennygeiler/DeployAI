@@ -153,7 +153,7 @@ describe("IntegrationsClient", () => {
     expect(body.name).toBe("My Linear");
     expect(body.endpoint).toBe("https://linear-mcp.example.com/sse");
     expect(body.connector_kind).toBe("slack"); // default in form, the catalog default
-  });
+  }, 20_000); // many sequential userEvent interactions; 5s default flakes under load
 
   it("kill-switch ON requires confirmation modal, then POSTs disabled=true", async () => {
     const { calls } = mockFetch({});

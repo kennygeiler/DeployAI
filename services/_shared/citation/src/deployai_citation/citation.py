@@ -15,7 +15,15 @@ _PHASES: frozenset[str] = frozenset(
 
 
 def _is_rfc3339_utcish(s: str) -> bool:
-    """Loose ISO 8601 / RFC 3339 check matching Zod `z.string().min(1)` + tests."""
+    """Loose ISO 8601 / RFC 3339 check.
+
+    The regex below MUST stay byte-identical in sync with the Zod schema in
+    ``packages/contracts/src/citation-envelope.ts``
+    (``SIGNED_TIMESTAMP_RFC3339_REGEX``). Shared valid/invalid fixture strings
+    are asserted on both sides (``tests/test_citation.py`` here and
+    ``packages/contracts/tests/envelope.contract.test.ts``) so drift fails CI
+    in both languages (backlog ticket B6).
+    """
     if len(s) < 1:
         return False
     return bool(

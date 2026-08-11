@@ -177,6 +177,9 @@ async def test_successful_outbound_call_writes_redacted_ledger_row(
             rate_limiter=NoopRateLimiter(),
             kill_switch=NoopKillSwitch(),
             audit_session_factory=_audit_factory,
+            # MockTransport endpoint (*.example.com) never resolves; stub
+            # the egress-guard resolver with a public address.
+            egress_resolver=lambda host: ["93.184.216.34"],
         )
 
         # Re-fetch the config row so the call site uses the same shape

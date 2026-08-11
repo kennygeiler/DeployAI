@@ -216,7 +216,18 @@ async def slack_events(
             return PlainTextResponse(content=ch, status_code=200, media_type="text/plain")
         return JSONResponse(content={"ok": False}, status_code=400)
     if et == "event_callback" and not secret:
-        _LOG.warning("slack_events: signing secret unset; accepting event_callback (dev only)")
+        # Fail closed: without a signing secret we cannot authenticate the
+        # sender, so events must never be processed or committed. The only
+        # exception is an explicit dev opt-in (DEPLOYAI_SLACK_ALLOW_UNSIGNED=1),
+        # default-off, for local development without a Slack app.
+        if not s.slack_allow_unsigned:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Slack signing secret not configured; event rejected",
+            )
+        _LOG.warning(
+            "slack_events: signing secret unset; accepting event_callback (DEPLOYAI_SLACK_ALLOW_UNSIGNED dev bypass)"
+        )
     if et == "event_callback":
         out = await process_slack_event_envelope(session, data=data)
         await session.commit()

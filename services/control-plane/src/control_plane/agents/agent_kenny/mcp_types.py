@@ -131,6 +131,21 @@ class McpToolNotAllowed(McpOutboundError):  # noqa: N818 — Wave 2D public cont
         self.tool_name = tool_name
 
 
+class McpEgressBlocked(McpOutboundError):  # noqa: N818 — matches guard-exception naming
+    """The SSRF egress guard rejected the endpoint — no network call was made.
+
+    Raised when the config's endpoint fails ``egress_guard`` validation at
+    request time (non-https scheme, userinfo, or a hostname resolving into a
+    private / link-local / metadata range — the DNS-rebinding case). The
+    ``reason`` token mirrors :class:`EgressBlockedError.reason` so audit
+    detail and tests can assert on the specific violation.
+    """
+
+    def __init__(self, message: str, *, reason: str | None = None) -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
 class McpTransportError(McpOutboundError):
     """The HTTP transport failed (timeout, connect error, TLS error).
 
@@ -150,6 +165,7 @@ class McpProtocolError(McpOutboundError):
 
 
 __all__ = [
+    "McpEgressBlocked",
     "McpErrorKind",
     "McpOutboundDisabled",
     "McpOutboundError",

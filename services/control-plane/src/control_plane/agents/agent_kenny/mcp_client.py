@@ -35,6 +35,7 @@ with pure JSON, but real upstreams sometimes stream).
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -48,6 +49,7 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.agents.agent_kenny.mcp_types import (
+    McpEgressBlocked,
     McpOutboundDisabled,
     McpOutboundError,
     McpProtocolError,
@@ -66,6 +68,11 @@ from control_plane.ledger import emit_ledger_event
 # we apply it eagerly here so the redacted shape is also what the unit
 # tests assert on.
 from control_plane.ledger.emitter import _scrub_secrets
+from control_plane.services.egress_guard import (
+    EgressBlockedError,
+    Resolver,
+    validate_egress_endpoint,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -182,6 +189,7 @@ class McpOutboundClient:
         kill_switch: McpKillSwitch,
         audit_session_factory: AuditSessionFactory,
         timeout_s: float = DEFAULT_TIMEOUT_S,
+        egress_resolver: Resolver | None = None,
     ) -> None:
         if timeout_s <= 0 or timeout_s > _HARD_TIMEOUT_CAP_S:
             raise ValueError(
@@ -193,6 +201,10 @@ class McpOutboundClient:
         self._kill = kill_switch
         self._audit_session = audit_session_factory
         self._timeout_s = timeout_s
+        # DNS resolver used by the egress guard (ticket A7). Injectable so
+        # tests with MockTransport endpoints (``*.example.com``) can stub
+        # resolution; production uses the default getaddrinfo path.
+        self._egress_resolver = egress_resolver
 
     # ----- public surface ---------------------------------------------------
 
@@ -249,13 +261,15 @@ class McpOutboundClient:
         engagement_id: uuid.UUID,
         turn_id: uuid.UUID,
     ) -> McpToolResult:
-        """Invoke one external MCP tool. Three guards fire BEFORE the network call.
+        """Invoke one external MCP tool. Four guards fire BEFORE the network call.
 
         Order matters: kill-switch first (cheapest, most-likely-true
         during incident response), then allow-list (cheap, deterministic),
-        then rate-limiter (may touch Redis). Each guard emits its own
-        typed ledger row so reviewers can tell denials from operational
-        throttling from incident lockdowns at audit time.
+        then rate-limiter (may touch Redis), then the egress guard
+        (resolves DNS, so most expensive — see ``_invoke_jsonrpc``). Each
+        guard emits its own typed ledger row so reviewers can tell denials
+        from operational throttling from incident lockdowns from SSRF
+        blocks at audit time.
         """
         started = time.monotonic()
 
@@ -376,6 +390,32 @@ class McpOutboundClient:
         protocol failure: still emits an audit row with the typed
         error_kind before raising so the trail captures the attempt.
         """
+        # 4. Egress guard — ticket A7 (SSRF / DNS-rebinding defense). The
+        # endpoint is re-validated on EVERY call, immediately before the
+        # network hop, so a DNS record that flipped to a private address
+        # after the config was written is still caught. Runs in a thread
+        # because the default resolver does blocking getaddrinfo.
+        try:
+            await asyncio.to_thread(
+                validate_egress_endpoint,
+                config.endpoint,
+                resolver=self._egress_resolver,
+            )
+        except EgressBlockedError as exc:
+            await self._emit_guard_audit(
+                source_kind="mcp_outbound_egress_blocked",
+                tenant_id=tenant_id,
+                engagement_id=engagement_id,
+                config=config,
+                tool_name=audit_tool_name,
+                turn_id=turn_id,
+                detail_extra={"reason": exc.reason, "endpoint": config.endpoint},
+            )
+            raise McpEgressBlocked(
+                f"egress blocked for endpoint {config.endpoint!r}: {exc}",
+                reason=exc.reason,
+            ) from exc
+
         token = await self._authorize_token(config)
         headers = {
             "Authorization": f"Bearer {token}",

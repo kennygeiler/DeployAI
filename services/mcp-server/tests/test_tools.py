@@ -14,7 +14,12 @@ from sqlalchemy.engine import Engine
 
 from mcp_server.db import clear_engine_cache
 from mcp_server.main import app
-from mcp_server.tools import FORBIDDEN_TOOLS, READ_TOOL_HANDLERS, list_mcp_tools
+from mcp_server.tools import (
+    FORBIDDEN_TOOLS,
+    READ_TOOL_HANDLERS,
+    list_mcp_tools,
+    reset_embedder_for_tests,
+)
 
 from .conftest import insert_api_key, seed_tenant_with_engagement
 
@@ -136,21 +141,57 @@ async def test_unknown_tool_returns_404(mcp_client: AsyncClient, postgres_engine
 
 
 @pytest.mark.asyncio
-async def test_vector_search_returns_deferred_placeholder(mcp_client: AsyncClient, postgres_engine: Engine) -> None:
+async def test_vector_search_tool_call_returns_result(
+    mcp_client: AsyncClient,
+    postgres_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """vector_search through the JSON-RPC path returns a well-formed
+    ToolResult (no -32603). Without VOYAGE_API_KEY the embedder emits
+    zero-vectors (documented local-dev fallback), so an empty corpus
+    yields an empty-but-valid result rather than an internal error.
+    """
+    monkeypatch.delenv("VOYAGE_API_KEY", raising=False)
+    reset_embedder_for_tests()
     tid, eid = seed_tenant_with_engagement(postgres_engine)
     _, raw = insert_api_key(postgres_engine, tenant_id=tid, engagement_id=eid, name="t")
     r = await mcp_client.post(
         "/mcp",
         json=_rpc(
             "tools/call",
-            {"name": "vector_search", "arguments": {"query": "ad migration"}},
+            {"name": "vector_search", "arguments": {"query": "ad migration", "limit": 5}},
         ),
         headers={"Authorization": f"Bearer {raw}"},
     )
-    assert r.status_code == 200
-    inner = json.loads(r.json()["result"]["content"][0]["text"])
-    assert inner["rows"] == []
-    assert inner["detail"] == "vector search deferred to Phase 5.5"
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert "error" not in body, body
+    inner = json.loads(body["result"]["content"][0]["text"])
+    assert inner["name"] == "vector_search"
+    assert isinstance(inner["rows"], list)
+    assert isinstance(inner["citations"], list)
+
+
+@pytest.mark.asyncio
+async def test_vector_search_rejects_bad_kind(
+    mcp_client: AsyncClient,
+    postgres_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("VOYAGE_API_KEY", raising=False)
+    reset_embedder_for_tests()
+    tid, eid = seed_tenant_with_engagement(postgres_engine)
+    _, raw = insert_api_key(postgres_engine, tenant_id=tid, engagement_id=eid, name="t")
+    r = await mcp_client.post(
+        "/mcp",
+        json=_rpc(
+            "tools/call",
+            {"name": "vector_search", "arguments": {"query": "x", "kind": "nonsense"}},
+        ),
+        headers={"Authorization": f"Bearer {raw}"},
+    )
+    # ToolError surfaces as HTTP 400, not a JSON-RPC internal error.
+    assert r.status_code == 400, r.text
 
 
 @pytest.mark.asyncio

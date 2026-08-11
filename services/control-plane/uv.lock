@@ -330,55 +330,6 @@ dev = [
 ]
 
 [[package]]
-name = "deployai-cartographer"
-version = "0.0.0"
-source = { editable = "../cartographer" }
-dependencies = [
-    { name = "deployai-checkpointer" },
-    { name = "deployai-citation" },
-    { name = "deployai-llm-provider-py" },
-    { name = "langgraph" },
-    { name = "prometheus-client" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "deployai-checkpointer", editable = "../_shared/checkpointer" },
-    { name = "deployai-citation", editable = "../_shared/citation" },
-    { name = "deployai-llm-provider-py", editable = "../../packages/llm-provider-py" },
-    { name = "langgraph", specifier = ">=0.2.0" },
-    { name = "prometheus-client", specifier = ">=0.21.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "coverage", extras = ["toml"], specifier = ">=7.6.0" },
-    { name = "mypy", specifier = ">=1.13.0" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.1.0" },
-    { name = "pytest", specifier = ">=8.3.0" },
-    { name = "pytest-asyncio", specifier = ">=0.24.0" },
-    { name = "ruff", specifier = ">=0.7.4" },
-    { name = "testcontainers", extras = ["postgres"], specifier = ">=4.0.0" },
-]
-
-[[package]]
-name = "deployai-checkpointer"
-version = "0.0.0"
-source = { editable = "../_shared/checkpointer" }
-dependencies = [
-    { name = "langgraph-checkpoint-postgres" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "langgraph-checkpoint-postgres", specifier = ">=2.0.0" }]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "mypy", specifier = ">=1.13.0" },
-    { name = "ruff", specifier = ">=0.7.4" },
-]
-
-[[package]]
 name = "deployai-citation"
 version = "0.0.0"
 source = { editable = "../_shared/citation" }
@@ -408,7 +359,7 @@ dependencies = [
     { name = "cryptography" },
     { name = "deployai-authz" },
     { name = "deployai-citation" },
-    { name = "deployai-ingest" },
+    { name = "deployai-ingestlib" },
     { name = "deployai-llm-provider-py" },
     { name = "deployai-runtime" },
     { name = "deployai-tenancy" },
@@ -437,7 +388,6 @@ dependencies = [
 dev = [
     { name = "aiosqlite" },
     { name = "coverage" },
-    { name = "deployai-cartographer" },
     { name = "fakeredis" },
     { name = "httpx" },
     { name = "moto", extra = ["s3"] },
@@ -457,7 +407,7 @@ requires-dist = [
     { name = "cryptography", specifier = ">=44.0.0" },
     { name = "deployai-authz", editable = "../_shared/authz" },
     { name = "deployai-citation", editable = "../_shared/citation" },
-    { name = "deployai-ingest", editable = "../ingest" },
+    { name = "deployai-ingestlib", editable = "../_shared/ingestlib" },
     { name = "deployai-llm-provider-py", editable = "../../packages/llm-provider-py" },
     { name = "deployai-runtime", editable = "../_shared/runtime" },
     { name = "deployai-tenancy", editable = "../_shared/tenancy" },
@@ -486,7 +436,6 @@ requires-dist = [
 dev = [
     { name = "aiosqlite", specifier = ">=0.20.0" },
     { name = "coverage", extras = ["toml"], specifier = ">=7.6.0" },
-    { name = "deployai-cartographer", editable = "../cartographer" },
     { name = "fakeredis", specifier = ">=2.35.1" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "moto", extras = ["s3", "sqs"], specifier = ">=5.0.0" },
@@ -498,9 +447,9 @@ dev = [
 ]
 
 [[package]]
-name = "deployai-ingest"
+name = "deployai-ingestlib"
 version = "0.0.0"
-source = { editable = "../ingest" }
+source = { editable = "../_shared/ingestlib" }
 
 [package.metadata]
 
@@ -890,21 +839,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/2e/f2/cf8086e1f1a3358d9228805614e72602c281b18307f3fae64a5b854aad2d/langgraph_checkpoint-4.0.2.tar.gz", hash = "sha256:4f6f99cba8e272deabf81b2d8cdc96582af07a57a6ad591cdf216bb310497039", size = 160810, upload-time = "2026-04-15T21:03:00.062Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b9/5a/6dba29dd89b0a46ae21c707da0f9d17e94f27d3e481ed15bc99d6bd20aa6/langgraph_checkpoint-4.0.2-py3-none-any.whl", hash = "sha256:59b0f29216128a629c58dd07c98aa004f82f51805d5573126ffb419b753ff253", size = 51000, upload-time = "2026-04-15T21:02:59.096Z" },
-]
-
-[[package]]
-name = "langgraph-checkpoint-postgres"
-version = "3.0.5"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "langgraph-checkpoint" },
-    { name = "orjson" },
-    { name = "psycopg" },
-    { name = "psycopg-pool" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/95/7a/8f439966643d32111248a225e6cb33a182d07c90de780c4dbfc1e0377832/langgraph_checkpoint_postgres-3.0.5.tar.gz", hash = "sha256:a8fd7278a63f4f849b5cbc7884a15ca8f41e7d5f7467d0a66b31e8c24492f7eb", size = 127856, upload-time = "2026-03-18T21:25:29.785Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e8/87/b0f98b33a67204bca9d5619bcd9574222f6b025cf3c125eedcec9a50ecbc/langgraph_checkpoint_postgres-3.0.5-py3-none-any.whl", hash = "sha256:86d7040a88fd70087eaafb72251d796696a0a2d856168f5c11ef620771411552", size = 42907, upload-time = "2026-03-18T21:25:28.75Z" },
 ]
 
 [[package]]
@@ -1362,18 +1296,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/2b/d3/bf49e3dcaadba510170c8d111e5e69e5ae3f981c1554c5bb71c75ce354bb/psycopg_binary-3.3.3-cp313-cp313-musllinux_1_2_riscv64.whl", hash = "sha256:cb85b1d5702877c16f28d7b92ba030c1f49ebcc9b87d03d8c10bf45a2f1c7508", size = 3925668, upload-time = "2026-02-18T16:51:03.299Z" },
     { url = "https://files.pythonhosted.org/packages/f8/92/0aac830ed6a944fe334404e1687a074e4215630725753f0e3e9a9a595b62/psycopg_binary-3.3.3-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:4d4606c84d04b80f9138d72f1e28c6c02dc5ae0c7b8f3f8aaf89c681ce1cd1b1", size = 4234973, upload-time = "2026-02-18T16:51:09.097Z" },
     { url = "https://files.pythonhosted.org/packages/2e/96/102244653ee5a143ece5afe33f00f52fe64e389dfce8dbc87580c6d70d3d/psycopg_binary-3.3.3-cp313-cp313-win_amd64.whl", hash = "sha256:74eae563166ebf74e8d950ff359be037b85723d99ca83f57d9b244a871d6c13b", size = 3551342, upload-time = "2026-02-18T16:51:13.892Z" },
-]
-
-[[package]]
-name = "psycopg-pool"
-version = "3.3.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/56/9a/9470d013d0d50af0da9c4251614aeb3c1823635cab3edc211e3839db0bcf/psycopg_pool-3.3.0.tar.gz", hash = "sha256:fa115eb2860bd88fce1717d75611f41490dec6135efb619611142b24da3f6db5", size = 31606, upload-time = "2025-12-01T11:34:33.11Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e7/c3/26b8a0908a9db249de3b4169692e1c7c19048a9bc41a4d3209cee7dbb758/psycopg_pool-3.3.0-py3-none-any.whl", hash = "sha256:2e44329155c410b5e8666372db44276a8b1ebd8c90f1c3026ebba40d4bc81063", size = 39995, upload-time = "2025-12-01T11:34:29.761Z" },
 ]
 
 [[package]]

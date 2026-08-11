@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from typing import Any, Final
 
 import boto3  # type: ignore[import-untyped]
-from ingest.idempotency import canonical_ingestion_dedup_key
+from deployai_ingestlib.idempotency import canonical_ingestion_dedup_key
 
 from control_plane.config.settings import get_settings
 from control_plane.db import tenant_session

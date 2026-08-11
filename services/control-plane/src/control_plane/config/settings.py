@@ -108,13 +108,18 @@ class ControlPlaneSettings(BaseSettings):
     """OAuth install redirect, e.g. ``https://cp.example.com/integrations/slack/oauth/callback``."""
 
     slack_signing_secret: str | None = None
-    """If set, ``/integrations/slack/events`` verifies Slack signatures; challenge works without it."""
+    """``/integrations/slack/events`` verifies Slack signatures with this secret. When unset,
+    ``event_callback`` payloads are rejected (fail closed); the URL-verification challenge still works."""
+
+    slack_allow_unsigned: bool = False
+    """Dev-only escape hatch (``DEPLOYAI_SLACK_ALLOW_UNSIGNED=1``): process unsigned
+    ``event_callback`` payloads when ``slack_signing_secret`` is unset. Never enable in production."""
 
     session_access_cookie: str = "dep_access"
     session_refresh_cookie: str = "dep_refresh"
     """HttpOnly cookies set on OIDC callback (browser clients); `POST /auth/refresh` still uses JSON body too."""
 
-    @field_validator("allow_test_session_mint", "break_glass_bypass_webauthn", mode="before")
+    @field_validator("allow_test_session_mint", "break_glass_bypass_webauthn", "slack_allow_unsigned", mode="before")
     @classmethod
     def _coerce_bool(cls, v: object) -> bool:
         if isinstance(v, bool):

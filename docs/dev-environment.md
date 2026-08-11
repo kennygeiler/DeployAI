@@ -51,10 +51,9 @@ Each Python service owns its own `uv` env. The control plane is the heaviest:
 
 ```bash
 cd services/control-plane && uv sync && cd -
-cd services/cartographer  && uv sync && cd -
 cd services/oracle        && uv sync && cd -
 cd services/master_strategist && uv sync && cd -
-cd services/ingest        && uv sync && cd -
+cd services/_shared/ingestlib && uv sync && cd -
 cd services/mcp-server    && uv sync && cd -
 ```
 

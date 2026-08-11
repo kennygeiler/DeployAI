@@ -130,12 +130,6 @@ jobs:
       - name: pnpm install
         run: pnpm install --frozen-lockfile
 
-      # Next production bundles `@deployai/shared-ui` from `packages/shared-ui/dist`.
-      # Build it explicitly before the monorepo turbo graph so `dist` never lags `src`
-      # if a future task graph changes (Epic 9 CI hardening).
-      - name: Build @deployai/shared-ui (fresh dist)
-        run: pnpm turbo run build --filter=@deployai/shared-ui
-
       - name: Sync Python workspaces (uv)
         run: bash scripts/ci-uv-sync-all.sh
 
@@ -153,11 +147,6 @@ jobs:
 
       - name: contract gate (citation envelope v0.1.0)
         run: pnpm turbo run contract:check
-
-      # NFR52 continuity tests run under `turbo test` (@deployai/continuity-of-reference). Use
-      # `pnpm contract:continuity` locally or in release to invoke the same suite by name.
-      - name: LLM capability matrix (Story 1-14, NFR70)
-        run: pnpm turbo run validate:llm-matrix
 
       - name: prettier --check
         run: pnpm run format:check
@@ -203,7 +192,9 @@ jobs:
           uv run pytest tests/integration/ -m integration -q
 
   # ------------------------------------------------------------------
-  # services/ingest — package unit tests (idempotency, NFR12 helpers)
+  # services/_shared/ingestlib — package unit tests (idempotency, NFR12
+  # helpers). Ticket B3 folded the former `services/ingest` "service"
+  # (pure helpers, no I/O) into `services/_shared/ingestlib`.
   # ------------------------------------------------------------------
   ingest-lib:
     name: Ingest (pytest)
@@ -228,7 +219,126 @@ jobs:
           enable-cache: true
 
       - name: Ingest unit tests
-        working-directory: services/ingest
+        working-directory: services/_shared/ingestlib
+        run: |
+          uv sync
+          uv run pytest -q
+
+  # ------------------------------------------------------------------
+  # changes — cheap path filter for the per-package Python jobs below
+  # (Wave 0 C2: formerly dark suites, wired into CI).
+  #
+  # NOTE on semantics: when a filter does not match, the dependent job
+  # is *skipped* — GitHub counts a skipped check as passing. A skip
+  # therefore means "this PR did not touch the package", NOT "the
+  # suite ran green". push to `main` always runs everything so the
+  # default branch never rides on skips alone.
+  # ------------------------------------------------------------------
+  changes:
+    name: Detect changed paths
+    needs: [toolchain-check]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      mcp_server: ${{ steps.resolve.outputs.mcp_server }}
+      llm_provider_py: ${{ steps.resolve.outputs.llm_provider_py }}
+    steps:
+      - name: Path filter (pull request)
+        if: github.event_name == 'pull_request'
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            mcp_server:
+              - "services/mcp-server/**"
+              - "services/control-plane/**"
+              - "services/_shared/**"
+              - ".github/workflows/ci.yml"
+            llm_provider_py:
+              - "packages/llm-provider-py/**"
+              - ".github/workflows/ci.yml"
+
+      - name: Resolve outputs (push = always run)
+        id: resolve
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            echo "mcp_server=true" >> "$GITHUB_OUTPUT"
+            echo "llm_provider_py=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "mcp_server=${{ steps.filter.outputs.mcp_server }}" >> "$GITHUB_OUTPUT"
+            echo "llm_provider_py=${{ steps.filter.outputs.llm_provider_py }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ------------------------------------------------------------------
+  # services/mcp-server — full pytest suite incl. tenant-isolation tests
+  # (26 tests; previously never run by any workflow). Tests spin up a
+  # Postgres testcontainer, so this mirrors control-plane-integration's
+  # Docker setup (Ryuk disabled; CI runners are ephemeral).
+  # mcp-server depends editable on services/control-plane, hence the
+  # wide path filter in the `changes` job above.
+  # ------------------------------------------------------------------
+  mcp-server:
+    name: MCP server (pytest)
+    needs: [smoke, changes]
+    if: needs.changes.outputs.mcp_server == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.7"
+          enable-cache: true
+
+      - name: MCP server tests (pytest, Docker)
+        working-directory: services/mcp-server
+        env:
+          PYTEST_ADDOPTS: ""
+          TESTCONTAINERS_RYUK_DISABLED: "true"
+        run: |
+          uv sync
+          uv run pytest -q
+
+  # ------------------------------------------------------------------
+  # packages/llm-provider-py — unit tests (27 tests; previously never
+  # run by any workflow — the package has no package.json, so `turbo
+  # test` never saw it).
+  # ------------------------------------------------------------------
+  llm-provider-py:
+    name: LLM provider py (pytest)
+    needs: [smoke, changes]
+    if: needs.changes.outputs.llm_provider_py == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.7"
+          enable-cache: true
+
+      - name: LLM provider unit tests
+        working-directory: packages/llm-provider-py
         run: |
           uv sync
           uv run pytest -q

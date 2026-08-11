@@ -98,7 +98,7 @@ Full runbook: [`docs/ops/cloud-deploy.md`](./docs/ops/cloud-deploy.md). Architec
 │                                                                                  │
 │   Domain / API           Agents                       Workers                    │
 │   ──────────────         ──────────                   ────────                   │
-│   matrix CRUD            cartographer (extraction)    synthesizer                │
+│   matrix CRUD                                         synthesizer                │
 │   ledger emitter         agent_kenny (LangGraph)      wiki_lint                  │
 │   snapshot routes        ├─ retrieve / llm_call       embedder (Voyage-3)        │
 │   intelligence (analyzers)  tool_dispatch / revise                               │
@@ -151,19 +151,19 @@ record, every phase is shipped.
 | Path | Role |
 |---|---|
 | `apps/web/` | Next.js — engagement portfolio, detail, timeline, matrix time-slider, Agent Kenny chat panel, admin dashboards, BFF routes (Zod-narrowed) |
-| `services/control-plane/` | FastAPI — domain models, internal APIs, agents (Cartographer + Agent Kenny LangGraph), workers (synthesizer, lint, embedder), analyzers, MCP outbound client |
+| `services/control-plane/` | FastAPI — domain models, internal APIs, Agent Kenny (LangGraph) + extraction; the Oracle and Master Strategist surfaces live here as modules (not separate services), workers (synthesizer, lint, embedder), analyzers, MCP outbound client |
 | `services/mcp-server/` | Standalone uvicorn MCP-protocol server — third-party MCP clients query the matrix + ledger read-only with tenant API keys |
-| `services/cartographer/`, `services/ingest/`, `services/oracle/`, `services/master_strategist/` | Per-domain Python services (extraction, ingest, legacy single-shot agents kept as compatibility shims) |
+| `services/_shared/` | Shared Python libraries (authz, runtime, tsa, citation envelope, ingestlib) consumed by the Python services |
 | `packages/llm-provider-py/` | `LLMProvider` protocol + Anthropic / OpenAI / stub impls; streaming + tool-use through `chat_complete_stream_with_tools` |
 | `packages/authz/` | TS + Python role/action matrix (shared) |
-| `packages/contracts/`, `packages/design-tokens/`, `packages/shared-ui/` | Cross-workspace types + design system |
+| `packages/contracts/`, `packages/design-tokens/` | Cross-workspace types + design system |
 | `infra/compose/` | Reference local stack — docker-compose, seed scripts (BlueState 26-week, BlueState-XL 5-year, Portfolio 5-engagement) |
 | `infra/fly/` | Cloud deploy — fly.toml per service (postgres / control-plane / web / mcp-server / embedder). See `docs/ops/cloud-deploy.md` |
 | `scripts/cloud-deploy.sh` | Wrapper script: deploys all 5 Fly apps in the right order |
 | `docs/agent-kenny/` | The hub for Agent Kenny — start at [`docs/agent-kenny/INDEX.md`](./docs/agent-kenny/INDEX.md) |
 | `docs/security/` | Threat models — MCP outbound boundary, cross-tenant fuzz, tenant isolation, self-host attack surface |
 | `docs/design/` | Engineering design records — timeline ledger, post-F polish, citation envelope |
-| `docs/product/` | Product spec + agent design records (Cartographer, synthesis agents) |
+| `docs/product/` | Product spec + agent design records |
 | `docs/archive/` | Superseded planning artifacts — preserved for git history, not authoritative |
 | `briefs/` | Sub-agent spawn briefs (gitignored working artifacts; see `AGENTS.md`) |
 

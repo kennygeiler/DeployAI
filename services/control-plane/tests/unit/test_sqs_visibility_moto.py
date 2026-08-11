@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import boto3
-from ingest.nfr12_backoff import nfr12_visibility_timeout_seconds
+from deployai_ingestlib.nfr12_backoff import nfr12_visibility_timeout_seconds
 from moto import mock_aws
 
 

@@ -1,10 +1,11 @@
 """Async SQLAlchemy session factory pointing at the same DB as control-plane.
 
 We deliberately reuse the control-plane ORM models so the MCP server reads
-from the same tables without duplicating schema knowledge. A read-only DB
-role is preferred at deploy time; if the cluster doesn't have one, the
-``ensure_read_only`` helper in :mod:`mcp_server.auth` short-circuits any
-write attempt before it reaches the session.
+from the same tables without duplicating schema knowledge. Read-only-ness is
+enforced by the tool allow-list: the registry in :mod:`mcp_server.tools` only
+exposes read tools (``propose_action`` and other write paths are never
+registered), so no code path issues writes through this session. Defense in
+depth: point ``DATABASE_URL`` at a read-only DB role at deploy time.
 """
 
 from __future__ import annotations

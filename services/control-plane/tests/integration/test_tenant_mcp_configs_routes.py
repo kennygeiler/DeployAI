@@ -414,3 +414,63 @@ async def test_oauth_start_unsupported_connector_returns_501(
         json={"redirect_uri": "https://app.example.com/oauth/return"},
     )
     assert r2.status_code == 501, r2.text
+
+
+# ---------------------------------------------------------------------------
+# SSRF guard at config write (ticket A7)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_rejects_private_endpoint(
+    mcp_client: AsyncClient,
+    postgres_engine: Engine,
+) -> None:
+    tid = uuid.uuid4()
+    _ins_tenant(postgres_engine, tid)
+    for endpoint in (
+        "http://slack-mcp.example.com/sse",  # non-https
+        "https://169.254.169.254/latest/meta-data",  # cloud metadata
+        "https://10.0.0.5/sse",  # RFC 1918
+        "https://127.0.0.1/sse",  # loopback
+        "https://user:pass@slack-mcp.example.com/sse",  # userinfo
+    ):
+        r = await mcp_client.post(
+            f"/internal/v1/tenants/{tid}/mcp_configs",
+            json={
+                "name": f"Bad {endpoint[:24]}",
+                "connector_kind": "slack",
+                "endpoint": endpoint,
+            },
+        )
+        assert r.status_code == 422, f"{endpoint}: {r.status_code} {r.text}"
+        assert "endpoint rejected" in r.text
+
+
+@pytest.mark.asyncio
+async def test_patch_rejects_private_endpoint(
+    mcp_client: AsyncClient,
+    postgres_engine: Engine,
+) -> None:
+    tid = uuid.uuid4()
+    _ins_tenant(postgres_engine, tid)
+    r = await mcp_client.post(
+        f"/internal/v1/tenants/{tid}/mcp_configs",
+        json={
+            "name": "Acme Slack",
+            "connector_kind": "slack",
+            "endpoint": "https://slack-mcp.example.com/sse",
+        },
+    )
+    assert r.status_code == 201, r.text
+    cid = r.json()["id"]
+
+    r2 = await mcp_client.patch(
+        f"/internal/v1/tenants/{tid}/mcp_configs/{cid}",
+        json={"endpoint": "https://10.9.8.7/sse"},
+    )
+    assert r2.status_code == 422, r2.text
+
+    # Row unchanged.
+    r3 = await mcp_client.get(f"/internal/v1/tenants/{tid}/mcp_configs/{cid}")
+    assert r3.json()["endpoint"] == "https://slack-mcp.example.com/sse"

@@ -11,7 +11,7 @@ from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 import httpx
-from ingest.idempotency import canonical_ingestion_dedup_key
+from deployai_ingestlib.idempotency import canonical_ingestion_dedup_key
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.config.settings import ControlPlaneSettings, get_settings

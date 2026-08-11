@@ -63,6 +63,7 @@ from control_plane.integrations.slack_oauth import (
     exchange_slack_oauth,
 )
 from control_plane.ledger import emit_ledger_event
+from control_plane.services.egress_guard import EgressBlockedError, validate_egress_endpoint
 
 router = APIRouter(prefix="/tenants", tags=["internal-tenant-mcp-configs"])
 
@@ -201,6 +202,23 @@ def _validate_connector(connector_kind: str) -> None:
         )
 
 
+def _validate_endpoint(endpoint: str) -> None:
+    """SSRF guard at config-write time (ticket A7).
+
+    ``require_resolution=False``: syntax, scheme, userinfo, and IP-literal
+    checks are enforced here, but a hostname that does not (yet) resolve is
+    accepted — the request-time guard in ``mcp_client.py`` re-resolves on
+    every call, which is where the DNS-rebinding defense lives.
+    """
+    try:
+        validate_egress_endpoint(endpoint, require_resolution=False)
+    except EgressBlockedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"endpoint rejected ({exc.reason}): {exc}",
+        ) from exc
+
+
 # ---------------------------------------------------------------------------
 # CRUD.
 # ---------------------------------------------------------------------------
@@ -236,6 +254,7 @@ async def create_mcp_config(
     # re-validate so a string fuzz / future widening surfaces as 422 here
     # instead of a 500 from the DB CHECK.
     _validate_connector(body.connector_kind)
+    _validate_endpoint(body.endpoint)
 
     async with tenant_session(tenant_id) as session:
         row = TenantMcpConfig(
@@ -302,6 +321,8 @@ async def update_mcp_config(
     body: TenantMcpConfigUpdate,
 ) -> TenantMcpConfigRead:
     fields = body.model_dump(exclude_unset=True)
+    if "endpoint" in fields and body.endpoint is not None:
+        _validate_endpoint(body.endpoint)
     async with tenant_session(tenant_id) as session:
         row = await _load_config(session, tenant_id=tenant_id, config_id=config_id)
 

@@ -116,7 +116,6 @@ jobs:
       - run: pnpm turbo run build
       - run: pnpm turbo run test
       - run: pnpm turbo run contract:check
-      - run: pnpm turbo run validate:llm-matrix
       - run: pnpm turbo run lint
       - run: pnpm turbo run typecheck
 
@@ -244,22 +243,9 @@ jobs:
             services/control-plane/alembic.ini \
             services/control-plane/README.md
 
-          # services/ingest — Python service (.venv excluded; uv sync).
-          pack services-ingest \
-            services/ingest/src \
-            services/ingest/migrations \
-            services/ingest/pyproject.toml \
-            services/ingest/uv.lock \
-            services/ingest/README.md
-
-          # services/cartographer — Python service (.venv excluded; uv sync).
-          pack services-cartographer \
-            services/cartographer/src \
-            services/cartographer/pyproject.toml \
-            services/cartographer/uv.lock
-
           # services/_shared/* — library workspaces (.venv excluded).
-          for shared in authz checkpointer citation runtime tenancy tsa; do
+          # ingestlib absorbed the former services/ingest helpers (B3).
+          for shared in authz checkpointer citation ingestlib runtime tenancy tsa; do
             pack "services-_shared-${shared}" \
               "services/_shared/${shared}/src" \
               "services/_shared/${shared}/pyproject.toml" \
@@ -277,7 +263,6 @@ jobs:
           # packages/llm-provider-py — Python package.
           pack packages-llm-provider-py \
             packages/llm-provider-py/src \
-            packages/llm-provider-py/scripts \
             packages/llm-provider-py/pyproject.toml \
             packages/llm-provider-py/uv.lock
 

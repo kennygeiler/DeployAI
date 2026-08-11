@@ -1,6 +1,10 @@
 # DeployAI Control Plane
 
-Story 1.3 scaffold: FastAPI + Pydantic v2 + SQLAlchemy 2.x async + Alembic (empty) + uv-managed deps.
+The main backend service: FastAPI + Pydantic v2 + async SQLAlchemy 2.x + Alembic, uv-managed deps.
+It hosts the domain models, the internal REST APIs (~48 route modules under
+`src/control_plane/api/routes/`), the Agent Kenny agent loop, background workers (synthesizer,
+wiki lint, embedder), the intelligence analyzers, and ~50 Alembic migrations (counts as of
+2026-08 — verify with `ls alembic/versions | wc -l`).
 
 - `GET /healthz` → `{"status": "ok"}` liveness probe.
 - Routes are implemented under `src/control_plane/api/routes/`; architecture overview in the root [`README.md`](../../README.md) and the Agent Kenny hub at [`docs/agent-kenny/INDEX.md`](../../docs/agent-kenny/INDEX.md). (Pre-v2 source-of-truth spec archived at [`docs/archive/product/deployai-source-of-truth-spec.md`](../../docs/archive/product/deployai-source-of-truth-spec.md) §4.)

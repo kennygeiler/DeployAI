@@ -28,7 +28,7 @@ build-backend = "hatchling.build"
 packages = ["src/llm_provider_py"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/llm_provider_py", "pyproject.toml", "scripts", "tests"]
+include = ["src/llm_provider_py", "pyproject.toml", "tests"]
 
 [tool.ruff]
 line-length = 120

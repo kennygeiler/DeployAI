@@ -91,6 +91,11 @@ ALLOWED_SOURCE_KINDS: frozenset[str] = frozenset(
         "mcp_outbound_blocked",
         "mcp_outbound_rate_limited",
         "mcp_outbound_denied",
+        # Pilot-refresh ticket A7 — SSRF egress guard. Emitted when the
+        # request-time endpoint validation (https-only, no userinfo, no
+        # private/link-local/metadata addresses) rejects an outbound MCP
+        # call before any network traffic leaves the box.
+        "mcp_outbound_egress_blocked",
     }
 )
 
