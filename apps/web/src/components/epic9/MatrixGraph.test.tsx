@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MatrixEdge, MatrixNode } from "@/lib/bff/matrix-types";
@@ -98,14 +98,16 @@ describe("MatrixGraph", () => {
     ];
     render(<MatrixGraph nodes={nodes} edges={edges} />);
     // Container is the figure shell — ReactFlow renders its own subtree inside.
-    expect(screen.getByTestId("matrix-graph")).toBeTruthy();
+    const graph = screen.getByTestId("matrix-graph");
+    expect(graph).toBeTruthy();
     expect(screen.getByRole("figure", { name: /deployment matrix/i })).toBeTruthy();
     // Node labels are rendered as plain text inside RF nodes.
     expect(screen.getByText("LiDAR ingest")).toBeTruthy();
     expect(screen.getByText("Calibration slip")).toBeTruthy();
-    // Column header for the type the node belongs to.
-    expect(screen.getByText(/Systems/)).toBeTruthy();
-    expect(screen.getByText(/Risks/)).toBeTruthy();
+    // Column header for the type the node belongs to (scoped to the canvas —
+    // the U5 type-filter chips repeat the type labels outside it).
+    expect(within(graph).getByText(/Systems/)).toBeTruthy();
+    expect(within(graph).getByText(/Risks/)).toBeTruthy();
   });
 
   // Edge rendering is intentionally not asserted here — ReactFlow draws edges
@@ -117,8 +119,9 @@ describe("MatrixGraph", () => {
     render(
       <MatrixGraph nodes={[mkNode({ node_type: "risk", title: "Only a risk" })]} edges={[]} />,
     );
-    // Risk column is in.
-    expect(screen.getByText(/Risks/)).toBeTruthy();
+    // Risk column is in (scoped to the canvas; the filter chip repeats it).
+    const graph = screen.getByTestId("matrix-graph");
+    expect(within(graph).getByText(/Risks/)).toBeTruthy();
     // Stakeholder / Systems / Decisions columns are NOT rendered when empty.
     expect(screen.queryByText(/Stakeholders/)).toBeNull();
     expect(screen.queryByText(/Systems/)).toBeNull();
@@ -134,7 +137,7 @@ describe("MatrixGraph", () => {
       />,
     );
     expect(screen.getByText("Surgery prep")).toBeTruthy();
-    expect(screen.getByText(/Patient journeys/)).toBeTruthy();
+    expect(within(screen.getByTestId("matrix-graph")).getByText(/Patient journeys/)).toBeTruthy();
   });
 
   it("routes stakeholder clicks to onStakeholderClick and other nodes to onNodeClick", () => {
@@ -252,6 +255,198 @@ describe("MatrixLegend overlay", () => {
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
     fireEvent.click(trigger);
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  });
+});
+
+/**
+ * Deterministic over-threshold fixture for the U5 lens suite (81 nodes > 60):
+ * - "Hub stakeholder" (s-hub) linked to System 0..9 and Risk 1 → the
+ *   highest-degree stakeholder, so it is the default lens focus.
+ * - Risk 0 hangs off System 0 → exactly 2 hops from the hub.
+ * - "Distant system" has no edges → only reachable via search or full graph.
+ */
+function mkLensFixture(): { nodes: MatrixNode[]; edges: MatrixEdge[] } {
+  const nodes: MatrixNode[] = [
+    mkNode({ id: "s-hub", node_type: "stakeholder", title: "Hub stakeholder" }),
+    mkNode({ id: "s-quiet", node_type: "stakeholder", title: "Quiet stakeholder" }),
+    mkNode({ id: "sys-distant", node_type: "system", title: "Distant system" }),
+  ];
+  const edges: MatrixEdge[] = [];
+  for (let i = 0; i < 70; i++) {
+    nodes.push(mkNode({ id: `sys-${i}`, node_type: "system", title: `System ${i}` }));
+  }
+  for (let i = 0; i < 8; i++) {
+    nodes.push(mkNode({ id: `risk-${i}`, node_type: "risk", title: `Risk ${i}` }));
+  }
+  for (let i = 0; i < 10; i++) {
+    edges.push(mkEdge({ id: `e-hub-${i}`, from_node_id: "s-hub", to_node_id: `sys-${i}` }));
+  }
+  edges.push(
+    mkEdge({ id: "e-hub-risk", from_node_id: "s-hub", to_node_id: "risk-1", edge_type: "owns" }),
+  );
+  edges.push(mkEdge({ id: "e-quiet", from_node_id: "s-quiet", to_node_id: "sys-0" }));
+  edges.push(
+    mkEdge({ id: "e-2hop", from_node_id: "risk-0", to_node_id: "sys-0", edge_type: "threatens" }),
+  );
+  return { nodes, edges };
+}
+
+describe("MatrixGraph lens view (U5)", () => {
+  beforeEach(() => {
+    pathnameMock.mockReturnValue("/engagements/e1");
+    searchParamsRef.current = new URLSearchParams();
+  });
+
+  it("defaults to the lens focused on the highest-degree stakeholder when over threshold", () => {
+    const { nodes, edges } = mkLensFixture();
+    render(<MatrixGraph nodes={nodes} edges={edges} />);
+
+    const status = screen.getByTestId("matrix-lens-status");
+    expect(status.textContent).toContain("Hub stakeholder");
+    // 1-hop neighborhood: hub + System 0..9 + Risk 1 = 12 of 81.
+    expect(status.textContent).toContain("showing 12 of 81 nodes");
+    // Focus + a direct neighbor render; an unconnected node does not.
+    expect(screen.getByText("Hub stakeholder")).toBeTruthy();
+    expect(screen.getByText("System 3")).toBeTruthy();
+    expect(screen.queryByText("Distant system")).toBeNull();
+    // 2-hop-only node is hidden at the default depth of 1.
+    expect(screen.queryByText("Risk 0")).toBeNull();
+  });
+
+  it("keeps the full graph (and no lens toolbar) below the threshold", () => {
+    render(
+      <MatrixGraph
+        nodes={[
+          mkNode({ id: "n1", node_type: "system", title: "LiDAR ingest" }),
+          mkNode({ id: "n2", node_type: "risk", title: "Calibration slip" }),
+        ]}
+        edges={[]}
+      />,
+    );
+    expect(screen.queryByTestId("matrix-lens-toolbar")).toBeNull();
+    expect(screen.queryByTestId("matrix-lens-status")).toBeNull();
+    expect(screen.queryByTestId("matrix-view-toggle")).toBeNull();
+    expect(screen.getByText("LiDAR ingest")).toBeTruthy();
+    expect(screen.getByText("Calibration slip")).toBeTruthy();
+  });
+
+  it("re-focuses the lens from the type-ahead search", () => {
+    const { nodes, edges } = mkLensFixture();
+    render(<MatrixGraph nodes={nodes} edges={edges} />);
+
+    const input = screen.getByRole("combobox", { name: /search matrix nodes/i });
+    fireEvent.change(input, { target: { value: "Distant" } });
+    const results = screen.getByTestId("matrix-lens-search-results");
+    // Results are grouped by node type.
+    expect(within(results).getByRole("group", { name: "Systems" })).toBeTruthy();
+    fireEvent.mouseDown(within(results).getByRole("option", { name: "Distant system" }));
+
+    expect(screen.getByTestId("matrix-lens-status").textContent).toContain("Distant system");
+    expect(screen.getByText("Distant system")).toBeTruthy();
+    // The previous focus's neighborhood is gone (no path to the new focus).
+    expect(screen.queryByText("Hub stakeholder")).toBeNull();
+  });
+
+  it("supports keyboard selection in the search listbox", () => {
+    const { nodes, edges } = mkLensFixture();
+    render(<MatrixGraph nodes={nodes} edges={edges} />);
+
+    const input = screen.getByRole("combobox", { name: /search matrix nodes/i });
+    fireEvent.change(input, { target: { value: "Quiet stakeholder" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(screen.getByTestId("matrix-lens-status").textContent).toContain("Quiet stakeholder");
+  });
+
+  it("expands the neighborhood when switching from 1 hop to 2 hops", () => {
+    const { nodes, edges } = mkLensFixture();
+    render(<MatrixGraph nodes={nodes} edges={edges} />);
+
+    expect(screen.queryByText("Risk 0")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "2 hops" }));
+    // Risk 0 (via System 0) and Quiet stakeholder (also via System 0) join.
+    expect(screen.getByText("Risk 0")).toBeTruthy();
+    expect(screen.getByText("Quiet stakeholder")).toBeTruthy();
+    expect(screen.getByTestId("matrix-lens-status").textContent).toContain(
+      "showing 14 of 81 nodes",
+    );
+  });
+
+  it("filters lens contents by node type via the chips, with count badges", () => {
+    const { nodes, edges } = mkLensFixture();
+    render(<MatrixGraph nodes={nodes} edges={edges} />);
+
+    // Badges count the whole dataset, not just the visible subset.
+    expect(screen.getByTestId("matrix-type-count-system").textContent).toBe("71");
+    expect(screen.getByTestId("matrix-type-count-risk").textContent).toBe("8");
+    expect(screen.getByTestId("matrix-type-count-stakeholder").textContent).toBe("2");
+
+    expect(screen.getByText("Risk 1")).toBeTruthy();
+    const riskChip = screen.getByTestId("matrix-type-filter-risk");
+    expect(riskChip.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(riskChip);
+    expect(riskChip.getAttribute("aria-pressed")).toBe("false");
+    expect(screen.queryByText("Risk 1")).toBeNull();
+    // Other neighbors are unaffected.
+    expect(screen.getByText("System 3")).toBeTruthy();
+    fireEvent.click(riskChip);
+    expect(screen.getByText("Risk 1")).toBeTruthy();
+  });
+
+  it("filters by node type in full (small-graph) mode too", () => {
+    render(
+      <MatrixGraph
+        nodes={[
+          mkNode({ id: "n1", node_type: "system", title: "LiDAR ingest" }),
+          mkNode({ id: "n2", node_type: "risk", title: "Calibration slip" }),
+        ]}
+        edges={[mkEdge({ id: "e1", from_node_id: "n2", to_node_id: "n1" })]}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("matrix-type-filter-risk"));
+    expect(screen.queryByText("Calibration slip")).toBeNull();
+    expect(screen.getByText("LiDAR ingest")).toBeTruthy();
+  });
+
+  it("shows a recovery message instead of an empty canvas when every type is filtered out", () => {
+    render(
+      <MatrixGraph nodes={[mkNode({ id: "n1", node_type: "system", title: "Solo" })]} edges={[]} />,
+    );
+    fireEvent.click(screen.getByTestId("matrix-type-filter-system"));
+    expect(screen.getByTestId("matrix-graph-filtered-empty")).toBeTruthy();
+    expect(screen.queryByTestId("matrix-graph")).toBeNull();
+  });
+
+  it("opts into the full graph with a node-count warning, and back", () => {
+    const { nodes, edges } = mkLensFixture();
+    render(<MatrixGraph nodes={nodes} edges={edges} />);
+
+    const toggle = screen.getByTestId("matrix-view-toggle");
+    expect(toggle.textContent).toContain("Show full graph (81 nodes — may be slow)");
+    fireEvent.click(toggle);
+    // Full graph renders everything, including the unconnected node.
+    expect(screen.getByText("Distant system")).toBeTruthy();
+    expect(screen.getByText("System 69")).toBeTruthy();
+    expect(screen.queryByTestId("matrix-lens-status")).toBeNull();
+
+    expect(toggle.textContent).toContain("Back to lens view");
+    fireEvent.click(toggle);
+    expect(screen.queryByText("Distant system")).toBeNull();
+    expect(screen.getByTestId("matrix-lens-status")).toBeTruthy();
+  });
+
+  it("respects a custom lensThreshold prop", () => {
+    render(
+      <MatrixGraph
+        nodes={[
+          mkNode({ id: "a", node_type: "system", title: "Alpha" }),
+          mkNode({ id: "b", node_type: "system", title: "Beta" }),
+        ]}
+        edges={[]}
+        lensThreshold={1}
+      />,
+    );
+    expect(screen.getByTestId("matrix-lens-toolbar")).toBeTruthy();
+    expect(screen.getByTestId("matrix-lens-status")).toBeTruthy();
   });
 });
 

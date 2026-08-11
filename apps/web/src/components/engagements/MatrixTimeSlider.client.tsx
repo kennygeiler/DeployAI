@@ -12,7 +12,14 @@ import { Button } from "@/components/ui/button";
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DEFAULT_WINDOW_DAYS = 90;
+
+/**
+ * Fallback window when no `earliestDate` is supplied (or it is invalid /
+ * in the future). Exported so the engagement page can detect whether an
+ * engagement's history extends past the default and pass `earliestDate`
+ * explicitly (ticket F8).
+ */
+export const DEFAULT_WINDOW_DAYS = 90;
 
 function toIsoDay(d: Date): string {
   const y = d.getUTCFullYear();
@@ -51,7 +58,9 @@ export function MatrixTimeSlider({
 
   const earliest = React.useMemo(() => {
     const e = earliestDate ? parseIsoDay(earliestDate) : null;
-    if (e) return e;
+    // An earliest date in the future would collapse the range; treat it
+    // like a missing/invalid prop and fall back to the default window.
+    if (e && e.getTime() < today.getTime()) return e;
     return new Date(today.getTime() - DEFAULT_WINDOW_DAYS * DAY_MS);
   }, [earliestDate, today]);
 

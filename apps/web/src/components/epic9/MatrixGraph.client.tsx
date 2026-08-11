@@ -9,7 +9,21 @@ import * as React from "react";
 import { z } from "zod";
 
 import { MatrixTimeSlider } from "@/components/engagements/MatrixTimeSlider.client";
+import {
+  MatrixNodeSearch,
+  MatrixTypeFilterChips,
+} from "@/components/engagements/matrix-lens-controls.client";
+import {
+  buildAdjacency,
+  collectNeighborhood,
+  countNodesByType,
+  LENS_NODE_CAP,
+  LENS_NODE_THRESHOLD,
+  type LensHops,
+  pickDefaultFocus,
+} from "@/components/engagements/matrix-lens";
 import { MatrixLegend } from "@/components/epic9/MatrixLegend.client";
+import { Button } from "@/components/ui/button";
 import type { MatrixEdge, MatrixNode } from "@/lib/bff/matrix-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 import { zMatrixSnapshot } from "@/lib/internal/matrix-snapshot-cp";
@@ -29,6 +43,15 @@ const zSnapshotBffResponse = z.object({ snapshot: zMatrixSnapshot });
  * force-directed sim — predictable layout is more readable than a
  * wiggly graph for a deployment-team UI, and it doesn't reflow when the
  * user drags.
+ *
+ * Wave 2.5 ticket U5 — the graph is a lens, not a landing. Above
+ * `LENS_NODE_THRESHOLD` nodes the graph defaults to a focused view (one
+ * node + its 1–2-hop neighborhood, search-to-focus, type filter chips);
+ * the full layout is an explicit opt-in with a node-count warning. Below
+ * the threshold the full graph renders as before. Both views filter the
+ * same data the snapshot (`?at=`) pipeline returns, so time scrubbing and
+ * the lens compose. Traversal/selection rules live in
+ * `@/components/engagements/matrix-lens`.
  */
 
 export const BUILTIN_TYPE_ORDER = [
@@ -344,6 +367,7 @@ export function MatrixGraph({
   engagementId,
   onNodeClick,
   onStakeholderClick,
+  lensThreshold = LENS_NODE_THRESHOLD,
 }: {
   nodes: MatrixNode[];
   edges: MatrixEdge[];
@@ -351,6 +375,12 @@ export function MatrixGraph({
   engagementId?: string;
   onNodeClick?: (node: MatrixNode) => void;
   onStakeholderClick?: (node: MatrixNode) => void;
+  /**
+   * Node count above which the lens (focused neighborhood) view is the
+   * default. Optional; callers that mount `<MatrixGraph nodes edges />`
+   * get `LENS_NODE_THRESHOLD`.
+   */
+  lensThreshold?: number;
 }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -368,16 +398,80 @@ export function MatrixGraph({
   );
   const labelMap = React.useMemo(() => buildLabelMap(custom), [custom]);
   const bgMap = React.useMemo(() => buildBgMap(custom), [custom]);
-  const rfNodes = React.useMemo(
-    () => buildNodes(effectiveNodes, typeOrder, labelMap, bgMap),
-    [effectiveNodes, typeOrder, labelMap, bgMap],
-  );
-  const rfEdges = React.useMemo(() => buildEdges(effectiveEdges), [effectiveEdges]);
   const nodesById = React.useMemo(() => {
     const m = new Map<string, MatrixNode>();
     for (const n of effectiveNodes) m.set(n.id, n);
     return m;
   }, [effectiveNodes]);
+
+  // ---- Lens state -------------------------------------------------------
+  const lensEligible = effectiveNodes.length > lensThreshold;
+  // null = automatic (lens when eligible); the user's explicit choice wins.
+  const [viewOverride, setViewOverride] = React.useState<"lens" | "full" | null>(null);
+  const view: "lens" | "full" = lensEligible ? (viewOverride ?? "lens") : "full";
+  const [hops, setHops] = React.useState<LensHops>(1);
+  const [hiddenTypes, setHiddenTypes] = React.useState<ReadonlySet<string>>(new Set());
+  const [focusId, setFocusId] = React.useState<string | null>(null);
+
+  const adjacency = React.useMemo(() => buildAdjacency(effectiveEdges), [effectiveEdges]);
+  const typeCounts = React.useMemo(() => countNodesByType(effectiveNodes), [effectiveNodes]);
+  const defaultFocus = React.useMemo(
+    () => pickDefaultFocus(effectiveNodes, adjacency),
+    [effectiveNodes, adjacency],
+  );
+  // A stale focus (e.g. after a snapshot swap removes the node) falls back
+  // to the default pick rather than an empty lens.
+  const focusNode =
+    (focusId != null ? nodesById.get(focusId) : undefined) ?? defaultFocus ?? undefined;
+
+  const toggleType = React.useCallback((type: string) => {
+    setHiddenTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) {
+        next.delete(type);
+      } else {
+        next.add(type);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleFocusSelect = React.useCallback((node: MatrixNode) => {
+    setFocusId(node.id);
+    setViewOverride(null);
+  }, []);
+
+  // ---- Visible subset (type filters in both views; neighborhood in lens) --
+  const lensResult = React.useMemo(() => {
+    if (view !== "lens" || !focusNode) return null;
+    const allowed = new Set<string>();
+    for (const n of effectiveNodes) {
+      if (!hiddenTypes.has(n.node_type) || n.id === focusNode.id) allowed.add(n.id);
+    }
+    return collectNeighborhood(focusNode.id, adjacency, hops, allowed, LENS_NODE_CAP);
+  }, [view, focusNode, effectiveNodes, hiddenTypes, adjacency, hops]);
+
+  const visibleMatrixNodes = React.useMemo(() => {
+    if (lensResult && focusNode) {
+      return effectiveNodes.filter((n) => lensResult.ids.has(n.id));
+    }
+    if (hiddenTypes.size === 0) return effectiveNodes;
+    return effectiveNodes.filter((n) => !hiddenTypes.has(n.node_type));
+  }, [effectiveNodes, lensResult, focusNode, hiddenTypes]);
+
+  const visibleEdges = React.useMemo(() => {
+    if (lensResult == null && hiddenTypes.size === 0) return effectiveEdges;
+    const visibleIds = new Set(visibleMatrixNodes.map((n) => n.id));
+    return effectiveEdges.filter(
+      (e) => visibleIds.has(e.from_node_id) && visibleIds.has(e.to_node_id),
+    );
+  }, [effectiveEdges, visibleMatrixNodes, lensResult, hiddenTypes]);
+
+  const rfNodes = React.useMemo(
+    () => buildNodes(visibleMatrixNodes, typeOrder, labelMap, bgMap),
+    [visibleMatrixNodes, typeOrder, labelMap, bgMap],
+  );
+  const rfEdges = React.useMemo(() => buildEdges(visibleEdges), [visibleEdges]);
 
   const handleNodeClick = React.useCallback(
     (_e: React.MouseEvent, n: Node) => {
@@ -438,33 +532,120 @@ export function MatrixGraph({
     );
   }
 
+  const lensToolbar = lensEligible ? (
+    <div
+      className="border-border bg-paper-50 flex flex-wrap items-center gap-2 rounded-lg border p-2"
+      data-testid="matrix-lens-toolbar"
+    >
+      <MatrixNodeSearch
+        nodes={effectiveNodes}
+        typeOrder={typeOrder}
+        labelMap={labelMap}
+        onSelect={handleFocusSelect}
+      />
+      {view === "lens" ? (
+        <div
+          className="flex items-center gap-1"
+          role="group"
+          aria-label="Neighborhood depth"
+          data-testid="matrix-lens-hops"
+        >
+          {([1, 2] as const).map((h) => (
+            <Button
+              key={h}
+              type="button"
+              size="sm"
+              variant={hops === h ? "secondary" : "ghost"}
+              aria-pressed={hops === h}
+              className="h-7 px-2 text-xs"
+              onClick={() => setHops(h)}
+            >
+              {h === 1 ? "1 hop" : "2 hops"}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="h-7 px-3 text-xs"
+        data-testid="matrix-view-toggle"
+        onClick={() => setViewOverride(view === "lens" ? "full" : "lens")}
+      >
+        {view === "lens"
+          ? `Show full graph (${effectiveNodes.length} nodes — may be slow)`
+          : "Back to lens view"}
+      </Button>
+      {view === "lens" && focusNode && lensResult ? (
+        <p className="text-ink-600 w-full text-xs" role="status" data-testid="matrix-lens-status">
+          Lens: {focusNode.title} — showing {visibleMatrixNodes.length} of {effectiveNodes.length}{" "}
+          nodes
+          {lensResult.truncated
+            ? ` (neighborhood capped at ${LENS_NODE_CAP}; best-connected shown)`
+            : ""}
+          . Search to change focus, or show the full graph.
+        </p>
+      ) : null}
+    </div>
+  ) : null;
+
+  const typeChips = (
+    <MatrixTypeFilterChips
+      typeOrder={typeOrder}
+      counts={typeCounts}
+      labelMap={labelMap}
+      bgMap={bgMap}
+      hiddenTypes={hiddenTypes}
+      onToggle={toggleType}
+    />
+  );
+
+  // Re-fit the viewport when the lens subject changes (focus, depth, filters);
+  // keep the full view mounted across chip toggles so pan/zoom is preserved.
+  const flowKey =
+    view === "lens" && focusNode
+      ? `lens:${focusNode.id}:${hops}:${[...hiddenTypes].sort().join("|")}`
+      : "full";
+
   return (
     <div className="space-y-2">
       {slider}
       {fallbackBanner}
       {staleBanner}
+      {lensToolbar}
+      {typeChips}
       <MatrixLegend />
-      <div
-        data-testid="matrix-graph"
-        className="border-border h-[600px] w-full rounded-lg border"
-        aria-label="Deployment matrix graph"
-        role="figure"
-      >
-        <ReactFlow
-          nodes={rfNodes}
-          edges={rfEdges}
-          fitView
-          proOptions={{ hideAttribution: true }}
-          nodesConnectable={false}
-          edgesFocusable={false}
-          defaultEdgeOptions={{ type: "smoothstep" }}
-          onNodeClick={handleNodeClick}
+      {visibleMatrixNodes.length === 0 ? (
+        <p className="text-ink-600 text-sm" data-testid="matrix-graph-filtered-empty">
+          All node types are filtered out — re-enable a type above to see the graph.
+        </p>
+      ) : (
+        <div
+          data-testid="matrix-graph"
+          className="border-border h-[600px] w-full rounded-lg border"
+          aria-label="Deployment matrix graph"
+          role="figure"
         >
-          <Background gap={20} />
-          <Controls position="bottom-right" showInteractive={false} />
-          <MiniMap pannable zoomable position="top-right" />
-        </ReactFlow>
-      </div>
+          <ReactFlow
+            key={flowKey}
+            nodes={rfNodes}
+            edges={rfEdges}
+            fitView
+            minZoom={0.05}
+            onlyRenderVisibleElements={view === "full"}
+            proOptions={{ hideAttribution: true }}
+            nodesConnectable={false}
+            edgesFocusable={false}
+            defaultEdgeOptions={{ type: "smoothstep" }}
+            onNodeClick={handleNodeClick}
+          >
+            <Background gap={20} />
+            <Controls position="bottom-right" showInteractive={false} />
+            <MiniMap pannable zoomable position="top-right" />
+          </ReactFlow>
+        </div>
+      )}
     </div>
   );
 }
