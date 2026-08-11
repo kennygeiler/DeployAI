@@ -145,7 +145,7 @@ seed-app: env
 # every Phase F analyzer with deterministic, documented ground-truth insights.
 # See docs/test-scenarios/bluestate-health.md for expected outputs.
 seed-scenario-bluestate: env
-	@python3 $(COMPOSE_DIR)/seed/seed_scenario_bluestate.py $(SEED_SCENARIO_ARGS)
+	@cd services/control-plane && uv run python ../../$(COMPOSE_DIR)/seed/seed_scenario_bluestate.py $(SEED_SCENARIO_ARGS)
 
 # Phase C inc 12.1 — pg_dump + tenant-DEK metadata to S3 (or MinIO).
 # Requires the stack to be up. See docs/ops/backup.md for env vars
