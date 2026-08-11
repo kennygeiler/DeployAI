@@ -1,0 +1,197 @@
+# Pilot Refresh: DRM Reframe, LangGraph Deep Agent, HITL, LongScale Testing
+
+Date: 2026-08-11. Derived from full-repo audit (5 parallel subsystem reviews at commit 41569e6).
+Goal: make DeployAI testable by a small startup as a **Deal Relationship Manager (DRM)**, with a real
+LangGraph agent runtime, a first-class human-in-the-loop system, and a testing framework that proves
+behavior on long-horizon (multi-year, growing-corpus) deployments.
+
+Companion audit findings (stub-vs-real, security defects) are summarized inline where they motivate a ticket.
+
+---
+
+## Part 1 — DRM product critique (posited first, shapes everything below)
+
+A DRM user is an account lead / deployment lead running 3–15 live deals. Their questions:
+who matters on this deal, what state is it in, what changed since I last looked, what did we promise
+and when is it due, what's stalling, what should I do next — with receipts.
+
+### Misguided / misused today
+
+| Feature | Verdict | Why |
+|---|---|---|
+| Time-slider scrubbing (arbitrary-date matrix) | **Misused** | DRM question is "what changed since last touch", not "state on May 3". Slider is also hardcoded to 90 days (`MatrixTimeSlider.client.tsx:24`). Keep snapshot infra; reframe UI as **delta digest**. |
+| Cartographer as standalone service | **Misguided** | Zero production callers; regex "extraction"; LLM path weaker than the regex stub. Real extraction already lives in Agent Kenny. Delete service, keep `triage.py`. |
+| Two extraction paths (Kenny extraction vs cartographer) | **Misguided** | Consolidate to one path inside control-plane. |
+| `packages/shared-ui` (3,658 LOC, zero prod imports) | **Dead pre-pivot layer** | Delete. Exception: ValidationQueueCard / EvidencePanel *concepts* fold into the HITL Review Inbox (Part 2). |
+| 200-file golden corpus + `release-gate.yml` | **Decorative** | Random-UUID expected citations; workflow triggers on nonexistent dirs. Delete; derive ground truth from seed generators (Part 4). |
+| Adversarial reviewer on every turn | **Misused (cost)** | Doubles LLM cost + latency per turn. Make it confidence-gated / async lint with escalation, configurable per tenant. |
+| Meeting presence, FOIA export, wiki lint, Master Strategist branding | **Out of DRM scope** | Cut or shelve. One agent, one name: Kenny. |
+| BlueState-XL 5-year scenario | **Misclassified, keep** | Not a product feature — it is the longscale test asset. Move mentally into the eval column. |
+| MCP outbound connectors (5 kinds, 1 real OAuth) | **Right idea, unsafe** | SSRF hole (endpoint accepted as bare string), kill switch is a stub. Narrow to Slack until hardened. |
+| `services/ingest` "service" | **Misnamed** | 141 LOC of pure helpers, no I/O. Fold into `_shared`. |
+
+### Missing for DRM (the refresh)
+
+1. **Delta digest** — "since your last visit / this week": new stakeholders, decisions, risks, silence. Built on existing snapshots + `temporal_insights`.
+2. **Commitment tracking** — extract promises ("we'll deliver X by W22") as first-class nodes with due dates and owners; overdue = alert.
+3. **Follow-ups surfaced** — snooze/follow-up BFF routes already exist with UI deliberately hidden (`EngagementInsights.client.tsx:232`). Unify the two insight models and ship the UI.
+4. **Stall detection surfaced** — trailing-silence detection exists in seeds/insights; make it a front-page signal.
+5. **Kenny in Slack** — answer questions with citations where the team already lives. Slack app + HMAC verification already exist inbound; add slash-command/mention → answer.
+6. **Weekly digest email** — outbound email (Resend/SES); email *import* already real.
+7. **CRM sync (HubSpot first)** — one-way import of companies/contacts/deals → stakeholders/engagements. Startups will not re-enter data.
+8. **Capture-first UX** — the adoption risk is data entry. Lean on the already-real M365/Gmail/Slack ingest + review queue as the core loop.
+
+---
+
+## Part 2 — HITL design
+
+Two HITL modes, one surface.
+
+### A. Review Inbox (async HITL) — unifies four queues
+- **Extraction proposals** (exists today as MatrixProposals) — accept/reject/bulk.
+- **Agent escalations** (new) — when Kenny's confidence is low or citations fail verification twice, it declines and files an escalation. A human answers; the answer is recorded as a canonical ledger event with citations → future questions are grounded by it. This is the knowledge flywheel.
+- **Citation disputes** (new) — user flags a wrong citation on any answer; dispute becomes (a) a review item and (b) an eval-set entry (Part 4 feedback loop).
+- **Commitment confirmations** (new) — extracted commitments above threshold auto-accept; below threshold queue for confirmation.
+
+Mechanics: confidence-thresholded auto-accept with sampling audit (N% of auto-accepted items spot-checked); SLA + throughput metrics on the admin dashboard; every decision emits a ledger event (audit trail already exists).
+
+### B. In-turn approvals (synchronous HITL) — LangGraph `interrupt()`
+When the agent is about to take a side-effectful action (update CRM, send digest, call an external MCP write tool), the graph interrupts, the SSE stream emits an `approval_required` frame, the chat UI renders an approval card, and the turn resumes via `Command(resume=...)` on approval. The Postgres checkpointer makes this durable — approve tomorrow, the thread resumes from the exact node. This is the primary reason to adopt LangGraph for real (Part 3): interrupts + checkpointing are the features the hand-rolled driver cannot do.
+
+---
+
+## Part 3 — LangGraph deep-agent runtime
+
+Today LangGraph is decorative: `graph.py:build_graph()` registers `_noop` for every node; the hand-rolled
+`KennyAgentService._run_graph_inner` does the work. Refresh: make LangGraph the actual runtime, keep the
+external contracts (SSE v2 frames, REST API, ledger events) byte-identical so the web app is untouched.
+
+Architecture:
+- **StateGraph with real nodes**, reusing existing node functions (plan → llm_call → tool exec → citations → adversarial → finalize) and the already-shared routers.
+- **AsyncPostgresSaver checkpointer** (langgraph-checkpoint-postgres) — durable threads, resumability, interrupt support, time-travel debugging of agent runs.
+- **Async provider path throughout** — fixes the audit's blocking-I/O bug (sync `httpx.Client` inside `async def` in `adversarial.py:128`, `oracle_chat.py:184` stalls the event loop up to 120s).
+- **Streaming**: `astream_events` mapped to the existing SSE v2 frame vocabulary (`delta`, `tool_call`, `citation_verified`, …) plus new `approval_required` frame.
+- **Deep-agent patterns** (deepagents-style): planning todo held in graph state; **subagents** — a retrieval subagent (search/walk tools) and a verification subagent (citations + adversarial) with isolated context windows; main thread synthesizes.
+- **LangGraph Store** for per-engagement agent memory (learned stakeholder preferences, style).
+- **Guardrails preserved as graph constraints**: `recursion_limit`, tool-call cap in state (8/turn), turn timeout wrapper, token-budget pre-charge (all exist today — port, don't rewrite).
+- **Cutover gate**: run the 30 golden questions against old and new drivers; new must match or beat on citation-verification rate and leak count (zero) before the hand-rolled driver is deleted.
+
+---
+
+## Part 4 — LongScale testing framework
+
+Prove it works as the corpus grows over years, not just on a fresh seed.
+
+1. **Fix the eval runner** — the flagship CI job has never executed (no test functions collected, unregistered `-m eval` marker, four undefined CLI flags → pytest exit 4 nightly, leak gate skipped). Give `runner.py` a real CLI (`__main__` + argparse), run it directly, PR-gate a deterministic subset.
+2. **Derived ground truth** — the XL generator knows the truth it seeds (uuid5-deterministic). Emit (question, expected citation IDs, expected answer facts) pairs from the generator itself. Replaces the deleted synthetic corpus with hundreds of *grounded* cases for free.
+3. **Longitudinal replay harness** — seed XL progressively (weeks 26 / 52 / 104 / 156 / 260), run the question set at each checkpoint, record accuracy, citation precision/recall, latency percentiles vs corpus size. Assert degradation bounds (e.g., accuracy drop < 5% from smallest to largest corpus). This is the "does retrieval decay at scale" proof.
+4. **Fix the metrics** — hallucination rate currently vacuous (zero citations → 0.0). New: uncited-claim rate via the LLM judge; judge exists as dead code (`runner.py:318`) — wire it, keep substring match as a fast pre-filter.
+5. **Leak gate, actually running** — cross-engagement leak count == 0, nightly, hard-fail with alerting. (The RLS fuzzer with its anti-test is the repo's best gate — extend that pattern.)
+6. **Load & soak** — k6 API suite; N tenants × M engagements seeded; 24h soak on compose; embedding-queue drain SLO (jobs table exists); MCP server p95 under concurrent tool calls.
+7. **Chaos drills** — provider 429/outage (verify failover once real), Postgres restart mid-turn (checkpointer recovery), kill-switch drill (once real).
+8. **CI tiers** — PR: deterministic + subset evals; nightly: 5-question LLM eval + leak gate; weekly: full 30 + longitudinal replay; release: load + soak. Also: run the ~105 currently-dark tests (mcp-server incl. tenant isolation, llm-provider-py, `_shared/{authz,runtime,tsa}`).
+9. **Eval trends on admin dashboard** — extend the existing dashboard with per-run eval history so degradation is visible, not archaeological.
+
+---
+
+## Part 5 — Ticket backlog
+
+Legend: **P0** blocks pilot · **P1** agent/HITL refresh · **P2** DRM features · **P3** scale proof.
+Size S/M/L. Lanes are parallel-safe for coding agents (minimal file overlap). Deps listed by ID.
+
+### Wave 0 — hygiene + cheap safety (all parallel, no deps)
+
+| ID | P | Sz | Ticket |
+|---|---|---|---|
+| B1 | P1 | S | Delete `packages/shared-ui`; archive per docs convention. Salvage nothing (concepts noted in HITL design). |
+| B2 | P1 | M | Delete `services/cartographer`; move `triage.py` → `control_plane/services/triage.py` with its tests. |
+| B3 | P1 | S | Fold `services/ingest` helpers into `services/_shared`; update 6 importers; delete the service dir. |
+| B4 | P1 | S | Delete dead weight: `infra/audit-relay/`, duplicate `src/llm_provider/` pkg, `release-gate.yml`, `tests/continuity-of-reference/`, `tests/golden/queries/` (200 synthetic files), empty `repositories/` pkg. |
+| B5 | P2 | S | Docs truth pass: control-plane README ("Story 1.3 scaffold" is stale), `.env.example:88` stale pointer, root README `services/oracle/` refs, MCP `resources.py:221` stale "deferred to Phase 5.5" placeholder + the test asserting it. |
+| C1 | P0 | M | CI de-theater: remove/implement `turbo run validate:llm-matrix` (matches no package, exits 0); drop `--passWithNoTests`; set coverage floors (start 60% CP, 50% web); fix or delete `validate:llm-matrix:py` (reads nonexistent `services/config/`). |
+| C2 | P0 | S | Wire dark test suites into CI: `services/mcp-server` (26 tests incl. tenant isolation), `packages/llm-provider-py` (27), `services/_shared/{authz,runtime,tsa}` (52). |
+| C3 | P0 | S | Gate `cloud-deploy.yml` on CI green (`workflow_run` on ci.yml success, or shared `needs`). Deploy currently races CI. |
+| A6 | P0 | S | Slack webhook fail-closed: unset signing secret → reject events (currently processed + committed, `integrations_slack.py:218`). |
+| A7 | P0 | M | SSRF guard on MCP outbound endpoints: https-only, hostname allowlist option, deny private/link-local/metadata ranges at config-write AND at request time (DNS rebinding). |
+| A9 | P0 | S | MCP `vector_search` fix: kwarg `kinds`→`kind`, inject embedder (currently always -32603, `tools.py:183` vs `search.py:443`). |
+| H2 | P0 | S | Fix AGE download URL (`infra/compose/postgres/Dockerfile:17`): archive.apache.org with dlcdn fallback; breaks all cold builds when 1.6.0 rotates. |
+| B6 | P1 | S | Reconcile TS/Python citation schema drift (`signed_timestamp`: Zod any-string vs Python RFC 3339 regex); add cross-language contract test so drift fails CI. |
+
+### Wave 1 — trust layer (parallel within wave)
+
+| ID | P | Sz | Deps | Ticket |
+|---|---|---|---|---|
+| A1 | P0 | L | — | Implement OIDC callback (`api/auth/callback/oidc/route.ts` 501): code exchange, JWKS verify, JIT user, mint session cookie. CP already has OIDC+PKCE machinery — reuse. Drop the Cloudflare Access framing from `docs/ops/cloud-deploy.md:16` or implement the header check; pick one. |
+| A2 | P0 | M | — | Web middleware hardening: matcher covers `/admin/*` + `/api/internal/v1/*` (header-strip + edge authz currently bypassed, `middleware.ts:139`); flip `DEPLOYAI_LOCAL_DEV_ROLE_INJECT` to default-off everywhere incl. runbook; `DEPLOYAI_STRATEGIST_REQUIRE_TENANT` default-on. |
+| A3a | P0 | M | — | RLS migration for `ledger_events`, `matrix_nodes/edges`, `engagements`, `oracle_chat_turns`, `agent_audit_traces`, `temporal_insights` (+FORCE). Currently 9/49 tables. |
+| A3b | P0 | L | A3a | Adopt `TenantScopedSession` across CP routes (37/48 modules use unscoped session today). Mechanical, parallelizable per-route-module across agents. |
+| A4 | P0 | M | — | Replace single global `X-DeployAI-Internal-Key` with per-tenant scoped service tokens; centralize the 12 copy-pasted `require_internal` deps into one module. |
+| A5 | P0 | M | — | `packages/authz`: tenant comparison for all resource kinds (today only `kind==="tenant"`, so middleware's own gate never compares tenants); carry `tenantId` on resources; add per-surface actions (matrix:read, agent:ask, admin:read). |
+| A8 | P1 | M | — | Kill switch real: OAuth revoke (Google + MS Graph), queue purge, secret delete (all three are `_stub()` today). |
+| H1 | P0 | M | — | Fly production backups: scheduled `pg_dump` → S3 (Tigris) + restore drill; scripts today are compose-only. |
+| D0 | P0 | M | — | Async LLM provider: async httpx client for chat/stream paths, retries with jitter + `Retry-After` (sync path blocks event loop up to 120s in `adversarial.py:128`, `oracle_chat.py:184`). Prereq for Wave 2. |
+| W1 | P1 | S | — | Web resilience: `error.tsx`/`loading.tsx`/`global-error.tsx` per route group + error boundaries. |
+| D8 | P1 | M | D0 | Provider truth: either implement real failover (error detection, retry, circuit breaker — today `FailoverProvider` is a static env router) + OpenAI streaming/tools (currently `NotImplementedError`), or delete the failover pretense and go Anthropic-only. Decide, don't carry the lie. |
+| D9 | P0 | S | — | Embeddings fail-loud: production mode requires `VOYAGE_API_KEY`; remove silent `pseudo_embed` hash-vector fallback from prod path (dev keeps it behind explicit flag). |
+| H3 | P0 | M | — | S3-backed artifact stores: email bodies + transcripts currently local-disk stub / `NotImplementedError` for S3 — wire to MinIO locally, Tigris on Fly. Local-disk on Fly = data loss on redeploy. |
+
+### Wave 2 — LangGraph runtime + HITL core
+
+| ID | P | Sz | Deps | Ticket |
+|---|---|---|---|---|
+| D1 | P1 | M | — | Add `langgraph-checkpoint-postgres` AsyncPostgresSaver + Alembic migration for checkpoint tables; thread_id = chat session. |
+| D2 | P1 | L | D0,D1 | Rebuild `graph.py` as real StateGraph: existing node fns as nodes, shared routers, guardrails as graph constraints (recursion_limit, tool cap in state, timeout, budget pre-charge). Feature-flag `DEPLOYAI_AGENT_RUNTIME=langgraph|legacy`. |
+| D3 | P1 | M | D2 | Map `astream_events` → SSE v2 frames unchanged; frontend untouched. Golden smoke passes on both runtimes. |
+| D4 | P1 | L | D2,D3 | `interrupt()` approvals: `approval_required` SSE frame, resume endpoint (`Command(resume=...)`), approval card in chat UI, ledger events for request/decision. |
+| D5 | P1 | L | D2 | Deep-agent structure: planning todo in state; retrieval subagent + verification subagent with isolated contexts; adversarial pass becomes confidence-gated (config per tenant) instead of every-turn. |
+| D6 | P1 | M | D2,G1 | Cutover parity gate: 30 golden questions old-vs-new; new ≥ old on citation-verified rate, leak count 0; then delete hand-rolled driver + legacy `<tool_call>` text parser. |
+| D7 | P2 | M | D2 | LangGraph Store: per-engagement agent memory (preferences, glossary); surfaced + editable in settings. |
+| E1 | P1 | L | — | Review Inbox: unify extraction proposals + escalations + disputes + commitment confirmations into one queue UI with filters, SLA metrics. Reuses MatrixProposals patterns. |
+| E2 | P1 | M | E1 | Escalation flow: low-confidence/failed-verification → decline + escalation item; human answer recorded as canonical ledger event with citations. |
+| E3 | P1 | S | E1 | Citation dispute: flag control on answer citations → review item + eval-set entry (feeds G2). |
+| E4 | P1 | M | E1 | Confidence-thresholded auto-accept + sampling audit for proposals/commitments; thresholds in tenant settings. |
+| F2 | P1 | M | — | Unify `MatrixInsight`/`temporal_insights` models; ship the hidden snooze/follow-up UI (BFF routes exist, `EngagementInsights.client.tsx:232`). |
+
+### Wave 3 — DRM features
+
+| ID | P | Sz | Deps | Ticket |
+|---|---|---|---|---|
+| F1 | P2 | L | F2 | Delta digest: "since last visit" + weekly rollup per engagement (new stakeholders/decisions/risks/commitments, silence flags) from snapshot diffs + temporal_insights. Front page of engagement view. |
+| F3 | P2 | L | E4 | Commitment tracking: extraction of promises (owner, due date, source event) as matrix node type; overdue alerts; HITL confirmation below threshold. |
+| F4 | P2 | M | F2 | Stall/silence alerts surfaced: trailing-silence + no-next-step detection as dashboard signals + digest entries. |
+| F5 | P2 | L | — | Kenny in Slack: mention/slash-command → answer with citations (link back to app); reuses existing Slack app + HMAC verify; respects tenant binding of the Slack workspace. |
+| F6 | P2 | M | F1 | Outbound weekly digest email (Resend or SES); per-user opt-in; D4 approval optional for first sends. |
+| F7 | P2 | L | A4 | HubSpot one-way sync: companies/contacts/deals → stakeholders/engagements; idempotent upsert via external IDs; sync status UI. |
+| F8 | P2 | S | — | Matrix header reframe: "changed since last visit" chips; pass `earliestDate` to slider (prop exists, never passed; window hardcoded 90d). |
+| F9 | P2 | S | — | Wire `onExplain` (dead "Explain" button stub for G1.c) to a Kenny prompt about the insight. |
+| W2 | P2 | M | — | Adopt react-query in web: dedupe, cache, mutation invalidation; kill full-payload refetch-after-every-mutation. |
+| W3 | P1 | L | — | Playwright E2E for headline flows: onboarding seed → matrix render → time scrub → proposal accept → Kenny Q&A with citation. Runs vs compose stack in CI. Today E2E = 163 LOC read-only smoke. |
+
+### Wave 4 — LongScale proof
+
+| ID | P | Sz | Deps | Ticket |
+|---|---|---|---|---|
+| G1 | P0 | M | — | Make eval runner executable: `__main__` + argparse (`--limit --random --report --question-ids`), drop broken pytest invocation, register marker or bypass pytest; PR-gate deterministic subset. Nightly job currently exits 4 and the leak gate has never run. |
+| G2 | P3 | L | G1 | Ground-truth derivation: XL/portfolio generators emit (question, expected citations, expected facts) alongside seeds; replaces deleted synthetic corpus with grounded cases. |
+| G3 | P3 | L | G2 | Longitudinal replay: progressive seeding (wk 26/52/104/156/260), question set at each checkpoint, accuracy/citation-P-R/latency vs corpus size, degradation bounds asserted. |
+| G4 | P1 | M | G1 | Wire LLM judge (`runner.py:318` dead code) behind fast substring pre-filter; fix hallucination denominator (no-citation answers scored, not 0.0). |
+| G5 | P0 | S | G1 | Leak gate live: nightly, hard-fail, alert (Slack webhook); `STRICT_EVAL_REQUIRED` actually set. |
+| G6 | P3 | L | — | Load/soak: k6 API suite; N-tenant × M-engagement seed; 24h soak; embedding-queue drain SLO; MCP p95 under concurrency. |
+| G7 | P3 | M | D2 | Chaos drills: provider 429/outage, Postgres restart mid-turn (checkpointer recovery proof), kill-switch drill. |
+| G8 | P3 | M | G1 | Eval trend history on admin dashboard (extend existing dashboard + audit traces). |
+
+### Parallelization notes for coding agents
+
+- Wave 0: all 12 tickets fully parallel (disjoint files).
+- Wave 1: A1/A2/W1 (web) vs A3a/A4/A5/A8/D0 (CP) vs H1 (infra) — disjoint. A3b fans out per route module across many agents.
+- Wave 2: D-lane (agent runtime) and E-lane (Review Inbox UI+API) are independent until D4 meets E1's UI shell.
+- Wave 3: F1–F9 mostly independent; F5/F7 touch integrations only.
+- Contract discipline: SSE frame vocabulary and BFF response schemas are the frozen interfaces — any agent touching them must update `packages/contracts` + the drift gate first (TS/Python citation schemas have already drifted on `signed_timestamp`; B6 reconciles this — do it before any contract-touching ticket).
+
+### Sequencing summary
+
+1. Wave 0 + G1/G5 immediately (cheap, kills theater, makes CI honest).
+2. Wave 1 = pilot blocker set. After Wave 1: a startup can log in, data is tenant-safe, prod is backed up, deploys are gated.
+3. Wave 2 = the refresh: real LangGraph runtime + HITL inbox.
+4. Wave 3 = DRM value: digest, commitments, Slack, CRM.
+5. Wave 4 = longscale proof for buyer conversations.
