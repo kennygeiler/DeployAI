@@ -43,6 +43,21 @@ def create_stub_provider() -> Any:
             c = str(last.get("content", ""))
             return f"stub:{c[:12]}"
 
+        async def chat_complete_async(
+            self,
+            messages: list[ChatMessage],
+            *,
+            temperature: float | None = None,
+            max_output_tokens: int | None = None,
+        ) -> str:
+            # Keeps the provider protocol uniform with the real providers;
+            # the stub has no I/O so delegating to the sync path is fine.
+            return self.chat_complete(
+                messages,
+                temperature=temperature,
+                max_output_tokens=max_output_tokens,
+            )
+
         async def chat_stream(
             self,
             messages: list[ChatMessage],

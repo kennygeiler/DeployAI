@@ -21,7 +21,15 @@ from llm_provider_py.types import (
     ToolUseInputDelta,
     ToolUseStart,
 )
-from llm_provider_py.util import DEFAULT_CAPS, UsageCallback, httpx_post_with_retries, pseudo_embed, record_usage
+from llm_provider_py.util import (
+    DEFAULT_CAPS,
+    UsageCallback,
+    httpx_post_with_retries,
+    httpx_post_with_retries_async,
+    httpx_stream_open_with_retries,
+    pseudo_embed,
+    record_usage,
+)
 
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 DEFAULT_MODEL = "claude-sonnet-4-20250514"
@@ -37,6 +45,7 @@ class AnthropicProvider:
         tenant_id: str = "system",
         agent_name: str = "agent",
         on_usage: UsageCallback | None = None,
+        transport: httpx.AsyncBaseTransport | httpx.BaseTransport | None = None,
     ) -> None:
         self._key = (api_key or resolve_anthropic_api_key()).strip()
         self._model = (model or os.environ.get("ANTHROPIC_MODEL") or DEFAULT_MODEL).strip()
@@ -44,7 +53,29 @@ class AnthropicProvider:
         self._tenant_id = tenant_id
         self._agent_name = agent_name
         self._on_usage = on_usage
+        # Test seam: httpx.MockTransport implements both the sync and async
+        # transport interfaces, so one argument covers both client kinds.
+        self._transport = transport
+        self._async_client: httpx.AsyncClient | None = None
         self.id = "anthropic"
+
+    def _get_async_client(self) -> httpx.AsyncClient:
+        """One shared AsyncClient per provider instance (lazy init).
+
+        Sharing keeps the connection pool warm across calls; httpx clients
+        are safe for concurrent use. Closed via :meth:`aclose`.
+        """
+        if self._async_client is None or self._async_client.is_closed:
+            self._async_client = httpx.AsyncClient(
+                timeout=self._timeout,
+                transport=self._transport if isinstance(self._transport, httpx.AsyncBaseTransport) else None,
+            )
+        return self._async_client
+
+    async def aclose(self) -> None:
+        """Close the shared AsyncClient. Safe to call multiple times."""
+        if self._async_client is not None and not self._async_client.is_closed:
+            await self._async_client.aclose()
 
     def _headers(self) -> dict[str, str]:
         if not self._key:
@@ -83,13 +114,13 @@ class AnthropicProvider:
             },
         )
 
-    def chat_complete(
+    def _build_complete_body(
         self,
         messages: list[ChatMessage],
         *,
-        temperature: float | None = None,
-        max_output_tokens: int | None = None,
-    ) -> str:
+        temperature: float | None,
+        max_output_tokens: int | None,
+    ) -> dict[str, Any]:
         system_parts = [m["content"] for m in messages if m.get("role") == "system"]
         system = "\n\n".join(system_parts) if system_parts else None
         user_msgs = [m for m in messages if m.get("role") in ("user", "assistant")]
@@ -103,9 +134,9 @@ class AnthropicProvider:
             body["system"] = system
         if temperature is not None:
             body["temperature"] = temperature
+        return body
 
-        with httpx.Client(timeout=self._timeout) as client:
-            r = httpx_post_with_retries(client, ANTHROPIC_URL, headers=self._headers(), json=body)
+    def _parse_complete_response(self, r: httpx.Response) -> str:
         if r.status_code >= 400:
             msg = f"Anthropic error {r.status_code}: {r.text[:500]}"
             raise OSError(msg)
@@ -120,6 +151,41 @@ class AnthropicProvider:
                 return str(b.get("text", ""))
         msg = f"No text in Anthropic response: {data!r}"
         raise OSError(msg)
+
+    def chat_complete(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float | None = None,
+        max_output_tokens: int | None = None,
+    ) -> str:
+        body = self._build_complete_body(messages, temperature=temperature, max_output_tokens=max_output_tokens)
+        sync_transport = self._transport if isinstance(self._transport, httpx.BaseTransport) else None
+        with httpx.Client(timeout=self._timeout, transport=sync_transport) as client:
+            r = httpx_post_with_retries(client, ANTHROPIC_URL, headers=self._headers(), json=body)
+        return self._parse_complete_response(r)
+
+    async def chat_complete_async(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float | None = None,
+        max_output_tokens: int | None = None,
+    ) -> str:
+        """Async twin of :meth:`chat_complete` — use inside async code.
+
+        The sync method blocks the event loop for the full HTTP round trip
+        (up to the provider timeout); this one awaits on the shared
+        AsyncClient instead.
+        """
+        body = self._build_complete_body(messages, temperature=temperature, max_output_tokens=max_output_tokens)
+        r = await httpx_post_with_retries_async(
+            self._get_async_client(),
+            ANTHROPIC_URL,
+            headers=self._headers(),
+            json=body,
+        )
+        return self._parse_complete_response(r)
 
     def _build_stream_body(
         self,
@@ -253,12 +319,17 @@ class AnthropicProvider:
         )
 
     async def _iter_sse_events(self, body: dict[str, Any]) -> AsyncGenerator[dict[str, Any]]:
-        import httpx as hx
-
-        async with (
-            hx.AsyncClient(timeout=self._timeout) as aclient,
-            aclient.stream("POST", ANTHROPIC_URL, headers=self._headers(), json=body) as resp,
-        ):
+        # Retries cover the initial connection only. Once events start
+        # flowing they are yielded to the caller (and may trigger side
+        # effects there), so a mid-stream failure surfaces as an error —
+        # see httpx_stream_open_with_retries for the full rationale.
+        resp = await httpx_stream_open_with_retries(
+            self._get_async_client(),
+            ANTHROPIC_URL,
+            headers=self._headers(),
+            json=body,
+        )
+        try:
             if resp.status_code >= 400:
                 err_body = await resp.aread()
                 msg = f"Anthropic error {resp.status_code}: {err_body[:500]!r}"
@@ -302,39 +373,48 @@ class AnthropicProvider:
                     yield ev
                     if ev.get("type") == "message_delta" and isinstance(ev.get("usage"), dict):
                         self._emit_usage(ev["usage"])
+        finally:
+            await resp.aclose()
 
     async def _iter_sse(self, body: dict[str, Any]) -> AsyncGenerator[str]:
-        import httpx as hx
-
-        async with hx.AsyncClient(timeout=self._timeout) as aclient:
-            async with aclient.stream("POST", ANTHROPIC_URL, headers=self._headers(), json=body) as resp:
-                if resp.status_code >= 400:
-                    err_body = await resp.aread()
-                    msg = f"Anthropic error {resp.status_code}: {err_body[:500]!r}"
-                    raise OSError(msg)
-                buf = b""
-                async for chunk in resp.aiter_bytes():
-                    buf += chunk
-                    while b"\n" in buf:
-                        line, buf = buf.split(b"\n", 1)
-                        if not line.strip() or not line.startswith(b"data: "):
-                            continue
-                        payload = line[6:].strip()
-                        if payload == b"[DONE]":
-                            break
-                        try:
-                            ev = json.loads(payload.decode("utf-8", errors="replace"))
-                        except json.JSONDecodeError:
-                            continue
-                        if not isinstance(ev, dict):
-                            continue
-                        t = ev.get("type")
-                        if t == "message_delta" and isinstance(ev.get("usage"), dict):
-                            self._emit_usage(ev["usage"])
-                        if t == "content_block_delta" and isinstance(ev.get("delta"), dict):
-                            d = ev["delta"]
-                            if d.get("type") == "text_delta" and "text" in d:
-                                yield str(d["text"])
+        # Same transport rules as _iter_sse_events: retry the initial
+        # connection only, never after bytes were yielded downstream.
+        resp = await httpx_stream_open_with_retries(
+            self._get_async_client(),
+            ANTHROPIC_URL,
+            headers=self._headers(),
+            json=body,
+        )
+        try:
+            if resp.status_code >= 400:
+                err_body = await resp.aread()
+                msg = f"Anthropic error {resp.status_code}: {err_body[:500]!r}"
+                raise OSError(msg)
+            buf = b""
+            async for chunk in resp.aiter_bytes():
+                buf += chunk
+                while b"\n" in buf:
+                    line, buf = buf.split(b"\n", 1)
+                    if not line.strip() or not line.startswith(b"data: "):
+                        continue
+                    payload = line[6:].strip()
+                    if payload == b"[DONE]":
+                        break
+                    try:
+                        ev = json.loads(payload.decode("utf-8", errors="replace"))
+                    except json.JSONDecodeError:
+                        continue
+                    if not isinstance(ev, dict):
+                        continue
+                    t = ev.get("type")
+                    if t == "message_delta" and isinstance(ev.get("usage"), dict):
+                        self._emit_usage(ev["usage"])
+                    if t == "content_block_delta" and isinstance(ev.get("delta"), dict):
+                        d = ev["delta"]
+                        if d.get("type") == "text_delta" and "text" in d:
+                            yield str(d["text"])
+        finally:
+            await resp.aclose()
 
     def embed(self, text: str) -> list[float]:
         """Pseudo-embed, or OpenAI if ``OPENAI_API_KEY`` is set (optional hybrid)."""

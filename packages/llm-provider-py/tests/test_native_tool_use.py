@@ -19,7 +19,6 @@ from llm_provider_py.types import (
     ToolUseStart,
 )
 
-
 _TOOL_SPEC: list[dict[str, Any]] = [
     {
         "name": "query_ledger",

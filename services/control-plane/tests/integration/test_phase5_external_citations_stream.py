@@ -61,6 +61,15 @@ class _StubLLM:
         _ = messages, temperature, max_output_tokens
         return "NONE"
 
+    async def chat_complete_async(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float | None = None,
+        max_output_tokens: int | None = None,
+    ) -> str:
+        return self.chat_complete(messages, temperature=temperature, max_output_tokens=max_output_tokens)
+
     async def chat_stream(
         self,
         messages: list[ChatMessage],

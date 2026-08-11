@@ -71,6 +71,14 @@ class LLMProvider(Protocol):
         max_output_tokens: int | None = None,
     ) -> str: ...
 
+    async def chat_complete_async(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float | None = None,
+        max_output_tokens: int | None = None,
+    ) -> str: ...
+
     def embed(self, text: str) -> list[float]: ...
 
     def capabilities(self) -> CapabilityMatrix: ...
