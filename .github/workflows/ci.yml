@@ -130,6 +130,16 @@ jobs:
       - name: pnpm install
         run: pnpm install --frozen-lockfile
 
+      # Persist Turborepo's task cache across runs — unchanged packages get
+      # build/lint/typecheck/test cache hits instead of re-executing.
+      - name: Turbo cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+
       - name: Sync Python workspaces (uv)
         run: bash scripts/ci-uv-sync-all.sh
 
