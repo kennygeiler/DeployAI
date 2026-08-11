@@ -49,7 +49,9 @@
     --secondary: var(--hover);
     --secondary-foreground: var(--ink);
     --muted: var(--canvas);
-    --muted-foreground: var(--ink-2);
+    /* ink-600 (not ink-2): the workhorse secondary-text tone clears 7:1 on
+       page so the dev axe overlay stays quiet; ink-2 remains for tertiary. */
+    --muted-foreground: var(--color-ink-600);
     /* NOTE: shadcn's "accent" (menu hover fill) is renamed --ui-accent here
        because Beautiful UI's semantic --accent (the blue) already owns that
        var name in tokens.css. The @theme inline block below maps the

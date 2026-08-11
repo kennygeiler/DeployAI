@@ -55,7 +55,7 @@ export const themeLight = {
   /* Accent */
   accent: "#0285ff",
   /** Accent as text — AA on white/page. */
-  "accent-ink": "#0170dd",
+  "accent-ink": "#0161c1",
   "accent-tint": "#e9f3ff",
   /* Semantic hues (fills / meters / large glyphs) */
   green: "#189a4d",
@@ -66,9 +66,9 @@ export const themeLight = {
   "red-tint": "#fcecec",
   /* Semantic hues as TEXT (tuned darker than Beautiful UI to clear AA on
      white AND on the matching tint). */
-  "green-ink": "#107038",
-  "orange-ink": "#8a4c09",
-  "red-ink": "#ad3034",
+  "green-ink": "#0d6332",
+  "orange-ink": "#7d4508",
+  "red-ink": "#9d2a2e",
   /* Tooltip (inverted surface) */
   "tooltip-bg": "#25272b",
   "tooltip-fg": "#f6f7f8",
@@ -131,7 +131,7 @@ export const ink = {
   800: "#33363c",
   700: "#45484e",
   /** Secondary text — AA on every light surface incl. hover-2. */
-  600: "#54575e",
+  600: "#4b4e55",
   /** = Beautiful UI `ink-2`. */
   500: "#62656b",
   /** Disabled / placeholder — tuned to clear AA (≈ 4.9:1 on page). */
@@ -184,19 +184,19 @@ export const evidence = {
 /** Signal amber — staleness, warnings. AA on white and on signal-100. */
 export const signal = {
   100: "#fdf1e5",
-  700: "#8a4c09",
+  700: "#7d4508",
 } as const;
 
 /** Null-retrieval — deliberately muted neutral. */
 export const nullState = {
   100: "#f1f2f3",
-  600: "#54575e",
+  600: "#4b4e55",
 } as const;
 
 /** Destructive — confirmations + break-glass. AA on white and on tint. */
 export const destructive = {
   100: "#fcecec",
-  700: "#ad3034",
+  700: "#9d2a2e",
 } as const;
 
 export const colors = {
