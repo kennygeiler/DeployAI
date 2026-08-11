@@ -26,42 +26,46 @@
  *      `inline` modifier copies the value at compile time, so the Tailwind
  *      utility does not drag a second indirection at runtime.
  *
- * Dark mode is deferred — V1 ships light-only per
- * ux-design-specification.md §Visual Foundation (line 468). When dark mode
- * lands, add a `:root.dark { ... }` (or `[data-theme="dark"] { ... }`)
- * block mirroring the structure below; no shadcn primitive code needs to
- * change. Do NOT write `.dark :root { ... }` — that is a descendant
- * selector and `:root` is the document element, so the rule never matches.
+ * Dark mode — Beautiful UI ships both themes. `tokens.css` carries a
+ * `.dark, [data-theme="dark"]` block that re-points every semantic var
+ * (`--page`, `--ink`, `--line`, ...) AND every legacy `--color-*` scale, so
+ * toggling the `dark` class on <html> re-themes the whole app. The shadcn
+ * bridge below references only those runtime vars, so it needs no dark
+ * block of its own.
  */
 @layer base {
   :root {
-    /* Surface */
-    --background: var(--color-paper-100);
-    --foreground: var(--color-ink-950);
-    --card: var(--color-paper-200);
-    --card-foreground: var(--color-ink-950);
-    --popover: var(--color-paper-100);
-    --popover-foreground: var(--color-ink-950);
+    /* Surface — Beautiful UI ladder: page → canvas → surface → inset → hover. */
+    --background: var(--page);
+    --foreground: var(--ink);
+    --card: var(--surface);
+    --card-foreground: var(--ink);
+    --popover: var(--surface);
+    --popover-foreground: var(--ink);
 
-    /* Intent */
-    --primary: var(--color-evidence-700);
-    --primary-foreground: var(--color-paper-100);
-    --secondary: var(--color-paper-200);
-    --secondary-foreground: var(--color-ink-800);
-    --muted: var(--color-paper-200);
-    --muted-foreground: var(--color-ink-600);
-    --accent: var(--color-null-100);
-    --accent-foreground: var(--color-null-600);
-    --destructive: var(--color-destructive-700);
-    --destructive-foreground: var(--color-paper-100);
+    /* Intent — primary actions are ink-on-surface pills (Beautiful UI CTA). */
+    --primary: var(--ink);
+    --primary-foreground: var(--surface);
+    --secondary: var(--hover);
+    --secondary-foreground: var(--ink);
+    --muted: var(--canvas);
+    --muted-foreground: var(--ink-2);
+    /* NOTE: shadcn's "accent" (menu hover fill) is renamed --ui-accent here
+       because Beautiful UI's semantic --accent (the blue) already owns that
+       var name in tokens.css. The @theme inline block below maps the
+       `bg-accent` utility onto --ui-accent. */
+    --ui-accent: var(--hover);
+    --ui-accent-foreground: var(--ink);
+    --destructive: var(--red-ink);
+    --destructive-foreground: var(--surface);
 
-    /* UI chrome — see docs/shadcn.md for rationale on each mapping. */
-    --border: var(--color-paper-300);
-    --input: var(--color-stone-500);
-    --ring: var(--color-evidence-700);
+    /* UI chrome — hairline borders; fields read via fill + inset shadow. */
+    --border: var(--line);
+    --input: var(--line-strong);
+    --ring: var(--accent-ink);
 
-    /* Geometry */
-    --radius: var(--radius-md);
+    /* Geometry — controls 8px; cards use rounded-card (10px); buttons pill. */
+    --radius: var(--radius-control);
   }
 }
 
@@ -78,8 +82,8 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--ui-accent);
+  --color-accent-foreground: var(--ui-accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);

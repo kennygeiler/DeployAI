@@ -25,11 +25,11 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { colors } from "../src/colors.js";
+import { colors, colorsDark, themeDark, themeLight } from "../src/colors.js";
 import { elevation } from "../src/elevation.js";
 import { motion } from "../src/motion.js";
 import { radii } from "../src/radii.js";
-import { shadows } from "../src/shadows.js";
+import { shadows, shadowsDark } from "../src/shadows.js";
 import { spacing } from "../src/spacing.js";
 import { fontFamilies, readingMeasure, typeScale } from "../src/typography.js";
 
@@ -58,15 +58,36 @@ function spacingKey(key: string): string {
   return key.replace(/_/g, "-");
 }
 
-function colorVars(): string[] {
+function colorVars(source: Record<string, Record<string, string>> = colors): string[] {
   const lines: string[] = [];
-  for (const [scaleName, scale] of Object.entries(colors)) {
+  for (const [scaleName, scale] of Object.entries(source)) {
     for (const [step, value] of Object.entries(scale)) {
       assertSafeValue(`colors.${scaleName}.${step}`, value);
       lines.push(`  --color-${scaleName}-${step}: ${value};`);
     }
   }
   return lines;
+}
+
+/** Bare Beautiful UI semantic vars (`--page`, `--ink-2`, `--accent-tint`, ...). */
+function semanticVars(theme: Record<string, string>): string[] {
+  return Object.entries(theme).map(([key, value]) => {
+    assertSafeValue(`theme.${key}`, value);
+    return `  --${key}: ${value};`;
+  });
+}
+
+/** Tailwind aliases so `bg-page`, `text-ink-2`, `border-line` etc. resolve. */
+function semanticColorAliases(): string[] {
+  return Object.keys(themeLight).map((key) => `  --color-${key}: var(--${key});`);
+}
+
+/** Dark-mode shadow overrides (soft layers only; rings follow `--line`). */
+function darkShadowVars(): string[] {
+  return Object.entries(shadowsDark).map(([key, value]) => {
+    assertSafeValue(`shadowsDark.${key}`, value);
+    return `  --shadow-${key}: ${value};`;
+  });
 }
 
 /** Tailwind v4 spacing: emit just the dynamic base so `p-N`, `m-N`, `gap-N` all derive. */
@@ -179,7 +200,8 @@ function renderSections(sections: Array<[string, string[]]>): string {
 
 function emitTokensCss(): string {
   const body = renderSections([
-    ["Color", colorVars()],
+    ["Beautiful UI semantic theme (light)", semanticVars(themeLight)],
+    ["Color (legacy scales)", colorVars()],
     ["Spacing (4px base — dual-emit `--space-*` + `--spacing-*`)", spacingVarsSemantic()],
     ["Radii", radiusVars()],
     ["Shadows", shadowVars()],
@@ -188,12 +210,25 @@ function emitTokensCss(): string {
     ["Motion", motionVars()],
   ]);
 
-  return `${HEADER}\n:root {\n${body}\n}\n`;
+  const darkBody = renderSections([
+    ["Beautiful UI semantic theme (dark)", semanticVars(themeDark)],
+    ["Color (legacy scales, dark)", colorVars(colorsDark)],
+    ["Shadows (dark soft layers)", darkShadowVars()],
+  ]);
+
+  return (
+    `${HEADER}\n:root {\n${body}\n}\n\n` +
+    `.dark,\n[data-theme="dark"] {\n  color-scheme: dark;\n\n${darkBody}\n}\n`
+  );
 }
 
 function emitTailwindCss(): string {
   const body = renderSections([
-    ["Color", colorVars()],
+    ["Color (legacy scales)", colorVars()],
+    [
+      "Color (Beautiful UI semantic aliases — runtime vars, re-theme in dark)",
+      semanticColorAliases(),
+    ],
     ["Spacing (Tailwind v4 dynamic base)", spacingVarsTailwind()],
     ["Radii", radiusVars()],
     ["Shadows", shadowVars()],
