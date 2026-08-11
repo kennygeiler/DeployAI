@@ -3,8 +3,11 @@
 import * as React from "react";
 import { toast } from "sonner";
 
+import { CheckIcon, TriangleAlertIcon } from "lucide-react";
+
 import { OracleMessage } from "@/components/engagements/OracleMessage.client";
 import { Button } from "@/components/ui/button";
+import { PixelLoader, ShimmerLines } from "@/components/ui/shimmer";
 import { Textarea } from "@/components/ui/textarea";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 
@@ -68,6 +71,11 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
   const [inlineNotes, setInlineNotes] = React.useState<V2InlineNote[]>([]);
   const [err, setErr] = React.useState<string | null>(null);
   const loadedRef = React.useRef(false);
+  // Presentational only — powers the "Thought for Ns" trace header
+  // (Beautiful UI component 02). No effect on transport or fallback logic.
+  const [traceOpen, setTraceOpen] = React.useState(false);
+  const [thoughtSeconds, setThoughtSeconds] = React.useState<number | null>(null);
+  const thinkStartRef = React.useRef<number | null>(null);
 
   const loadHistory = React.useCallback(async () => {
     setLoadingHistory(true);
@@ -323,6 +331,9 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
     setReasoning([]);
     setCitationBadges([]);
     setInlineNotes([]);
+    thinkStartRef.current = Date.now();
+    setThoughtSeconds(null);
+    setTraceOpen(true);
     const optimisticId = `pending-${Date.now()}`;
     setTurns((prev) => [
       ...prev,
@@ -422,6 +433,11 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
       }
     } finally {
       setSending(false);
+      setTraceOpen(false);
+      if (thinkStartRef.current !== null) {
+        setThoughtSeconds(Math.max(1, Math.round((Date.now() - thinkStartRef.current) / 1000)));
+        thinkStartRef.current = null;
+      }
     }
   }, [conversationId, consumeStream, engagementId, input, sending, sendJsonFallback]);
 
@@ -433,6 +449,8 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
     setCitationBadges([]);
     setInlineNotes([]);
     setErr(null);
+    setThoughtSeconds(null);
+    setTraceOpen(false);
     loadedRef.current = false;
   }, []);
 
@@ -456,10 +474,10 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
         aria-controls="oracle-chat-body"
         onClick={() => setOpen(true)}
         data-testid="oracle-chat-rail-toggle"
-        className="border-border bg-paper-200 text-ink-800 hover:bg-paper-300 fixed top-1/3 right-0 z-40 flex h-32 w-8 items-center justify-center rounded-l-md rounded-r-none border border-r-0 px-0 shadow-md"
+        className="fixed top-1/3 right-0 z-40 flex h-32 w-8 items-center justify-center rounded-l-md rounded-r-none bg-surface px-0 text-ink shadow-raised hover:bg-hover"
       >
         <span
-          className="text-ink-800 text-[11px] font-semibold tracking-wide"
+          className="text-[11px] font-semibold tracking-wide text-ink"
           style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
         >
           Agent Kenny ›
@@ -470,11 +488,11 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
 
   return (
     <aside
-      className="border-border bg-paper-200 fixed top-16 right-0 bottom-0 z-40 flex w-[400px] max-w-[95vw] flex-col border-l shadow-xl"
+      className="fixed top-16 right-0 bottom-0 z-40 flex w-[400px] max-w-[95vw] flex-col border-l border-line bg-page shadow-overlay"
       data-testid="oracle-chat-panel"
     >
-      <header className="border-border flex items-center justify-between gap-2 border-b px-3 py-2">
-        <h2 id={PANEL_TITLE_ID} className="text-ink-900 text-sm font-semibold">
+      <header className="flex items-center justify-between gap-2 border-b border-line bg-surface px-3 py-2">
+        <h2 id={PANEL_TITLE_ID} className="text-sm font-semibold text-ink">
           Agent Kenny
         </h2>
         <div className="flex items-center gap-1">
@@ -507,17 +525,20 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
         aria-labelledby={PANEL_TITLE_ID}
         className="flex min-h-0 flex-1 flex-col"
       >
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2" data-testid="oracle-chat-scroll">
-          {err ? <p className="text-error-700 text-sm">{err}</p> : null}
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3" data-testid="oracle-chat-scroll">
+          {err ? <p className="text-sm text-red-ink">{err}</p> : null}
           {loadingHistory && turns.length === 0 ? (
-            <p className="text-ink-600 text-sm">Loading…</p>
+            <div className="space-y-3">
+              <PixelLoader label="Loading conversation" showElapsed={false} />
+              <ShimmerLines lines={3} />
+            </div>
           ) : turns.length === 0 ? (
-            <p className="text-ink-600 text-sm">
+            <p className="text-sm text-ink-600">
               Ask Agent Kenny about this engagement. He grounds every answer in ledger events.
             </p>
           ) : (
             <>
-              <ul className="space-y-2">
+              <ul className="space-y-3">
                 {turns.map((t) => (
                   <OracleMessage
                     key={t.id}
@@ -527,80 +548,158 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
                   />
                 ))}
               </ul>
+
+              {/* Thinking trace — Beautiful UI component 02. Persists after
+                  the stream completes as a collapsed "Thought for Ns" row. */}
+              {reasoning.length > 0 ? (
+                <details
+                  open={traceOpen}
+                  onToggle={(e) => setTraceOpen(e.currentTarget.open)}
+                  className="mt-3 rounded-card bg-surface shadow-hairline"
+                  data-testid="oracle-chat-reasoning"
+                >
+                  <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-medium text-ink-600 select-none [&::-webkit-details-marker]:hidden">
+                    {sending ? (
+                      <PixelLoader label="Thinking" showElapsed={false} className="text-xs" />
+                    ) : (
+                      <span>
+                        Thought for {thoughtSeconds ?? 1}s · {reasoning.length} step
+                        {reasoning.length === 1 ? "" : "s"}
+                      </span>
+                    )}
+                  </summary>
+                  <div className="border-t border-line px-3 py-2">
+                    <ul className="space-y-1.5">
+                      {reasoning
+                        .filter((r) => r.kind === "thinking")
+                        .map((r, i) => (
+                          <li
+                            key={`think-${i}`}
+                            className="text-xs leading-relaxed text-ink-600"
+                            data-testid="oracle-chat-thinking"
+                          >
+                            {r.kind === "thinking" ? r.content : null}
+                          </li>
+                        ))}
+                    </ul>
+                    {/* Tool chips — Beautiful UI component 05: compact
+                        expandable chips with status ticks. */}
+                    {reasoning.some((r) => r.kind !== "thinking") ? (
+                      <ul className="mt-2 flex flex-wrap gap-1.5">
+                        {reasoning.map((r, i) =>
+                          r.kind === "tool_call" ? (
+                            <li key={`tool-${i}`} data-testid="oracle-chat-tool_call">
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-hover px-2 py-0.5 font-mono text-[10px] text-ink-600 shadow-hairline">
+                                <span
+                                  aria-hidden="true"
+                                  className="size-1.5 animate-pulse rounded-full bg-accent"
+                                />
+                                {r.name}
+                              </span>
+                            </li>
+                          ) : r.kind === "tool_result" ? (
+                            <li key={`result-${i}`} data-testid="oracle-chat-tool_result">
+                              <details className="inline-block">
+                                <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-full bg-hover px-2 py-0.5 font-mono text-[10px] text-ink-600 shadow-hairline select-none [&::-webkit-details-marker]:hidden">
+                                  {r.error ? (
+                                    <TriangleAlertIcon
+                                      aria-hidden="true"
+                                      className="size-3 text-orange-ink"
+                                    />
+                                  ) : (
+                                    <CheckIcon
+                                      aria-hidden="true"
+                                      className="size-3 text-green-ink"
+                                    />
+                                  )}
+                                  {r.name}
+                                  <span className="text-ink-3">
+                                    {r.row_count}
+                                    {r.truncated ? "+" : ""}
+                                  </span>
+                                </summary>
+                                <p className="mt-1 rounded-md bg-inset px-2 py-1 text-[10px] text-ink-600 shadow-hairline">
+                                  {r.error
+                                    ? `Error: ${r.error}`
+                                    : `${r.row_count} row${r.row_count === 1 ? "" : "s"}${
+                                        r.truncated ? " (truncated)" : ""
+                                      }`}
+                                </p>
+                              </details>
+                            </li>
+                          ) : null,
+                        )}
+                      </ul>
+                    ) : null}
+                  </div>
+                </details>
+              ) : null}
+
+              {/* Citation verification chips — inline sources row. */}
+              {citationBadges.length > 0 ? (
+                <ul className="mt-2 flex flex-wrap gap-1.5" data-testid="oracle-chat-citations">
+                  {citationBadges.map((b, i) => (
+                    <li
+                      key={`${b.kind}-${b.id}-${i}`}
+                      className={
+                        b.outcome === "verified"
+                          ? "inline-flex items-center gap-1 rounded-full bg-green-tint px-2 py-0.5 font-mono text-[10px] text-green-ink shadow-hairline"
+                          : "inline-flex items-center gap-1 rounded-full bg-red-tint px-2 py-0.5 font-mono text-[10px] text-red-ink shadow-hairline"
+                      }
+                      data-testid={
+                        b.outcome === "verified"
+                          ? "oracle-citation-verified"
+                          : "oracle-citation-unverified"
+                      }
+                    >
+                      {b.outcome === "verified" ? (
+                        <CheckIcon aria-hidden="true" className="size-3" />
+                      ) : (
+                        <TriangleAlertIcon aria-hidden="true" className="size-3" />
+                      )}
+                      {b.kind}:{b.id.slice(0, 8)}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              {inlineNotes.length > 0 ? (
+                <ul className="mt-2 flex flex-col gap-1.5" data-testid="oracle-chat-inline-notes">
+                  {inlineNotes.map((n, i) =>
+                    n.kind === "cross_engagement_leak" ? (
+                      <li
+                        key={`leak-${i}`}
+                        className="rounded-md bg-red-tint px-2.5 py-1.5 text-[11px] text-red-ink shadow-hairline"
+                        data-testid="oracle-cross-engagement-leak"
+                      >
+                        Cross-engagement leak blocked: {n.citationKind}:{n.id.slice(0, 8)}
+                      </li>
+                    ) : (
+                      <li
+                        key={`concern-${i}`}
+                        className={
+                          n.severity === "blocking"
+                            ? "rounded-md bg-red-tint px-2.5 py-1.5 text-[11px] text-red-ink shadow-hairline"
+                            : n.severity === "warning"
+                              ? "rounded-md bg-orange-tint px-2.5 py-1.5 text-[11px] text-orange-ink shadow-hairline"
+                              : "rounded-md bg-hover px-2.5 py-1.5 text-[11px] text-ink-600 shadow-hairline"
+                        }
+                        data-testid={`oracle-adversarial-concern-${n.severity}`}
+                      >
+                        Concern: {n.concern}
+                      </li>
+                    ),
+                  )}
+                </ul>
+              ) : null}
+
               {streamingContent !== null ? (
                 <div
                   aria-live="polite"
                   aria-atomic="false"
                   data-testid="oracle-chat-streaming"
-                  className="mt-2"
+                  className="mt-3"
                 >
-                  {reasoning.length > 0 ? (
-                    <ul className="mb-1 flex flex-wrap gap-1" data-testid="oracle-chat-reasoning">
-                      {reasoning.map((r, i) => (
-                        <li
-                          key={i}
-                          className="bg-paper-300 text-ink-700 rounded px-2 py-0.5 text-[10px]"
-                          data-testid={`oracle-chat-${r.kind}`}
-                        >
-                          {r.kind === "thinking"
-                            ? `thinking: ${r.content.slice(0, 80)}`
-                            : r.kind === "tool_call"
-                              ? `tool: ${r.name}`
-                              : `result: ${r.name} (${r.row_count}${r.truncated ? "+" : ""})`}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  {citationBadges.length > 0 ? (
-                    <ul className="mb-1 flex flex-wrap gap-1" data-testid="oracle-chat-citations">
-                      {citationBadges.map((b, i) => (
-                        <li
-                          key={`${b.kind}-${b.id}-${i}`}
-                          className={
-                            b.outcome === "verified"
-                              ? "bg-success-100 text-success-800 rounded px-1.5 py-0.5 text-[10px]"
-                              : "bg-error-100 text-error-800 rounded px-1.5 py-0.5 text-[10px]"
-                          }
-                          data-testid={
-                            b.outcome === "verified"
-                              ? "oracle-citation-verified"
-                              : "oracle-citation-unverified"
-                          }
-                        >
-                          {b.kind}:{b.id.slice(0, 8)}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  {inlineNotes.length > 0 ? (
-                    <ul className="mb-1 flex flex-col gap-1" data-testid="oracle-chat-inline-notes">
-                      {inlineNotes.map((n, i) =>
-                        n.kind === "cross_engagement_leak" ? (
-                          <li
-                            key={`leak-${i}`}
-                            className="bg-error-100 text-error-800 rounded px-2 py-1 text-[11px]"
-                            data-testid="oracle-cross-engagement-leak"
-                          >
-                            Cross-engagement leak blocked: {n.citationKind}:{n.id.slice(0, 8)}
-                          </li>
-                        ) : (
-                          <li
-                            key={`concern-${i}`}
-                            className={
-                              n.severity === "blocking"
-                                ? "bg-error-100 text-error-800 rounded px-2 py-1 text-[11px]"
-                                : n.severity === "warning"
-                                  ? "bg-warning-100 text-warning-900 rounded px-2 py-1 text-[11px]"
-                                  : "bg-paper-300 text-ink-700 rounded px-2 py-1 text-[11px]"
-                            }
-                            data-testid={`oracle-adversarial-concern-${n.severity}`}
-                          >
-                            Concern: {n.concern}
-                          </li>
-                        ),
-                      )}
-                    </ul>
-                  ) : null}
                   <ul>
                     <OracleMessage
                       engagementId={engagementId}
@@ -613,29 +712,34 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
             </>
           )}
         </div>
-        <div className="border-border border-t px-3 py-2">
-          <Textarea
-            aria-label="Message Agent Kenny"
-            placeholder="Ask about risks, decisions, or recent activity…"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={onKeyDown}
-            rows={2}
-            disabled={sending}
-            className="min-h-[44px]"
-          />
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <p className="text-ink-500 text-[11px]">
-              AI-generated. Verify before acting on any reply.
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => void send()}
-              disabled={sending || input.trim().length === 0}
-            >
-              {sending ? "Asking…" : "Send"}
-            </Button>
+
+        {/* Prompt bar — Beautiful UI component 08 (visual only: same
+            submit / keyboard / aria behavior as before). */}
+        <div className="border-t border-line bg-surface px-3 py-3">
+          <div className="rounded-card bg-field shadow-inset-field transition-shadow focus-within:ring-2 focus-within:ring-ring/40">
+            <Textarea
+              aria-label="Message Agent Kenny"
+              placeholder="Ask about risks, decisions, or recent activity…"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onKeyDown}
+              rows={2}
+              disabled={sending}
+              className="min-h-[44px] resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
+            />
+            <div className="flex items-center justify-between gap-2 px-3 pb-2">
+              <p className="text-[11px] text-ink-500">
+                AI-generated. Verify before acting on any reply.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => void send()}
+                disabled={sending || input.trim().length === 0}
+              >
+                {sending ? "Asking…" : "Send"}
+              </Button>
+            </div>
           </div>
         </div>
       </section>
