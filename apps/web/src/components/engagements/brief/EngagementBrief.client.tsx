@@ -26,6 +26,7 @@ import type { MatrixEdge, MatrixNode, MatrixProposal } from "@/lib/bff/matrix-ty
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 import type { EngagementSummary, EngagementSummaryCounts } from "@/lib/bff/summary-types";
 import type { Section } from "@/lib/bff/temporal-filter";
+import { invalidateCachedFetch, useCachedFetch } from "@/lib/hooks/useCachedFetch";
 import { displayNameForPerson, initialsFor } from "@/lib/labels";
 import { applyRoleLens, type RoleLens } from "@/lib/matrix/role-lens";
 
@@ -112,14 +113,32 @@ type DetailResponse = {
 export function EngagementBrief({ engagementId }: { engagementId: string }) {
   const router = useRouter();
 
-  // Summary — fast first paint. 404 = CP endpoint not deployed; degrade to
-  // the full-payload path silently.
-  const [summary, setSummary] = React.useState<EngagementSummary | null>(null);
-  const [summaryPending, setSummaryPending] = React.useState(true);
+  const summaryKey = `/api/bff/engagements/${encodeURIComponent(engagementId)}/summary`;
+  const detailKey = `/api/bff/engagements/${encodeURIComponent(engagementId)}`;
+
+  // Summary — fast first paint (U6). 404 = CP endpoint not deployed; the
+  // hook records the error and the Brief degrades to the full-payload path.
+  const { data: summary, pending: summaryPending } = useCachedFetch<EngagementSummary>(summaryKey);
 
   // Detail aggregate — heavy payload (matrix, proposals, member ids).
-  const [data, setData] = React.useState<DetailResponse | null>(null);
-  const [err, setErr] = React.useState<string | null>(null);
+  // Deferred one tick so the summary-driven sections paint first; the Graph
+  // tab and narrative cards hydrate when it lands.
+  const [detailEnabled, setDetailEnabled] = React.useState(false);
+  React.useEffect(() => {
+    const t = window.setTimeout(() => setDetailEnabled(true), 0);
+    return () => window.clearTimeout(t);
+  }, []);
+  const { data, error: err } = useCachedFetch<DetailResponse>(detailEnabled ? detailKey : null);
+
+  // Targeted invalidation (U6): mutations refresh only the engagement's own
+  // keys — `detailKey` is a prefix of `summaryKey`, so one call refreshes
+  // the aggregate plus the summary counts and nothing else.
+  const refresh = React.useCallback(async () => {
+    invalidateCachedFetch(detailKey);
+  }, [detailKey]);
+  const refreshSummary = React.useCallback(async () => {
+    invalidateCachedFetch(summaryKey);
+  }, [summaryKey]);
 
   const [newEmail, setNewEmail] = React.useState("");
   const [newRole, setNewRole] = React.useState<string>("fde");
@@ -129,48 +148,6 @@ export function EngagementBrief({ engagementId }: { engagementId: string }) {
     { name: "deployment_strategist", label: ROLE_LABEL.deployment_strategist! },
     { name: "biz_dev", label: ROLE_LABEL.biz_dev! },
   ]);
-
-  const refreshSummary = React.useCallback(async () => {
-    try {
-      const r = await fetch(`/api/bff/engagements/${encodeURIComponent(engagementId)}/summary`, {
-        cache: "no-store",
-      });
-      if (!r.ok) {
-        // 404 (endpoint not deployed) or transient error — the detail
-        // aggregate covers the header; recent changes stay empty.
-        setSummary(null);
-        return;
-      }
-      setSummary((await r.json()) as EngagementSummary);
-    } catch {
-      setSummary(null);
-    } finally {
-      setSummaryPending(false);
-    }
-  }, [engagementId]);
-
-  const refresh = React.useCallback(async () => {
-    const r = await fetch(`/api/bff/engagements/${encodeURIComponent(engagementId)}`, {
-      cache: "no-store",
-    });
-    if (!r.ok) {
-      setErr(await readStrategistBffErrorDescription(r));
-      setData(null);
-      return;
-    }
-    setErr(null);
-    setData((await r.json()) as DetailResponse);
-  }, [engagementId]);
-
-  React.useEffect(() => {
-    const t = window.setTimeout(() => {
-      void refreshSummary();
-      refresh().catch((e) => {
-        setErr(e instanceof Error ? e.message : "Could not load engagement.");
-      });
-    }, 0);
-    return () => window.clearTimeout(t);
-  }, [refresh, refreshSummary]);
 
   React.useEffect(() => {
     let cancelled = false;

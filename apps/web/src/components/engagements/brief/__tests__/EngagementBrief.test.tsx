@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { EngagementBrief } from "@/components/engagements/brief/EngagementBrief.client";
+import { clearCachedFetchForTests } from "@/lib/hooks/useCachedFetch";
 
 const ENGAGEMENT = {
   id: "e1",
@@ -120,6 +121,11 @@ function stubFetch(opts: MockOptions = {}) {
 }
 
 describe("EngagementBrief", () => {
+  beforeEach(() => {
+    // The U6 fetch cache is module-level; isolate each case.
+    clearCachedFetchForTests();
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -152,6 +158,36 @@ describe("EngagementBrief", () => {
       expect(within(needsYou).getByTestId("needs-you-review-links")).toBeTruthy(),
     );
     expect(needsYou.textContent).toContain("open escalations");
+  });
+
+  it("paints from the summary while the detail aggregate is still loading (U6)", async () => {
+    let resolveDetail: (v: unknown) => void = () => {};
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes("/summary")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(SUMMARY) });
+      }
+      if (url.includes("/member-roles") || url.includes("/insights") || url.includes("/recommendations")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ builtin: [], custom: [], insights: [], recommendations: [] }),
+        });
+      }
+      // Detail aggregate hangs until we resolve it.
+      return Promise.resolve({ ok: true, json: () => new Promise((res) => (resolveDetail = res)) });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<EngagementBrief engagementId="e1" />);
+
+    // Header + digest render from the summary before the detail lands.
+    await waitFor(() => screen.getByText("NYC DOT LiDAR"));
+    expect(screen.getByTestId("delta-digest")).toBeTruthy();
+    // Narrative cards still shimmer.
+    expect(screen.getByTestId("brief-narrative-shimmer")).toBeTruthy();
+
+    await waitFor(() => expect(typeof resolveDetail).toBe("function"));
+    resolveDetail({ engagement: ENGAGEMENT, members: [], matrix: { nodes: [], edges: [] } });
+    await waitFor(() => screen.getByTestId("brief-card-people"));
   });
 
   it("degrades to the detail payload when the summary endpoint 404s", async () => {
