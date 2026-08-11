@@ -49,13 +49,25 @@ export function formatRelative(value: string, now: Date = new Date()): string {
   });
 }
 
+// The snapshot must be referentially stable between subscription events —
+// useSyncExternalStore calls getSnapshot on every render, and a value that
+// changes each call (a bare Date.now()) makes React treat every render as an
+// external-store update, which is an infinite loop. Cache the clock and only
+// advance it on the interval tick.
+let cachedNowMs = Date.now();
 function subscribeMinute(callback: () => void): () => void {
   if (typeof window === "undefined") return () => {};
-  const id = window.setInterval(callback, MINUTE);
+  // Refresh on subscribe so a component mounting long after module load (or
+  // under fake timers in tests) sees the current clock, not import-time now.
+  cachedNowMs = Date.now();
+  const id = window.setInterval(() => {
+    cachedNowMs = Date.now();
+    callback();
+  }, MINUTE);
   return () => window.clearInterval(id);
 }
 function getNowMs(): number {
-  return Date.now();
+  return cachedNowMs;
 }
 function getServerSnapshot(): number {
   // 0 keeps SSR text deterministic — the formatter falls back to the parsed
