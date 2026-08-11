@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
-import { EngagementDetail } from "@/components/epic9/EngagementDetail.client";
+import { EngagementBrief } from "@/components/engagements/brief/EngagementBrief.client";
 import { requireCanonicalRead } from "@/lib/internal/strategist-surface";
 
 export const metadata: Metadata = {
   title: "Engagement",
-  description: "Phase 4 — one customer deployment: its team, phase, and log.",
+  description:
+    "The Brief — one customer deployment: what changed, what needs you, and the deal narrative.",
 };
 
 export default async function EngagementDetailPage({
@@ -16,17 +16,5 @@ export default async function EngagementDetailPage({
 }) {
   await requireCanonicalRead();
   const { engagementId } = await params;
-  return (
-    <>
-      <div className="flex justify-end p-4">
-        <Link
-          href={`/engagements/${encodeURIComponent(engagementId)}/timeline`}
-          className="text-primary text-sm underline-offset-4 hover:underline"
-        >
-          View timeline
-        </Link>
-      </div>
-      <EngagementDetail engagementId={engagementId} />
-    </>
-  );
+  return <EngagementBrief engagementId={engagementId} />;
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { AdminRecentActivity } from "@/components/admin/AdminRecentActivity.client";
 import { AgentKennyDashboardClient } from "@/components/admin/AgentKennyDashboardClient";
 import {
   cpGetAgentKennyDashboard,
@@ -64,6 +65,9 @@ export default async function AgentKennyDashboardPage() {
         initialData={initialData}
         initialError={initialError}
       />
+      {/* Wave 2.5 U3 — the per-engagement activity strip (agent tool
+          invocations and other ledger events) lives here now, off the Brief. */}
+      <AdminRecentActivity />
     </div>
   );
 }
