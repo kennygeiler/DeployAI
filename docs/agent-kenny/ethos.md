@@ -1,7 +1,8 @@
 # Agent Kenny — Ethos and Architectural Decision
 
-**Status:** v2 build COMPLETE as of 2026-05-27. Phases 0 through 6 are all shipped on `main`. The next phase is
-cloud deploy (Fly.io + Cloudflare Access), not yet started. This document is the **load-bearing rationale** for
+**Status:** v2 build COMPLETE as of 2026-05-27. Phases 0 through 6 are all shipped on `main`. The next phase was
+cloud deploy — since done on Railway (2026-08-11, [`docs/ops/cloud-deploy.md`](../ops/cloud-deploy.md); the
+Fly.io + Cloudflare Access plan this doc originally named was dropped). This document is the **load-bearing rationale** for
 the substrate Kenny runs on — every architectural choice below now corresponds to merged code.
 **Last updated:** 2026-05-27.
 **Audience:** Engineers building on the agent layer, advisors evaluating the architecture, future maintainers.
@@ -188,8 +189,9 @@ These were open at v2 kickoff; the build resolved each. Recorded here so future 
 
 - **Per-connector OAuth flows.** Slack OAuth is wired end-to-end through the Phase 5 Wave 3J catalog. Linear /
   GDrive / Notion / GitHub return `501` until per-connector flows ship. Sequencing is product-priority-driven.
-- **Cloud deploy posture.** Fly.io + Cloudflare Access is the next phase. The compose stack is the supported
-  environment until then. Threat model under [`../security/self-host-surface.md`](../security/self-host-surface.md).
+- **Cloud deploy posture.** Deployed on Railway as of 2026-08-11 ([`docs/ops/cloud-deploy.md`](../ops/cloud-deploy.md));
+  the earlier Fly.io + Cloudflare Access plan was dropped. The compose stack remains the supported dev
+  environment. Threat model under [`../security/self-host-surface.md`](../security/self-host-surface.md).
 
 ---
 

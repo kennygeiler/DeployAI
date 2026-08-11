@@ -17,8 +17,10 @@ name: deployai
 services:
   postgres:
     build:
-      context: ./postgres
-      dockerfile: Dockerfile
+      # Repo-root context so the same Dockerfile builds on Railway (which
+      # always uses the upload root as context) and locally.
+      context: ../..
+      dockerfile: infra/compose/postgres/Dockerfile
     image: deployai/postgres:local-dev
     restart: unless-stopped
     environment:

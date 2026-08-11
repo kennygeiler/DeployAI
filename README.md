@@ -58,10 +58,13 @@ Denser fixtures (seedable from the onboarding wizard or the internal API): **Blu
 ~2.5k ledger events, ~70 stakeholders — also the longscale eval corpus) and **Portfolio** (5 sibling
 engagements, used to prove tenant/engagement isolation).
 
-### Cloud deploy (Fly.io)
+### Cloud deploy (Railway)
 
-Five Fly apps (postgres / control-plane / web / mcp-server / embedder) with CI auto-deploy on `main`
-gated on the test suite, nightly S3 backups, and OIDC login. Full operator runbook:
+One Railway project, five services (postgres / control-plane / web / mcp-server / embedder) plus
+managed Redis, each built from the repo root against its own Dockerfile
+(`railway up --service <name>`), with CI auto-deploy on `main` gated on the test suite and volume
+backups for Postgres. Hosted auth is currently a short-lived bootstrap JWT
+(`scripts/cloud-token.sh`) — real OIDC login is a pre-pilot task. Full operator runbook:
 [`docs/ops/cloud-deploy.md`](./docs/ops/cloud-deploy.md).
 
 ---
@@ -156,7 +159,7 @@ cd services/control-plane && uv run mypy && uv run pytest tests/unit
 | LLM | Anthropic Claude (Sonnet 5 default, per-tenant configurable) · Voyage-3 1024-dim embeddings |
 | Agent protocol | MCP — inbound read-only server + guarded outbound client |
 | Auth | OIDC (PKCE) with control-plane-minted RS256 session JWTs; per-tenant internal service tokens |
-| Infra | docker-compose locally (`make dev`); Fly.io in the cloud (5 apps, CI-gated auto-deploy, nightly S3 backups) |
+| Infra | docker-compose locally (`make dev`); Railway in the cloud (5 services + managed Redis, CI-gated auto-deploy, volume backups) |
 | Monorepo | pnpm workspaces + Turborepo (TS) · uv per Python service |
 
 ---
@@ -171,8 +174,8 @@ cd services/control-plane && uv run mypy && uv run pytest tests/unit
 | `services/_shared/` | Shared Python libs — authz, tenancy (RLS sessions), citation envelope, ingest helpers |
 | `packages/llm-provider-py/` | LLM provider protocol — Anthropic (streaming + native tool-use, sync/async), OpenAI, stub |
 | `packages/authz/` · `packages/contracts/` · `packages/design-tokens/` | Role/action matrix (TS + Python twins) · cross-workspace schemas · design system |
-| `infra/compose/` | Local stack + seed scenarios (BlueState, BlueState-XL, Portfolio) |
-| `infra/fly/` | Cloud deploy — one `fly.toml` per service |
+| `infra/compose/` | Local stack + seed scenarios (BlueState, BlueState-XL, Portfolio) — the Postgres image here (pgvector + Apache AGE) is also what Railway builds |
+| `infra/archive/fly/` | Superseded Fly.io configs, kept as history (cloud deploy is Railway; no per-service config files needed) |
 | `docs/` | Start at [`docs/agent-kenny/INDEX.md`](./docs/agent-kenny/INDEX.md); plans in `docs/plans/`; superseded material in `docs/archive/` |
 
 ---
@@ -183,7 +186,7 @@ cd services/control-plane && uv run mypy && uv run pytest tests/unit
 - [`docs/agent-kenny/eval.md`](./docs/agent-kenny/eval.md) — the golden-question harness, CLI, and CI cadence
 - [`docs/plans/2026-08-11-pilot-refresh-backlog.md`](./docs/plans/2026-08-11-pilot-refresh-backlog.md) — the DRM reframe, HITL design, and wave-by-wave backlog (Waves 0–2 shipped)
 - [`docs/security/`](./docs/security/) — tenant-isolation model, MCP outbound threat model, cross-tenant fuzz harness
-- [`docs/ops/cloud-deploy.md`](./docs/ops/cloud-deploy.md) — Fly.io operator runbook · [`docs/ops/backup.md`](./docs/ops/backup.md) — backup/restore, local + cloud
+- [`docs/ops/cloud-deploy.md`](./docs/ops/cloud-deploy.md) — Railway operator runbook · [`docs/ops/backup.md`](./docs/ops/backup.md) — backup/restore, local + cloud
 - [`docs/dev-environment.md`](./docs/dev-environment.md) — toolchains and workflows
 
 ---
@@ -194,9 +197,11 @@ Honest status, code-verified (2026-08-11): the full loop — ingest → extract 
 Kenny → audit — runs end-to-end on the local stack against seeded engagements, on the checkpointed
 LangGraph runtime, with OIDC login, full-coverage RLS, HITL review, and CI eval gates in place.
 M365/Gmail/Slack ingest connectors are real; HubSpot/Notion/GitHub are not yet built. The legacy agent
-driver remains the default in production config until the parity gate has soaked. **No paying customers
-yet** — the next milestone is a pilot with a real team's engagement data (Wave 3 of the backlog: delta
-digest, commitment tracking, Kenny-in-Slack).
+driver remains the default in production config until the parity gate has soaked. The stack is deployed
+to Railway (see the cloud runbook), but hosted auth is still a bootstrap-JWT shim — wiring real OIDC on
+the hosted deploy is a pre-pilot blocker. **No paying customers yet** — the next milestone is a pilot
+with a real team's engagement data (Wave 3 of the backlog: delta digest, commitment tracking,
+Kenny-in-Slack).
 
 ## License
 

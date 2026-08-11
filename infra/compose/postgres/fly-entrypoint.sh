@@ -1,13 +1,15 @@
 #!/bin/bash
-# Fly.io-specific entrypoint shim.
+# Root-owned-volume entrypoint shim (named for its Fly.io origin — the
+# behavior applies to Railway today, historical Fly before it; kept under
+# the original name so the live Railway image build is byte-identical).
 #
-# Fly mounts the persistent volume at /var/lib/postgresql/data root-owned
-# (uid=0/gid=0, mode 0755), which the postgres image's own entrypoint
-# can't chown when it drops to the postgres user. We run as root first,
-# ensure $PGDATA is a postgres-owned subdir, and then delegate.
+# Cloud platforms mount the persistent volume at /var/lib/postgresql/data
+# root-owned (uid=0/gid=0, mode 0755), which the postgres image's own
+# entrypoint can't chown when it drops to the postgres user. We run as
+# root first, ensure $PGDATA is a postgres-owned subdir, and then delegate.
 #
-# Verbose by design — log_shipper drops some early stdout, the `echo`
-# lines give us a paper trail in `fly logs` either way.
+# Verbose by design — platform log shippers drop some early stdout, the
+# `echo` lines give us a paper trail in the deploy logs either way.
 
 set -x
 

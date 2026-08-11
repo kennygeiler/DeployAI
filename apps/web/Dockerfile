@@ -19,7 +19,7 @@ COPY apps/web/package.json ./apps/web/
 COPY packages/authz/package.json ./packages/authz/
 COPY packages/design-tokens/package.json ./packages/design-tokens/
 COPY packages/contracts/package.json ./packages/contracts/
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile --filter "@deployai/web..."
+RUN pnpm install --frozen-lockfile --filter "@deployai/web..."
 
 FROM base AS builder
 COPY --from=deps /repo/node_modules ./node_modules

@@ -34,6 +34,10 @@ COPY services/control-plane/alembic /repo/services/control-plane/alembic
 FROM python:3.13-slim AS runtime
 WORKDIR /repo/services/control-plane
 COPY --from=build /repo /repo
+COPY services/control-plane/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 ENV PATH="/repo/services/control-plane/.venv/bin:$PATH" PYTHONUNBUFFERED=1
 EXPOSE 8000
-CMD ["uvicorn", "control_plane.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Role/migration dispatch (Railway has no release command or process
+# groups); with no SERVICE_ROLE/RUN_MIGRATIONS set this is the old CMD.
+ENTRYPOINT ["docker-entrypoint.sh"]
