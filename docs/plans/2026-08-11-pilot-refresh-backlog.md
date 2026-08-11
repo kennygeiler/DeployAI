@@ -94,7 +94,63 @@ Prove it works as the corpus grows over years, not just on a fresh seed.
 
 ---
 
-## Part 5 — Ticket backlog
+## Part 5 — Legibility: how the product should read (added 2026-08-11, post-Wave-2 UI walkthrough)
+
+Walking the shipped UI with both seeds loaded surfaced a structural problem that no single
+ticket above fixes: **screens are organized by database table, not by user job.** The
+engagement page opens with raw agent telemetry (`AGENT_TOOL_INVOCATION tool:keyword_search
+rows=3 dur=6.2ms`) as its hero content, shows team members as UUIDs, puts an admin form in
+the middle of the reading flow, and hides the two differentiators — the evidence graph and
+Kenny — below the fold and behind a collapsed rail. The portfolio page leads with three
+paragraphs of insight prose before the list of deals. At XL scale (3,888 events) the page
+takes seconds to load monolithically and the matrix defaults to an unreadable hairball.
+Nothing anywhere answers "what changed since I last looked" or "what needs me."
+
+### The theory: every screen answers three questions, in order
+
+> **What changed? → What needs me? → What do I do next?**
+
+The DRM loop is *Orient → Decide → Act → Ask*. Concretely:
+
+1. **The deal is the unit of attention.** Home is "my deals, ranked by need-attention"
+   (open approvals + pending proposals + escalations + overdue commitments + stall
+   signals), not a table sorted by updated-at under a wall of insight prose.
+2. **The deal page is a briefing, not a dump.** Reading order: header (phase, health,
+   next milestone) → *since you last looked* (delta digest, F1) → *needs you* (inline
+   action queue: approvals, proposals, escalations — resolvable without leaving) →
+   narrative sections (people, decisions, risks, commitments as cards with receipts) →
+   exploration tools (graph, timeline) demoted to tabs.
+3. **Kenny is the front door, not a side rail.** A persistent "Ask this deal anything"
+   composer on the briefing, with suggested questions derived from engagement state.
+   Chat opens as a full-width surface. The agent *is* the query language for the graph;
+   treat it that way.
+4. **Evidence on demand, telemetry never.** Receipts (citations, provenance) expand
+   inline where a claim appears. Raw tool invocations, source-kind enums, and duration
+   metrics belong on the admin dashboard only.
+5. **People are people.** Names, roles, initials — never UUIDs. Member *management*
+   lives on a People tab; the briefing shows who matters and when they were last heard
+   from.
+6. **The graph is a lens, not a landing.** Default to the neighborhood of the selected
+   node with type filters and search-to-focus; an 866-node force layout is never shown
+   uninvited.
+7. **Speed is comprehension.** Summary payload first paint < 1s; sections stream in
+   independently with shimmer placeholders; the page is readable before it is complete.
+
+### IA restructure
+
+- Nav: **Home** (attention-ranked portfolio + digest) · **Deals** · **Review** (existing
+  inbox) · **Ask** (global Kenny, engagement-scoping chips) · **Admin** (collapsed:
+  dashboard, MCP, settings).
+- Deal page tabs: **Brief** (default, per above) · **People** · **Graph** · **Timeline**
+  · **Chat history**.
+
+Wave 2.5 below turns this into tickets. It intentionally lands *before* Wave 3: F1
+(delta digest), F3 (commitments), and F4 (stall alerts) all render INTO the Brief's
+"since you last looked" and "needs you" slots — build the slots first, fill them next.
+
+---
+
+## Part 6 — Ticket backlog
 
 Legend: **P0** blocks pilot · **P1** agent/HITL refresh · **P2** DRM features · **P3** scale proof.
 Size S/M/L. Lanes are parallel-safe for coding agents (minimal file overlap). Deps listed by ID.
@@ -152,6 +208,21 @@ Size S/M/L. Lanes are parallel-safe for coding agents (minimal file overlap). De
 | E4 | P1 | M | E1 | Confidence-thresholded auto-accept + sampling audit for proposals/commitments; thresholds in tenant settings. |
 | F2 | P1 | M | — | Unify `MatrixInsight`/`temporal_insights` models; ship the hidden snooze/follow-up UI (BFF routes exist, `EngagementInsights.client.tsx:232`). |
 
+### Wave 2.5 — Legibility (UX restructure; see Part 5 for the theory)
+
+| ID | P | Sz | Deps | Ticket |
+|---|---|---|---|---|
+| U1 | P0 | S | — | Quick defects from the walkthrough: insight-card title duplication ("risk closed: Risk closed: …" — the source_kind prefix is prepended to a title that already contains it); TimestampLabel render-loop (fixed in PR #270); raw `source_kind` enums shown as card labels — map to human labels in one shared helper. |
+| U2 | P0 | M | — | People are people: resolve member/actor UUIDs to names + roles everywhere (join app_users in the engagement payload; avatar initials from names; "last heard from" from ledger actor timestamps). UUIDs never render in user-facing surfaces. |
+| U3 | P1 | L | U1,U2 | Engagement **Brief** layout: reorder the detail page to header+health → "since you last looked" slot (until F1 lands: recent changes grouped by kind with human titles) → "needs you" inline action queue (pending approvals, proposals, escalations with resolve-in-place; reuses Review Inbox APIs) → narrative card sections (people / decisions / risks / commitments) with expandable receipts. Move team management to a People tab; move the agent telemetry strip to the admin dashboard. |
+| U4 | P1 | M | U3 | Kenny as front door: persistent ask-bar on the Brief ("Ask this deal anything"), full-width chat surface on submit, suggested questions derived from engagement state (open risks, recent decisions). Rail retired. |
+| U5 | P1 | M | — | Graph as a lens: matrix tab defaults to filtered neighborhood view (selected node + N hops, type filters, search-to-focus); virtualize rendering; the full-graph layout is an explicit opt-in. Must stay usable at BlueState-XL scale (866 nodes). |
+| U6 | P1 | M | W2 | Progressive loading: engagement summary endpoint for first paint (<1s target), sections fetch independently via react-query with shimmer placeholders; XL page readable-before-complete; kill the monolithic full-payload refetch. |
+| U7 | P2 | S | — | Portfolio home reorder: deals table first, ranked by a needs-attention score (open approvals + pending proposals + escalations + stalls); portfolio insights collapse to ranked one-line cards that expand on demand. |
+| U8 | P2 | M | U1 | Timeline legibility: narrative day/week clustering with human titles and source icons instead of a flat list of enum-labeled rows; 3,888-event engagements must skim well. |
+| U9 | P2 | S | — | Empty/first-run states: every surface says what it is, how data arrives, and the one next action (esp. Review Inbox kinds and the commitments slot). |
+| U10 | P2 | M | U4 | Global **Ask** page: Kenny across the portfolio with engagement-scoping chips; per-engagement isolation guarantees unchanged (leak gate already enforces). |
+
 ### Wave 3 — DRM features
 
 | ID | P | Sz | Deps | Ticket |
@@ -190,8 +261,9 @@ Size S/M/L. Lanes are parallel-safe for coding agents (minimal file overlap). De
 
 ### Sequencing summary
 
-1. Wave 0 + G1/G5 immediately (cheap, kills theater, makes CI honest).
-2. Wave 1 = pilot blocker set. After Wave 1: a startup can log in, data is tenant-safe, prod is backed up, deploys are gated.
-3. Wave 2 = the refresh: real LangGraph runtime + HITL inbox.
-4. Wave 3 = DRM value: digest, commitments, Slack, CRM.
-5. Wave 4 = longscale proof for buyer conversations.
+1. Wave 0 + G1/G5 immediately (cheap, kills theater, makes CI honest). — DONE 2026-08-11 (#264)
+2. Wave 1 = pilot blocker set. After Wave 1: a startup can log in, data is tenant-safe, prod is backed up, deploys are gated. — DONE 2026-08-11 (#265)
+3. Wave 2 = the refresh: real LangGraph runtime + HITL inbox. — DONE 2026-08-11 (#266)
+4. **Wave 2.5 = legibility (Part 5)**: the product must *read* before it grows — Brief layout, humanized identity, Kenny as front door, graph-as-lens, progressive loading. U3's digest/needs-you slots are the landing zones Wave 3 fills.
+5. Wave 3 = DRM value: digest, commitments, Slack, CRM.
+6. Wave 4 = longscale proof for buyer conversations.
