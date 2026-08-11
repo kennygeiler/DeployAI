@@ -269,12 +269,21 @@ services:
       DEPLOYAI_CONTROL_PLANE_URL: ${DEPLOYAI_CONTROL_PLANE_URL:-http://control-plane:8000}
       DEPLOYAI_INTERNAL_API_KEY: ${DEPLOYAI_INTERNAL_API_KEY:-dev-internal-insecure}
       NODE_ENV: production
-      # Local compose runs the production Next.js build (NODE_ENV inlined to
-      # "production"), so middleware.ts can't gate dev-role injection on
-      # NODE_ENV here. This runtime flag enables the same injection without
-      # rebuilding. NEVER set this in a hosted/pilot deploy — SSO/proxy
-      # supplies the real `x-deployai-role` there.
+      # Dev role/tenant header injection is strictly opt-in (Wave 1 ticket A2):
+      # DEPLOYAI_LOCAL_DEV_ROLE_INJECT=1 turns it on, and because this compose
+      # stack runs the production Next.js build (NODE_ENV inlined to
+      # "production"), the second override below is also required — injection
+      # refuses to activate on production builds without it. NEVER set either
+      # flag in a hosted/pilot deploy — SSO/proxy or the CP-issued access JWT
+      # supplies the real `x-deployai-role` / `x-deployai-tenant` there.
       DEPLOYAI_LOCAL_DEV_ROLE_INJECT: "1"
+      DEPLOYAI_DEV_ROLE_INJECT_ALLOW_PRODUCTION: "1"
+      # Tenant headers are required by default on gated paths
+      # (DEPLOYAI_STRATEGIST_REQUIRE_TENANT defaults ON; "0" opts out — local
+      # dev only). Injection above supplies a tenant on every request, so this
+      # opt-out only matters when injection is disabled (e.g. testing raw
+      # header flows with DEPLOYAI_DISABLE_DEV_STRATEGIST=1).
+      DEPLOYAI_STRATEGIST_REQUIRE_TENANT: "0"
       # Pair role injection with a real seeded actor id so Mr. Oracle (and any
       # other BFF route that calls getActorIdFromHeaders()) can attribute the
       # call to an existing app_users row. Must match seed_app.USER_STRATEGIST_ID.

@@ -21,7 +21,10 @@ async function guard() {
   if (!actor) {
     return { error: new NextResponse("Unauthorized", { status: 401 }) } as const;
   }
-  const d = decideSync(actor, "canonical:read", { kind: "canonical_memory" });
+  const d = decideSync(actor, "canonical:read", {
+    kind: "canonical_memory",
+    tenantId: actor.tenantId,
+  });
   if (!d.allow) {
     return { error: new NextResponse("Forbidden", { status: 403 }) } as const;
   }
