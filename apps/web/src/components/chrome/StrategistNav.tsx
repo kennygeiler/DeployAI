@@ -36,39 +36,47 @@ export function StrategistNav() {
   return (
     <nav
       aria-label="Primary strategist"
-      className="bg-paper-100 border-border flex w-[56px] shrink-0 flex-col border-r xl:w-[240px]"
+      className="flex w-[56px] shrink-0 flex-col border-r border-line bg-canvas xl:w-[240px]"
     >
-      <div className="border-border hidden h-14 items-center border-b px-3 xl:flex">
+      <div className="hidden h-14 items-center border-b border-line px-3 xl:flex">
         <Link
           href="/engagements"
-          className="text-ink-900 focus-visible:ring-ring truncate font-semibold focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+          className="truncate font-semibold text-ink focus-visible:rounded focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
         >
           DeployAI
         </Link>
       </div>
-      <div className="flex flex-1 flex-col gap-4 py-3">
+      {/* Sidebar Nav — Beautiful UI component 14: active item is a raised
+          surface pill; inactive items are quiet ink-2 rows. */}
+      <div className="flex flex-1 flex-col gap-4 px-1.5 py-3 xl:px-2">
         <ul className="flex flex-col gap-0.5">
-          {primary.map((item) => (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                className={cn(
-                  "focus-visible:ring-ring flex items-center gap-3 py-2 pr-2 pl-2 xl:pl-3",
-                  "hover:bg-paper-200 rounded-md",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-                  pathname === item.href || pathname?.startsWith(`${item.href}/`)
-                    ? "bg-paper-200 text-ink-950 font-medium"
-                    : "text-ink-700",
-                )}
-                title={item.label}
-              >
-                <item.icon className="text-ink-600 size-5 shrink-0" aria-hidden />
-                <span className="hidden min-w-0 flex-1 truncate text-sm xl:inline">
-                  {item.label}
-                </span>
-              </Link>
-            </li>
-          ))}
+          {primary.map((item) => {
+            const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "flex items-center gap-3 rounded-control py-2 pr-2 pl-2 xl:pl-2.5",
+                    "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none",
+                    active
+                      ? "bg-surface font-medium text-ink shadow-btn"
+                      : "text-ink-600 transition-colors hover:bg-hover hover:text-ink",
+                  )}
+                  title={item.label}
+                >
+                  <item.icon
+                    className={cn("size-5 shrink-0", active ? "text-ink" : "text-ink-600")}
+                    aria-hidden
+                  />
+                  <span className="hidden min-w-0 flex-1 truncate text-sm xl:inline">
+                    {item.label}
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       </div>
     </nav>

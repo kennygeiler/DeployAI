@@ -303,7 +303,7 @@ export function MatrixProposals({
           </label>
           <select
             id="proposals-filter-kind"
-            className="border-border rounded-md border px-2 py-1 text-sm"
+            className="rounded-control border border-transparent bg-field px-2 py-1 text-sm shadow-inset-field outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             value={kind}
             onChange={(e) => {
               setKind(e.target.value as KindFilter);
@@ -321,7 +321,7 @@ export function MatrixProposals({
           </label>
           <select
             id="proposals-filter-type"
-            className="border-border rounded-md border px-2 py-1 text-sm"
+            className="rounded-control border border-transparent bg-field px-2 py-1 text-sm shadow-inset-field outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
           >
@@ -354,21 +354,18 @@ export function MatrixProposals({
       {groups.length === 0 ? (
         <p className="text-ink-600 text-sm">No proposals match the current filter.</p>
       ) : (
-        <ul
-          className="border-border divide-border divide-y rounded-lg border text-sm"
-          aria-label="Pending proposal groups"
-        >
+        <ul className="space-y-2 text-sm" aria-label="Pending proposal groups">
           {groups.map((g) => {
             const isOpen = expanded.has(g.key);
             const groupBusy = g.items.some((p) => busyIds.has(p.id));
             const kindLabel = g.items[0]?.proposal_kind ?? "—";
             return (
-              <li key={g.key} className="space-y-1 px-3 py-2">
+              <li key={g.key} className="space-y-1 rounded-card bg-surface px-3 py-2.5 shadow-card">
                 <div className="flex items-center justify-between gap-3">
                   <Button
                     type="button"
                     variant="ghost"
-                    className="text-ink-800 hover:bg-ink-50 flex h-auto flex-1 items-center justify-start gap-2 px-1 py-0 text-left font-medium"
+                    className="flex h-auto flex-1 items-center justify-start gap-2 rounded-control px-1 py-0 text-left font-medium text-ink hover:bg-hover"
                     onClick={() =>
                       setExpanded((prev) => {
                         const next = new Set(prev);
@@ -383,10 +380,12 @@ export function MatrixProposals({
                     aria-expanded={isOpen}
                   >
                     <span className="text-ink-500 font-mono text-xs">{isOpen ? "▾" : "▸"}</span>
-                    <span className="text-ink-600 font-mono text-xs uppercase">{kindLabel}</span>
+                    <span className="rounded-full bg-hover px-1.5 py-0.5 font-mono text-[10px] uppercase text-ink-600 shadow-hairline">
+                      {kindLabel}
+                    </span>
                     <span>{g.label}</span>
                     {g.items.length > 1 ? (
-                      <span className="bg-ink-100 text-ink-700 rounded px-1.5 py-0.5 font-mono text-[10px]">
+                      <span className="rounded-full bg-accent-tint px-1.5 py-0.5 font-mono text-[10px] text-accent-ink shadow-hairline">
                         ×{g.items.length}
                       </span>
                     ) : null}
@@ -415,13 +414,13 @@ export function MatrixProposals({
                 </div>
                 {isOpen ? (
                   <ul
-                    className="border-border bg-ink-50/50 mt-2 ml-5 space-y-1 rounded border p-2 text-xs"
+                    className="mt-2 ml-5 space-y-1 rounded-md bg-inset p-2 text-xs shadow-hairline"
                     aria-label={`Underlying proposals for ${g.label}`}
                   >
                     {g.items.map((p) => (
                       <li
                         key={p.id}
-                        className="border-border flex items-start justify-between gap-2 border-b pb-1 last:border-none last:pb-0"
+                        className="flex items-start justify-between gap-2 border-b border-line pb-1 last:border-none last:pb-0"
                       >
                         <div className="flex-1 space-y-0.5">
                           {p.rationale ? (

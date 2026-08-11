@@ -109,7 +109,7 @@ export function AgentKennyDashboardClient(props: AgentKennyDashboardClientProps)
         </h2>
         <WindowSelector value={windowDays} onChange={onWindowChange} disabled={loading} />
         <div className="flex items-center gap-2">
-          <label className="text-ink-700 flex items-center gap-1.5 text-xs">
+          <label className="flex items-center gap-1.5 text-xs text-ink-600">
             <input
               type="checkbox"
               checked={autoRefresh}
@@ -132,7 +132,7 @@ export function AgentKennyDashboardClient(props: AgentKennyDashboardClientProps)
       </div>
 
       {error ? (
-        <p role="alert" className="text-error-700 text-sm">
+        <p role="alert" className="text-sm text-red-ink">
           {error}
         </p>
       ) : null}
@@ -146,7 +146,7 @@ export function AgentKennyDashboardClient(props: AgentKennyDashboardClientProps)
         </>
       ) : (
         <p
-          className="text-ink-600 border-border bg-paper-50 rounded-md border px-3 py-6 text-center text-sm"
+          className="rounded-card bg-surface px-3 py-6 text-center text-sm text-ink-600 shadow-card"
           data-testid="agent-kenny-dashboard-empty"
         >
           No telemetry yet in this window.
@@ -165,7 +165,7 @@ function WindowSelector(props: {
     <div
       role="group"
       aria-label="Window selector"
-      className="border-border inline-flex rounded-md border"
+      className="inline-flex rounded-full bg-canvas p-[3px] shadow-hairline"
       data-testid="agent-kenny-dashboard-window-selector"
     >
       {WINDOW_OPTIONS.map((opt) => {
@@ -181,8 +181,7 @@ function WindowSelector(props: {
             onClick={() => props.onChange(opt.days)}
             data-testid={`agent-kenny-dashboard-window-${opt.days}`}
             className={
-              "rounded-none first:rounded-l-md last:rounded-r-md " +
-              (active ? "bg-paper-200 text-ink-950" : "text-ink-700")
+              "rounded-full " + (active ? "bg-surface text-ink shadow-btn" : "text-ink-600")
             }
           >
             {opt.label}
@@ -198,9 +197,9 @@ export function hallucinationTrafficLight(rate: number): {
   level: "green" | "amber" | "red";
 } {
   // Thresholds: <2% green, 2–5% amber, >5% red (scope-v2 §11.4 / spec).
-  if (rate > 0.05) return { cls: "bg-error-100 text-error-900", level: "red" };
-  if (rate >= 0.02) return { cls: "bg-amber-100 text-amber-900", level: "amber" };
-  return { cls: "bg-emerald-100 text-emerald-900", level: "green" };
+  if (rate > 0.05) return { cls: "bg-red-tint text-red-ink", level: "red" };
+  if (rate >= 0.02) return { cls: "bg-orange-tint text-orange-ink", level: "amber" };
+  return { cls: "bg-green-tint text-green-ink", level: "green" };
 }
 
 function MetricCards(props: { data: AgentKennyDashboard }) {
@@ -217,7 +216,7 @@ function MetricCards(props: { data: AgentKennyDashboard }) {
         data-traffic-light={halluc.level}
       >
         <span
-          className={`inline-flex items-baseline rounded px-2 py-0.5 text-2xl font-semibold ${halluc.cls}`}
+          className={`inline-flex items-baseline rounded-md px-2 py-0.5 text-2xl font-semibold ${halluc.cls}`}
           data-testid="agent-kenny-dashboard-hallucination-value"
         >
           {(data.hallucination_rate * 100).toFixed(1)}%
@@ -229,7 +228,7 @@ function MetricCards(props: { data: AgentKennyDashboard }) {
       </MetricCard>
 
       <MetricCard label="Latency (p50 / p95 / p99)" testId="agent-kenny-dashboard-card-latency">
-        <p className="text-ink-900 font-mono text-lg">
+        <p className="font-mono text-lg text-ink">
           {data.latency_p50_ms} / {data.latency_p95_ms} /{" "}
           <span data-testid="agent-kenny-dashboard-latency-p99">{data.latency_p99_ms}</span>
           <span className="text-ink-600 text-xs"> ms</span>
@@ -237,12 +236,12 @@ function MetricCards(props: { data: AgentKennyDashboard }) {
       </MetricCard>
 
       <MetricCard label='"I don’t know" rate' testId="agent-kenny-dashboard-card-idk">
-        <p className="text-ink-900 text-2xl font-semibold">{(data.idk_rate * 100).toFixed(1)}%</p>
+        <p className="text-2xl font-semibold text-ink">{(data.idk_rate * 100).toFixed(1)}%</p>
         <p className="text-ink-600 mt-1 text-xs">turns refusing the question</p>
       </MetricCard>
 
       <MetricCard label="Adversarial concerns" testId="agent-kenny-dashboard-card-adversarial">
-        <p className="text-ink-900 text-2xl font-semibold">
+        <p className="text-2xl font-semibold text-ink">
           {data.adversarial_concerns_total.toLocaleString()}
         </p>
         <p className="text-ink-600 mt-1 text-xs">concerns flagged by adversarial review</p>
@@ -256,11 +255,11 @@ function MetricCard(
 ) {
   return (
     <div
-      className="border-border bg-paper-50 rounded-md border p-3"
+      className="rounded-card bg-surface p-3 shadow-card"
       data-testid={props.testId}
       data-traffic-light={props["data-traffic-light"]}
     >
-      <h3 className="text-ink-600 text-xs font-medium uppercase tracking-wide">{props.label}</h3>
+      <h3 className="text-xs font-medium tracking-wide text-ink-600 uppercase">{props.label}</h3>
       <div className="mt-2">{props.children}</div>
     </div>
   );
@@ -312,14 +311,14 @@ function ToolCallChart(props: { tools: ToolCallCount[] }) {
                   width={bw}
                   height={ROW_H - 8}
                   rx={2}
-                  className="fill-emerald-400"
+                  className="fill-accent"
                 />
                 <text
                   x={PAD_LEFT + bw + 4}
                   y={y + ROW_H / 2}
                   textAnchor="start"
                   dominantBaseline="middle"
-                  className="fill-ink-700 text-[11px]"
+                  className="fill-ink-600 text-[11px]"
                 >
                   {t.count}
                 </text>
@@ -342,16 +341,16 @@ function LintFlagTable(props: { rows: LintFlagCount[] }) {
   }
   return (
     <Section title="Lint flag breakdown" testId="agent-kenny-dashboard-lint">
-      <div className="border-border overflow-x-auto rounded-md border">
+      <div className="overflow-x-auto rounded-card bg-surface shadow-card">
         <table className="w-full text-sm">
-          <thead className="bg-surface-subtle text-ink-700 text-xs uppercase">
+          <thead className="border-b border-line text-xs text-ink-600 uppercase">
             <tr>
               <th className="px-3 py-2 text-left">Kind</th>
               <th className="px-3 py-2 text-right">Count</th>
               <th className="px-3 py-2 text-left">Most recent</th>
             </tr>
           </thead>
-          <tbody className="divide-border divide-y">
+          <tbody className="divide-y divide-line">
             {props.rows.map((row) => (
               <tr key={row.kind} data-testid={`agent-kenny-dashboard-lint-row-${row.kind}`}>
                 <td className="px-3 py-2 font-mono text-xs">{row.kind}</td>
@@ -378,16 +377,16 @@ function TopCitedEventsTable(props: { rows: TopCitedEvent[] }) {
   }
   return (
     <Section title="Top-cited events" testId="agent-kenny-dashboard-top-cited">
-      <div className="border-border overflow-x-auto rounded-md border">
+      <div className="overflow-x-auto rounded-card bg-surface shadow-card">
         <table className="w-full text-sm">
-          <thead className="bg-surface-subtle text-ink-700 text-xs uppercase">
+          <thead className="border-b border-line text-xs text-ink-600 uppercase">
             <tr>
               <th className="px-3 py-2 text-left">Summary</th>
               <th className="px-3 py-2 text-right">Citations</th>
               <th className="px-3 py-2 text-left">Event id</th>
             </tr>
           </thead>
-          <tbody className="divide-border divide-y">
+          <tbody className="divide-y divide-line">
             {props.rows.map((row) => (
               <tr
                 key={row.event_id}
@@ -408,7 +407,7 @@ function TopCitedEventsTable(props: { rows: TopCitedEvent[] }) {
 function Section(props: React.PropsWithChildren<{ title: string; testId: string }>) {
   return (
     <section aria-label={props.title} className="space-y-2" data-testid={props.testId}>
-      <h3 className="text-ink-900 text-sm font-semibold">{props.title}</h3>
+      <h3 className="text-sm font-semibold text-ink">{props.title}</h3>
       {props.children}
     </section>
   );
@@ -416,7 +415,7 @@ function Section(props: React.PropsWithChildren<{ title: string; testId: string 
 
 function EmptyState(props: React.PropsWithChildren) {
   return (
-    <p className="text-ink-600 border-border bg-paper-50 rounded-md border px-3 py-4 text-center text-xs">
+    <p className="rounded-card bg-surface px-3 py-4 text-center text-xs text-ink-600 shadow-card">
       {props.children}
     </p>
   );
