@@ -3,7 +3,16 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, Cable, Gauge, Inbox, MessageCircle, Search, Settings } from "lucide-react";
+import {
+  BookOpen,
+  Briefcase,
+  Cable,
+  Gauge,
+  Inbox,
+  MessageCircle,
+  Search,
+  Settings,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -33,6 +42,8 @@ const primary: readonly NavItem[] = [
   // icon reads as "external connector"; ``Gauge`` as "health readout".
   { href: "/admin/agent-kenny-mcp-activity", label: "Admin · MCP activity", icon: Cable },
   { href: "/admin/agent-kenny-dashboard", label: "Admin · Agent Kenny dashboard", icon: Gauge },
+  // Product-overview slide deck: real-screenshot walkthrough + per-surface tutorial.
+  { href: "/overview", label: "Overview", icon: BookOpen },
 ];
 
 function useOpenReviewCount(): number {
