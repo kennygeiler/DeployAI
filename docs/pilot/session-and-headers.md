@@ -11,9 +11,9 @@
 
 ## Pilot hardening — require tenant
 
-Set **`DEPLOYAI_STRATEGIST_REQUIRE_TENANT=1`** on the web app so strategist **pages** and **strategist APIs** (`/api/bff/*`, `/api/internal/strategist-activity`) return **403** if **`x-deployai-tenant`** is missing or blank.
+Since Wave 1 (ticket A2) the tenant requirement is **on by default**: strategist **pages** and **strategist APIs** (`/api/bff/*`, `/api/internal/strategist-activity`) return **403** if **`x-deployai-tenant`** is missing or blank. Set `DEPLOYAI_STRATEGIST_REQUIRE_TENANT=0` to opt out (local dev only — never on a hosted deploy).
 
-- Does **not** apply to `/admin/*` routes (different operator model).
+- `/admin/*` and `/api/internal/v1/*` are now inside the middleware matcher and carry their own actions (`admin:read`, `internal:proxy`).
 - With JWT trust enabled, `tid` from the access token satisfies this check once middleware has run.
 
 ## `DEPLOYAI_DISABLE_DEV_STRATEGIST`

@@ -8,7 +8,7 @@ tenant-resolved provider, persist the user + oracle turns, and emit a
 upstream context_event_ids so the causal graph keeps growing.
 
 Streaming live tokens is deferred to G1.b — this slice ships
-non-streaming (single completion) via ``provider.chat_complete``.
+non-streaming (single completion) via ``provider.chat_complete_async``.
 """
 
 from __future__ import annotations
@@ -181,7 +181,9 @@ class OracleChatService:
 
         history = await _fetch_history(session, conversation_id=conversation.id, tenant_id=tenant_id)
         prompt = _build_prompt(engagement=engagement, context=context, history=history, message=message)
-        reply_text = self._provider.chat_complete(
+        # Async variant: reply() runs on the request event loop, and the sync
+        # chat_complete would block it for the whole provider round trip.
+        reply_text = await self._provider.chat_complete_async(
             prompt,
             temperature=_LLM_TEMPERATURE,
             max_output_tokens=_LLM_MAX_OUTPUT_TOKENS,

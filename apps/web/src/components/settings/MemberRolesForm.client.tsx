@@ -122,7 +122,7 @@ export function MemberRolesForm() {
         </p>
       </div>
 
-      {err ? <p className="text-error-700 text-sm">{err}</p> : null}
+      {err ? <p className="text-red-ink text-sm">{err}</p> : null}
 
       <div className="space-y-3">
         <h3 className="text-sm font-semibold">Built-in roles</h3>

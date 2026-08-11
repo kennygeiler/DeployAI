@@ -9,23 +9,13 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from control_plane.config.internal_api import verify_internal_key
+from control_plane.config.internal_auth import require_internal
 from control_plane.db import tenant_session
 from control_plane.domain.canonical_memory.proposals import SchemaProposal
 from control_plane.schemas.schema_proposals import RejectBody, SchemaProposalCreate, SchemaProposalRead
 from control_plane.services.schema_proposal_scaffold import write_promotion_scaffold
 
 router = APIRouter(prefix="/tenants", tags=["internal-schema-proposals"])
-
-
-def require_internal(
-    x_deployai_internal_key: str | None = Header(default=None, alias="X-DeployAI-Internal-Key"),
-) -> None:
-    if not verify_internal_key(x_deployai_internal_key):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing X-DeployAI-Internal-Key",
-        )
 
 
 def _parse_reviewer(

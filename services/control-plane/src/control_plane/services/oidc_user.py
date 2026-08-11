@@ -11,6 +11,10 @@ from control_plane.auth.sso_tenant import SSO_PENDING_TENANT_ID
 from control_plane.domain.app_identity.models import AppUser
 
 
+class JitProvisioningDisabledError(Exception):
+    """OIDC subject has no ``app_users`` row and JIT provisioning is disabled."""
+
+
 def roles_for_access_token(roles_json: object | None) -> list[str]:
     """Map DB JSONB roles to JWT claims. Empty or null becomes ``pending_assignment`` only."""
     if roles_json is None:
@@ -27,12 +31,16 @@ async def resolve_or_create_oidc_user(
     entra_sub: str,
     email: str | None,
     idp_name: str | None,
+    jit_enabled: bool = True,
 ) -> tuple[AppUser, list[str]]:
     """Return ``(user, roles_for_jwt)``.
 
     Reuses the first ``app_users`` row with matching ``entra_sub`` (if any) so
     post-provision logins keep tenant + role assignments. Otherwise inserts
     into the system SSO-pending tenant with ``pending_assignment`` only.
+
+    When ``jit_enabled`` is False and no row matches, raises
+    :class:`JitProvisioningDisabledError` (the callback maps this to 403).
     """
     r = await session.execute(
         select(AppUser).where(AppUser.entra_sub == entra_sub).order_by(AppUser.created_at.asc()).limit(1)
@@ -49,6 +57,9 @@ async def resolve_or_create_oidc_user(
         await session.commit()
         await session.refresh(row)
         return row, roles_for_access_token(row.roles)
+
+    if not jit_enabled:
+        raise JitProvisioningDisabledError(entra_sub)
 
     u = AppUser(
         tenant_id=SSO_PENDING_TENANT_ID,

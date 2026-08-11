@@ -53,6 +53,11 @@ class ControlPlaneSettings(BaseSettings):
     oidc_redirect_uri: str | None = None
     """Registered reply URL, e.g. ``https://cp.example.com/auth/oidc/callback`` (must match Entra app registration)."""
 
+    oidc_jit_enabled: bool = True
+    """When True (default), first OIDC login just-in-time provisions an ``app_users`` row on the
+    SSO-pending tenant with the least-privilege ``pending_assignment`` role. Set
+    ``DEPLOYAI_OIDC_JIT_ENABLED=0`` to reject unknown users at the callback with 403 instead."""
+
     # --- Epic 3 / Story 3-1: M365 Calendar (Graph delegated) ---
     m365_oauth_issuer: str | None = None
     """If unset, calendar OAuth uses ``oidc_issuer`` (same Entra app registration)."""
@@ -119,7 +124,13 @@ class ControlPlaneSettings(BaseSettings):
     session_refresh_cookie: str = "dep_refresh"
     """HttpOnly cookies set on OIDC callback (browser clients); `POST /auth/refresh` still uses JSON body too."""
 
-    @field_validator("allow_test_session_mint", "break_glass_bypass_webauthn", "slack_allow_unsigned", mode="before")
+    @field_validator(
+        "allow_test_session_mint",
+        "break_glass_bypass_webauthn",
+        "slack_allow_unsigned",
+        "oidc_jit_enabled",
+        mode="before",
+    )
     @classmethod
     def _coerce_bool(cls, v: object) -> bool:
         if isinstance(v, bool):

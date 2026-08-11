@@ -125,7 +125,9 @@ async def adversarial_review(provider: LLMProvider, state: AgentState) -> AgentS
     new ``adversarial_concerns_text`` audit column.
     """
     messages = _build_messages(state)
-    raw = provider.chat_complete(
+    # Async variant: this node runs on the request event loop, and the sync
+    # chat_complete would block it for the whole provider round trip.
+    raw = await provider.chat_complete_async(
         messages,
         temperature=_LLM_TEMPERATURE,
         max_output_tokens=_LLM_MAX_OUTPUT_TOKENS,

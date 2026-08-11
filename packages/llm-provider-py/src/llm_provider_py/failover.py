@@ -42,6 +42,20 @@ class FailoverProvider:
             max_output_tokens=max_output_tokens,
         )
 
+    async def chat_complete_async(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float | None = None,
+        max_output_tokens: int | None = None,
+    ) -> str:
+        p = self._active()
+        return await p.chat_complete_async(
+            messages,
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+        )
+
     async def chat_stream(
         self,
         messages: list[ChatMessage],

@@ -5,10 +5,10 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from control_plane.config.internal_api import verify_internal_key
+from control_plane.config.internal_auth import require_internal
 from control_plane.services.pilot_surface_data import (
     pilot_digest_items_for_tenant,
     pilot_evening_synthesis_payload_for_tenant,
@@ -17,16 +17,6 @@ from control_plane.services.pilot_surface_data import (
 )
 
 router = APIRouter(prefix="/strategist/pilot-surfaces", tags=["internal-strategist-pilot"])
-
-
-def require_internal(
-    x_deployai_internal_key: str | None = Header(default=None, alias="X-DeployAI-Internal-Key"),
-) -> None:
-    if not verify_internal_key(x_deployai_internal_key):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing X-DeployAI-Internal-Key",
-        )
 
 
 class MorningDigestTopRead(BaseModel):

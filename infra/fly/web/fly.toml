@@ -36,6 +36,14 @@ primary_region = "iad"
 [env]
   PORT = "3000"
   NODE_ENV = "production"
+  # Auth env defaults (Wave 1 ticket A2):
+  #   - Do NOT set DEPLOYAI_LOCAL_DEV_ROLE_INJECT here or via `fly secrets`.
+  #     On production builds the middleware refuses role injection unless
+  #     DEPLOYAI_DEV_ROLE_INJECT_ALLOW_PRODUCTION=1 is ALSO set; neither
+  #     belongs on a hosted deploy. Identity must come from the CP-issued
+  #     access JWT / SSO proxy headers.
+  #   - DEPLOYAI_STRATEGIST_REQUIRE_TENANT defaults ON (requests without a
+  #     tenant are rejected on gated paths). Only local dev may set it to "0".
   # Next.js standalone server defaults to binding 127.0.0.1, which Fly's
   # edge proxy can't reach. Force 0.0.0.0 so the machine accepts traffic
   # from the proxy.

@@ -10,12 +10,12 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from control_plane.config.internal_api import verify_internal_key
+from control_plane.config.internal_auth import require_internal
 from control_plane.db import get_app_db_session
 from control_plane.domain.app_identity.models import AppTenant
 from control_plane.domain.strategist_queues import (
@@ -25,16 +25,6 @@ from control_plane.domain.strategist_queues import (
 )
 
 router = APIRouter(prefix="/strategist", tags=["internal-strategist-queues"])
-
-
-def require_internal(
-    x_deployai_internal_key: str | None = Header(default=None, alias="X-DeployAI-Internal-Key"),
-) -> None:
-    if not verify_internal_key(x_deployai_internal_key):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing X-DeployAI-Internal-Key",
-        )
 
 
 def _validation_seed_rows(tenant_id: uuid.UUID) -> list[StrategistValidationQueueItem]:

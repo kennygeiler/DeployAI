@@ -90,52 +90,24 @@ async def test_anthropic_chat_complete_stream_mocked(monkeypatch: pytest.MonkeyP
 
 
 @pytest.mark.asyncio
-async def test_anthropic_chat_complete_stream_handles_sse_bytes(monkeypatch: pytest.MonkeyPatch) -> None:
-    """End-to-end SSE byte parsing via _iter_sse_events."""
+async def test_anthropic_chat_complete_stream_handles_sse_bytes() -> None:
+    """End-to-end SSE byte parsing via _iter_sse_events (MockTransport)."""
+    import httpx
+
     events = [
         {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "ok"}},
         {"type": "message_delta", "usage": {"input_tokens": 3, "output_tokens": 1}},
     ]
-    payload_lines = _encode_sse(events)
+    payload = b"".join(_encode_sse(events))
 
-    class _FakeResp:
-        status_code = 200
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=payload)
 
-        async def aiter_bytes(self) -> AsyncIterator[bytes]:
-            for chunk in payload_lines:
-                yield chunk
-
-        async def aread(self) -> bytes:
-            return b""
-
-    class _StreamCtx:
-        async def __aenter__(self) -> _FakeResp:
-            return _FakeResp()
-
-        async def __aexit__(self, *a: object) -> None:
-            return None
-
-    class _FakeClient:
-        def __init__(self, *a: object, **k: object) -> None:
-            pass
-
-        async def __aenter__(self) -> _FakeClient:
-            return self
-
-        async def __aexit__(self, *a: object) -> None:
-            return None
-
-        def stream(self, *a: object, **k: object) -> _StreamCtx:
-            return _StreamCtx()
-
-    import httpx as hx
-
-    monkeypatch.setattr(hx, "AsyncClient", _FakeClient)
-
-    p = AnthropicProvider(api_key="sk-test")
+    p = AnthropicProvider(api_key="sk-test", transport=httpx.MockTransport(handler))
     out: list[StreamChunk] = []
     async for c in p.chat_complete_stream([{"role": "user", "content": "x"}]):
         out.append(c)
+    await p.aclose()
     assert [c.delta for c in out if not c.done] == ["ok"]
     final = out[-1]
     assert final.done is True

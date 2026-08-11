@@ -96,6 +96,17 @@ ALLOWED_SOURCE_KINDS: frozenset[str] = frozenset(
         # private/link-local/metadata addresses) rejects an outbound MCP
         # call before any network traffic leaves the box.
         "mcp_outbound_egress_blocked",
+        # Pilot-refresh ticket A8 — integration kill switch (Epic 2 Story
+        # 2-6, now real). One row per phase so the audit timeline shows
+        # exactly what the kill switch did; failures land a distinct kind
+        # instead of being folded into the success row. See
+        # ``services/integration_kill_switch.py`` for phase semantics.
+        "killswitch_oauth_revoked",
+        "killswitch_oauth_revoke_failed",
+        "killswitch_queue_purged",
+        "killswitch_queue_purge_failed",
+        "killswitch_secrets_deleted",
+        "killswitch_secrets_delete_failed",
     }
 )
 
@@ -178,12 +189,21 @@ async def emit_ledger_event(
     for parent_id in caused_by:
         if parent_id == row.id:
             continue  # self-cause is a schema CHECK; skip defensively
-        session.add(LedgerEventCause(event_id=row.id, caused_by_id=parent_id))
+        # tenant_id set explicitly (RLS-scoped since migration 0053); the
+        # 0051 BEFORE INSERT trigger covers writers that omit it.
+        session.add(LedgerEventCause(event_id=row.id, caused_by_id=parent_id, tenant_id=tenant_id))
 
     for entity_kind, entity_id in affects_list:
         if entity_kind not in ALLOWED_AFFECT_KINDS:
             raise ValueError(f"invalid affect entity_kind: {entity_kind!r}")
-        session.add(LedgerEventAffects(event_id=row.id, entity_kind=entity_kind, entity_id=entity_id))
+        session.add(
+            LedgerEventAffects(
+                event_id=row.id,
+                entity_kind=entity_kind,
+                entity_id=entity_id,
+                tenant_id=tenant_id,
+            )
+        )
 
     if caused_by or affects_list:
         await session.flush()

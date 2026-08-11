@@ -51,10 +51,10 @@ function readBool(d: Detail, key: string): boolean | null {
 }
 
 const STATUS_BADGE: Record<string, string> = {
-  mcp_outbound_call: "bg-emerald-100 text-emerald-900",
-  mcp_outbound_blocked: "bg-amber-100 text-amber-900",
-  mcp_outbound_rate_limited: "bg-amber-100 text-amber-900",
-  mcp_outbound_denied: "bg-error-100 text-error-900",
+  mcp_outbound_call: "bg-green-tint text-green-ink",
+  mcp_outbound_blocked: "bg-orange-tint text-orange-ink",
+  mcp_outbound_rate_limited: "bg-orange-tint text-orange-ink",
+  mcp_outbound_denied: "bg-red-tint text-red-ink",
 };
 
 function statusLabel(kind: string): string {
@@ -109,7 +109,7 @@ export function McpTimelineRow({ event, testId }: McpTimelineRowProps): React.Re
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TimestampLabel value={event.occurred_at} className="text-ink-700" />
-          <span className="bg-error-100 text-error-900 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase">
+          <span className="bg-red-tint text-red-ink inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase">
             Kill switch
           </span>
         </div>
@@ -138,7 +138,7 @@ export function McpTimelineRow({ event, testId }: McpTimelineRowProps): React.Re
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TimestampLabel value={event.occurred_at} className="text-ink-700" />
-          <span className="bg-amber-100 text-amber-900 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase">
+          <span className="bg-orange-tint text-orange-ink inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase">
             Config change
           </span>
         </div>

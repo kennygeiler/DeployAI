@@ -43,7 +43,7 @@ from control_plane.agents.tools.matrix import (
 )
 from control_plane.agents.tools.search import keyword_search, vector_search
 from control_plane.agents.tools.synthesis import read_synthesis
-from control_plane.api.routes.engagements_internal import require_internal
+from control_plane.config.internal_auth import require_internal
 from control_plane.db import get_app_db_session
 
 router = APIRouter(prefix="/admin/tools", tags=["internal-agent-tools"])

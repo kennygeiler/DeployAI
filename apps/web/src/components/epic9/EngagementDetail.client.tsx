@@ -282,8 +282,8 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
                   <span
                     className={
                       data.engagement.status === "active"
-                        ? "text-evidence-800 font-medium"
-                        : "text-destructive font-medium"
+                        ? "inline-flex rounded-full bg-green-tint px-2 py-0.5 text-xs font-medium text-green-ink shadow-hairline"
+                        : "inline-flex rounded-full bg-red-tint px-2 py-0.5 text-xs font-medium text-red-ink shadow-hairline"
                     }
                   >
                     {data.engagement.status}
@@ -300,12 +300,23 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
             {data.members.length === 0 ? (
               <p className="text-ink-600 text-sm">No members assigned yet.</p>
             ) : (
-              <ul className="border-border divide-border divide-y rounded-lg border text-sm">
+              <ul className="divide-y divide-line rounded-card bg-surface text-sm shadow-card">
                 {data.members.map((m) => (
-                  <li key={m.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                    <span className="font-mono text-xs">{m.user_id}</span>
+                  <li
+                    key={m.id}
+                    className="flex items-center justify-between gap-3 px-3 py-2 transition-colors hover:bg-hover"
+                  >
+                    <span className="inline-flex items-center gap-2.5 font-mono text-xs text-ink">
+                      <span
+                        aria-hidden="true"
+                        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-hover-2 text-[10px] font-semibold text-ink-600 shadow-hairline"
+                      >
+                        {m.user_id.slice(0, 1).toUpperCase()}
+                      </span>
+                      {m.user_id}
+                    </span>
                     <div className="flex items-center gap-3">
-                      <span className="text-ink-700">
+                      <span className="inline-flex rounded-full bg-hover px-2 py-0.5 text-xs text-ink-600 shadow-hairline">
                         {memberRoleOptions.find((o) => o.name === m.role)?.label ??
                           ROLE_LABEL[m.role] ??
                           m.role}
@@ -325,7 +336,7 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
                 ))}
               </ul>
             )}
-            <div className="border-border space-y-2 rounded-lg border p-3">
+            <div className="space-y-2 rounded-card bg-surface p-3 shadow-card">
               <h3 className="text-ink-800 text-xs font-semibold">Assign a member</h3>
               <div className="flex flex-wrap items-end gap-2">
                 <div className="grid gap-1">
@@ -335,7 +346,7 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
                   <input
                     id="member-email"
                     type="email"
-                    className="border-border rounded-md border px-2 py-1 text-sm"
+                    className="rounded-control border border-transparent bg-field px-2 py-1 text-sm shadow-inset-field outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                     placeholder="user@company.com"
                     value={newEmail}
                     onChange={(e) => setNewEmail(e.target.value)}
@@ -347,7 +358,7 @@ export function EngagementDetail({ engagementId }: { engagementId: string }) {
                   </label>
                   <select
                     id="member-role"
-                    className="border-border rounded-md border px-2 py-1 text-sm"
+                    className="rounded-control border border-transparent bg-field px-2 py-1 text-sm shadow-inset-field outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                     value={newRole}
                     onChange={(e) => setNewRole(e.target.value)}
                   >

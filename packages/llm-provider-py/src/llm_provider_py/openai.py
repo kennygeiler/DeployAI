@@ -17,7 +17,13 @@ from llm_provider_py.types import (
     StreamChunk,
     ToolStreamChunk,
 )
-from llm_provider_py.util import DEFAULT_CAPS, UsageCallback, httpx_post_with_retries, record_usage
+from llm_provider_py.util import (
+    DEFAULT_CAPS,
+    UsageCallback,
+    httpx_post_with_retries,
+    httpx_post_with_retries_async,
+    record_usage,
+)
 
 CHAT_URL = "https://api.openai.com/v1/chat/completions"
 EMBED_URL = "https://api.openai.com/v1/embeddings"
@@ -58,6 +64,7 @@ class OpenAIProvider:
         tenant_id: str = "system",
         agent_name: str = "agent",
         on_usage: UsageCallback | None = None,
+        transport: httpx.AsyncBaseTransport | httpx.BaseTransport | None = None,
     ) -> None:
         self._key = (api_key or resolve_openai_api_key()).strip()
         self._chat_model = (chat_model or os.environ.get("OPENAI_CHAT_MODEL") or DEFAULT_CHAT_MODEL).strip()
@@ -66,7 +73,29 @@ class OpenAIProvider:
         self._tenant_id = tenant_id
         self._agent_name = agent_name
         self._on_usage = on_usage
+        # Test seam: httpx.MockTransport implements both the sync and async
+        # transport interfaces, so one argument covers both client kinds.
+        self._transport = transport
+        self._async_client: httpx.AsyncClient | None = None
         self.id = "openai"
+
+    def _get_async_client(self) -> httpx.AsyncClient:
+        """One shared AsyncClient per provider instance (lazy init).
+
+        Sharing keeps the connection pool warm across calls; httpx clients
+        are safe for concurrent use. Closed via :meth:`aclose`.
+        """
+        if self._async_client is None or self._async_client.is_closed:
+            self._async_client = httpx.AsyncClient(
+                timeout=self._timeout,
+                transport=self._transport if isinstance(self._transport, httpx.AsyncBaseTransport) else None,
+            )
+        return self._async_client
+
+    async def aclose(self) -> None:
+        """Close the shared AsyncClient. Safe to call multiple times."""
+        if self._async_client is not None and not self._async_client.is_closed:
+            await self._async_client.aclose()
 
     def _headers(self) -> dict[str, str]:
         if not self._key:
@@ -99,13 +128,13 @@ class OpenAIProvider:
             },
         )
 
-    def chat_complete(
+    def _build_chat_body(
         self,
         messages: list[ChatMessage],
         *,
-        temperature: float | None = None,
-        max_output_tokens: int | None = None,
-    ) -> str:
+        temperature: float | None,
+        max_output_tokens: int | None,
+    ) -> dict[str, Any]:
         body: dict[str, Any] = {
             "model": self._chat_model,
             "messages": self._to_openai_messages(messages),
@@ -114,9 +143,9 @@ class OpenAIProvider:
             body["temperature"] = temperature
         if max_output_tokens is not None:
             body["max_tokens"] = max_output_tokens
+        return body
 
-        with httpx.Client(timeout=self._timeout) as client:
-            r = httpx_post_with_retries(client, CHAT_URL, headers=self._headers(), json=body)
+    def _parse_chat_response(self, r: httpx.Response) -> str:
         if r.status_code >= 400:
             msg = f"OpenAI error {r.status_code}: {r.text[:500]}"
             raise OSError(msg)
@@ -127,6 +156,41 @@ class OpenAIProvider:
         except (KeyError, IndexError, TypeError) as e:
             msg = f"Bad OpenAI response: {data!r}"
             raise OSError(msg) from e
+
+    def chat_complete(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float | None = None,
+        max_output_tokens: int | None = None,
+    ) -> str:
+        body = self._build_chat_body(messages, temperature=temperature, max_output_tokens=max_output_tokens)
+        sync_transport = self._transport if isinstance(self._transport, httpx.BaseTransport) else None
+        with httpx.Client(timeout=self._timeout, transport=sync_transport) as client:
+            r = httpx_post_with_retries(client, CHAT_URL, headers=self._headers(), json=body)
+        return self._parse_chat_response(r)
+
+    async def chat_complete_async(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float | None = None,
+        max_output_tokens: int | None = None,
+    ) -> str:
+        """Async twin of :meth:`chat_complete` — use inside async code.
+
+        The sync method blocks the event loop for the full HTTP round trip
+        (up to the provider timeout); this one awaits on the shared
+        AsyncClient instead.
+        """
+        body = self._build_chat_body(messages, temperature=temperature, max_output_tokens=max_output_tokens)
+        r = await httpx_post_with_retries_async(
+            self._get_async_client(),
+            CHAT_URL,
+            headers=self._headers(),
+            json=body,
+        )
+        return self._parse_chat_response(r)
 
     async def chat_complete_stream(
         self,

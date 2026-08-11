@@ -87,7 +87,7 @@ function TreeNode({
             </span>
             <span className="text-ink-500 text-[10px] uppercase">{node.actorKind}</span>
             {node.truncated ? (
-              <span className="bg-warning-100 text-warning-900 rounded px-1.5 py-0.5 text-[10px] uppercase">
+              <span className="bg-orange-tint text-orange-ink rounded px-1.5 py-0.5 text-[10px] uppercase">
                 truncated
               </span>
             ) : null}

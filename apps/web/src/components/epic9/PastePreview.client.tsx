@@ -229,7 +229,7 @@ export function PastePreview({
         </Button>
       </div>
 
-      {err ? <p className="text-error-700 text-sm">{err}</p> : null}
+      {err ? <p className="text-red-ink text-sm">{err}</p> : null}
 
       {drafts !== null ? (
         <div className="space-y-2">

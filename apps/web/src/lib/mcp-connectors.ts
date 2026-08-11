@@ -150,7 +150,7 @@ export function getConnectorSpec(kind: ConnectorKind): ConnectorSpec {
 export const CONNECTOR_BADGE_COLORS: Record<ConnectorKind, string> = {
   slack: "bg-purple-100 text-purple-900 border-purple-300",
   linear: "bg-indigo-100 text-indigo-900 border-indigo-300",
-  gdrive: "bg-emerald-100 text-emerald-900 border-emerald-300",
+  gdrive: "bg-green-tint text-green-ink border-green/40",
   notion: "bg-stone-100 text-stone-900 border-stone-300",
   github: "bg-slate-100 text-slate-900 border-slate-300",
 };

@@ -11,8 +11,8 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from control_plane.api.routes.engagements_internal import require_internal
 from control_plane.audit import emit_audit_event
+from control_plane.config.internal_auth import require_internal
 from control_plane.db import get_app_db_session
 from control_plane.domain.app_identity.models import AppTenant
 from control_plane.domain.strategist_personal import StrategistActivityEvent

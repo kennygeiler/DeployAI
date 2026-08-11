@@ -327,10 +327,11 @@ describe("OracleChat", () => {
     const region = await screen.findByRole("region", { name: /agent kenny/i });
     const sendBtn = within(region).getByRole("button", { name: /^send$/i });
     // The shared <Button> primitive applies `data-slot="button"` via its
-    // generated className/attrs — checking for the rounded-md utility is a
-    // proxy. The eslint `no-restricted-syntax` rule enforces the JSX side at
-    // build-time; this assertion guards behaviour at runtime.
-    expect(sendBtn.className).toMatch(/rounded-md/);
+    // generated className/attrs — checking for the pill radius utility is a
+    // proxy (Beautiful UI buttons are `rounded-full`). The eslint
+    // `no-restricted-syntax` rule enforces the JSX side at build-time; this
+    // assertion guards behaviour at runtime.
+    expect(sendBtn.className).toMatch(/rounded-full/);
   });
 
   describe("v2 LangGraph stream-v2 path", () => {

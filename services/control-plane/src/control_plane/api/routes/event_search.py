@@ -21,8 +21,8 @@ from sqlalchemy import cast, select
 from sqlalchemy.dialects.postgresql import TEXT
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from control_plane.api.routes.engagements_internal import require_internal
 from control_plane.api.routes.tenants_internal import _require_tenant
+from control_plane.config.internal_auth import require_internal
 from control_plane.db import get_app_db_session
 from control_plane.domain.canonical_memory.events import CanonicalMemoryEvent
 

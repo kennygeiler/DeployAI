@@ -14,8 +14,8 @@ from functools import lru_cache
 from typing import Annotated
 from uuid import UUID
 
-from deployai_tenancy import TenantScopedSession
-from fastapi import Depends
+from deployai_tenancy import MissingTenantScope, TenantScopedRequestSession, TenantScopedSession
+from fastapi import Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -57,6 +57,34 @@ async def get_app_db_session() -> AsyncIterator[AsyncSession]:
 
 
 AppDbSession = Annotated[AsyncSession, Depends(get_app_db_session)]
+
+
+async def get_tenant_db_session(
+    tenant_id: Annotated[UUID, Query()],
+) -> AsyncIterator[AsyncSession]:
+    """FastAPI dependency: request-scoped session with the RLS tenant GUC applied.
+
+    Reads the same ``tenant_id`` query parameter the internal routes already
+    declare, so swapping a route from :data:`AppDbSession` to
+    :data:`TenantDbSession` changes no request shape — it only makes the
+    Postgres RLS policies (``app.current_tenant``) actually engage. The GUC is
+    re-applied on every transaction, so handlers may ``commit()`` mid-request
+    without silently losing the scope (see
+    :func:`deployai_tenancy.TenantScopedRequestSession`).
+    """
+    try:
+        async with TenantScopedRequestSession(tenant_id, _get_app_session_maker()) as session:
+            yield session
+    except MissingTenantScope as exc:
+        # FastAPI's Query() already guarantees a well-formed UUID; the only
+        # remaining rejection is the reserved nil-UUID sentinel.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        ) from exc
+
+
+TenantDbSession = Annotated[AsyncSession, Depends(get_tenant_db_session)]
 
 
 def clear_engine_cache() -> None:

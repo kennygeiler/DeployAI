@@ -15,7 +15,7 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from llm_provider_py.types import LLMProvider
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import func, select
@@ -47,8 +47,14 @@ from control_plane.agents.oracle import (
     default_system_prompt as oracle_default_prompt,
 )
 from control_plane.agents.prompts import resolve_tenant_prompt
-from control_plane.config.internal_api import verify_internal_key
-from control_plane.db import get_app_db_session
+
+# require_internal is re-exported for the route modules that import it from
+# here (historical location of the copy-pasted definition).
+from control_plane.config.internal_auth import (  # noqa: F401
+    require_internal,
+    require_tenant_scoped,
+)
+from control_plane.db import get_tenant_db_session
 from control_plane.domain.app_identity.models import AppTenant, AppUser
 from control_plane.domain.canonical_memory.events import CanonicalMemoryEvent
 from control_plane.domain.canonical_memory.identity import IdentityNode
@@ -79,16 +85,6 @@ _ENGAGEMENT_MEMBER_ROLES: tuple[str, ...] = ("fde", "deployment_strategist", "bi
 router = APIRouter(prefix="/engagements", tags=["internal-engagements"])
 
 
-def require_internal(
-    x_deployai_internal_key: str | None = Header(default=None, alias="X-DeployAI-Internal-Key"),
-) -> None:
-    if not verify_internal_key(x_deployai_internal_key):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing X-DeployAI-Internal-Key",
-        )
-
-
 class EngagementCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     customer_account: str | None = Field(default=None, max_length=200)
@@ -113,9 +109,9 @@ async def _require_tenant(session: AsyncSession, tenant_id: uuid.UUID) -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="tenant not found")
 
 
-@router.get("", response_model=list[EngagementRead], dependencies=[Depends(require_internal)])
+@router.get("", response_model=list[EngagementRead], dependencies=[Depends(require_tenant_scoped)])
 async def list_engagements(
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> list[Engagement]:
     await _require_tenant(session, tenant_id)
@@ -129,11 +125,11 @@ async def list_engagements(
     "",
     response_model=EngagementRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def create_engagement(
     body: EngagementCreate,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> Engagement:
     await _require_tenant(session, tenant_id)
@@ -155,10 +151,10 @@ async def create_engagement(
     return row
 
 
-@router.get("/{engagement_id}", response_model=EngagementRead, dependencies=[Depends(require_internal)])
+@router.get("/{engagement_id}", response_model=EngagementRead, dependencies=[Depends(require_tenant_scoped)])
 async def get_engagement(
     engagement_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> Engagement:
     r = await session.execute(
@@ -236,11 +232,11 @@ async def _find_stakeholder_node_by_email(
 @router.get(
     "/{engagement_id}/members",
     response_model=list[EngagementMemberRead],
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def list_engagement_members(
     engagement_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> list[EngagementMember]:
     await _require_engagement(session, tenant_id, engagement_id)
@@ -256,12 +252,12 @@ async def list_engagement_members(
     "/{engagement_id}/members",
     response_model=EngagementMemberRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def add_engagement_member(
     engagement_id: uuid.UUID,
     body: EngagementMemberCreate,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> EngagementMember:
     await _require_engagement(session, tenant_id, engagement_id)
@@ -363,12 +359,12 @@ async def add_engagement_member(
 @router.delete(
     "/{engagement_id}/members/{member_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def remove_engagement_member(
     engagement_id: uuid.UUID,
     member_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> None:
     await _require_engagement(session, tenant_id, engagement_id)
@@ -466,12 +462,12 @@ async def _require_matrix_node(session: AsyncSession, engagement_id: uuid.UUID, 
     "/{engagement_id}/matrix/nodes",
     response_model=MatrixNodeRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def create_matrix_node(
     engagement_id: uuid.UUID,
     body: MatrixNodeCreate,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> MatrixNode:
     await _require_engagement(session, tenant_id, engagement_id)
@@ -521,11 +517,11 @@ async def create_matrix_node(
 @router.get(
     "/{engagement_id}/matrix/nodes",
     response_model=list[MatrixNodeRead],
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def list_matrix_nodes(
     engagement_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
     node_type: Annotated[str | None, Query()] = None,
 ) -> list[MatrixNode]:
@@ -540,12 +536,12 @@ async def list_matrix_nodes(
 @router.get(
     "/{engagement_id}/matrix/nodes/{node_id}",
     response_model=MatrixNodeRead,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def get_matrix_node(
     engagement_id: uuid.UUID,
     node_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> MatrixNode:
     await _require_engagement(session, tenant_id, engagement_id)
@@ -555,13 +551,13 @@ async def get_matrix_node(
 @router.patch(
     "/{engagement_id}/matrix/nodes/{node_id}",
     response_model=MatrixNodeRead,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def update_matrix_node(
     engagement_id: uuid.UUID,
     node_id: uuid.UUID,
     body: MatrixNodeUpdate,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> MatrixNode:
     await _require_engagement(session, tenant_id, engagement_id)
@@ -598,12 +594,12 @@ async def update_matrix_node(
 @router.delete(
     "/{engagement_id}/matrix/nodes/{node_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def delete_matrix_node(
     engagement_id: uuid.UUID,
     node_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> None:
     await _require_engagement(session, tenant_id, engagement_id)
@@ -633,12 +629,12 @@ async def delete_matrix_node(
     "/{engagement_id}/matrix/edges",
     response_model=MatrixEdgeRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def create_matrix_edge(
     engagement_id: uuid.UUID,
     body: MatrixEdgeCreate,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> MatrixEdge:
     await _require_engagement(session, tenant_id, engagement_id)
@@ -692,11 +688,11 @@ async def create_matrix_edge(
 @router.get(
     "/{engagement_id}/matrix/edges",
     response_model=list[MatrixEdgeRead],
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def list_matrix_edges(
     engagement_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> list[MatrixEdge]:
     await _require_engagement(session, tenant_id, engagement_id)
@@ -709,12 +705,12 @@ async def list_matrix_edges(
 @router.delete(
     "/{engagement_id}/matrix/edges/{edge_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def delete_matrix_edge(
     engagement_id: uuid.UUID,
     edge_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> None:
     await _require_engagement(session, tenant_id, engagement_id)
@@ -786,12 +782,12 @@ class IngestedEventRead(BaseModel):
     "/{engagement_id}/ingest",
     response_model=IngestedEventRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def ingest_interaction(
     engagement_id: uuid.UUID,
     body: IngestInteractionCreate,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> CanonicalMemoryEvent:
     await _require_engagement(session, tenant_id, engagement_id)
@@ -892,11 +888,11 @@ async def _require_proposal(session: AsyncSession, engagement_id: uuid.UUID, pro
 @router.get(
     "/{engagement_id}/proposals",
     response_model=list[MatrixProposalRead],
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def list_matrix_proposals(
     engagement_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
     status_filter: Annotated[str | None, Query(alias="status")] = "pending",
 ) -> list[MatrixProposal]:
@@ -1066,13 +1062,13 @@ async def _accept_one_proposal(
 @router.post(
     "/{engagement_id}/proposals/{proposal_id}/accept",
     response_model=MatrixProposalRead,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def accept_matrix_proposal(
     engagement_id: uuid.UUID,
     proposal_id: uuid.UUID,
     body: MatrixProposalDecision,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> MatrixProposal:
     await _require_engagement(session, tenant_id, engagement_id)
@@ -1092,13 +1088,13 @@ async def accept_matrix_proposal(
 @router.post(
     "/{engagement_id}/proposals/{proposal_id}/reject",
     response_model=MatrixProposalRead,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def reject_matrix_proposal(
     engagement_id: uuid.UUID,
     proposal_id: uuid.UUID,
     body: MatrixProposalDecision,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> MatrixProposal:
     await _require_engagement(session, tenant_id, engagement_id)
@@ -1180,12 +1176,12 @@ class BulkAcceptResponse(BaseModel):
 @router.post(
     "/{engagement_id}/proposals/accept-bulk",
     response_model=BulkAcceptResponse,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def bulk_accept_matrix_proposals(
     engagement_id: uuid.UUID,
     body: BulkAcceptBody,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> BulkAcceptResponse:
     """Accept a batch of matrix proposals in one request.
@@ -1334,12 +1330,12 @@ class AuditDecisionBody(BaseModel):
 @router.post(
     "/{engagement_id}/audit-decision",
     response_model=MatrixProposalRead,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def audit_decision(
     engagement_id: uuid.UUID,
     body: AuditDecisionBody,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> MatrixProposal:
     await _require_engagement(session, tenant_id, engagement_id)
@@ -1403,11 +1399,11 @@ async def audit_decision(
     "/{engagement_id}/extract",
     response_model=list[MatrixProposalRead],
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def extract_engagement_proposals(
     engagement_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
     event_id: Annotated[uuid.UUID, Query()],
     llm: Annotated[LLMProvider, Depends(get_llm_provider)],
@@ -1586,11 +1582,11 @@ def _event_text_for_oracle(event: CanonicalMemoryEvent) -> str:
 @router.get(
     "/{engagement_id}/insights",
     response_model=list[MatrixInsightRead],
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def list_matrix_insights(
     engagement_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
     status_filter: Annotated[str | None, Query(alias="status")] = "open",
 ) -> list[MatrixInsight]:
@@ -1665,13 +1661,13 @@ async def _decide_insight(
 @router.post(
     "/{engagement_id}/insights/{insight_id}/dismiss",
     response_model=MatrixInsightRead,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def dismiss_matrix_insight(
     engagement_id: uuid.UUID,
     insight_id: uuid.UUID,
     body: MatrixInsightDecision,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> MatrixInsight:
     return await _decide_insight(session, tenant_id, engagement_id, insight_id, "dismissed", body.actor_id)
@@ -1680,13 +1676,13 @@ async def dismiss_matrix_insight(
 @router.post(
     "/{engagement_id}/insights/{insight_id}/resolve",
     response_model=MatrixInsightRead,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def resolve_matrix_insight(
     engagement_id: uuid.UUID,
     insight_id: uuid.UUID,
     body: MatrixInsightDecision,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> MatrixInsight:
     return await _decide_insight(session, tenant_id, engagement_id, insight_id, "resolved", body.actor_id)
@@ -1696,11 +1692,11 @@ async def resolve_matrix_insight(
     "/{engagement_id}/insights/refresh",
     response_model=list[MatrixInsightRead],
     status_code=status.HTTP_200_OK,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def refresh_matrix_insights(
     engagement_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
     llm: Annotated[LLMProvider, Depends(get_llm_provider)],
 ) -> list[MatrixInsight]:
@@ -1966,11 +1962,11 @@ class EngagementDetailRead(BaseModel):
 @router.get(
     "/{engagement_id}/detail",
     response_model=EngagementDetailRead,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def get_engagement_detail(
     engagement_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> EngagementDetailRead:
     eng = await _require_engagement(session, tenant_id, engagement_id)
@@ -2071,11 +2067,11 @@ def _parse_at_date(raw: str) -> date:
 @router.get(
     "/{engagement_id}/matrix-snapshot",
     response_model=MatrixSnapshotRead,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def get_matrix_snapshot(
     engagement_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
     at: Annotated[str, Query()],
 ) -> MatrixSnapshotRead:
@@ -2144,13 +2140,13 @@ async def _require_temporal_insight(
 @router.post(
     "/{engagement_id}/insights/{insight_id}/snooze",
     response_model=TemporalInsightSnoozeResponse,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def snooze_temporal_insight(
     engagement_id: uuid.UUID,
     insight_id: uuid.UUID,
     body: TemporalInsightSnoozeBody,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> TemporalInsightSnoozeResponse:
     await _require_engagement(session, tenant_id, engagement_id)
@@ -2190,13 +2186,13 @@ async def snooze_temporal_insight(
     "/{engagement_id}/insights/{insight_id}/followup",
     response_model=TemporalInsightFollowupResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_tenant_scoped)],
 )
 async def create_insight_followup(
     engagement_id: uuid.UUID,
     insight_id: uuid.UUID,
     body: TemporalInsightFollowupBody,
-    session: Annotated[AsyncSession, Depends(get_app_db_session)],
+    session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
 ) -> TemporalInsightFollowupResponse:
     await _require_engagement(session, tenant_id, engagement_id)

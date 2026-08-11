@@ -10,7 +10,10 @@ export async function requireCanonicalRead(): Promise<AuthActor> {
   if (!actor) {
     notFound();
   }
-  const d = decideSync(actor, "canonical:read", { kind: "canonical_memory" });
+  const d = decideSync(actor, "canonical:read", {
+    kind: "canonical_memory",
+    tenantId: actor.tenantId,
+  });
   if (!d.allow) {
     notFound();
   }

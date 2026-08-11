@@ -18,7 +18,10 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
   if (!actor) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
-  const d = decideSync(actor, "canonical:read", { kind: "canonical_memory" });
+  const d = decideSync(actor, "canonical:read", {
+    kind: "canonical_memory",
+    tenantId: actor.tenantId,
+  });
   if (!d.allow) {
     return new NextResponse("Forbidden", { status: 403 });
   }

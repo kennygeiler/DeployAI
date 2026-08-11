@@ -34,6 +34,7 @@ from deployai_tenancy.errors import (
 from deployai_tenancy.session import (
     TENANT_ID_KEY,
     TENANT_SCOPED_KEY,
+    TenantScopedRequestSession,
     TenantScopedSession,
     current_tenant,
 )
@@ -47,6 +48,7 @@ __all__ = [
     "IsolationViolation",
     "MissingTenantScope",
     "TenancyError",
+    "TenantScopedRequestSession",
     "TenantScopedSession",
     "current_tenant",
     "decrypt_field",

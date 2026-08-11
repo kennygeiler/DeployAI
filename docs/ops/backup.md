@@ -1,4 +1,20 @@
-# `make backup` — Postgres dump + tenant-DEK metadata
+# Backups — Postgres dump + tenant-DEK metadata
+
+Two backup paths exist, one per deployment mode:
+
+| Path | Target DB | Script | Schedule |
+|------|-----------|--------|----------|
+| **Compose** (`make backup`) | local docker-compose Postgres | `scripts/backup.sh` | manual / host cron |
+| **Fly production** | `deployai-postgres` Fly app | `scripts/fly-backup.sh` | nightly GitHub Actions (`.github/workflows/fly-backup.yml`) |
+
+The compose path is documented first (it predates Fly); the Fly path is
+in the "[Fly production backups](#fly-production-backups)" section
+below. **Not covered by either path:** MinIO/Tigris object-storage
+artifacts (uploaded meeting audio, email bodies in `s3` mode) — that is
+ticket H3 follow-up work; until then a restore recovers the database but
+not uploaded artifact blobs.
+
+## `make backup` (compose path)
 
 Per ORCHESTRATOR.md §4 D3: `make backup` writes a `pg_dump` of the
 control-plane Postgres plus a small JSON document of tenant-DEK key
@@ -254,3 +270,109 @@ window before pruning if you need a longer recovery horizon.
 - Never deletes the bucket itself; only objects under
   `$S3_PREFIX/<ts>/`.
 - No outbound telemetry. No upload of the deletion list anywhere.
+
+## Fly production backups
+
+`scripts/fly-backup.sh` is the production sibling of `scripts/backup.sh`.
+Instead of `docker compose exec`, it runs `pg_dump` **inside** the Fly
+Postgres machine over `fly ssh console -C`, so no local Postgres client
+tools are needed and there is no client/server version-skew risk. The
+dump is plain-format SQL (`--clean --if-exists --no-owner
+--no-privileges`), gzipped locally, and uploaded together with the
+tenant-DEK manifest to `s3://${S3_BUCKET}/${S3_PREFIX}/<TIMESTAMP>/`
+(default prefix `deployai/backups/fly`).
+
+Plain format (not `--format=custom`) is deliberate: `fly ssh console`
+sessions are only trustworthy for text output, and the script verifies
+the stream starts with the `pg_dump` header before uploading anything.
+
+### Schedule
+
+`.github/workflows/fly-backup.yml` runs nightly at 03:17 UTC:
+
+1. `scripts/fly-backup.sh` — dump + upload to Tigris (default endpoint
+   `https://fly.storage.tigris.dev`).
+2. `scripts/backup-prune.sh` with `S3_PREFIX=deployai/backups/fly` and
+   `DEPLOYAI_PRUNE_CONFIRM=YES` — deletes folders older than
+   `BACKUP_RETENTION_DAYS` (default 30).
+3. A final `if: failure()` step that fails loudly. There is no
+   `continue-on-error` anywhere in the workflow: a broken backup is a
+   red run and a GitHub failure notification, never a quiet skip.
+
+The workflow also supports `workflow_dispatch` with a `dry_run` input
+for validating configuration without dumping anything.
+
+### Activation checklist (one-time)
+
+The workflow does nothing useful until these are configured. In the
+repo: Settings → Secrets and variables → Actions.
+
+Secrets:
+
+| Secret | Value |
+|--------|-------|
+| `FLY_API_TOKEN` | already present for `cloud-deploy.yml`; must be able to `fly ssh console` into `deployai-postgres` and `deployai-control-plane` |
+| `BACKUP_S3_BUCKET` | bucket name. For Tigris: `fly storage create` prints it |
+| `BACKUP_AWS_ACCESS_KEY_ID` | bucket credential (Tigris prints these at `fly storage create`) |
+| `BACKUP_AWS_SECRET_ACCESS_KEY` | bucket credential |
+
+Optional variables:
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `BACKUP_S3_ENDPOINT_URL` | `https://fly.storage.tigris.dev` | set for non-Tigris S3 |
+| `BACKUP_RETENTION_DAYS` | `30` | prune window |
+
+Then run the workflow once by hand (Actions → fly-backup → Run
+workflow, `dry_run: true` first, then a real run) and confirm a
+`deployai/backups/fly/<ts>/` folder appears in the bucket with a
+non-trivial `postgres.sql.gz`.
+
+### Restore drill (Fly)
+
+`scripts/fly-restore.sh` replays a fly-backup into the Fly database
+through `fly proxy` + local `psql` (required locally; `fly ssh console`
+cannot reliably stream a large dump into remote stdin). It carries the
+same double gate as the compose restore: `DEPLOYAI_RESTORE_CONFIRM=YES`
+always, plus `DEPLOYAI_RESTORE_FORCE_OVERWRITE=YES` when the target DB
+already has tenant rows. It prints the DEK manifest and probes the
+target before the destructive step, and replays with
+`psql --single-transaction -v ON_ERROR_STOP=1` so a mid-restore failure
+rolls back completely.
+
+```bash
+export BACKUP=s3://<bucket>/deployai/backups/fly/<TIMESTAMP>/
+export S3_ENDPOINT_URL=https://fly.storage.tigris.dev
+export AWS_ACCESS_KEY_ID=...            # bucket creds
+export AWS_SECRET_ACCESS_KEY=...
+export PGPASSWORD=...                    # the Fly POSTGRES_PASSWORD secret
+export DEPLOYAI_RESTORE_CONFIRM=YES
+# Only when overwriting a populated DB:
+# export DEPLOYAI_RESTORE_FORCE_OVERWRITE=YES
+
+./scripts/fly-restore.sh "$BACKUP"
+```
+
+After restore: if the application version has advanced past the dump,
+run Alembic (`fly ssh console -a deployai-control-plane -C "alembic
+upgrade head"` or redeploy control-plane, whose release command
+migrates), then smoke the deployment before directing traffic at it.
+
+Run the drill quarterly against a scratch Fly Postgres app
+(`FLY_APP=<scratch-app>`) so the procedure is proven without touching
+production.
+
+### What is NOT covered
+
+- **MinIO/Tigris artifact objects** (meeting audio uploads, email
+  bodies when `ingest_email_body_mode=s3`): not in `pg_dump`. Ticket
+  **H3** tracks artifact-bucket replication; until it lands, artifact
+  blobs referenced by restored DB rows may be missing.
+- **Fly volume snapshots**: Fly takes daily volume snapshots
+  automatically (5-day retention) — a useful extra layer, but not a
+  substitute: they are tied to the Fly account/region and are not
+  offsite.
+- **Secrets**: `fly secrets` values (`POSTGRES_PASSWORD`,
+  `DATABASE_URL`, OAuth client secrets) are not backed up anywhere by
+  these scripts on purpose. Keep them in your password manager; a
+  restore onto a fresh app requires re-setting them by hand.

@@ -1,6 +1,8 @@
-"""Cross-tenant isolation fuzzer (Story 1.10, NFR52).
+"""Cross-tenant isolation fuzzer (Story 1.10, NFR52; table set extended by A3a).
 
-Seeds a deterministic fixture across all 8 canonical-memory tables, then
+Seeds a deterministic fixture across the 8 canonical-memory tables plus the
+A3a RLS-expansion tables (engagements, ledger, matrix, oracle, audit,
+embeddings — see ``CANONICAL_TABLES``), then
 hammers the RLS + @requires_tenant_scope boundary with 7 attack classes. Any
 successful cross-tenant read or write fails the run and is recorded with
 enough SQL + row detail for an operator to reproduce locally from the seed.
@@ -59,7 +61,25 @@ from control_plane.fuzz.attacks import (
 )
 from control_plane.fuzz.report import Failure, FuzzReport, TableReport
 
-# --- Canonical-memory tables under test (Story 1.9 migration 0002) ---
+# --- Tables under test ---
+#
+# The original 8 canonical-memory tables (Story 1.9 migration 0002) plus the
+# pilot-refresh A3a expansion set (migration 20260811_0053): the app-identity,
+# engagement, ledger, matrix, oracle, and embedding tables that carry both an
+# ``id`` and a ``tenant_id`` column. Tables the RLS expansion covers but the
+# fuzzer cannot exercise generically are excluded with a reason:
+#
+# - ``ledger_event_causes`` / ``ledger_event_affects`` — composite PKs, no
+#   ``id`` column; every attack template selects ``id, tenant_id``.
+# - operational side tables (queues, configs, webhooks, phases, lint flags,
+#   snapshots, break-glass, integrations) — same policy shape as the tables
+#   below; seeding them all would balloon harness runtime for no additional
+#   policy coverage. The migration-level catalog assertions in
+#   ``tests/integration/test_rls_expansion.py`` cover their existence.
+#
+# Ordering is load-bearing for seeding: parents before dependents
+# (engagements before members/nodes/conversations; matrix_nodes before
+# matrix_edges; oracle_conversations before oracle_chat_turns).
 
 CANONICAL_TABLES: tuple[str, ...] = (
     "canonical_memory_events",
@@ -70,6 +90,19 @@ CANONICAL_TABLES: tuple[str, ...] = (
     "learning_lifecycle_states",
     "tombstones",
     "schema_proposals",
+    # --- A3a RLS-expansion tables (migration 20260811_0053) ---
+    "app_users",
+    "engagements",
+    "engagement_members",
+    "ledger_events",
+    "matrix_nodes",
+    "matrix_edges",
+    "matrix_insights",
+    "temporal_insights",
+    "oracle_conversations",
+    "oracle_chat_turns",
+    "agent_audit_traces",
+    "embedding_jobs",
 )
 
 # --- Per-table INSERT templates for seeding + cross-tenant-write attack ---
@@ -123,6 +156,72 @@ _SEED_TEMPLATES: dict[str, str] = {
         "INSERT INTO schema_proposals (tenant_id, proposer_actor_id, proposed_ddl) "
         "VALUES (:tid, gen_random_uuid(), 'ALTER TABLE fuzz ...')"
     ),
+    # --- A3a RLS-expansion tables. The FK-carrying tables subselect their
+    # parents within the same tenant; seeding runs as superuser so RLS never
+    # filters the inner SELECTs. ---
+    "app_users": ("INSERT INTO app_users (tenant_id, user_name) VALUES (:tid, 'fuzz-' || gen_random_uuid())"),
+    "engagements": ("INSERT INTO engagements (tenant_id, name) VALUES (:tid, 'fuzz-' || gen_random_uuid())"),
+    "engagement_members": (
+        # A fresh app_user per row keeps the (engagement_id, user_id) unique
+        # constraint satisfied without bookkeeping.
+        "WITH u AS ("
+        "  INSERT INTO app_users (tenant_id, user_name) "
+        "  VALUES (:tid, 'fuzz-' || gen_random_uuid()) RETURNING id"
+        ") "
+        "INSERT INTO engagement_members (tenant_id, engagement_id, user_id, role) "
+        "SELECT :tid, e.id, u.id, 'fde' FROM engagements e, u "
+        "WHERE e.tenant_id = :tid ORDER BY random() LIMIT 1"
+    ),
+    "ledger_events": (
+        "INSERT INTO ledger_events (tenant_id, occurred_at, actor_kind, source_kind, summary) "
+        "VALUES (:tid, now(), 'user', 'fuzz', 'fuzz event')"
+    ),
+    "matrix_nodes": (
+        "INSERT INTO matrix_nodes (tenant_id, engagement_id, node_type, title) "
+        "SELECT :tid, e.id, 'system', 'fuzz node' FROM engagements e "
+        "WHERE e.tenant_id = :tid ORDER BY random() LIMIT 1"
+    ),
+    "matrix_edges": (
+        "INSERT INTO matrix_edges (tenant_id, engagement_id, edge_type, from_node_id, to_node_id) "
+        "SELECT :tid, a.engagement_id, 'related_to', a.id, b.id "
+        "FROM matrix_nodes a, matrix_nodes b "
+        "WHERE a.tenant_id = :tid AND b.tenant_id = :tid AND a.id <> b.id "
+        "ORDER BY random() LIMIT 1"
+    ),
+    "matrix_insights": (
+        "INSERT INTO matrix_insights (tenant_id, engagement_id, agent, insight_type, severity, title, body, dedup_key) "
+        "SELECT :tid, e.id, 'oracle', 'fuzz', 'low', 'fuzz insight', 'fuzz body', 'fuzz-' || gen_random_uuid() "
+        "FROM engagements e WHERE e.tenant_id = :tid ORDER BY random() LIMIT 1"
+    ),
+    "temporal_insights": (
+        "INSERT INTO temporal_insights (tenant_id, insight_kind, severity, title, narrative, window_start, window_end) "
+        "VALUES (:tid, 'fuzz_kind', 'low', 'fuzz insight', 'fuzz narrative', now(), now())"
+    ),
+    "oracle_conversations": (
+        # A fresh actor per row keeps the (tenant, engagement, actor) unique
+        # constraint satisfied.
+        "WITH u AS ("
+        "  INSERT INTO app_users (tenant_id, user_name) "
+        "  VALUES (:tid, 'fuzz-' || gen_random_uuid()) RETURNING id"
+        ") "
+        "INSERT INTO oracle_conversations (tenant_id, engagement_id, actor_user_id) "
+        "SELECT :tid, e.id, u.id FROM engagements e, u "
+        "WHERE e.tenant_id = :tid ORDER BY random() LIMIT 1"
+    ),
+    "oracle_chat_turns": (
+        "INSERT INTO oracle_chat_turns (conversation_id, tenant_id, role, content) "
+        "SELECT c.id, :tid, 'user', 'fuzz turn' FROM oracle_conversations c "
+        "WHERE c.tenant_id = :tid ORDER BY random() LIMIT 1"
+    ),
+    "agent_audit_traces": (
+        "INSERT INTO agent_audit_traces (tenant_id, engagement_id, turn_id, final_text) "
+        "SELECT :tid, e.id, gen_random_uuid(), 'fuzz trace' FROM engagements e "
+        "WHERE e.tenant_id = :tid ORDER BY random() LIMIT 1"
+    ),
+    "embedding_jobs": (
+        "INSERT INTO embedding_jobs (tenant_id, source_table, source_id) "
+        "VALUES (:tid, 'ledger_events', gen_random_uuid())"
+    ),
 }
 
 # The cross-tenant-write attack (AC3.6) needs *single-row* INSERT templates
@@ -168,6 +267,55 @@ _WRITE_ATTACK_TEMPLATES: dict[str, str] = {
     "schema_proposals": (
         "INSERT INTO schema_proposals (tenant_id, proposer_actor_id, proposed_ddl) "
         "VALUES ('{other_tenant}', gen_random_uuid(), 'ALTER TABLE attack ...')"
+    ),
+    # --- A3a RLS-expansion tables. FK columns take random UUIDs (a literal
+    # subselect would be RLS-filtered into a zero-row INSERT and misreport —
+    # see the note above). The RLS WITH CHECK / FK / NOT NULL deny all raise
+    # a DBAPIError, which the harness records as an expected deny; only a
+    # *landed* INSERT counts as a leak. ---
+    "app_users": (
+        "INSERT INTO app_users (tenant_id, user_name) VALUES ('{other_tenant}', 'attack-' || gen_random_uuid())"
+    ),
+    "engagements": ("INSERT INTO engagements (tenant_id, name) VALUES ('{other_tenant}', 'attack')"),
+    "engagement_members": (
+        "INSERT INTO engagement_members (tenant_id, engagement_id, user_id, role) "
+        "VALUES ('{other_tenant}', gen_random_uuid(), gen_random_uuid(), 'fde')"
+    ),
+    "ledger_events": (
+        "INSERT INTO ledger_events (tenant_id, occurred_at, actor_kind, source_kind, summary) "
+        "VALUES ('{other_tenant}', now(), 'user', 'attack', 'attack')"
+    ),
+    "matrix_nodes": (
+        "INSERT INTO matrix_nodes (tenant_id, engagement_id, node_type, title) "
+        "VALUES ('{other_tenant}', gen_random_uuid(), 'attack', 'attack')"
+    ),
+    "matrix_edges": (
+        "INSERT INTO matrix_edges (tenant_id, engagement_id, edge_type, from_node_id, to_node_id) "
+        "VALUES ('{other_tenant}', gen_random_uuid(), 'attack', gen_random_uuid(), gen_random_uuid())"
+    ),
+    "matrix_insights": (
+        "INSERT INTO matrix_insights (tenant_id, agent, insight_type, severity, title, body, dedup_key) "
+        "VALUES ('{other_tenant}', 'oracle', 'attack', 'low', 'attack', 'attack', 'attack-' || gen_random_uuid())"
+    ),
+    "temporal_insights": (
+        "INSERT INTO temporal_insights (tenant_id, insight_kind, severity, title, narrative, window_start, window_end) "
+        "VALUES ('{other_tenant}', 'attack', 'low', 'attack', 'attack', now(), now())"
+    ),
+    "oracle_conversations": (
+        "INSERT INTO oracle_conversations (tenant_id, engagement_id, actor_user_id) "
+        "VALUES ('{other_tenant}', gen_random_uuid(), gen_random_uuid())"
+    ),
+    "oracle_chat_turns": (
+        "INSERT INTO oracle_chat_turns (conversation_id, tenant_id, role, content) "
+        "VALUES (gen_random_uuid(), '{other_tenant}', 'user', 'attack')"
+    ),
+    "agent_audit_traces": (
+        "INSERT INTO agent_audit_traces (tenant_id, engagement_id, turn_id, final_text) "
+        "VALUES ('{other_tenant}', gen_random_uuid(), gen_random_uuid(), 'attack')"
+    ),
+    "embedding_jobs": (
+        "INSERT INTO embedding_jobs (tenant_id, source_table, source_id) "
+        "VALUES ('{other_tenant}', 'ledger_events', gen_random_uuid())"
     ),
 }
 
@@ -290,8 +438,17 @@ async def _seed(engine: AsyncEngine, tenants: list[UUID], rows_per_tenant: int) 
     Runs as superuser (RLS bypass) to guarantee the baseline. The post-seed
     count check (see _fetch_row_ids) asserts we actually got what we asked
     for — a silent seed miss would make the fuzz results meaningless.
+
+    The A3a expansion tables FK onto ``app_tenants``, so a registry row per
+    fuzz tenant is created first (the original canonical tables predate the
+    registry and carry no FK).
     """
     async with engine.begin() as conn:
+        for tenant in tenants:
+            await conn.execute(
+                text("INSERT INTO app_tenants (id, name) VALUES (:tid, :tname) ON CONFLICT (id) DO NOTHING"),
+                {"tid": str(tenant), "tname": f"fuzz tenant {tenant}"},
+            )
         for tenant in tenants:
             for table in CANONICAL_TABLES:
                 for _ in range(rows_per_tenant):

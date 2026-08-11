@@ -144,7 +144,7 @@ export function EngagementInsights({ engagementId, onExplain }: EngagementInsigh
           {refreshing ? "Refreshing…" : "Refresh insights"}
         </Button>
       </div>
-      {err ? <p className="text-error-700 text-sm">{err}</p> : null}
+      {err ? <p className="text-red-ink text-sm">{err}</p> : null}
       {loading ? (
         <p className="text-ink-600 text-sm">Loading…</p>
       ) : insights.length === 0 ? (
@@ -184,16 +184,16 @@ function InsightGroupSection({
   const [open, setOpen] = React.useState<boolean>(() => isOpenByDefault(group));
   const contentId = React.useId();
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="border-border rounded-lg border">
+    <Collapsible open={open} onOpenChange={setOpen} className="rounded-card bg-surface shadow-card">
       <CollapsibleTrigger
         aria-controls={contentId}
-        className="hover:bg-ink-50 flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
+        className="flex w-full items-center justify-between gap-3 rounded-card px-3 py-2 text-left transition-colors hover:bg-hover"
       >
         <span className="flex items-center gap-2">
           <SeverityBadge severity={group.severityMax} />
-          <span className="text-ink-900 text-sm font-medium">{humanizeKind(group.kind)}</span>
+          <span className="text-sm font-medium text-ink">{humanizeKind(group.kind)}</span>
           <span
-            className="text-ink-600 bg-ink-100 rounded px-1.5 py-0.5 font-mono text-[10px]"
+            className="rounded-full bg-hover px-1.5 py-0.5 font-mono text-[10px] text-ink-600 shadow-hairline"
             aria-label={`${group.insights.length} insight(s)`}
           >
             {group.insights.length}
@@ -208,7 +208,7 @@ function InsightGroupSection({
         />
       </CollapsibleTrigger>
       <CollapsibleContent id={contentId}>
-        <ul className="divide-border divide-y border-t text-sm">
+        <ul className="divide-y divide-line border-t border-line text-sm">
           {group.insights.map((i) => (
             <li key={i.id} className="space-y-1 px-3 py-2">
               <div className="flex items-start justify-between gap-3">
@@ -257,8 +257,8 @@ function InsightGroupSection({
                   </Button>
                 </div>
               </div>
-              <p className="text-ink-900 font-medium">{i.title}</p>
-              <p className="text-ink-700 whitespace-pre-line">{i.body}</p>
+              <p className="font-medium text-ink">{i.title}</p>
+              <p className="whitespace-pre-line text-ink-600">{i.body}</p>
             </li>
           ))}
         </ul>
@@ -270,13 +270,13 @@ function InsightGroupSection({
 function SeverityBadge({ severity }: { severity: GroupSeverity }) {
   const classes =
     severity === "critical"
-      ? "bg-error-100 text-error-900"
+      ? "bg-red-tint text-red-ink"
       : severity === "warning"
-        ? "bg-warning-100 text-warning-900"
-        : "bg-ink-100 text-ink-800";
+        ? "bg-orange-tint text-orange-ink"
+        : "bg-hover text-ink-600";
   return (
     <span
-      className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase ${classes}`}
+      className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] uppercase shadow-hairline ${classes}`}
       aria-label={`severity ${severity}`}
     >
       {severity}
@@ -287,13 +287,13 @@ function SeverityBadge({ severity }: { severity: GroupSeverity }) {
 function InsightSeverityBadge({ severity }: { severity: MatrixInsight["severity"] }) {
   const classes =
     severity === "high"
-      ? "bg-error-100 text-error-900"
+      ? "bg-red-tint text-red-ink"
       : severity === "medium"
-        ? "bg-warning-100 text-warning-900"
-        : "bg-ink-100 text-ink-800";
+        ? "bg-orange-tint text-orange-ink"
+        : "bg-hover text-ink-600";
   return (
     <span
-      className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase ${classes}`}
+      className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] uppercase shadow-hairline ${classes}`}
       aria-label={`severity ${severity}`}
     >
       {severity}

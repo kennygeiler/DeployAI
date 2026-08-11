@@ -26,12 +26,17 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
+from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from deployai_tenancy.errors import IsolationViolation, MissingTenantScope
+
+if TYPE_CHECKING:
+    from sqlalchemy.engine import Connection
+    from sqlalchemy.orm import Session, SessionTransaction
 
 _APP_ROLES: frozenset[str] = frozenset(
     {
@@ -147,3 +152,81 @@ async def TenantScopedSession(  # noqa: N802 — public API surface, PascalCase 
 def current_tenant() -> UUID | None:
     """Return the tenant id of the enclosing :func:`TenantScopedSession`, if any."""
     return _current_tenant.get()
+
+
+@asynccontextmanager
+async def TenantScopedRequestSession(  # noqa: N802 — public API surface, PascalCase matches
+    # the context-manager-as-constructor idiom used by :func:`TenantScopedSession`.
+    tenant_id: UUID,
+    maker: async_sessionmaker[AsyncSession],
+    *,
+    app_role: str | None = None,
+) -> AsyncIterator[AsyncSession]:
+    """Open a request-scoped :class:`AsyncSession` that survives ``commit()``.
+
+    :func:`TenantScopedSession` wraps the whole scope in one transaction, so a
+    caller that calls ``session.commit()`` mid-scope would silently drop the
+    ``SET LOCAL`` GUC — every later statement would run *unscoped* and RLS
+    would filter it to zero rows. Route handlers commit freely, so they need
+    a session where the tenant GUC is re-applied at the start of **every**
+    transaction, not just the first.
+
+    This variant attaches an ``after_begin`` listener to the underlying sync
+    session: each time a transaction begins on a connection, the listener runs
+    ``set_config('app.current_tenant', <tenant>, is_local=true)`` before any
+    caller statement executes. Commit → next autobegin → GUC re-applied. The
+    same validation, nil-UUID rejection, and cross-tenant nesting guard as
+    :func:`TenantScopedSession` apply.
+
+    Unlike :func:`TenantScopedSession`, exiting the scope does **not** commit:
+    pending changes are rolled back on close, matching the semantics of a bare
+    request-scoped session (callers own their commits).
+    """
+    validated = _validate_tenant_id(tenant_id)
+    role_for_guc = _validate_app_role(app_role)
+
+    enclosing = _current_tenant.get()
+    if enclosing is not None and enclosing != validated:
+        raise IsolationViolation(
+            f"Cannot open TenantScopedRequestSession(tenant_id={validated}) inside an "
+            f"active scope for tenant_id={enclosing}. "
+            "Exit the outer scope or use the same tenant id.",
+        )
+
+    token = _current_tenant.set(validated)
+    try:
+        async with maker() as session:
+
+            def _apply_guc(
+                _session: Session,
+                transaction: SessionTransaction,
+                connection: Connection,
+            ) -> None:
+                # SAVEPOINT (nested) transactions inherit the enclosing
+                # transaction's GUC; only root transactions need it set.
+                if transaction.nested:
+                    return
+                # Same parameterized set_config posture as TenantScopedSession;
+                # executed on the Core connection so it lands inside the
+                # freshly-begun transaction, before any caller statement.
+                connection.execute(
+                    text("SELECT set_config('app.current_tenant', :tid, true)"),
+                    {"tid": str(validated)},
+                )
+                if role_for_guc is not None:
+                    connection.execute(
+                        text("SELECT set_config('app.current_role', :r, true)"),
+                        {"r": role_for_guc},
+                    )
+
+            event.listen(session.sync_session, "after_begin", _apply_guc)
+            session.info[TENANT_ID_KEY] = validated
+            session.info[TENANT_SCOPED_KEY] = True
+            session.tenant_id = validated  # type: ignore[attr-defined]
+            session.is_tenant_scoped = True  # type: ignore[attr-defined]
+            try:
+                yield session
+            finally:
+                event.remove(session.sync_session, "after_begin", _apply_guc)
+    finally:
+        _current_tenant.reset(token)

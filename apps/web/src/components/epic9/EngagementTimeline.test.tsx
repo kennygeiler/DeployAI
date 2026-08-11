@@ -130,7 +130,7 @@ describe("EngagementTimeline", () => {
     render(<EngagementTimeline engagementId="e1" />);
     await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
     expect(screen.queryByText(/No interactions yet/)).toBeNull();
-    const para = document.querySelector("p.text-error-700");
+    const para = document.querySelector("p.text-red-ink");
     expect(para).toBeTruthy();
     expect(para?.textContent?.length).toBeGreaterThan(0);
   });

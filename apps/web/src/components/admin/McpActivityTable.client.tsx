@@ -31,19 +31,19 @@ function deriveStatus(kind: string, detail: Detail): { label: string; cls: strin
   if (kind === "mcp_outbound_call") {
     const httpStatus = readNumber(detail, "http_status") ?? readNumber(detail, "status_code");
     if (httpStatus !== null && httpStatus >= 400) {
-      return { label: `http ${httpStatus}`, cls: "bg-error-100 text-error-900" };
+      return { label: `http ${httpStatus}`, cls: "bg-red-tint text-red-ink" };
     }
-    return { label: "ok", cls: "bg-emerald-100 text-emerald-900" };
+    return { label: "ok", cls: "bg-green-tint text-green-ink" };
   }
   if (kind === "mcp_outbound_blocked")
-    return { label: "blocked", cls: "bg-amber-100 text-amber-900" };
+    return { label: "blocked", cls: "bg-orange-tint text-orange-ink" };
   if (kind === "mcp_outbound_rate_limited")
-    return { label: "rate-limited", cls: "bg-amber-100 text-amber-900" };
-  if (kind === "mcp_outbound_denied")
-    return { label: "denied", cls: "bg-error-100 text-error-900" };
+    return { label: "rate-limited", cls: "bg-orange-tint text-orange-ink" };
+  if (kind === "mcp_outbound_denied") return { label: "denied", cls: "bg-red-tint text-red-ink" };
   if (kind === "mcp_outbound_killswitch_changed")
-    return { label: "kill switch", cls: "bg-error-100 text-error-900" };
-  if (isMcpConfigKind(kind)) return { label: "config change", cls: "bg-amber-100 text-amber-900" };
+    return { label: "kill switch", cls: "bg-red-tint text-red-ink" };
+  if (isMcpConfigKind(kind))
+    return { label: "config change", cls: "bg-orange-tint text-orange-ink" };
   return { label: kind, cls: "bg-ink-100 text-ink-800" };
 }
 
@@ -118,7 +118,7 @@ export function McpActivityTable() {
       </div>
 
       {err ? (
-        <p role="alert" className="text-error-700 text-sm">
+        <p role="alert" className="text-sm text-red-ink">
           {err}
         </p>
       ) : null}
@@ -127,15 +127,15 @@ export function McpActivityTable() {
         <p className="text-ink-600 text-sm">Loading…</p>
       ) : rows.length === 0 && !err ? (
         <p
-          className="text-ink-600 border-border bg-paper-50 rounded-md border px-3 py-6 text-center text-sm"
+          className="rounded-card bg-surface px-3 py-6 text-center text-sm text-ink-600 shadow-card"
           data-testid="mcp-activity-empty"
         >
           No outbound MCP activity yet.
         </p>
       ) : (
-        <div className="border-border overflow-x-auto rounded-md border">
+        <div className="overflow-x-auto rounded-card bg-surface shadow-card">
           <table className="w-full text-sm">
-            <thead className="bg-surface-subtle text-ink-700 text-xs uppercase">
+            <thead className="border-b border-line text-xs text-ink-600 uppercase">
               <tr>
                 <th scope="col" className="px-3 py-2 text-left">
                   When
@@ -157,7 +157,7 @@ export function McpActivityTable() {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-border divide-y">
+            <tbody className="divide-y divide-line">
               {rows.map((row) => {
                 const detail = row.detail as Detail;
                 const connector =

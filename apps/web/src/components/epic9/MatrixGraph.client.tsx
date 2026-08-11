@@ -412,7 +412,7 @@ export function MatrixGraph({
   const fallbackBanner =
     snapshot.kind === "missing" ? (
       <p
-        className="border-warning-300 bg-warning-100 text-warning-900 rounded-lg border p-3 text-sm"
+        className="border-orange/50 bg-orange-tint text-orange-ink rounded-lg border p-3 text-sm"
         role="status"
         data-testid="matrix-snapshot-missing"
       >
@@ -420,7 +420,7 @@ export function MatrixGraph({
       </p>
     ) : snapshot.kind === "error" ? (
       <p
-        className="border-error-300 bg-error-100 text-error-900 rounded-lg border p-3 text-sm"
+        className="border-red/50 bg-red-tint text-red-ink rounded-lg border p-3 text-sm"
         role="alert"
       >
         Could not load snapshot ({snapshot.message}) — showing live matrix.

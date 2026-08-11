@@ -7,11 +7,15 @@ function resourceKind(r: Resource): string {
   return r.kind;
 }
 
-function resourceTenantId(r: Resource): string | null {
+/** Tenant a resource belongs to. For `kind: "tenant"` the resource id IS the tenant id. */
+export function resourceTenantId(r: Resource): string | null {
   if (r.kind === "tenant") {
     return r.id;
   }
-  return null;
+  if (r.kind === "global") {
+    return null;
+  }
+  return r.tenantId ?? null;
 }
 
 function isBrowserRuntime(): boolean {

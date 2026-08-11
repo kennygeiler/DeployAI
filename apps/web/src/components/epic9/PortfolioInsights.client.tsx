@@ -115,7 +115,7 @@ export function PortfolioInsights() {
           {refreshing ? "Refreshing…" : "Refresh portfolio insights"}
         </Button>
       </div>
-      {err ? <p className="text-error-700 text-sm">{err}</p> : null}
+      {err ? <p className="text-red-ink text-sm">{err}</p> : null}
       {loading ? (
         <p className="text-ink-600 text-sm">Loading…</p>
       ) : insights.length === 0 ? (
@@ -170,9 +170,9 @@ export function PortfolioInsights() {
 function SeverityBadge({ severity }: { severity: MatrixInsight["severity"] }) {
   const classes =
     severity === "high"
-      ? "bg-error-100 text-error-900"
+      ? "bg-red-tint text-red-ink"
       : severity === "medium"
-        ? "bg-warning-100 text-warning-900"
+        ? "bg-orange-tint text-orange-ink"
         : "bg-ink-100 text-ink-800";
   return (
     <span

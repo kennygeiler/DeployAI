@@ -46,7 +46,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from control_plane.api.routes.engagements_internal import require_internal
+from control_plane.config.internal_auth import require_internal
 from control_plane.config.settings import get_settings
 from control_plane.db import tenant_session
 from control_plane.domain.mcp_outbound import (
