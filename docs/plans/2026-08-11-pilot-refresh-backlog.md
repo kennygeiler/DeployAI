@@ -148,6 +148,27 @@ Wave 2.5 below turns this into tickets. It intentionally lands *before* Wave 3: 
 (delta digest), F3 (commitments), and F4 (stall alerts) all render INTO the Brief's
 "since you last looked" and "needs you" slots — build the slots first, fill them next.
 
+### The demo thesis (added 2026-08-11)
+
+The seeded-corpus demo fails because it shows **state, not motion** — a prospect looking at
+a pre-populated matrix can't tell it from a slide. The demo that sells is **the cold start**,
+three acts on a fresh engagement:
+
+1. **Capture**: feed 3 recognizable artifacts (kickoff transcript, email thread with a buried
+   commitment, Slack export with a passing risk mention) through Capture → watch proposals
+   appear → accept/reject with the human gate.
+2. **Ask**: put the three killer questions to Kenny — including the refusal trap (a question
+   the corpus can't answer, where Kenny declines instead of hallucinating) — and click a
+   citation through to the source.
+3. **Teach**: escalate the refused question to the team, answer it, re-ask — Kenny now gives
+   a cited answer from knowledge entered minutes ago. Coda: flip to BlueState-XL for scale.
+
+Value ranking this implies: cited refusal-capable answers > capture loop with human gate >
+escalation flywheel > causality > trust substrate (diligence material, not demo material).
+Lists, dashboards, graph viz, and MCP plumbing are table stakes — nobody buys them.
+**Wave 3 is re-sequenced to serve this demo**: demo kit (K1–K5) and conviction features
+(F3, F1) first; adoption features (F5–F7) after the first pilot converts.
+
 ---
 
 ## Part 6 — Ticket backlog
@@ -210,33 +231,43 @@ Size S/M/L. Lanes are parallel-safe for coding agents (minimal file overlap). De
 
 ### Wave 2.5 — Legibility (UX restructure; see Part 5 for the theory)
 
-| ID | P | Sz | Deps | Ticket |
-|---|---|---|---|---|
-| U1 | P0 | S | — | Quick defects from the walkthrough: insight-card title duplication ("risk closed: Risk closed: …" — the source_kind prefix is prepended to a title that already contains it); TimestampLabel render-loop (fixed in PR #270); raw `source_kind` enums shown as card labels — map to human labels in one shared helper. |
-| U2 | P0 | M | — | People are people: resolve member/actor UUIDs to names + roles everywhere (join app_users in the engagement payload; avatar initials from names; "last heard from" from ledger actor timestamps). UUIDs never render in user-facing surfaces. |
-| U3 | P1 | L | U1,U2 | Engagement **Brief** layout: reorder the detail page to header+health → "since you last looked" slot (until F1 lands: recent changes grouped by kind with human titles) → "needs you" inline action queue (pending approvals, proposals, escalations with resolve-in-place; reuses Review Inbox APIs) → narrative card sections (people / decisions / risks / commitments) with expandable receipts. Move team management to a People tab; move the agent telemetry strip to the admin dashboard. |
-| U4 | P1 | M | U3 | Kenny as front door: persistent ask-bar on the Brief ("Ask this deal anything"), full-width chat surface on submit, suggested questions derived from engagement state (open risks, recent decisions). Rail retired. |
-| U5 | P1 | M | — | Graph as a lens: matrix tab defaults to filtered neighborhood view (selected node + N hops, type filters, search-to-focus); virtualize rendering; the full-graph layout is an explicit opt-in. Must stay usable at BlueState-XL scale (866 nodes). |
-| U6 | P1 | M | W2 | Progressive loading: engagement summary endpoint for first paint (<1s target), sections fetch independently via react-query with shimmer placeholders; XL page readable-before-complete; kill the monolithic full-payload refetch. |
-| U7 | P2 | S | — | Portfolio home reorder: deals table first, ranked by a needs-attention score (open approvals + pending proposals + escalations + stalls); portfolio insights collapse to ranked one-line cards that expand on demand. |
-| U8 | P2 | M | U1 | Timeline legibility: narrative day/week clustering with human titles and source icons instead of a flat list of enum-labeled rows; 3,888-event engagements must skim well. |
-| U9 | P2 | S | — | Empty/first-run states: every surface says what it is, how data arrives, and the one next action (esp. Review Inbox kinds and the commitments slot). |
-| U10 | P2 | M | U4 | Global **Ask** page: Kenny across the portfolio with engagement-scoping chips; per-engagement isolation guarantees unchanged (leak gate already enforces). |
-
-### Wave 3 — DRM features
+All of U1–U10 shipped in #273 (merged 2026-08-11).
 
 | ID | P | Sz | Deps | Ticket |
 |---|---|---|---|---|
-| F1 | P2 | L | F2 | Delta digest: "since last visit" + weekly rollup per engagement (new stakeholders/decisions/risks/commitments, silence flags) from snapshot diffs + temporal_insights. Front page of engagement view. |
-| F3 | P2 | L | E4 | Commitment tracking: extraction of promises (owner, due date, source event) as matrix node type; overdue alerts; HITL confirmation below threshold. |
+| U1 | P0 | S | — | **DONE** (#273) Quick defects from the walkthrough: insight-card title duplication ("risk closed: Risk closed: …" — the source_kind prefix is prepended to a title that already contains it); TimestampLabel render-loop (fixed in PR #270); raw `source_kind` enums shown as card labels — map to human labels in one shared helper. |
+| U2 | P0 | M | — | **DONE** (#273) People are people: resolve member/actor UUIDs to names + roles everywhere (join app_users in the engagement payload; avatar initials from names; "last heard from" from ledger actor timestamps). UUIDs never render in user-facing surfaces. |
+| U3 | P1 | L | U1,U2 | **DONE** (#273) Engagement **Brief** layout: reorder the detail page to header+health → "since you last looked" slot (until F1 lands: recent changes grouped by kind with human titles) → "needs you" inline action queue (pending approvals, proposals, escalations with resolve-in-place; reuses Review Inbox APIs) → narrative card sections (people / decisions / risks / commitments) with expandable receipts. Move team management to a People tab; move the agent telemetry strip to the admin dashboard. |
+| U4 | P1 | M | U3 | **DONE** (#273) Kenny as front door: persistent ask-bar on the Brief ("Ask this deal anything"), full-width chat surface on submit, suggested questions derived from engagement state (open risks, recent decisions). Rail retired. |
+| U5 | P1 | M | — | **DONE** (#273) Graph as a lens: matrix tab defaults to filtered neighborhood view (selected node + N hops, type filters, search-to-focus); virtualize rendering; the full-graph layout is an explicit opt-in. Must stay usable at BlueState-XL scale (866 nodes). |
+| U6 | P1 | M | W2 | **DONE** (#273) Progressive loading: engagement summary endpoint for first paint (<1s target), sections fetch independently via react-query with shimmer placeholders; XL page readable-before-complete; kill the monolithic full-payload refetch. |
+| U7 | P2 | S | — | **DONE** (#273) Portfolio home reorder: deals table first, ranked by a needs-attention score (open approvals + pending proposals + escalations + stalls); portfolio insights collapse to ranked one-line cards that expand on demand. |
+| U8 | P2 | M | U1 | **DONE** (#273) Timeline legibility: narrative day/week clustering with human titles and source icons instead of a flat list of enum-labeled rows; 3,888-event engagements must skim well. |
+| U9 | P2 | S | — | **DONE** (#273) Empty/first-run states: every surface says what it is, how data arrives, and the one next action (esp. Review Inbox kinds and the commitments slot). |
+| U10 | P2 | M | U4 | **DONE** (#273) Global **Ask** page: Kenny across the portfolio with engagement-scoping chips; per-engagement isolation guarantees unchanged (leak gate already enforces). |
+
+### Wave 3 — demo kit + DRM features (re-sequenced 2026-08-11; see Part 5 "The demo thesis")
+
+Order below is priority order: K1–K5 build the cold-start demo, F3/F1 are the conviction
+features that fill the Brief's slots, F5–F7 are adoption features deferred past the first pilot.
+
+| ID | P | Sz | Deps | Ticket |
+|---|---|---|---|---|
+| K1 | P0 | S | — | `make demo-reset`: idempotent "Acme Robotics — Pilot Deployment" seed — fresh engagement, zero events, plus 3 staged artifact files in `demo/artifacts/` (kickoff transcript, email thread with a buried commitment, Slack export with a passing risk mention). Rerunnable between meetings. |
+| K2 | P0 | M | — | Capture tab ingestion UX: drag-drop file upload + paste-a-thread text input → canonical ingest → extraction trigger, with honest "extracting…" progress. Target: <30s artifact-to-proposals turnaround. |
+| K3 | P0 | S | — | "Escalate to team" button on ungrounded/IDK chat answers → files the E2 escalation (escalation service + resolve flywheel already built; this is the missing entry point from chat). |
+| K4 | P0 | S | K2 | Extraction latency verification + progress states: measure and bound artifact→proposals time on the demo artifacts; surface staged progress instead of a spinner. Demo-reliability work. |
+| K5 | P1 | S | K1–K4 | `docs/demo/runbook.md`: the three-act script with exact demo lines, timings, and recovery moves (what to do when extraction is slow, when Kenny refuses unexpectedly, etc.). |
+| F3 | P1 | L | E4 | **PROMOTED** — "what did we promise" is the core demo question. Commitment tracking: extraction of promises (owner, due date, source event) as matrix node type; overdue alerts; HITL confirmation below threshold. |
+| F1 | P1 | L | F2 | Delta digest: "since last visit" + weekly rollup per engagement (new stakeholders/decisions/risks/commitments, silence flags) from snapshot diffs + temporal_insights. Front page of engagement view. Feeds the DeltaDigest slot built in U3; powers the second-meeting demo ("here's what happened while you were gone"). |
 | F4 | P2 | M | F2 | Stall/silence alerts surfaced: trailing-silence + no-next-step detection as dashboard signals + digest entries. |
-| F5 | P2 | L | — | Kenny in Slack: mention/slash-command → answer with citations (link back to app); reuses existing Slack app + HMAC verify; respects tenant binding of the Slack workspace. |
-| F6 | P2 | M | F1 | Outbound weekly digest email (Resend or SES); per-user opt-in; D4 approval optional for first sends. |
-| F7 | P2 | L | A4 | HubSpot one-way sync: companies/contacts/deals → stakeholders/engagements; idempotent upsert via external IDs; sync status UI. |
 | F8 | P2 | S | — | Matrix header reframe: "changed since last visit" chips; pass `earliestDate` to slider (prop exists, never passed; window hardcoded 90d). |
-| F9 | P2 | S | — | Wire `onExplain` (dead "Explain" button stub for G1.c) to a Kenny prompt about the insight. |
+| F9 | P2 | S | — | Wire `onExplain` (dead "Explain" button stub for G1.c) to a Kenny prompt about the insight. (Verified still unwired 2026-08-11: `EngagementBrief.client.tsx:441` passes no handler, so the button never renders.) |
 | W2 | P2 | M | — | Adopt react-query in web: dedupe, cache, mutation invalidation; kill full-payload refetch-after-every-mutation. |
 | W3 | P1 | L | — | Playwright E2E for headline flows: onboarding seed → matrix render → time scrub → proposal accept → Kenny Q&A with citation. Runs vs compose stack in CI. Today E2E = 163 LOC read-only smoke. |
+| F5 | P3 | L | — | **DEMOTED** (adoption feature, post-conviction) Kenny in Slack: mention/slash-command → answer with citations (link back to app); reuses existing Slack app + HMAC verify; respects tenant binding of the Slack workspace. |
+| F6 | P3 | M | F1 | **DEMOTED** (adoption feature, post-conviction) Outbound weekly digest email (Resend or SES); per-user opt-in; D4 approval optional for first sends. |
+| F7 | P3 | L | A4 | **DEMOTED** (adoption feature, post-conviction) HubSpot one-way sync: companies/contacts/deals → stakeholders/engagements; idempotent upsert via external IDs; sync status UI. |
 
 ### Wave 4 — LongScale proof
 
@@ -256,7 +287,7 @@ Size S/M/L. Lanes are parallel-safe for coding agents (minimal file overlap). De
 - Wave 0: all 12 tickets fully parallel (disjoint files).
 - Wave 1: A1/A2/W1 (web) vs A3a/A4/A5/A8/D0 (CP) vs H1 (infra) — disjoint. A3b fans out per route module across many agents.
 - Wave 2: D-lane (agent runtime) and E-lane (Review Inbox UI+API) are independent until D4 meets E1's UI shell.
-- Wave 3: F1–F9 mostly independent; F5/F7 touch integrations only.
+- Wave 3: K1–K5 and F1–F9 mostly independent (K4 depends on K2; K5 documents K1–K4); F5/F7 touch integrations only.
 - Contract discipline: SSE frame vocabulary and BFF response schemas are the frozen interfaces — any agent touching them must update `packages/contracts` + the drift gate first (TS/Python citation schemas have already drifted on `signed_timestamp`; B6 reconciles this — do it before any contract-touching ticket).
 
 ### Sequencing summary
@@ -264,6 +295,6 @@ Size S/M/L. Lanes are parallel-safe for coding agents (minimal file overlap). De
 1. Wave 0 + G1/G5 immediately (cheap, kills theater, makes CI honest). — DONE 2026-08-11 (#264)
 2. Wave 1 = pilot blocker set. After Wave 1: a startup can log in, data is tenant-safe, prod is backed up, deploys are gated. — DONE 2026-08-11 (#265)
 3. Wave 2 = the refresh: real LangGraph runtime + HITL inbox. — DONE 2026-08-11 (#266)
-4. **Wave 2.5 = legibility (Part 5)**: the product must *read* before it grows — Brief layout, humanized identity, Kenny as front door, graph-as-lens, progressive loading. U3's digest/needs-you slots are the landing zones Wave 3 fills.
-5. Wave 3 = DRM value: digest, commitments, Slack, CRM.
+4. **Wave 2.5 = legibility (Part 5)**: the product must *read* before it grows — Brief layout, humanized identity, Kenny as front door, graph-as-lens, progressive loading. U3's digest/needs-you slots are the landing zones Wave 3 fills. — DONE 2026-08-11 (#273)
+5. Wave 3 re-scoped (see Part 5 "The demo thesis"): demo kit + conviction features (K1–K5, F3, F1) first; adoption features (F5–F7) after first pilot.
 6. Wave 4 = longscale proof for buyer conversations.
