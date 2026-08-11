@@ -31,6 +31,40 @@ def _ins_tenant(engine: Engine, tid: uuid.UUID) -> None:
         )
 
 
+def _ins_ledger_event(
+    engine: Engine,
+    tenant_id: uuid.UUID,
+    engagement_id: str,
+    source_kind: str,
+    occurred_at: datetime,
+    summary: str,
+    source_ref: uuid.UUID | None = None,
+) -> uuid.UUID:
+    event_id = uuid.uuid4()
+    with engine.begin() as c:
+        c.execute(
+            text(
+                """
+                INSERT INTO ledger_events
+                  (id, tenant_id, engagement_id, occurred_at, actor_kind, actor_id,
+                   source_kind, source_ref, summary, detail)
+                VALUES
+                  (:id, :t, :e, :occ, 'user', 'events-test', :sk, :src, :su, '{}'::jsonb)
+                """
+            ),
+            {
+                "id": str(event_id),
+                "t": str(tenant_id),
+                "e": engagement_id,
+                "occ": occurred_at,
+                "sk": source_kind,
+                "src": str(source_ref) if source_ref else None,
+                "su": summary,
+            },
+        )
+    return event_id
+
+
 def _ins_event(
     engine: Engine,
     tenant_id: uuid.UUID,
@@ -77,6 +111,18 @@ async def ev_client(postgres_engine: Engine, monkeypatch: pytest.MonkeyPatch) ->
     finally:
         await client.aclose()
         clear_engine_cache()
+
+
+@pytest_asyncio.fixture
+async def db_session(postgres_engine: Engine, monkeypatch: pytest.MonkeyPatch):
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    monkeypatch.setenv("DATABASE_URL", _async_url(postgres_engine))
+    engine = create_async_engine(_async_url(postgres_engine))
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with session_factory() as session:
+        yield session
+    await engine.dispose()
 
 
 async def _new_engagement(client: AsyncClient, postgres_engine: Engine) -> tuple[uuid.UUID, str]:
@@ -215,6 +261,123 @@ async def test_events_summary_truncated_to_240_chars(ev_client: AsyncClient, pos
     events = r.json()["events"]
     assert len(events) == 1
     assert len(events[0]["summary"]) == 240
+
+
+@pytest.mark.asyncio
+async def test_events_resolves_ledger_event_ids(ev_client: AsyncClient, postgres_engine: Engine) -> None:
+    """Evidence ids that reference ledger_events rows resolve too (BlueState seeds cite them)."""
+    tid, eid = await _new_engagement(ev_client, postgres_engine)
+    now = datetime.now(UTC)
+    ref = uuid.uuid4()
+    a = _ins_ledger_event(
+        postgres_engine,
+        tid,
+        eid,
+        "proposal_accepted",
+        now - timedelta(days=1),
+        "proposal accepted: decision — Identity provider",
+        source_ref=ref,
+    )
+    r = await ev_client.get(f"/internal/v1/engagements/{eid}/events?tenant_id={tid}&ids={a}")
+    assert r.status_code == 200, r.text
+    events = r.json()["events"]
+    assert len(events) == 1
+    assert events[0]["id"] == str(a)
+    assert events[0]["event_type"] == "proposal_accepted"
+    assert events[0]["summary"] == "proposal accepted: decision — Identity provider"
+    assert events[0]["source_ref"] == str(ref)
+
+
+@pytest.mark.asyncio
+async def test_events_merges_canonical_and_ledger_ordered(ev_client: AsyncClient, postgres_engine: Engine) -> None:
+    tid, eid = await _new_engagement(ev_client, postgres_engine)
+    now = datetime.now(UTC)
+    ledger_old = _ins_ledger_event(
+        postgres_engine,
+        tid,
+        eid,
+        "llm_proposal_created",
+        now - timedelta(days=3),
+        "proposal drafted: decision — Okta over Auth0",
+    )
+    canonical_mid = _ins_event(
+        postgres_engine,
+        tid,
+        eid,
+        "ingest.email",
+        now - timedelta(days=2),
+        {"text": "Okta vs Auth0 — quick read"},
+    )
+    ledger_new = _ins_ledger_event(
+        postgres_engine,
+        tid,
+        eid,
+        "proposal_accepted",
+        now - timedelta(days=1),
+        "proposal accepted: decision — Okta over Auth0",
+    )
+    r = await ev_client.get(
+        f"/internal/v1/engagements/{eid}/events?tenant_id={tid}&ids={ledger_new},{canonical_mid},{ledger_old}"
+    )
+    assert r.status_code == 200, r.text
+    events = r.json()["events"]
+    assert [e["id"] for e in events] == [str(ledger_old), str(canonical_mid), str(ledger_new)]
+    assert all(e["summary"] for e in events)
+
+
+@pytest.mark.asyncio
+async def test_events_ledger_rows_scoped_to_engagement_and_tenant(
+    ev_client: AsyncClient, postgres_engine: Engine
+) -> None:
+    tid, eid = await _new_engagement(ev_client, postgres_engine)
+    r_other = await ev_client.post(f"/internal/v1/engagements?tenant_id={tid}", json={"name": "Other"})
+    other_eid = r_other.json()["id"]
+    ours = _ins_ledger_event(postgres_engine, tid, eid, "email_ingest", datetime.now(UTC) - timedelta(days=1), "ours")
+    theirs = _ins_ledger_event(
+        postgres_engine, tid, other_eid, "email_ingest", datetime.now(UTC) - timedelta(days=1), "not ours"
+    )
+    r = await ev_client.get(f"/internal/v1/engagements/{eid}/events?tenant_id={tid}&ids={ours},{theirs}")
+    assert r.status_code == 200, r.text
+    events = r.json()["events"]
+    assert len(events) == 1
+    assert events[0]["id"] == str(ours)
+
+
+@pytest.mark.asyncio
+async def test_events_resolves_bluestate_node_evidence(
+    ev_client: AsyncClient, db_session, postgres_engine: Engine
+) -> None:
+    """Regression: BlueState matrix nodes cite ledger_events ids — the drill-down must resolve them."""
+    from control_plane.scenarios.bluestate.runner import apply_bluestate_scenario
+
+    tid = uuid.uuid4()
+    seeded = await apply_bluestate_scenario(db_session, tenant_id=tid, skip_snapshots=True, skip_analyzers=True)
+    await db_session.commit()
+    eid = seeded.engagement_id
+
+    with postgres_engine.begin() as c:
+        row = c.execute(
+            text(
+                "SELECT id, evidence_event_ids FROM matrix_nodes "
+                "WHERE engagement_id = CAST(:e AS uuid) AND tenant_id = CAST(:t AS uuid) "
+                "AND node_type = 'decision' AND array_length(evidence_event_ids, 1) > 0 "
+                "LIMIT 1"
+            ),
+            {"e": str(eid), "t": str(tid)},
+        ).first()
+    assert row is not None, "seed produced no decision node with evidence"
+    evidence_ids = list(row.evidence_event_ids)
+    assert len(evidence_ids) > 0
+
+    ids_param = ",".join(str(x) for x in evidence_ids)
+    r = await ev_client.get(f"/internal/v1/engagements/{eid}/events?tenant_id={tid}&ids={ids_param}")
+    assert r.status_code == 200, r.text
+    events = r.json()["events"]
+    assert len(events) == len(evidence_ids)
+    for ev in events:
+        assert ev["id"]
+        assert ev["summary"]
+        assert ev["occurred_at"]
 
 
 @pytest.mark.asyncio
