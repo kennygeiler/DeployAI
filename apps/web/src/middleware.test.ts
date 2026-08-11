@@ -225,7 +225,9 @@ describe("dev role injection is strictly opt-in (ticket A2)", () => {
 
 describe("unauthenticated browser redirect (bootstrap login)", () => {
   it("redirects HTML page requests without a role to /login?next=", async () => {
-    const res = await middleware(req("/engagements", { accept: "text/html,application/xhtml+xml" }));
+    const res = await middleware(
+      req("/engagements", { accept: "text/html,application/xhtml+xml" }),
+    );
     expect(res.status).toBe(307);
     const loc = new URL(res.headers.get("location") ?? "", "http://localhost");
     expect(loc.pathname).toBe("/login");
