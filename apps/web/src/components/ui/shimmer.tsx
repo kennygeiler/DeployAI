@@ -96,8 +96,10 @@ function PixelLoader({
         {label}
         <span className="sr-only"> — in progress</span>
       </span>
+      {/* Counter uses ink-2, not ink-3: it is visible informative text, so it
+          must meet AA contrast (axe checks visible text despite aria-hidden). */}
       {showElapsed ? (
-        <span aria-hidden="true" className="text-xs tabular-nums text-ink-3">
+        <span aria-hidden="true" className="text-xs tabular-nums text-ink-2">
           {elapsed}
         </span>
       ) : null}
