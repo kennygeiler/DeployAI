@@ -1,12 +1,14 @@
 "use client";
 
 import {
+  CableIcon,
   CalendarIcon,
   ClipboardListIcon,
   FileTextIcon,
   GitBranchIcon,
   LightbulbIcon,
   MailIcon,
+  MessageCircleIcon,
   ShieldCheckIcon,
   SparklesIcon,
   UserPlusIcon,
@@ -17,36 +19,31 @@ import * as React from "react";
 import { TimestampLabel } from "@/components/common/TimestampLabel.client";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 import type { LedgerEvent } from "@/lib/internal/ledger-cp";
+import {
+  humanSourceKindLabel,
+  sourceKindIconName,
+  stripRedundantKindPrefix,
+  type SourceKindIconName,
+} from "@/lib/labels";
 
 type IconComponent = React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
 
-const SOURCE_KIND_ICON: Record<string, IconComponent> = {
-  email_ingest: MailIcon,
-  meeting_webhook: CalendarIcon,
-  manual_capture: ClipboardListIcon,
-  llm_proposal_created: SparklesIcon,
-  proposal_accepted: SparklesIcon,
-  proposal_rejected: SparklesIcon,
-  matrix_node_created: GitBranchIcon,
-  matrix_node_updated: GitBranchIcon,
-  matrix_node_deleted: GitBranchIcon,
-  matrix_edge_created: GitBranchIcon,
-  matrix_edge_deleted: GitBranchIcon,
-  insight_opened: LightbulbIcon,
-  insight_closed: LightbulbIcon,
-  recommendation_emitted: LightbulbIcon,
-  recommendation_actioned: LightbulbIcon,
-  engagement_phase_change: ShieldCheckIcon,
-  member_added: UserPlusIcon,
-  member_removed: UserPlusIcon,
-  settings_change: ShieldCheckIcon,
-  audit_other: ShieldCheckIcon,
-  audit_decision: ShieldCheckIcon,
-  user_provisioned: UserPlusIcon,
+const ICON_BY_NAME: Record<SourceKindIconName, IconComponent> = {
+  mail: MailIcon,
+  calendar: CalendarIcon,
+  clipboard: ClipboardListIcon,
+  sparkles: SparklesIcon,
+  graph: GitBranchIcon,
+  lightbulb: LightbulbIcon,
+  shield: ShieldCheckIcon,
+  person: UserPlusIcon,
+  chat: MessageCircleIcon,
+  cable: CableIcon,
+  document: FileTextIcon,
 };
 
 function iconFor(sourceKind: string): IconComponent {
-  return SOURCE_KIND_ICON[sourceKind] ?? FileTextIcon;
+  return ICON_BY_NAME[sourceKindIconName(sourceKind)];
 }
 
 export function RecentActivityStrip({ engagementId }: { engagementId: string }) {
@@ -121,7 +118,9 @@ export function RecentActivityStrip({ engagementId }: { engagementId: string }) 
         {events.map((ev) => {
           const Icon = iconFor(ev.source_kind);
           const href = `/engagements/${encodeURIComponent(engagementId)}/timeline?event=${encodeURIComponent(ev.id)}`;
-          const accessibleName = `${ev.source_kind.replace(/_/g, " ")} — ${ev.summary}`;
+          const kindLabel = humanSourceKindLabel(ev.source_kind);
+          const summary = stripRedundantKindPrefix(ev.summary, ev.source_kind);
+          const accessibleName = summary === kindLabel ? kindLabel : `${kindLabel} — ${summary}`;
           return (
             <li key={ev.id} className="shrink-0 snap-start">
               <Link
@@ -132,9 +131,9 @@ export function RecentActivityStrip({ engagementId }: { engagementId: string }) 
               >
                 <div className="text-ink-600 flex items-center gap-2 text-xs">
                   <Icon className="size-3.5" aria-hidden />
-                  <span className="font-mono uppercase">{ev.source_kind}</span>
+                  <span className="font-medium">{kindLabel}</span>
                 </div>
-                <p className="text-ink-800 line-clamp-2 text-sm">{ev.summary}</p>
+                <p className="text-ink-800 line-clamp-2 text-sm">{summary}</p>
                 <TimestampLabel value={ev.occurred_at} className="text-ink-500 mt-auto" />
               </Link>
             </li>

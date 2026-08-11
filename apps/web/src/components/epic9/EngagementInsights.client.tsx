@@ -16,6 +16,7 @@ import {
 } from "@/lib/bff/insight-grouping";
 import type { UnifiedInsight } from "@/lib/bff/insight-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
+import { stripRedundantKindPrefix } from "@/lib/labels";
 
 /**
  * Phase 7 (increment 7.3) + pilot-refresh F2 — the insights surface for one
@@ -366,7 +367,9 @@ function InsightGroupSection({
                   </Button>
                 </div>
               </div>
-              <p className="font-medium text-ink">{i.title}</p>
+              <p className="font-medium text-ink">
+                {stripRedundantKindPrefix(i.title, i.insight_type)}
+              </p>
               <p className="whitespace-pre-line text-ink-600">{i.body}</p>
             </li>
           ))}

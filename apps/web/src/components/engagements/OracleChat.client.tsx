@@ -76,15 +76,37 @@ type ApprovalResumeResponse = {
 };
 
 /**
- * Right-side collapsible Agent Kenny chat panel. Single-turn POST against
- * the BFF (G1.a CP route returns JSON; SSE upgrade is a follow-up). Loads
- * conversation history on first open + after each send.
+ * Agent Kenny chat panel. Single-turn POST against the BFF (G1.a CP route
+ * returns JSON; SSE upgrade is a follow-up). Loads conversation history on
+ * first open + after each send.
+ *
+ * Wave 2.5 U4 — presentational variants (transport/SSE logic untouched):
+ * - "rail" (default): the original right-side collapsible rail.
+ * - "overlay": full-width panel opened by the ask-bar; always open while
+ *   mounted, closed via `onClose`.
+ * - "embedded": static full-width panel (the Brief's Chat tab).
+ * `initialInput` seeds the composer; with `autoSend` the seeded question is
+ * sent once on mount (the ask-bar submit path).
  */
-export function OracleChat({ engagementId }: { engagementId: string }) {
-  const [open, setOpen] = React.useState(false);
+export type OracleChatProps = {
+  engagementId: string;
+  variant?: "rail" | "overlay" | "embedded";
+  onClose?: () => void;
+  initialInput?: string;
+  autoSend?: boolean;
+};
+
+export function OracleChat({
+  engagementId,
+  variant = "rail",
+  onClose,
+  initialInput,
+  autoSend = false,
+}: OracleChatProps) {
+  const [open, setOpen] = React.useState(variant !== "rail");
   const [turns, setTurns] = React.useState<Turn[]>([]);
   const [conversationId, setConversationId] = React.useState<string | null>(null);
-  const [input, setInput] = React.useState("");
+  const [input, setInput] = React.useState(initialInput ?? "");
   const [loadingHistory, setLoadingHistory] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const [streamingContent, setStreamingContent] = React.useState<string | null>(null);
@@ -588,7 +610,20 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
     [send],
   );
 
+  // U4 — ask-bar submit: send the seeded question once on mount. Purely a
+  // trigger for the existing send path; transport behavior is unchanged.
+  const autoSentRef = React.useRef(false);
+  React.useEffect(() => {
+    if (autoSend && !autoSentRef.current && input.trim().length > 0 && !sending) {
+      autoSentRef.current = true;
+      void send();
+    }
+  }, [autoSend, input, send, sending]);
+
   if (!open) {
+    if (variant !== "rail") {
+      return null;
+    }
     return (
       <Button
         type="button"
@@ -610,11 +645,15 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
     );
   }
 
+  const panelClassName =
+    variant === "overlay"
+      ? "fixed inset-x-0 top-16 bottom-0 z-50 flex w-full flex-col border-t border-line bg-page shadow-overlay"
+      : variant === "embedded"
+        ? "flex h-[70vh] w-full flex-col rounded-card border border-line bg-page shadow-card"
+        : "fixed top-16 right-0 bottom-0 z-40 flex w-[400px] max-w-[95vw] flex-col border-l border-line bg-page shadow-overlay";
+
   return (
-    <aside
-      className="fixed top-16 right-0 bottom-0 z-40 flex w-[400px] max-w-[95vw] flex-col border-l border-line bg-page shadow-overlay"
-      data-testid="oracle-chat-panel"
-    >
+    <aside className={panelClassName} data-testid="oracle-chat-panel" data-variant={variant}>
       <header className="flex items-center justify-between gap-2 border-b border-line bg-surface px-3 py-2">
         <h2 id={PANEL_TITLE_ID} className="text-sm font-semibold text-ink">
           Agent Kenny
@@ -630,17 +669,25 @@ export function OracleChat({ engagementId }: { engagementId: string }) {
           >
             Clear
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-7 px-2 text-xs"
-            aria-expanded={true}
-            aria-controls="oracle-chat-body"
-            onClick={() => setOpen(false)}
-          >
-            Hide
-          </Button>
+          {variant === "rail" || onClose ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-xs"
+              aria-expanded={true}
+              aria-controls="oracle-chat-body"
+              onClick={() => {
+                if (variant === "rail") {
+                  setOpen(false);
+                } else {
+                  onClose?.();
+                }
+              }}
+            >
+              {variant === "rail" ? "Hide" : "Close"}
+            </Button>
+          ) : null}
         </div>
       </header>
 

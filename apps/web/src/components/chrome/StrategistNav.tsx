@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, Cable, Gauge, Inbox, Search, Settings } from "lucide-react";
+import { Briefcase, Cable, Gauge, Inbox, MessageCircle, Search, Settings } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -20,6 +20,8 @@ type NavItem = { href: string; label: string; icon: React.ComponentType<{ classN
  */
 const primary: readonly NavItem[] = [
   { href: "/engagements", label: "Engagements", icon: Briefcase },
+  // Wave 2.5 U10 — global Kenny: engagement-scoped Q&A from anywhere.
+  { href: "/ask", label: "Ask", icon: MessageCircle },
   { href: "/review", label: "Review inbox", icon: Inbox },
   { href: "/search", label: "Search", icon: Search },
   { href: "/settings", label: "Settings", icon: Settings },

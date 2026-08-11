@@ -24,4 +24,22 @@ export type EngagementMember = {
   user_id: string;
   role: string;
   created_at: string;
+  /** Wave 2.5 U2 (additive) — human identity fields for member rendering. */
+  display_name?: string | null;
+  email?: string | null;
+};
+
+/**
+ * Wave 2.5 U7 (additive) — needs-attention rollup on engagement list rows.
+ * Older CP builds omit these fields; render paths must treat them as absent.
+ */
+export type EngagementNeedsAttention = {
+  proposals_pending: number;
+  escalations_open: number;
+  days_since_last_event: number;
+};
+
+export type EngagementListRow = Engagement & {
+  needs_attention?: EngagementNeedsAttention | null;
+  attention_score?: number | null;
 };

@@ -36,8 +36,10 @@ export default async function EngagementsPage() {
   }
   return (
     <div className="max-w-5xl space-y-6">
-      <PortfolioInsights />
+      {/* Wave 2.5 U7 — the deals table leads; portfolio insights follow as
+          ranked one-line cards. */}
       <EngagementPortfolio />
+      <PortfolioInsights />
     </div>
   );
 }

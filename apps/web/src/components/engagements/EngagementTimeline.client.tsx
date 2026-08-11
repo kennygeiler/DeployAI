@@ -5,6 +5,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 import type { LedgerEvent } from "@/lib/internal/ledger-cp";
+import { humanSourceKindLabel } from "@/lib/labels";
 
 /**
  * G2.c — "Audit AI" timeline filter + reject action.
@@ -155,8 +156,8 @@ export function EngagementTimeline({ engagementId }: { engagementId: string }): 
               <li key={ev.id} className="space-y-1 px-3 py-2">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-ink-700 text-xs">{formatOccurredAt(ev.occurred_at)}</span>
-                  <span className="bg-ink-100 text-ink-800 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase">
-                    {ev.source_kind}
+                  <span className="bg-ink-100 text-ink-800 rounded px-1.5 py-0.5 text-[10px] font-medium">
+                    {humanSourceKindLabel(ev.source_kind)}
                   </span>
                 </div>
                 <p className="text-ink-700 whitespace-pre-line">{ev.summary}</p>
