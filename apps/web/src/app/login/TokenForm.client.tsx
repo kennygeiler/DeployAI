@@ -10,6 +10,8 @@
 
 import * as React from "react";
 
+import { Button } from "@/components/ui/button";
+
 const COOKIE_NAME = "deployai_access_token";
 
 export function TokenForm({ next }: { next: string }) {
@@ -56,20 +58,9 @@ export function TokenForm({ next }: { next: string }) {
           {err}
         </p>
       ) : null}
-      <button
-        type="submit"
-        style={{
-          marginTop: "0.75rem",
-          padding: "0.625rem 1.5rem",
-          borderRadius: "0.5rem",
-          border: "1px solid currentColor",
-          background: "none",
-          fontWeight: 500,
-          cursor: "pointer",
-        }}
-      >
+      <Button type="submit" variant="outline" className="mt-3">
         Continue with token
-      </button>
+      </Button>
     </form>
   );
 }
