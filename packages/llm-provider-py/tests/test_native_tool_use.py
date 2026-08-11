@@ -116,7 +116,8 @@ async def test_anthropic_chat_complete_stream_with_tools_mocked(monkeypatch: pyt
 
     monkeypatch.setattr(AnthropicProvider, "_iter_sse_events", fake_iter_events)  # type: ignore[assignment]
 
-    p = AnthropicProvider(api_key="sk-test")
+    # model pinned pre-5: Claude 5-family models omit `temperature` from the body
+    p = AnthropicProvider(api_key="sk-test", model="claude-opus-4-1")
     out: list[ToolStreamChunk] = []
     async for c in p.chat_complete_stream_with_tools(
         [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}],
