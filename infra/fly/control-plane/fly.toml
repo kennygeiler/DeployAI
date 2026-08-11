@@ -40,6 +40,16 @@ primary_region = "iad"
   PORT = "8000"
   DEPLOYAI_AGENT_KENNY_V2_ENABLED = "1"
   DEPLOYAI_LLM_PROVIDER = "anthropic"
+  # RS256 signing key for CP-minted session JWTs (web verifies with the
+  # public PEM via DEPLOYAI_WEB_JWT_PUBLIC_KEY_PEM). The private key is
+  # materialized from the base64 secret below via [[files]].
+  DEPLOYAI_JWT_PRIVATE_KEY_PATH = "/app/keys/jwt-private.pem"
+
+# Materialize the JWT signing key as a file — the CP reads it by path.
+# Set with: fly secrets set DEPLOYAI_JWT_PRIVATE_KEY_B64="$(base64 < jwt-private.pem)"
+[[files]]
+  guest_path = "/app/keys/jwt-private.pem"
+  secret_name = "DEPLOYAI_JWT_PRIVATE_KEY_B64"
 
 [http_service]
   internal_port = 8000
