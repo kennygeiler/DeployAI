@@ -6,10 +6,23 @@
 [![Python](https://img.shields.io/badge/python-3.13-3776AB?logo=python)](./services/control-plane/.python-version)
 [![License](https://img.shields.io/badge/license-UNLICENSED-lightgrey.svg)](./README.md#license)
 
-> **A deployment matrix you can ask questions of.** DeployAI is a tool for deployment / forward-deployed teams who lose
-> insight in the seams — Slack threads, sales-ops handoffs, security reviews, customer Notion pages, the ticket queue.
-> Capture each engagement as a typed, time-travelable property graph; let **Agent Kenny** — a multi-step LLM agent with
-> citation discipline — answer questions, walk causal chains, and surface cross-team patterns without hallucinating.
+> **Deal relationship memory you can ask questions of — with receipts.** DeployAI is for deployment and
+> forward-deployed teams running long, messy engagements where the truth lives in the seams: Slack threads,
+> email chains, meeting transcripts, handoffs. It captures each engagement as a typed, evidence-linked
+> property graph on an append-only event ledger, and puts **Agent Kenny** on top — a checkpointed multi-step
+> LLM agent that answers questions, walks causal chains, and **verifies every citation against the database
+> before you see it**. When Kenny can't ground an answer, it says so instead of guessing.
+
+Three ideas carry the system:
+
+1. **Everything is evidence.** Every stakeholder, decision, risk, and commitment traces back to source
+   events in an append-only ledger (enforced by database trigger, not convention).
+2. **The agent is accountable.** Citations are DB-verified per claim; cross-engagement leaks are hard-rejected
+   and audited; side-effectful tool calls pause for human approval; an eval gate with a zero-leak requirement
+   runs in CI.
+3. **Humans stay in the loop.** Extractions, agent escalations, and citation disputes flow through a Review
+   Inbox; resolved escalations become new canonical evidence, so answering a question once grounds every
+   future answer.
 
 ---
 
@@ -19,46 +32,37 @@
 git clone https://github.com/kennygeiler/DeployAI.git && cd DeployAI
 pnpm install --frozen-lockfile
 cp infra/compose/.env.example infra/compose/.env       # add ANTHROPIC_API_KEY
-make dev                                               # full local stack (web, control-plane, postgres, redis, minio, mcp-server)
+make dev                                               # full local stack — first run 5-15 min
 make seed-scenario-bluestate                           # 26-week ground-truth engagement
 open http://localhost:3000/engagements
 ```
 
+The stack is nine containers: web, control-plane, Postgres (pgvector + Apache AGE), Redis, MinIO,
+Keycloak, embedder, MCP server, and a TSA stub. `make dev-verify` health-checks all of them.
+
 Then:
 
-1. Click **BlueState Health — Member Portal Replatform**.
-2. Scrub the time-slider on the matrix view — every node carries its provenance back to source events.
-3. Open the **Agent Kenny** chat panel. Ask: *"What concerns were raised about the Active Directory migration before
-   we approved it in W22?"* Kenny calls tools, walks the causal chain, cites every claim inline, and runs an
-   adversarial reviewer over its own reply before sending it.
-4. Visit `/admin/agent-kenny-dashboard` for hallucination rate, tool-call distribution, latency percentiles, and lint
-   flag counts — populated from the same eval harness that gates CI.
+1. Open **BlueState Health — Member Portal Replatform**.
+2. Explore the matrix — every node carries provenance back to its source events; the snapshot slider
+   replays past states.
+3. Ask **Agent Kenny**: *"What concerns were raised before we approved the identity-provider decision?"*
+   Kenny calls tools, walks the causal chain, and cites every claim inline. Ask it something the
+   engagement doesn't contain and it will tell you that — with the nearest real matches — rather than
+   invent an answer.
+4. Open **Review** in the sidebar — the HITL inbox for extraction proposals, agent escalations, and
+   citation disputes.
+5. Visit `/admin/agent-kenny-dashboard` for hallucination rate, tool-call distribution, and latency
+   percentiles.
 
-For a denser fixture, the onboarding wizard exposes two more seeds: **BlueState-XL** (5-year single-engagement,
-~2.5k ledger events, ~70 stakeholders) and **DeployAI Portfolio** (5 sibling engagements × 26 weeks, used to verify
-tenant + engagement isolation).
+Denser fixtures (seedable from the onboarding wizard or the internal API): **BlueState-XL** (5 years,
+~2.5k ledger events, ~70 stakeholders — also the longscale eval corpus) and **Portfolio** (5 sibling
+engagements, used to prove tenant/engagement isolation).
 
-### Cloud deploy (Fly.io + Cloudflare Access)
+### Cloud deploy (Fly.io)
 
-```bash
-brew install flyctl && fly auth login
-# Create apps + Postgres + Redis; set secrets — see docs/ops/cloud-deploy.md §2-3
-scripts/cloud-deploy.sh        # deploys all 5 services in order
-# Then wire Cloudflare Access in front of app.<your-domain> and api.<your-domain>
-# — see docs/ops/cloud-deploy.md §5
-```
-
-After the first manual deploy works, set the `FLY_API_TOKEN` repo secret
-and the [`cloud-deploy.yml`](./.github/workflows/cloud-deploy.yml)
-workflow auto-redeploys on every push to `main`, writing live URLs back
-to GitHub's Environments UI (repo sidebar + per-commit "View deployment"
-links). See `docs/ops/cloud-deploy.md §3.1`.
-
-Single-tenant pilot cost: ~$5-30/mo + LLM usage (Claude pay-as-you-go + Voyage embeddings). Cloudflare Access
-free tier covers up to 50 users.
-
-Full runbook: [`docs/ops/cloud-deploy.md`](./docs/ops/cloud-deploy.md). Architecture / trust boundaries:
-[`docs/ops/cloud-deploy-architecture.md`](./docs/ops/cloud-deploy-architecture.md).
+Five Fly apps (postgres / control-plane / web / mcp-server / embedder) with CI auto-deploy on `main`
+gated on the test suite, nightly S3 backups, and OIDC login. Full operator runbook:
+[`docs/ops/cloud-deploy.md`](./docs/ops/cloud-deploy.md).
 
 ---
 
@@ -66,67 +70,78 @@ Full runbook: [`docs/ops/cloud-deploy.md`](./docs/ops/cloud-deploy.md). Architec
 
 | Surface | What it does | Where it lives |
 |---|---|---|
-| **Engagement matrix** | Typed property graph of stakeholders / systems / decisions / risks / commitments / opportunities. Time-travel slider over daily snapshots. Provenance drawer on every node. | `apps/web/src/app/engagements/[engagementId]` |
-| **Timeline ledger** | Append-only causal-graph log. Every state change emits a `ledger_event` with `caused_by` + `affects` edges. Backbone of audit + chain-walking. | `services/control-plane/src/control_plane/ledger/` |
-| **Agent Kenny (chat)** | Multi-step LangGraph agent — retrieve → reason → tool-call → verify citations → adversarial-review → persist + audit. 12 internal tools, optional outbound MCP tools, hard tenant scoping, only-write tool is `propose_action`. | `services/control-plane/src/control_plane/agents/agent_kenny/` |
-| **Citation discipline** | Every `[event:UUID]` / `[node:UUID]` / `[insight:UUID]` in a reply is regex-extracted, DB-checked against the current tenant + engagement, and either verified, revised, or flagged. Cross-engagement leak → hard reject + security ledger event. | `agents/agent_kenny/nodes/citations.py` |
-| **Adversarial review** | Haiku-class auditor model reads Kenny's reply and the evidence, lists unstated assumptions / overreach / unsupported claims. Concerns emit `agent_audit_concern` ledger events for human review. | `agents/agent_kenny/nodes/adversarial.py` |
-| **Compounding synthesis** | Background workers refresh `matrix_insights` rows on every relevant ledger emit. Insights persist with per-claim provenance and `source_event_ids`; lint worker marks them stale on upstream change. | `services/control-plane/src/control_plane/workers/synthesizer.py`, `wiki_lint.py` |
-| **MCP inbound server** | Standalone uvicorn service (port 3030). Third-party MCP clients (Claude Desktop, IDE plugins) authenticate with tenant API keys + read the matrix + ledger via the Model Context Protocol. Read-only — `propose_action` is not exposed. | `services/mcp-server/` |
-| **MCP outbound (Kenny → 3rd party)** | Tenant admins enable connectors from a curated catalog. At loop start Kenny merges those tools into its registry, namespaced (`slack.search_messages`, etc.). Kill-switch + per-tool / per-MCP / per-tenant rate limits. Slack OAuth is wired end-to-end; Linear / GDrive / Notion / GitHub return `501` until per-connector flows ship. | `agents/agent_kenny/mcp_client.py`, `mcp_loader.py`, `mcp_kill_switch.py` |
-| **pgvector fuzzy fallback** | `vector(1024)` columns on `ledger_events`, `matrix_nodes`, `matrix_insights`, `oracle_chat_turns`; HNSW indexes; Voyage-3 embedder worker drains a job queue. `vector_search` tool is the fallback path — curated synthesis is the hot path. | migrations `0050_pgvector_embeddings.py`, `workers/embedder.py`, `agents/tools/search.py` |
-| **Eval harness** | 30 hand-curated golden questions against BlueState-XL: direct lookup, causal chain, "I don't know" negatives, cross-engagement protection probes, multi-hop. Nightly 5-question sample + weekly full set in CI. Cross-engagement leak fails the build. | `services/control-plane/tests/golden/agent_kenny/`, `.github/workflows/agent-kenny-eval.yml` |
-| **Admin dashboard** | Hallucination rate (7d trend), tool-call distribution, p50 / p95 / p99 latency, "I don't know" rate, lint flag counts, top-cited events / nodes, adversarial concerns. | `apps/web/src/app/(strategist)/admin/agent-kenny-dashboard/` |
-| **Six statistical analyzers** | `engagement_silence`, `decision_cycle_slowdown`, `risk_open_rate`, `stakeholder_churn`, `extractor_acceptance_drift`, `decision_provenance_summary`. Pure SQL except the last (LLM-narrated). | `services/control-plane/src/control_plane/intelligence/` |
+| **Engagement matrix** | Typed property graph — stakeholders / systems / decisions / risks / commitments — with per-node provenance and daily snapshots. Mirrored into an Apache AGE graph for Cypher traversal. | `apps/web/src/app/(strategist)/engagements/` |
+| **Event ledger** | Append-only causal log (DB-trigger-enforced). Every state change emits a `ledger_event` with `caused_by` / `affects` edges — the backbone of audit, chain-walking, and provenance. | `services/control-plane/src/control_plane/ledger/` |
+| **Agent Kenny** | Checkpointed LangGraph agent (Postgres saver, tenant-scoped threads): retrieve → reason → tool-call → verify citations → review → persist + audit. 13 read tools; the only write tool is `propose_action`. Runtime selectable (`DEPLOYAI_AGENT_RUNTIME=langgraph\|legacy`) with a CI parity gate between drivers. | `services/control-plane/src/control_plane/agents/agent_kenny/` |
+| **Citation discipline** | Every `[event:UUID]` / `[node:UUID]` / `[insight:UUID]` in a reply is DB-checked against the current tenant + engagement — verified, revised, or flagged. A cross-engagement citation hard-rejects the reply and emits a security ledger event. | `agents/agent_kenny/nodes/citations.py` |
+| **In-turn approvals** | Side-effectful tool calls (external MCP writes) pause the graph via `interrupt()`, stream an `approval_required` frame, and render an approval card in chat. Approve later — the checkpointed thread resumes exactly where it stopped. | `agents/agent_kenny/approvals.py`, `apps/web/src/components/ui/approval-card.tsx` |
+| **Review Inbox (HITL)** | One queue for extraction proposals, agent escalations, and citation disputes. Resolving an escalation with an answer records it as canonical, cited evidence — the knowledge flywheel. Confidence-thresholded auto-accept with a deterministic sampling audit. | `services/control-plane/src/control_plane/services/review_inbox.py`, `apps/web/src/app/(strategist)/review/` |
+| **Tenant isolation** | Postgres row-level security (FORCE) on every tenant-scoped table, per-tenant service tokens, a catalog test that fails CI if a new table ships without RLS, and a cross-tenant fuzz harness (10k attempts per run) with an anti-test proving the fuzzer catches real leaks. | `alembic/versions/`, `tests/fuzz/` |
+| **MCP, both directions** | Inbound: a standalone read-only MCP server so Claude Desktop / IDEs can query the matrix + ledger with tenant API keys. Outbound: Kenny can call tenant-enabled connectors (Slack wired; others staged) behind four ordered guards — kill switch → allow-list → rate limit → SSRF egress guard. | `services/mcp-server/`, `agents/agent_kenny/mcp_client.py` |
+| **Search** | Keyword + pgvector semantic search (`vector(1024)`, HNSW, Voyage-3 embeddings via a durable job queue) as tools available to Kenny and the UI. | `agents/tools/search.py`, migrations `0050` |
+| **Eval harness** | 30 hand-curated golden questions grounded in the seeded corpus, run by a real CLI against a self-provisioned database. Blocking PR gate (deterministic 5-question subset), nightly sample + weekly full run, and an unconditional **cross-engagement-leak-count = 0** hard-fail. | `services/control-plane/tests/golden/agent_kenny/`, `.github/workflows/agent-kenny-eval.yml` |
+| **Admin dashboard** | Hallucination rate, tool-call distribution, p50/p95/p99 latency, IDK rate, lint flags, top-cited events, adversarial concerns. | `apps/web/src/app/(strategist)/admin/agent-kenny-dashboard/` |
 
 ---
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│  apps/web (Next.js 16, App Router, React 19)                                      │
-│  ── engagements portfolio, detail, timeline, matrix time-slider                   │
-│  ── Agent Kenny chat panel (SSE, intermediate thinking / tool_call / citation     │
-│     chips render above the streaming reply)                                       │
-│  ── admin: Agent Kenny dashboard, MCP integrations, kill-switch, API keys         │
-└─────────────────────────────────┬────────────────────────────────────────────────┘
-                                  │  BFF (Next.js server routes, Zod-narrowed)
-                                  ▼
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│  services/control-plane (FastAPI + async SQLAlchemy 2.x)                          │
-│                                                                                  │
-│   Domain / API           Agents                       Workers                    │
-│   ──────────────         ──────────                   ────────                   │
-│   matrix CRUD                                         synthesizer                │
-│   ledger emitter         agent_kenny (LangGraph)      wiki_lint                  │
-│   snapshot routes        ├─ retrieve / llm_call       embedder (Voyage-3)        │
-│   intelligence (analyzers)  tool_dispatch / revise                               │
-│   tenant_mcp_configs     ├─ citations / adversarial                              │
-│   eval runner            └─ persist + audit                                      │
-└─────────────────────────────────┬────────────────────────────────────────────────┘
-                                  │
-              ┌───────────────────┼───────────────────────┐
-              ▼                   ▼                       ▼
-┌────────────────────┐  ┌────────────────────┐  ┌──────────────────────────────┐
-│ Postgres 16        │  │ services/mcp-server│  │ Outbound MCP (per tenant)    │
-│ + pgvector (HNSW)  │  │ (inbound MCP, 3030)│  │ slack-mcp wired; linear,     │
-│ + Apache AGE       │  │ tenant API keys,   │  │ gdrive, notion, github stubs │
-│ ledger / matrix /  │  │ read-only matrix + │  │ — admin kill-switch +        │
-│ insights / agent   │  │ ledger exposure    │  │ allow-list enforced server-  │
-│ audit traces       │  │                    │  │ side, never client-side      │
-└────────────────────┘  └────────────────────┘  └──────────────────────────────┘
-        │
-        ▼
-┌────────────────────┐  Redis (queues, rate-limit windows)
-│ MinIO (S3-compat)  │  Anthropic SDK (Claude Sonnet 4.7 primary, Haiku 4.5 adversarial)
-└────────────────────┘  Voyage-3 (1024-dim embeddings)
+┌───────────────────────────────────────────────────────────────────────────────┐
+│  apps/web — Next.js 16 (App Router, React 19)                                 │
+│  engagements · matrix + snapshots · timeline · Review Inbox · admin           │
+│  Agent Kenny chat (SSE: thinking / tool chips / inline citations / approvals) │
+│  OIDC login · edge authz middleware · Zod-validated BFF routes                │
+└──────────────────────────────┬────────────────────────────────────────────────┘
+                               │  BFF → internal API (per-tenant service tokens)
+                               ▼
+┌───────────────────────────────────────────────────────────────────────────────┐
+│  services/control-plane — FastAPI + async SQLAlchemy                          │
+│                                                                               │
+│   Domain / API              Agent Kenny (LangGraph)      Workers              │
+│   ────────────              ────────────────────────     ─────────            │
+│   matrix · ledger           retrieve → llm_call →        synthesizer          │
+│   review inbox · insights   tools → citations →          embedder (Voyage-3)  │
+│   analyzers · auth/OIDC     review → persist+audit       lint                 │
+│   service tokens            checkpointer · interrupt()                        │
+└──────────────────────────────┬────────────────────────────────────────────────┘
+                               │
+          ┌────────────────────┼──────────────────────────┐
+          ▼                    ▼                          ▼
+┌──────────────────┐  ┌───────────────────┐  ┌────────────────────────────┐
+│ Postgres 16      │  │ services/         │  │ Outbound MCP (per tenant)  │
+│ RLS (FORCE) on   │  │ mcp-server        │  │ kill switch → allow-list → │
+│ all tenant data  │  │ inbound MCP,      │  │ rate limit → egress guard  │
+│ pgvector · AGE   │  │ read-only,        │  │ (Slack wired)              │
+│ agent checkpoints│  │ tenant API keys   │  │                            │
+└──────────────────┘  └───────────────────┘  └────────────────────────────┘
+     Redis (rate limits, sessions) · MinIO (artifacts) · Anthropic Claude
+     (Sonnet 5 default) · Voyage-3 embeddings
 ```
 
-Read [`docs/agent-kenny/ethos.md`](./docs/agent-kenny/ethos.md) for *why* the substrate is shaped this way (the
-ledger is the wiki; Kenny is its disciplined librarian; every claim cites its source; every synthesis compounds).
-Read [`docs/agent-kenny/scope-v2.md`](./docs/agent-kenny/scope-v2.md) for the phase-by-phase how — now historical
-record, every phase is shipped.
+Why the substrate is shaped this way: [`docs/agent-kenny/ethos.md`](./docs/agent-kenny/ethos.md) —
+the ledger is the wiki, Kenny is its disciplined librarian, every claim cites its source.
+
+---
+
+## Testing & quality gates
+
+- **~1,700 tests**: 663 control-plane unit + 562 integration (real Postgres testcontainers, Alembic to
+  head), 432 web (vitest + RTL), plus contract, authz, tenancy, provider, and MCP-server suites.
+- **Runtime parity gate** — key agent integration suites run against *both* drivers; a golden-question
+  parity test gates the LangGraph cutover.
+- **Cross-tenant fuzz** — 10,000 attack attempts per CI run across 20 tables, with an anti-test that
+  disables RLS and asserts the harness catches the leak.
+- **Eval gates** — blocking PR gate on a deterministic golden subset; nightly/weekly LLM evals with an
+  unconditional zero-cross-engagement-leak requirement.
+- **Static gates** — mypy strict, ruff, TypeScript strict, eslint, prettier, WCAG-AA-asserted design
+  tokens, axe/pa11y a11y checks, SHA-pinned actions, SBOM + CVE scan (Critical blocks).
+
+```bash
+# Reproduce the CI gate locally
+pnpm turbo run lint typecheck test build && pnpm -w run format:check
+cd services/control-plane && uv run mypy && uv run pytest tests/unit
+```
 
 ---
 
@@ -134,15 +149,15 @@ record, every phase is shipped.
 
 | Layer | Tooling |
 |---|---|
-| Frontend | Next.js 16 (App Router, React 19), TypeScript strict, Tailwind, shadcn primitives, Zod at every BFF boundary |
-| Backend | FastAPI, async SQLAlchemy 2.x, Alembic, Pydantic v2, `uv` for env mgmt, `ruff` + `mypy` strict |
-| Database | Postgres 16 + `pgvector` (HNSW) + Apache AGE (Cypher over `matrix_nodes` / `matrix_edges` graph view) |
-| LLM | Anthropic Claude — Sonnet 4.7 (primary), Haiku 4.5 (adversarial reviewer). Voyage-3 (1024-dim) embeddings |
-| Agent framework | LangGraph for the multi-step state machine. Anthropic SDK direct for tool-use; LangChain itself is rejected |
-| Agent protocol | Model Context Protocol (MCP) — inbound server + outbound client (catalog: slack / linear / gdrive / notion / github) |
-| Infra (local) | docker-compose. Postgres / Redis / MinIO / MCP-server / web / control-plane all `make dev` |
-| Infra (cloud) | Fly.io (5 apps: postgres / control-plane / web / mcp-server / embedder) + Cloudflare Access (free-tier email allowlist) |
-| Build / monorepo | pnpm workspaces + Turborepo on the TS side; uv per Python service |
+| Frontend | Next.js 16 (App Router, React 19), TypeScript strict, Tailwind v4, design-token system (light + dark, WCAG AA enforced by tests), Zod at every boundary |
+| Backend | FastAPI, async SQLAlchemy 2.x, Alembic, Pydantic v2, `uv`, ruff + mypy strict |
+| Database | Postgres 16 + pgvector (HNSW) + Apache AGE (Cypher graph mirror), row-level security FORCE'd on tenant data |
+| Agent runtime | LangGraph StateGraph + Postgres checkpointer (`AsyncPostgresSaver`), `interrupt()` approvals; direct Anthropic Messages API for streaming tool-use (no LangChain) |
+| LLM | Anthropic Claude (Sonnet 5 default, per-tenant configurable) · Voyage-3 1024-dim embeddings |
+| Agent protocol | MCP — inbound read-only server + guarded outbound client |
+| Auth | OIDC (PKCE) with control-plane-minted RS256 session JWTs; per-tenant internal service tokens |
+| Infra | docker-compose locally (`make dev`); Fly.io in the cloud (5 apps, CI-gated auto-deploy, nightly S3 backups) |
+| Monorepo | pnpm workspaces + Turborepo (TS) · uv per Python service |
 
 ---
 
@@ -150,87 +165,38 @@ record, every phase is shipped.
 
 | Path | Role |
 |---|---|
-| `apps/web/` | Next.js — engagement portfolio, detail, timeline, matrix time-slider, Agent Kenny chat panel, admin dashboards, BFF routes (Zod-narrowed) |
-| `services/control-plane/` | FastAPI — domain models, internal APIs, Agent Kenny (LangGraph) + extraction; the Oracle and Master Strategist surfaces live here as modules (not separate services), workers (synthesizer, lint, embedder), analyzers, MCP outbound client |
-| `services/mcp-server/` | Standalone uvicorn MCP-protocol server — third-party MCP clients query the matrix + ledger read-only with tenant API keys |
-| `services/_shared/` | Shared Python libraries (authz, runtime, tsa, citation envelope, ingestlib) consumed by the Python services |
-| `packages/llm-provider-py/` | `LLMProvider` protocol + Anthropic / OpenAI / stub impls; streaming + tool-use through `chat_complete_stream_with_tools` |
-| `packages/authz/` | TS + Python role/action matrix (shared) |
-| `packages/contracts/`, `packages/design-tokens/` | Cross-workspace types + design system |
-| `infra/compose/` | Reference local stack — docker-compose, seed scripts (BlueState 26-week, BlueState-XL 5-year, Portfolio 5-engagement) |
-| `infra/fly/` | Cloud deploy — fly.toml per service (postgres / control-plane / web / mcp-server / embedder). See `docs/ops/cloud-deploy.md` |
-| `scripts/cloud-deploy.sh` | Wrapper script: deploys all 5 Fly apps in the right order |
-| `docs/agent-kenny/` | The hub for Agent Kenny — start at [`docs/agent-kenny/INDEX.md`](./docs/agent-kenny/INDEX.md) |
-| `docs/security/` | Threat models — MCP outbound boundary, cross-tenant fuzz, tenant isolation, self-host attack surface |
-| `docs/design/` | Engineering design records — timeline ledger, post-F polish, citation envelope |
-| `docs/product/` | Product spec + agent design records |
-| `docs/archive/` | Superseded planning artifacts — preserved for git history, not authoritative |
-| `briefs/` | Sub-agent spawn briefs (gitignored working artifacts; see `AGENTS.md`) |
+| `apps/web/` | Next.js app — engagements, matrix, timeline, chat, Review Inbox, admin, BFF routes |
+| `services/control-plane/` | FastAPI core — domain, ledger, Agent Kenny, Review Inbox, workers, analyzers, auth, migrations |
+| `services/mcp-server/` | Standalone read-only MCP protocol server (tenant API keys) |
+| `services/_shared/` | Shared Python libs — authz, tenancy (RLS sessions), citation envelope, ingest helpers |
+| `packages/llm-provider-py/` | LLM provider protocol — Anthropic (streaming + native tool-use, sync/async), OpenAI, stub |
+| `packages/authz/` · `packages/contracts/` · `packages/design-tokens/` | Role/action matrix (TS + Python twins) · cross-workspace schemas · design system |
+| `infra/compose/` | Local stack + seed scenarios (BlueState, BlueState-XL, Portfolio) |
+| `infra/fly/` | Cloud deploy — one `fly.toml` per service |
+| `docs/` | Start at [`docs/agent-kenny/INDEX.md`](./docs/agent-kenny/INDEX.md); plans in `docs/plans/`; superseded material in `docs/archive/` |
 
 ---
 
 ## Where to find more
 
-**Start here:**
-
-- [`docs/agent-kenny/INDEX.md`](./docs/agent-kenny/INDEX.md) — every Kenny-related doc with one-line summary
 - [`docs/agent-kenny/ethos.md`](./docs/agent-kenny/ethos.md) — architectural rationale (the load-bearing doc)
-- [`docs/agent-kenny/scope-v2.md`](./docs/agent-kenny/scope-v2.md) — phase-by-phase build history (Phases 0–6 all shipped)
-- [`docs/agent-kenny/eval.md`](./docs/agent-kenny/eval.md) — the 30-golden-question harness and CI cadence
-
-**For platform / infra:**
-
-- [`docs/design/timeline-ledger.md`](./docs/design/timeline-ledger.md) — core data model: ledger, snapshots, analyzers, provenance
-- [`docs/security/mcp-outbound-threat-model.md`](./docs/security/mcp-outbound-threat-model.md) — Phase 5 STRIDE + §9.4 checklist
-- [`docs/security/tenant-isolation.md`](./docs/security/tenant-isolation.md) — the three-layer tenant isolation discipline
-- [`docs/security/cross-tenant-fuzz.md`](./docs/security/cross-tenant-fuzz.md) — the CI fuzz harness that pins it
-
-**For operators / pilots:**
-
-- [`docs/dev-environment.md`](./docs/dev-environment.md) — toolchains, pnpm + uv workflows, compose stack
-- [`docs/ops/cloud-deploy.md`](./docs/ops/cloud-deploy.md) — Fly.io + Cloudflare Access operator runbook (5 services, secrets, smoke checks)
-- [`docs/ops/cloud-deploy-architecture.md`](./docs/ops/cloud-deploy-architecture.md) — topology + trust boundaries + where each secret lives
-- [`infra/fly/`](./infra/fly/) — fly.toml per service (control-plane / web / mcp-server / embedder / postgres)
-- [`scripts/cloud-deploy.sh`](./scripts/cloud-deploy.sh) — wrapper for the 5 `fly deploy` calls in order
-- [`docs/ops/deployment.md`](./docs/ops/deployment.md) — host requirements, env vars (legacy single-host doc)
-- [`docs/ops/observability.md`](./docs/ops/observability.md) — JSON logs, Prometheus metrics, OTLP
-- [`docs/ops/backup.md`](./docs/ops/backup.md) — `make backup` + retention
-
----
-
-## Verifying a clean checkout
-
-```bash
-pnpm install --frozen-lockfile
-pnpm turbo run lint typecheck test build    # CI gate (web + TS workspaces)
-pnpm -w run format:check                    # prettier (CI catches this independently)
-
-cd services/control-plane                   # CP gate
-uv run mypy src
-uv run ruff check src tests alembic
-uv run ruff format --check src tests alembic
-uv run pytest tests/unit -x
-```
-
-The repo's CI runs the same plus compose-smoke, canonical-memory-schema, cross-tenant fuzz, CVE scan, SBOM
-generation, and the nightly / weekly Agent Kenny eval (`.github/workflows/agent-kenny-eval.yml`).
+- [`docs/agent-kenny/eval.md`](./docs/agent-kenny/eval.md) — the golden-question harness, CLI, and CI cadence
+- [`docs/plans/2026-08-11-pilot-refresh-backlog.md`](./docs/plans/2026-08-11-pilot-refresh-backlog.md) — the DRM reframe, HITL design, and wave-by-wave backlog (Waves 0–2 shipped)
+- [`docs/security/`](./docs/security/) — tenant-isolation model, MCP outbound threat model, cross-tenant fuzz harness
+- [`docs/ops/cloud-deploy.md`](./docs/ops/cloud-deploy.md) — Fly.io operator runbook · [`docs/ops/backup.md`](./docs/ops/backup.md) — backup/restore, local + cloud
+- [`docs/dev-environment.md`](./docs/dev-environment.md) — toolchains and workflows
 
 ---
 
 ## Maturity
 
-End-to-end demo on real data via the BlueState Health 26-week seed, the BlueState-XL 5-year seed, and the
-DeployAI-Portfolio 5-engagement cross-isolation seed. v2 ship complete: Agent Kenny multi-step LangGraph loop,
-citation verification + adversarial review, MCP inbound + outbound, pgvector fuzzy fallback, golden-question
-eval harness in CI, hallucination dashboard. No paying customers yet — the next milestone is putting it in front
-of a real deployment team with their own engagement data.
-
-**Cloud deploy:** Fly.io + Cloudflare Access configs and operator runbook landed alongside v2. See
-[`docs/ops/cloud-deploy.md`](./docs/ops/cloud-deploy.md) for the step-by-step (apps, secrets, Cloudflare
-Access wiring, smoke checks, day-2 ops, cost notes, teardown). The local-compose stack remains the
-fastest way to demo; cloud is for when you want to put it in front of a customer.
-
----
+Honest status, code-verified (2026-08-11): the full loop — ingest → extract → review → matrix → ask
+Kenny → audit — runs end-to-end on the local stack against seeded engagements, on the checkpointed
+LangGraph runtime, with OIDC login, full-coverage RLS, HITL review, and CI eval gates in place.
+M365/Gmail/Slack ingest connectors are real; HubSpot/Notion/GitHub are not yet built. The legacy agent
+driver remains the default in production config until the parity gate has soaked. **No paying customers
+yet** — the next milestone is a pilot with a real team's engagement data (Wave 3 of the backlog: delta
+digest, commitment tracking, Kenny-in-Slack).
 
 ## License
 
