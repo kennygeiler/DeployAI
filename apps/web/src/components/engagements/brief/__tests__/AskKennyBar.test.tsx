@@ -35,7 +35,12 @@ function stubOracleFetch() {
     }
     // Stream endpoints report unavailable; JSON fallback replies.
     if (url.includes("/oracle/chat/stream")) {
-      return Promise.resolve({ ok: false, status: 503, body: null, text: () => Promise.resolve("") });
+      return Promise.resolve({
+        ok: false,
+        status: 503,
+        body: null,
+        text: () => Promise.resolve(""),
+      });
     }
     if (url.includes("/oracle/chat")) {
       return Promise.resolve({

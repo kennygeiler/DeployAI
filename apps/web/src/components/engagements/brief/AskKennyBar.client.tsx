@@ -122,14 +122,16 @@ export function AskKennyBar({
         <ul className="flex flex-wrap gap-1.5" aria-label="Suggested questions">
           {suggestions.map((q) => (
             <li key={q}>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => submit(q)}
                 data-testid="ask-kenny-suggestion"
-                className="rounded-full bg-hover px-2.5 py-1 text-xs text-ink-600 shadow-hairline transition-colors hover:bg-hover-2 hover:text-ink"
+                className="h-auto rounded-full bg-hover px-2.5 py-1 text-xs font-normal text-ink-600 shadow-hairline transition-colors hover:bg-hover-2 hover:text-ink"
               >
                 {q}
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
@@ -137,11 +139,12 @@ export function AskKennyBar({
 
       {overlay ? (
         <div data-testid="ask-kenny-overlay">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             aria-label="Close chat"
             onClick={close}
-            className="fixed inset-0 z-40 cursor-default bg-black/30"
+            className="fixed inset-0 z-40 h-auto w-auto cursor-default rounded-none bg-black/30 hover:bg-black/30"
           />
           <OracleChat
             key={overlay.question ?? "chat"}

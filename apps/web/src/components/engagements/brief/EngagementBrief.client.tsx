@@ -761,7 +761,9 @@ function NarrativeCard({
           {items.slice(0, 8).map((item) => (
             <li key={item.id} className="flex items-center justify-between gap-3">
               <span className="text-ink-800 truncate">{item.label}</span>
-              {item.meta ? <span className="text-ink-500 shrink-0 text-xs">{item.meta}</span> : null}
+              {item.meta ? (
+                <span className="text-ink-500 shrink-0 text-xs">{item.meta}</span>
+              ) : null}
             </li>
           ))}
           {items.length > 8 ? (

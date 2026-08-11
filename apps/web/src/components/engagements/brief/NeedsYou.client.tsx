@@ -29,10 +29,7 @@ export function NeedsYou({
   proposalsLoading?: boolean;
   onChanged: () => void | Promise<void>;
 }) {
-  const pending = React.useMemo(
-    () => proposals.filter((p) => p.status === "pending"),
-    [proposals],
-  );
+  const pending = React.useMemo(() => proposals.filter((p) => p.status === "pending"), [proposals]);
   const escalations = counts?.escalations_open ?? 0;
   const disputes = counts?.disputes_open ?? 0;
   const pendingCount = counts?.proposals_pending ?? pending.length;

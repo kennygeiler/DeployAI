@@ -36,9 +36,7 @@ const SUMMARY = {
     status: "active",
     updated_at: "2026-05-10T00:00:00Z",
   },
-  members: [
-    { user_id: "u1", display_name: "Ada Lovelace", email: "ada@nycdot.gov", role: "fde" },
-  ],
+  members: [{ user_id: "u1", display_name: "Ada Lovelace", email: "ada@nycdot.gov", role: "fde" }],
   counts: {
     stakeholders: 3,
     decisions: 2,
@@ -166,10 +164,15 @@ describe("EngagementBrief", () => {
       if (url.includes("/summary")) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(SUMMARY) });
       }
-      if (url.includes("/member-roles") || url.includes("/insights") || url.includes("/recommendations")) {
+      if (
+        url.includes("/member-roles") ||
+        url.includes("/insights") ||
+        url.includes("/recommendations")
+      ) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ builtin: [], custom: [], insights: [], recommendations: [] }),
+          json: () =>
+            Promise.resolve({ builtin: [], custom: [], insights: [], recommendations: [] }),
         });
       }
       // Detail aggregate hangs until we resolve it.
@@ -211,7 +214,9 @@ describe("EngagementBrief", () => {
     });
     render(<EngagementBrief engagementId="e1" />);
     await waitFor(() => screen.getByTestId("brief-card-risks"));
-    expect(within(screen.getByTestId("brief-card-risks")).getByText("Calibration slip")).toBeTruthy();
+    expect(
+      within(screen.getByTestId("brief-card-risks")).getByText("Calibration slip"),
+    ).toBeTruthy();
     // Empty states explain how data arrives.
     expect(screen.getByTestId("brief-card-commitments").textContent).toContain(
       "No commitments tracked yet",

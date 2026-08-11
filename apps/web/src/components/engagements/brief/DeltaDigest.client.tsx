@@ -58,7 +58,11 @@ export function DeltaDigest({
   }, [changes]);
 
   return (
-    <section aria-labelledby="delta-digest-heading" data-testid="delta-digest" className="space-y-2">
+    <section
+      aria-labelledby="delta-digest-heading"
+      data-testid="delta-digest"
+      className="space-y-2"
+    >
       <h2 id="delta-digest-heading" className="text-ink-800 text-sm font-semibold">
         Since you last looked
       </h2>
