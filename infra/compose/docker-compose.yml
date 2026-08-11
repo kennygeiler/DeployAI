@@ -172,6 +172,10 @@ services:
       # adversarial review). Phases 0-6 shipped; default on. Set to empty in
       # env to fall back to v1 stream behaviour.
       DEPLOYAI_AGENT_KENNY_V2_ENABLED: ${DEPLOYAI_AGENT_KENNY_V2_ENABLED:-1}
+      # Wave 2 — select the agent driver: "legacy" (hand-rolled, default) or
+      # "langgraph" (checkpointed StateGraph with interrupt() approvals).
+      # Cutover to langgraph-by-default is gated on the D6 parity gate.
+      DEPLOYAI_AGENT_RUNTIME: ${DEPLOYAI_AGENT_RUNTIME:-legacy}
     ports:
       - "${CONTROL_PLANE_PORT:-8000}:8000"
     depends_on:
