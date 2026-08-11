@@ -99,7 +99,9 @@ describe("ProvenanceTree", () => {
     expect(screen.getByText("Decision: adopt pilot platform")).toBeTruthy();
     expect(screen.getByText("Proposal generated from extraction")).toBeTruthy();
     expect(screen.getByText("Customer email arrived")).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: /collapse upstream events/i }).length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByRole("button", { name: /collapse upstream events/i }).length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it("renders a fallback message when the root id is missing from nodes", () => {
