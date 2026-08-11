@@ -132,13 +132,13 @@ export function ProvenanceTab({
           aria-label="Decision provenance summary"
           className="bg-ink-50 border-border space-y-1 rounded-lg border p-3"
         >
-          <p className="text-warning-900 bg-warning-100 inline-block rounded px-1.5 py-0.5 text-[10px] uppercase">
+          <p className="text-orange-ink bg-orange-tint inline-block rounded px-1.5 py-0.5 text-[10px] uppercase">
             AI-generated draft
           </p>
           <p className="text-ink-800 text-sm whitespace-pre-line">{narrative}</p>
         </section>
       ) : null}
-      {err ? <p className="text-error-700 text-sm">{err}</p> : null}
+      {err ? <p className="text-red-ink text-sm">{err}</p> : null}
       {loading ? (
         <p className="text-ink-600 text-sm">Loading provenance…</p>
       ) : emptyReason ? (

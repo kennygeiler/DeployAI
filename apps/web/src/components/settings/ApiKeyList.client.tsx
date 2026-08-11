@@ -98,7 +98,7 @@ export function ApiKeyList() {
         </Button>
       </div>
 
-      {err ? <p className="text-error-700 text-sm">{err}</p> : null}
+      {err ? <p className="text-red-ink text-sm">{err}</p> : null}
 
       {keys.length === 0 ? (
         <p className="text-ink-600 text-sm">No api keys yet.</p>

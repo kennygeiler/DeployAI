@@ -6,8 +6,21 @@
  * stories — imports from this package.
  */
 
-export { colors, ink, paper, stone, evidence, signal, nullState, destructive } from "./colors.js";
-export type { Colors } from "./colors.js";
+export {
+  colors,
+  colorsDark,
+  ink,
+  paper,
+  stone,
+  evidence,
+  signal,
+  nullState,
+  destructive,
+  themeLight,
+  themeDark,
+  semanticThemes,
+} from "./colors.js";
+export type { Colors, ColorsDark, SemanticTheme, SemanticTokenKey, ThemeName } from "./colors.js";
 
 export { spacing } from "./spacing.js";
 export type { Spacing, SpacingKey } from "./spacing.js";
@@ -15,7 +28,7 @@ export type { Spacing, SpacingKey } from "./spacing.js";
 export { typography, fontFamilies, typeScale, readingMeasure } from "./typography.js";
 export type { Typography, TypeScaleStep } from "./typography.js";
 
-export { shadows } from "./shadows.js";
+export { shadows, shadowsDark } from "./shadows.js";
 export type { Shadows, ShadowKey } from "./shadows.js";
 
 export { radii } from "./radii.js";

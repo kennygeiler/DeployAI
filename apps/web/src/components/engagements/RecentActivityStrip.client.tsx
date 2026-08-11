@@ -95,7 +95,7 @@ export function RecentActivityStrip({ engagementId }: { engagementId: string }) 
   if (err) {
     return (
       <section aria-label="recent activity" data-testid="recent-activity-strip">
-        <p role="alert" className="text-error-700 text-sm">
+        <p role="alert" className="text-red-ink text-sm">
           {err}
         </p>
       </section>

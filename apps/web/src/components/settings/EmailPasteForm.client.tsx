@@ -109,7 +109,7 @@ export function EmailPasteForm() {
             className="font-mono text-xs"
           />
         </div>
-        {err ? <p className="text-error-700 text-sm">{err}</p> : null}
+        {err ? <p className="text-red-ink text-sm">{err}</p> : null}
         {lastCount !== null ? (
           <p className="text-ink-600 text-sm">
             Imported {lastCount} message{lastCount === 1 ? "" : "s"} on the most recent submit.

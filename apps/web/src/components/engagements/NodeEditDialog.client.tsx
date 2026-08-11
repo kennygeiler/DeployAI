@@ -166,7 +166,7 @@ export function NodeEditDialog({
             />
           </div>
           {err ? (
-            <p role="alert" className="text-error-700 text-sm">
+            <p role="alert" className="text-red-ink text-sm">
               {err}
             </p>
           ) : null}

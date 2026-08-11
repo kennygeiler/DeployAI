@@ -118,7 +118,7 @@ describe("CitationPanel", () => {
       />,
     );
     await waitFor(() => {
-      const para = document.querySelector("p.text-error-700");
+      const para = document.querySelector("p.text-red-ink");
       expect(para).toBeTruthy();
       expect(para?.textContent?.length).toBeGreaterThan(0);
     });

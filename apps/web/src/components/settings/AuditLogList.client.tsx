@@ -159,7 +159,7 @@ export function AuditLogList() {
         </div>
       </form>
 
-      {err ? <p className="text-error-700 text-sm">{err}</p> : null}
+      {err ? <p className="text-red-ink text-sm">{err}</p> : null}
 
       {loading ? (
         <p className="text-ink-600 text-sm">Loading…</p>
@@ -168,7 +168,7 @@ export function AuditLogList() {
       ) : (
         <div className="border-border overflow-x-auto rounded-md border">
           <table className="w-full text-sm">
-            <thead className="bg-surface-subtle text-ink-700 text-xs uppercase">
+            <thead className="bg-canvas text-ink-700 text-xs uppercase">
               <tr>
                 <th scope="col" className="px-3 py-2 text-left">
                   When

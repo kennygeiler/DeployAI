@@ -140,7 +140,7 @@ export function AgentPromptsForm() {
         </p>
       </div>
 
-      {err ? <p className="text-error-700 text-sm">{err}</p> : null}
+      {err ? <p className="text-red-ink text-sm">{err}</p> : null}
 
       {AGENT_NAMES.map((name) => {
         const entry = saved?.[name];
