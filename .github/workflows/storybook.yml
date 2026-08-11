@@ -28,6 +28,10 @@ jobs:
     name: build-storybook + optional Chromatic
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      # Job-level so the Chromatic step's `if:` can see it — step-level env is
+      # not visible to that step's own `if:`, and `secrets.*` is invalid there.
+      CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
     permissions:
       contents: read
     steps:
@@ -61,10 +65,10 @@ jobs:
           retention-days: 14
 
       - name: Chromatic
-        if: ${{ secrets.CHROMATIC_PROJECT_TOKEN != '' }}
+        # `secrets.*` is not valid in step `if:` expressions — the workflow
+        # failed to parse and every run died at 0s. Gate on job-level env.
+        if: ${{ env.CHROMATIC_PROJECT_TOKEN != '' }}
         working-directory: apps/web
-        env:
-          CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
         run: |
           if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
             pnpm exec chromatic --ci \
@@ -88,7 +92,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Upsert Storybook comment
-        uses: actions/github-script@62c3794a3eb6788d9a4aae18d420744cc0accc3b # v7.1.0
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
             const marker = "<!-- deployai-storybook-bot -->";
