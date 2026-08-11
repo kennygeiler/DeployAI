@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { MatrixInsight } from "@/lib/bff/matrix-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
+import { deSnakeKind, stripRedundantKindPrefix } from "@/lib/labels";
 
 /**
  * Phase 7 (increment 7.4) — Master Strategist insights across the whole
@@ -130,8 +131,8 @@ export function PortfolioInsights() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <SeverityBadge severity={i.severity} />
-                  <span className="text-ink-600 font-mono text-xs uppercase">
-                    {i.insight_type.replace(/_/g, " ")}
+                  <span className="text-ink-600 text-xs font-medium">
+                    {deSnakeKind(i.insight_type)}
                   </span>
                 </div>
                 <div className="flex gap-1">
@@ -157,7 +158,9 @@ export function PortfolioInsights() {
                   </Button>
                 </div>
               </div>
-              <p className="text-ink-900 font-medium">{i.title}</p>
+              <p className="text-ink-900 font-medium">
+                {stripRedundantKindPrefix(i.title, i.insight_type)}
+              </p>
               <p className="text-ink-700 whitespace-pre-line">{i.body}</p>
             </li>
           ))}

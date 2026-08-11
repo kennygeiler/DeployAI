@@ -92,6 +92,27 @@ describe("RecentActivityStrip", () => {
     expect(cards.length).toBe(5);
   });
 
+  it("shows human kind labels and strips a duplicated kind prefix from summaries (U1)", async () => {
+    mockFetch({
+      events: [
+        mkEvent({
+          id: "dup",
+          source_kind: "insight_closed",
+          summary: "Insight closed: stakeholder spec-gap",
+        }),
+      ],
+    });
+    render(<RecentActivityStrip engagementId="e1" />);
+    await waitFor(() => expect(screen.getByTestId("recent-activity-list")).toBeTruthy());
+    const card = screen.getByTestId("recent-activity-card-dup");
+    // Kind chip is the human label, not the raw enum.
+    expect(card.textContent).toContain("Insight closed");
+    expect(card.textContent).not.toContain("insight_closed");
+    // Summary lost the duplicated "Insight closed:" prefix.
+    expect(card.textContent).toContain("stakeholder spec-gap");
+    expect(card.textContent).not.toContain("Insight closed: stakeholder spec-gap");
+  });
+
   it("surfaces an error message when the BFF call fails", async () => {
     mockFetch(null, false);
     render(<RecentActivityStrip engagementId="e1" />);

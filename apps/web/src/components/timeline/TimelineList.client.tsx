@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import type { LedgerEvent } from "@/lib/internal/ledger-cp";
+import { humanSourceKindLabel } from "@/lib/labels";
 
 const ROW_HEIGHT = 88;
 const OVERSCAN = 8;
@@ -82,8 +83,8 @@ export function TimelineList({
                 >
                   <div className="flex w-full items-center justify-between gap-3">
                     <span className="text-ink-700 text-xs">{formatOccurredAt(ev.occurred_at)}</span>
-                    <span className="bg-ink-100 text-ink-800 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase">
-                      {ev.source_kind}
+                    <span className="bg-ink-100 text-ink-800 rounded px-1.5 py-0.5 text-[10px] font-medium">
+                      {humanSourceKindLabel(ev.source_kind)}
                     </span>
                   </div>
                   <p className="text-ink-700 line-clamp-2 text-sm">{ev.summary}</p>
