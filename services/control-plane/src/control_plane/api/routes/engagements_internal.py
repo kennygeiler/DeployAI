@@ -74,9 +74,11 @@ from control_plane.domain.engagement import Engagement, EngagementMember
 from control_plane.domain.ledger import LedgerEvent, TemporalInsight
 from control_plane.domain.matrix_snapshot import MatrixSnapshot
 from control_plane.domain.member_roles import resolve_allowed_member_roles
+from control_plane.domain.review_inbox import ReviewItem
 from control_plane.domain.strategist_queues import StrategistActionQueueItem
 from control_plane.ledger import emit_ledger_event
 from control_plane.phases.machine import DEPLOYMENT_PHASES, default_phase
+from control_plane.services.engagement_legibility import attention_score, user_display_name
 from control_plane.services.proposal_auto_accept import (
     AutoAcceptSettings,
     decide_auto_accept,
@@ -108,21 +110,90 @@ class EngagementRead(BaseModel):
     updated_at: datetime
 
 
+class EngagementNeedsAttention(BaseModel):
+    """U7 — per-engagement attention inputs surfaced on the list rows."""
+
+    proposals_pending: int
+    escalations_open: int
+    days_since_last_event: int | None
+
+
+class EngagementListRead(EngagementRead):
+    """List row: the engagement plus additive needs-attention fields (U7)."""
+
+    needs_attention: EngagementNeedsAttention
+    attention_score: int
+
+
 async def _require_tenant(session: AsyncSession, tenant_id: uuid.UUID) -> None:
     if await session.get(AppTenant, tenant_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="tenant not found")
 
 
-@router.get("", response_model=list[EngagementRead], dependencies=[Depends(require_tenant_scoped)])
+@router.get("", response_model=list[EngagementListRead], dependencies=[Depends(require_tenant_scoped)])
 async def list_engagements(
     session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
-) -> list[Engagement]:
+) -> list[EngagementListRead]:
     await _require_tenant(session, tenant_id)
     r = await session.execute(
         select(Engagement).where(Engagement.tenant_id == tenant_id).order_by(Engagement.created_at.desc())
     )
-    return list(r.scalars().all())
+    engagements = list(r.scalars().all())
+
+    # U7 attention inputs — three tenant-wide grouped aggregates, so the cost
+    # stays flat regardless of how many engagements the tenant has.
+    pending_rows = await session.execute(
+        select(MatrixProposal.engagement_id, func.count())
+        .where(MatrixProposal.tenant_id == tenant_id, MatrixProposal.status == "pending")
+        .group_by(MatrixProposal.engagement_id)
+    )
+    pending_by_engagement = {eid: int(n) for eid, n in pending_rows.all()}
+
+    escalation_rows = await session.execute(
+        select(ReviewItem.engagement_id, func.count())
+        .where(
+            ReviewItem.tenant_id == tenant_id,
+            ReviewItem.engagement_id.is_not(None),
+            ReviewItem.kind == "agent_escalation",
+            ReviewItem.status == "open",
+        )
+        .group_by(ReviewItem.engagement_id)
+    )
+    escalations_by_engagement = {eid: int(n) for eid, n in escalation_rows.all()}
+
+    last_event_rows = await session.execute(
+        select(LedgerEvent.engagement_id, func.max(LedgerEvent.occurred_at))
+        .where(LedgerEvent.tenant_id == tenant_id, LedgerEvent.engagement_id.is_not(None))
+        .group_by(LedgerEvent.engagement_id)
+    )
+    last_event_by_engagement = {eid: ts for eid, ts in last_event_rows.all()}
+
+    now = datetime.now(UTC)
+    out: list[EngagementListRead] = []
+    for eng in engagements:
+        last_event_at = last_event_by_engagement.get(eng.id)
+        days_since_last_event: int | None = None
+        if last_event_at is not None:
+            days_since_last_event = max(int((now - last_event_at).total_seconds() // 86400), 0)
+        proposals_pending = pending_by_engagement.get(eng.id, 0)
+        escalations_open = escalations_by_engagement.get(eng.id, 0)
+        out.append(
+            EngagementListRead(
+                **EngagementRead.model_validate(eng).model_dump(),
+                needs_attention=EngagementNeedsAttention(
+                    proposals_pending=proposals_pending,
+                    escalations_open=escalations_open,
+                    days_since_last_event=days_since_last_event,
+                ),
+                attention_score=attention_score(
+                    proposals_pending=proposals_pending,
+                    escalations_open=escalations_open,
+                    days_since_last_event=days_since_last_event,
+                ),
+            )
+        )
+    return out
 
 
 @router.post(
@@ -200,6 +271,44 @@ class EngagementMemberRead(BaseModel):
     created_at: datetime
 
 
+class EngagementMemberWithUserRead(EngagementMemberRead):
+    """Member row plus user identity joined from app_users (U2, additive)."""
+
+    display_name: str
+    email: str | None
+
+
+async def _load_members_with_user(
+    session: AsyncSession, engagement_id: uuid.UUID
+) -> list[EngagementMemberWithUserRead]:
+    """Members of an engagement with display_name/email joined in one query."""
+    rows = await session.execute(
+        select(EngagementMember, AppUser)
+        .join(AppUser, AppUser.id == EngagementMember.user_id)
+        .where(EngagementMember.engagement_id == engagement_id)
+        .order_by(EngagementMember.created_at)
+    )
+    out: list[EngagementMemberWithUserRead] = []
+    for member, user in rows.all():
+        out.append(
+            EngagementMemberWithUserRead(
+                id=member.id,
+                engagement_id=member.engagement_id,
+                user_id=member.user_id,
+                role=member.role,
+                created_at=member.created_at,
+                display_name=user_display_name(
+                    user_name=user.user_name,
+                    email=user.email,
+                    given_name=user.given_name,
+                    family_name=user.family_name,
+                ),
+                email=user.email,
+            )
+        )
+    return out
+
+
 async def _require_engagement(session: AsyncSession, tenant_id: uuid.UUID, engagement_id: uuid.UUID) -> Engagement:
     r = await session.execute(
         select(Engagement).where(Engagement.tenant_id == tenant_id, Engagement.id == engagement_id)
@@ -235,21 +344,16 @@ async def _find_stakeholder_node_by_email(
 
 @router.get(
     "/{engagement_id}/members",
-    response_model=list[EngagementMemberRead],
+    response_model=list[EngagementMemberWithUserRead],
     dependencies=[Depends(require_tenant_scoped)],
 )
 async def list_engagement_members(
     engagement_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
-) -> list[EngagementMember]:
+) -> list[EngagementMemberWithUserRead]:
     await _require_engagement(session, tenant_id, engagement_id)
-    r = await session.execute(
-        select(EngagementMember)
-        .where(EngagementMember.engagement_id == engagement_id)
-        .order_by(EngagementMember.created_at)
-    )
-    return list(r.scalars().all())
+    return await _load_members_with_user(session, engagement_id)
 
 
 @router.post(
@@ -2042,7 +2146,7 @@ class RecentActivityEventRead(BaseModel):
 
 class EngagementDetailRead(BaseModel):
     engagement: EngagementRead
-    members: list[EngagementMemberRead]
+    members: list[EngagementMemberWithUserRead]
     matrix_nodes: list[MatrixNodeRead]
     matrix_edges: list[MatrixEdgeRead]
     matrix_proposals: list[MatrixProposalRead]
@@ -2063,12 +2167,8 @@ async def get_engagement_detail(
 ) -> EngagementDetailRead:
     eng = await _require_engagement(session, tenant_id, engagement_id)
 
-    members_q = await session.execute(
-        select(EngagementMember)
-        .where(EngagementMember.engagement_id == engagement_id)
-        .order_by(EngagementMember.created_at)
-    )
-    members = list(members_q.scalars().all())
+    # U2 — one query joining app_users so each member carries display_name/email.
+    members = await _load_members_with_user(session, engagement_id)
 
     nodes_q = await session.execute(
         select(MatrixNode).where(MatrixNode.engagement_id == engagement_id).order_by(MatrixNode.created_at)
@@ -2116,7 +2216,7 @@ async def get_engagement_detail(
 
     return EngagementDetailRead(
         engagement=EngagementRead.model_validate(eng),
-        members=[EngagementMemberRead.model_validate(m) for m in members],
+        members=members,
         matrix_nodes=[MatrixNodeRead.model_validate(n) for n in nodes],
         matrix_edges=[MatrixEdgeRead.model_validate(e) for e in edges],
         matrix_proposals=[MatrixProposalRead.model_validate(p) for p in proposals],

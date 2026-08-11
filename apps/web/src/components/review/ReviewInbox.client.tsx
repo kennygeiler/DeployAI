@@ -12,6 +12,7 @@ import type { Engagement } from "@/lib/bff/engagement-types";
 import type { MatrixProposal } from "@/lib/bff/matrix-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 import type { ReviewInboxKind, ReviewItem, ReviewItemStatus } from "@/lib/bff/review-types";
+import { formatActorId } from "@/lib/labels";
 
 /**
  * Pilot-refresh E1 — the unified Review Inbox. One queue surface over four
@@ -433,7 +434,9 @@ function ReviewItemCard({
             <StatusBadge status={item.status} />
             <TimestampLabel value={item.created_at} prefix="filed" />
             {item.created_by ? (
-              <span className="text-ink-500 font-mono text-[10px]">by {item.created_by}</span>
+              <span className="text-ink-500 font-mono text-[10px]">
+                by {formatActorId(item.created_by)}
+              </span>
             ) : null}
           </div>
           {item.kind === "agent_escalation" ? (

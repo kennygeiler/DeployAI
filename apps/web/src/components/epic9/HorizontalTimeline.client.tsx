@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import { humanSourceKindLabel } from "@/lib/labels";
 
 export type HorizontalTimelineEvent = {
   id: string;
@@ -355,8 +356,8 @@ export function HorizontalTimeline({
               <div className="min-w-0 flex-1">
                 <div className="text-ink-900 font-medium break-words">{hoveredEv.summary}</div>
                 <div className="text-ink-600 mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px]">
-                  <span className="bg-ink-100 text-ink-800 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase">
-                    {hoveredEv.source_kind}
+                  <span className="bg-ink-100 text-ink-800 rounded px-1.5 py-0.5 text-[10px] font-medium">
+                    {humanSourceKindLabel(hoveredEv.source_kind)}
                   </span>
                   {hoveredEv.actor_kind ? <span>· {hoveredEv.actor_kind}</span> : null}
                   <span>
@@ -483,7 +484,7 @@ export function HorizontalTimeline({
           {placed.map((p) => {
             const isPulse = pulseId === p.ev.id;
             const isHover = hoverId === p.ev.id;
-            const ariaLabel = `${p.ev.source_kind} at ${p.ev.occurred_at}: ${truncate(p.ev.summary, 60)}`;
+            const ariaLabel = `${humanSourceKindLabel(p.ev.source_kind)} at ${p.ev.occurred_at}: ${truncate(p.ev.summary, 60)}`;
             return (
               <g key={p.ev.id}>
                 {isPulse ? (

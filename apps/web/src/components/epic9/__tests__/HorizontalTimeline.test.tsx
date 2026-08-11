@@ -85,7 +85,9 @@ describe("HorizontalTimeline", () => {
     const circle = screen.getByTestId("horizontal-timeline-event-hover-target");
     fireEvent.mouseEnter(circle);
     expect(card.textContent).toMatch(/Hovered event summary/);
-    expect(card.textContent).toMatch(/manual_capture/);
+    // U1 — the info card shows the human label, never the raw enum.
+    expect(card.textContent).toMatch(/Manual note/);
+    expect(card.textContent).not.toMatch(/manual_capture/);
   });
 
   it("zooms the SVG via the +/Reset/- button group", () => {
@@ -129,7 +131,7 @@ describe("HorizontalTimeline", () => {
     render(<HorizontalTimeline events={events} />);
     const circle = screen.getByTestId("horizontal-timeline-event-a11y");
     const aria = circle.getAttribute("aria-label") ?? "";
-    expect(aria).toMatch(/matrix_node_created/);
+    expect(aria).toMatch(/Matrix entry added/);
     expect(aria).toMatch(/2026-05-20T10:00:00Z/);
     expect(aria).toMatch(/A very informative summary/);
     expect(circle.getAttribute("tabindex")).toBe("0");

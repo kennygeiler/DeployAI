@@ -1,11 +1,13 @@
 "use client";
 
+import { ChevronDownIcon } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import type { MatrixInsight } from "@/lib/bff/matrix-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
+import { deSnakeKind, stripRedundantKindPrefix } from "@/lib/labels";
 
 /**
  * Phase 7 (increment 7.4) — Master Strategist insights across the whole
@@ -99,6 +101,15 @@ export function PortfolioInsights() {
     [fetchList],
   );
 
+  const ranked = React.useMemo(() => {
+    const rank: Record<string, number> = { high: 3, medium: 2, low: 1 };
+    return [...insights].sort((a, b) => {
+      const sev = (rank[b.severity] ?? 0) - (rank[a.severity] ?? 0);
+      if (sev !== 0) return sev;
+      return Date.parse(b.created_at) - Date.parse(a.created_at);
+    });
+  }, [insights]);
+
   return (
     <section aria-labelledby="portfolio-insights-heading" className="space-y-3">
       <div className="flex items-center justify-between gap-3">
@@ -120,45 +131,52 @@ export function PortfolioInsights() {
         <p className="text-ink-600 text-sm">Loading…</p>
       ) : insights.length === 0 ? (
         <p className="text-ink-600 text-sm">
-          No portfolio insights yet — click <strong>Refresh portfolio insights</strong> to run the
-          Master Strategist agent across your engagements.
+          No portfolio insights yet. These are cross-engagement patterns (recurring risks, system
+          concentration, coverage gaps) — click <strong>Refresh portfolio insights</strong> to run
+          the analysis across your deals.
         </p>
       ) : (
+        // U7 — ranked one-line cards; expand a row for the narrative + actions.
         <ul className="border-border divide-border divide-y rounded-lg border text-sm">
-          {insights.map((i) => (
-            <li key={i.id} className="space-y-1 px-3 py-2">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2">
+          {ranked.map((i) => (
+            <li key={i.id}>
+              <details data-testid={`portfolio-insight-${i.id}`}>
+                <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 select-none hover:bg-hover [&::-webkit-details-marker]:hidden">
                   <SeverityBadge severity={i.severity} />
-                  <span className="text-ink-600 font-mono text-xs uppercase">
-                    {i.insight_type.replace(/_/g, " ")}
+                  <span className="text-ink-600 shrink-0 text-xs font-medium">
+                    {deSnakeKind(i.insight_type)}
                   </span>
+                  <span className="text-ink-900 min-w-0 flex-1 truncate font-medium">
+                    {stripRedundantKindPrefix(i.title, i.insight_type)}
+                  </span>
+                  <ChevronDownIcon aria-hidden className="text-ink-600 size-4 shrink-0" />
+                </summary>
+                <div className="space-y-2 border-t border-line px-3 py-2">
+                  <p className="text-ink-700 whitespace-pre-line">{i.body}</p>
+                  <div className="flex gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs"
+                      disabled={busyId === i.id}
+                      onClick={() => void decide(i.id, "resolve")}
+                    >
+                      Resolve
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs"
+                      disabled={busyId === i.id}
+                      onClick={() => void decide(i.id, "dismiss")}
+                    >
+                      Dismiss
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-7 px-2 text-xs"
-                    disabled={busyId === i.id}
-                    onClick={() => void decide(i.id, "resolve")}
-                  >
-                    Resolve
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-xs"
-                    disabled={busyId === i.id}
-                    onClick={() => void decide(i.id, "dismiss")}
-                  >
-                    Dismiss
-                  </Button>
-                </div>
-              </div>
-              <p className="text-ink-900 font-medium">{i.title}</p>
-              <p className="text-ink-700 whitespace-pre-line">{i.body}</p>
+              </details>
             </li>
           ))}
         </ul>
