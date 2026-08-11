@@ -66,7 +66,7 @@ def _default_resolver(host: str) -> Sequence[str]:
     """Resolve via ``getaddrinfo`` — returns every A/AAAA answer so one
     private record among several public ones still fails the check."""
     infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
-    return [info[4][0] for info in infos]
+    return [str(info[4][0]) for info in infos]
 
 
 def _parse_ip(value: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
