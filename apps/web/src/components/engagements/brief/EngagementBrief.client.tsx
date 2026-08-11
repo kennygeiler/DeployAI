@@ -6,6 +6,7 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { SectionWithTimeline } from "@/components/common/SectionWithTimeline.client";
+import { AskKennyBar } from "@/components/engagements/brief/AskKennyBar.client";
 import { DeltaDigest } from "@/components/engagements/brief/DeltaDigest.client";
 import { NeedsYou } from "@/components/engagements/brief/NeedsYou.client";
 import { MatrixNodeDetail } from "@/components/engagements/MatrixNodeDetail.client";
@@ -469,6 +470,7 @@ export function EngagementBrief({ engagementId }: { engagementId: string }) {
         <TabsList aria-label="Engagement surfaces">
           <TabsTrigger value="graph">Graph</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
+          <TabsTrigger value="chat">Chat</TabsTrigger>
           <TabsTrigger value="people">People</TabsTrigger>
           <TabsTrigger value="capture">Capture</TabsTrigger>
         </TabsList>
@@ -624,6 +626,15 @@ export function EngagementBrief({ engagementId }: { engagementId: string }) {
           <EngagementTimeline engagementId={engagementId} />
         </TabsContent>
 
+        <TabsContent value="chat" className="space-y-2 pt-2">
+          <h2 className="text-ink-800 text-sm font-semibold">Chat history</h2>
+          <p className="text-ink-600 text-sm">
+            Your conversation with Agent Kenny on this engagement. Ask a new question from the bar
+            below — every answer is grounded in ledger events.
+          </p>
+          <OracleChat engagementId={engagementId} variant="embedded" />
+        </TabsContent>
+
         <TabsContent value="people" className="space-y-2 pt-2">
           <h2 className="text-ink-800 text-sm font-semibold">Team</h2>
           {!data && !err ? <ShimmerLines lines={3} /> : null}
@@ -737,7 +748,13 @@ export function EngagementBrief({ engagementId }: { engagementId: string }) {
         </TabsContent>
       </Tabs>
 
-      <OracleChat engagementId={engagementId} />
+      {/* U4 — Kenny's front door: persistent ask-bar replaces the old
+          collapsed side rail; submit opens the full-width chat overlay. */}
+      <AskKennyBar
+        engagementId={engagementId}
+        nodes={allMatrixNodes}
+        changes={summary?.recent_changes ?? []}
+      />
     </div>
   );
 }
