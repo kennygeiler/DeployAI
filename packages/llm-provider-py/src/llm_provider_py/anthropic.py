@@ -32,7 +32,7 @@ from llm_provider_py.util import (
 )
 
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
-DEFAULT_MODEL = "claude-sonnet-4-20250514"
+DEFAULT_MODEL = "claude-sonnet-5"
 
 
 class AnthropicProvider:
