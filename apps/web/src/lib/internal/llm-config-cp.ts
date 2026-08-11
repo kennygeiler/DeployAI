@@ -21,6 +21,9 @@ export type TenantLlmConfig = {
   secondary_model_name: string | null;
   secondary_api_key_masked: string | null;
   has_secondary_api_key: boolean;
+  // Pilot-refresh E4 — proposal auto-accept policy (null threshold = off).
+  proposal_auto_accept_threshold: number | null;
+  sampling_audit_rate: number;
   updated_at: string;
 };
 
@@ -31,6 +34,8 @@ export type TenantLlmConfigWrite = {
   secondary_provider?: string | null;
   secondary_model_name?: string | null;
   secondary_api_key?: string | null;
+  proposal_auto_accept_threshold?: number | null;
+  sampling_audit_rate?: number | null;
 };
 
 function cpHeaders(): Record<string, string> {

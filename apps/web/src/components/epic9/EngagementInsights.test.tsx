@@ -2,30 +2,36 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { MatrixInsight } from "@/lib/bff/matrix-types";
+import type { UnifiedInsight } from "@/lib/bff/insight-types";
 
 import { EngagementInsights } from "./EngagementInsights.client";
 
-function mkInsight(overrides: Partial<MatrixInsight> = {}): MatrixInsight {
+function mkInsight(overrides: Partial<UnifiedInsight> = {}): UnifiedInsight {
   return {
     id: "i1",
-    tenant_id: "t1",
+    model: "matrix",
     engagement_id: "e1",
-    agent: "oracle",
     insight_type: "stale_commitment",
     severity: "high",
     title: "Pilot ship date is slipping",
     body: "Commitment cited 35 days ago. Confirm a new date with the sponsor by EOD.",
-    citation_node_ids: ["n1"],
-    citation_edge_ids: [],
-    citation_event_ids: ["ev1"],
-    dedup_key: "oracle:e1:stale_commitment:n1",
     status: "open",
     created_at: "2026-05-09T00:00:00Z",
-    decided_at: null,
-    decided_by: null,
+    snoozed_until: null,
     ...overrides,
   };
+}
+
+function mkTemporal(overrides: Partial<UnifiedInsight> = {}): UnifiedInsight {
+  return mkInsight({
+    id: "t1",
+    model: "temporal",
+    insight_type: "engagement_silence",
+    severity: "medium",
+    title: "No activity in 21 days",
+    body: "Trailing silence across all channels.",
+    ...overrides,
+  });
 }
 
 function mockFetch(handlers: Record<string, () => unknown>) {
@@ -47,6 +53,7 @@ function mockFetch(handlers: Record<string, () => unknown>) {
 describe("EngagementInsights", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("renders the empty state when the BFF returns no insights", async () => {
@@ -70,10 +77,29 @@ describe("EngagementInsights", () => {
     expect(screen.getByText("Stale commitment")).toBeTruthy();
   });
 
-  it("refresh button calls the refresh endpoint and replaces the list", async () => {
+  it("renders both models with source badges (F2 unification)", async () => {
+    mockFetch({
+      "/insights": () => ({ insights: [mkInsight(), mkTemporal()] }),
+    });
+    render(<EngagementInsights engagementId="e1" />);
+    await waitFor(() => expect(screen.getByText("Pilot ship date is slipping")).toBeTruthy());
+    expect(screen.getByText("No activity in 21 days")).toBeTruthy();
+    expect(screen.getByLabelText("source oracle")).toBeTruthy();
+    expect(screen.getByLabelText("source temporal")).toBeTruthy();
+  });
+
+  it("refresh button calls the refresh endpoint and re-lists", async () => {
+    let listCallCount = 0;
     const calls = mockFetch({
-      "/insights/refresh": () => ({ insights: [mkInsight({ title: "After refresh" })] }),
-      "/insights": () => ({ insights: [mkInsight({ title: "Before refresh" })] }),
+      "/insights/refresh": () => ({ insights: [] }),
+      "/insights": () => {
+        listCallCount += 1;
+        return {
+          insights: [
+            mkInsight({ title: listCallCount === 1 ? "Before refresh" : "After refresh" }),
+          ],
+        };
+      },
     });
     render(<EngagementInsights engagementId="e1" />);
     await waitFor(() => expect(screen.getByText("Before refresh")).toBeTruthy());
@@ -87,22 +113,24 @@ describe("EngagementInsights", () => {
   });
 
   it("refresh clears a stale error banner on success", async () => {
-    const calls: Array<{ url: string; method: string }> = [];
+    let failList = true;
     const fetchMock = vi.fn((url: string, init?: { method?: string }) => {
       const method = init?.method ?? "GET";
-      calls.push({ url, method });
       if (method === "POST" && url.includes("/insights/refresh")) {
+        failList = false;
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      }
+      if (failList) {
         return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ insights: [mkInsight({ title: "After refresh" })] }),
+          ok: false,
+          status: 500,
+          json: () => Promise.resolve({ detail: "boom" }),
+          text: () => Promise.resolve("boom"),
         });
       }
-      // First GET fails so the err banner shows.
       return Promise.resolve({
-        ok: false,
-        status: 500,
-        json: () => Promise.resolve({ detail: "boom" }),
-        text: () => Promise.resolve("boom"),
+        ok: true,
+        json: () => Promise.resolve({ insights: [mkInsight({ title: "After refresh" })] }),
       });
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -120,7 +148,7 @@ describe("EngagementInsights", () => {
     expect(screen.queryByText(/boom|Could not load/)).toBeNull();
   });
 
-  it("dismiss button POSTs and re-fetches the list", async () => {
+  it("dismiss on a matrix row POSTs without the temporal model param", async () => {
     let listCallCount = 0;
     const calls = mockFetch({
       "/insights/i1/dismiss": () => ({ insight: { ...mkInsight(), status: "dismissed" } }),
@@ -139,6 +167,70 @@ describe("EngagementInsights", () => {
     await waitFor(() => expect(screen.queryByText("Pilot ship date is slipping")).toBeNull());
     const post = calls.find((c) => c.method === "POST")!;
     expect(post.url).toContain("/api/bff/engagements/e1/insights/i1/dismiss");
+    expect(post.url).not.toContain("model=temporal");
+  });
+
+  it("resolve on a temporal row targets the temporal backend", async () => {
+    const calls = mockFetch({
+      "/insights/t1/resolve": () => ({ insight: { ...mkTemporal(), status: "resolved" } }),
+      "/insights": () => ({ insights: [mkTemporal()] }),
+    });
+    render(<EngagementInsights engagementId="e1" />);
+    await waitFor(() => expect(screen.getByText("No activity in 21 days")).toBeTruthy());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Resolve" }));
+
+    await waitFor(() => {
+      const post = calls.find((c) => c.method === "POST");
+      expect(post?.url).toContain("/insights/t1/resolve?model=temporal");
+    });
+  });
+
+  it("snooze on a temporal row prompts for days and POSTs to the snooze route", async () => {
+    vi.spyOn(window, "prompt").mockReturnValue("14");
+    const calls = mockFetch({
+      "/insights/t1/snooze": () => ({ snooze: { insight_id: "t1", status: "snoozed" } }),
+      "/insights": () => ({ insights: [mkTemporal()] }),
+    });
+    render(<EngagementInsights engagementId="e1" />);
+    await waitFor(() => expect(screen.getByText("No activity in 21 days")).toBeTruthy());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Snooze" }));
+
+    await waitFor(() => {
+      const post = calls.find((c) => c.method === "POST");
+      expect(post?.url).toContain("/api/bff/engagements/e1/insights/t1/snooze");
+    });
+  });
+
+  it("follow-up on a temporal row prompts for a due date and POSTs it", async () => {
+    vi.spyOn(window, "prompt").mockReturnValue("2026-09-01");
+    const calls = mockFetch({
+      "/insights/t1/followup": () => ({ followup: { action_queue_item_id: "fu-1" } }),
+      "/insights": () => ({ insights: [mkTemporal()] }),
+    });
+    render(<EngagementInsights engagementId="e1" />);
+    await waitFor(() => expect(screen.getByText("No activity in 21 days")).toBeTruthy());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Follow up" }));
+
+    await waitFor(() => {
+      const post = calls.find((c) => c.method === "POST");
+      expect(post?.url).toContain("/api/bff/engagements/e1/insights/t1/followup");
+    });
+  });
+
+  it("matrix rows do not offer snooze / follow-up", async () => {
+    mockFetch({
+      "/insights": () => ({ insights: [mkInsight()] }),
+    });
+    render(<EngagementInsights engagementId="e1" />);
+    await waitFor(() => expect(screen.getByText("Pilot ship date is slipping")).toBeTruthy());
+    expect(screen.queryByRole("button", { name: "Snooze" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Follow up" })).toBeNull();
   });
 
   it("groups insights by kind, severity-first, with critical/warning open and info collapsed", async () => {
@@ -241,6 +333,6 @@ describe("EngagementInsights", () => {
     expect(onExplain).toHaveBeenCalledOnce();
     const firstCall = onExplain.mock.calls[0];
     if (!firstCall) throw new Error("onExplain was not called");
-    expect((firstCall[0] as MatrixInsight).id).toBe("ix1");
+    expect((firstCall[0] as UnifiedInsight).id).toBe("ix1");
   });
 });

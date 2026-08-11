@@ -39,6 +39,9 @@ export function LlmConfigForm() {
   const [modelName, setModelName] = React.useState("");
   const [apiKey, setApiKey] = React.useState("");
 
+  const [autoAcceptThreshold, setAutoAcceptThreshold] = React.useState("");
+  const [samplingAuditRate, setSamplingAuditRate] = React.useState("");
+
   const [failoverEnabled, setFailoverEnabled] = React.useState(false);
   const [secondaryProvider, setSecondaryProvider] = React.useState<ProviderChoice>("openai");
   const [secondaryModelName, setSecondaryModelName] = React.useState("");
@@ -59,6 +62,10 @@ export function LlmConfigForm() {
         setProvider(c.provider as ProviderChoice);
       }
       setModelName(c.model_name ?? "");
+      setAutoAcceptThreshold(
+        c.proposal_auto_accept_threshold === null ? "" : String(c.proposal_auto_accept_threshold),
+      );
+      setSamplingAuditRate(c.sampling_audit_rate === 0 ? "" : String(c.sampling_audit_rate));
       const hasSecondary = c.secondary_provider !== null;
       setFailoverEnabled(hasSecondary);
       if (hasSecondary && PROVIDERS.includes(c.secondary_provider as ProviderChoice)) {
@@ -90,6 +97,18 @@ export function LlmConfigForm() {
   const onSubmit = React.useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
+      // E4 — validate the auto-accept knobs before the round-trip. Blank
+      // threshold = policy off (null); blank audit rate = 0.
+      const threshold = autoAcceptThreshold.trim() === "" ? null : Number(autoAcceptThreshold);
+      if (threshold !== null && (!Number.isFinite(threshold) || threshold < 0 || threshold > 1)) {
+        toast.error("Auto-accept threshold must be a number between 0 and 1");
+        return;
+      }
+      const auditRate = samplingAuditRate.trim() === "" ? 0 : Number(samplingAuditRate);
+      if (!Number.isFinite(auditRate) || auditRate < 0 || auditRate > 1) {
+        toast.error("Sampling audit rate must be a number between 0 and 1");
+        return;
+      }
       setSaving(true);
       try {
         const r = await fetch("/api/bff/tenant/llm-config", {
@@ -110,6 +129,8 @@ export function LlmConfigForm() {
             secondary_model_name: failoverEnabled ? secondaryModelName.trim() || null : null,
             secondary_api_key:
               failoverEnabled && secondaryApiKey.trim() ? secondaryApiKey.trim() : null,
+            proposal_auto_accept_threshold: threshold,
+            sampling_audit_rate: auditRate,
           }),
         });
         if (!r.ok) {
@@ -130,6 +151,8 @@ export function LlmConfigForm() {
       provider,
       modelName,
       apiKey,
+      autoAcceptThreshold,
+      samplingAuditRate,
       failoverEnabled,
       secondaryProvider,
       secondaryModelName,
@@ -204,6 +227,45 @@ export function LlmConfigForm() {
             ? "Leave blank to keep the stored key. Type a new value to replace it."
             : "Required for the chosen provider unless the server has one in the environment."}
         </p>
+      </div>
+
+      <div className="border-border space-y-4 border-t pt-4">
+        <div>
+          <h3 className="text-sm font-semibold">Proposal review</h3>
+          <p className="text-ink-600 mt-1 text-xs">
+            Extraction proposals whose confidence meets the threshold are accepted automatically
+            with a distinct audit-ledger entry; a deterministic sample is held back for human
+            spot-check.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="proposal_auto_accept_threshold">Auto-accept threshold (0–1)</Label>
+          <Input
+            id="proposal_auto_accept_threshold"
+            name="proposal_auto_accept_threshold"
+            inputMode="decimal"
+            value={autoAcceptThreshold}
+            onChange={(e) => setAutoAcceptThreshold(e.target.value)}
+            placeholder="(off)"
+            autoComplete="off"
+          />
+          <p className="text-ink-600 text-xs">Leave blank to review every proposal by hand.</p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="sampling_audit_rate">Sampling audit rate (0–1)</Label>
+          <Input
+            id="sampling_audit_rate"
+            name="sampling_audit_rate"
+            inputMode="decimal"
+            value={samplingAuditRate}
+            onChange={(e) => setSamplingAuditRate(e.target.value)}
+            placeholder="0"
+            autoComplete="off"
+          />
+          <p className="text-ink-600 text-xs">
+            Fraction of would-be auto-accepts held in the review queue as spot-checks.
+          </p>
+        </div>
       </div>
 
       <div className="border-border space-y-3 border-t pt-4">

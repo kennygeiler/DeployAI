@@ -3,22 +3,24 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, Cable, Gauge, Search, Settings } from "lucide-react";
+import { Briefcase, Cable, Gauge, Inbox, Search, Settings } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 
 /**
- * MVP nav: Engagements (portfolio + per-engagement matrix + insights)
- * and Settings (tenant LLM config — Sprint 1). The pre-pivot BMAD
- * surfaces (`/digest`, `/in-meeting`, `/phase-tracking`, `/evening`,
- * `/action-queue`, `/validation-queue`, `/overrides`, `/audit/personal`,
- * `/settings/integrations`) are being retired — see
+ * MVP nav: Engagements (portfolio + per-engagement matrix + insights),
+ * the Review inbox (pilot-refresh E1 — unified HITL queue with an
+ * open-item badge), and Settings (tenant LLM config — Sprint 1). The
+ * pre-pivot BMAD surfaces (`/digest`, `/in-meeting`, `/phase-tracking`,
+ * `/evening`, `/action-queue`, `/validation-queue`, `/overrides`,
+ * `/audit/personal`, `/settings/integrations`) are being retired — see
  * `docs/product/deployai-source-of-truth-spec.md` §16.
  */
 const primary: readonly NavItem[] = [
   { href: "/engagements", label: "Engagements", icon: Briefcase },
+  { href: "/review", label: "Review inbox", icon: Inbox },
   { href: "/search", label: "Search", icon: Search },
   { href: "/settings", label: "Settings", icon: Settings },
   // v2 Phase 5 Wave 3I — outbound MCP audit. The "Admin" surface grew
@@ -31,8 +33,34 @@ const primary: readonly NavItem[] = [
   { href: "/admin/agent-kenny-dashboard", label: "Admin · Agent Kenny dashboard", icon: Gauge },
 ];
 
+function useOpenReviewCount(): number {
+  const [count, setCount] = React.useState(0);
+  React.useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await fetch("/api/bff/review/badge", { cache: "no-store" });
+        if (!r.ok || cancelled) {
+          return;
+        }
+        const body = (await r.json()) as { counts?: { open?: number } };
+        if (!cancelled && typeof body.counts?.open === "number") {
+          setCount(body.counts.open);
+        }
+      } catch {
+        // Badge is best-effort chrome — a failed fetch just shows no count.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return count;
+}
+
 export function StrategistNav() {
   const pathname = usePathname();
+  const openReviewCount = useOpenReviewCount();
   return (
     <nav
       aria-label="Primary strategist"
@@ -52,6 +80,7 @@ export function StrategistNav() {
         <ul className="flex flex-col gap-0.5">
           {primary.map((item) => {
             const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+            const showBadge = item.href === "/review" && openReviewCount > 0;
             return (
               <li key={item.href}>
                 <Link
@@ -73,6 +102,14 @@ export function StrategistNav() {
                   <span className="hidden min-w-0 flex-1 truncate text-sm xl:inline">
                     {item.label}
                   </span>
+                  {showBadge ? (
+                    <span
+                      aria-label={`${openReviewCount} open review item(s)`}
+                      className="hidden rounded-full bg-accent-tint px-1.5 py-0.5 font-mono text-[10px] font-semibold text-accent-ink shadow-hairline xl:inline"
+                    >
+                      {openReviewCount}
+                    </span>
+                  ) : null}
                 </Link>
               </li>
             );

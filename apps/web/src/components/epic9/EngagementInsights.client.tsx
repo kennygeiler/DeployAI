@@ -14,13 +14,15 @@ import {
   type GroupSeverity,
   type InsightGroup,
 } from "@/lib/bff/insight-grouping";
-import type { MatrixInsight } from "@/lib/bff/matrix-types";
+import type { UnifiedInsight } from "@/lib/bff/insight-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 
 /**
- * Phase 7 (increment 7.3) — Oracle insights surface for one engagement.
- * Lists `open` insights (highest severity first), with a refresh button
- * that re-runs the Oracle agent and per-card Dismiss / Resolve buttons.
+ * Phase 7 (increment 7.3) + pilot-refresh F2 — the insights surface for one
+ * engagement. Renders BOTH insight models through the unified BFF read path:
+ * Oracle synthesis rows (`model: "matrix"`, Dismiss / Resolve / Explain) and
+ * temporal analyzer rows (`model: "temporal"`, Snooze / Follow-up / Dismiss /
+ * Resolve). Each action dispatches to the correct backend by model.
  *
  * Cards are observations, not graph edits — resolving does not mutate
  * the matrix. See `docs/product/synthesis-agents.md`.
@@ -28,11 +30,19 @@ import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff
 export type EngagementInsightsProps = {
   engagementId: string;
   // Stub for G1.c — per-card "Explain" button wires through to Agent Kenny.
-  onExplain?: (insight: MatrixInsight) => void;
+  onExplain?: (insight: UnifiedInsight) => void;
 };
 
+const DEFAULT_SNOOZE_DAYS = 7;
+
+function defaultFollowupDate(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 7);
+  return d.toISOString().slice(0, 10);
+}
+
 export function EngagementInsights({ engagementId, onExplain }: EngagementInsightsProps) {
-  const [insights, setInsights] = React.useState<MatrixInsight[]>([]);
+  const [insights, setInsights] = React.useState<UnifiedInsight[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
   const [busyId, setBusyId] = React.useState<string | null>(null);
@@ -47,7 +57,7 @@ export function EngagementInsights({ engagementId, onExplain }: EngagementInsigh
       return;
     }
     setErr(null);
-    const body = (await r.json()) as { insights?: MatrixInsight[] };
+    const body = (await r.json()) as { insights?: UnifiedInsight[] };
     setInsights(Array.isArray(body.insights) ? body.insights : []);
   }, [engagementId]);
 
@@ -86,23 +96,24 @@ export function EngagementInsights({ engagementId, onExplain }: EngagementInsigh
         });
         return;
       }
-      const body = (await r.json()) as { insights?: MatrixInsight[] };
-      const list = Array.isArray(body.insights) ? body.insights : [];
-      setInsights(list);
+      // Refresh re-runs the Oracle agent; re-list through the unified path so
+      // temporal rows stay in the view.
+      await fetchList();
       setErr(null);
-      toast.success(`Refreshed — ${list.length} open insight(s)`);
+      toast.success("Insights refreshed");
     } finally {
       setRefreshing(false);
     }
-  }, [engagementId]);
+  }, [engagementId, fetchList]);
 
   const decide = React.useCallback(
-    async (insightId: string, decision: "dismiss" | "resolve") => {
-      setBusyId(insightId);
+    async (insight: UnifiedInsight, decision: "dismiss" | "resolve") => {
+      setBusyId(insight.id);
       try {
+        const model = insight.model === "temporal" ? "?model=temporal" : "";
         const r = await fetch(
           `/api/bff/engagements/${encodeURIComponent(engagementId)}/insights/` +
-            `${encodeURIComponent(insightId)}/${decision}`,
+            `${encodeURIComponent(insight.id)}/${decision}${model}`,
           { method: "POST" },
         );
         if (!r.ok) {
@@ -121,10 +132,84 @@ export function EngagementInsights({ engagementId, onExplain }: EngagementInsigh
     [engagementId, fetchList],
   );
 
-  // Snooze + followup callbacks intentionally removed — this component renders
-  // MatrixInsight (Oracle) rows; the backend snooze/followup endpoints operate
-  // on temporal_insights only. The BFF + CP plumbing exists for the future
-  // temporal-insights surface; do not wire it here until that surface lands.
+  const snooze = React.useCallback(
+    async (insight: UnifiedInsight) => {
+      const raw =
+        typeof window === "undefined"
+          ? String(DEFAULT_SNOOZE_DAYS)
+          : window.prompt("Snooze for how many days? (1-90)", String(DEFAULT_SNOOZE_DAYS));
+      if (raw === null) {
+        return;
+      }
+      const days = Number.parseInt(raw, 10);
+      if (!Number.isInteger(days) || days < 1 || days > 90) {
+        toast.error("Snooze needs a whole number of days between 1 and 90");
+        return;
+      }
+      setBusyId(insight.id);
+      try {
+        const r = await fetch(
+          `/api/bff/engagements/${encodeURIComponent(engagementId)}/insights/` +
+            `${encodeURIComponent(insight.id)}/snooze`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ days }),
+          },
+        );
+        if (!r.ok) {
+          toast.error("Could not snooze insight", {
+            description: (await readStrategistBffErrorDescription(r)).slice(0, 240),
+          });
+          return;
+        }
+        toast.success(`Snoozed for ${days} day(s)`);
+        await fetchList();
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [engagementId, fetchList],
+  );
+
+  const followup = React.useCallback(
+    async (insight: UnifiedInsight) => {
+      const due =
+        typeof window === "undefined"
+          ? defaultFollowupDate()
+          : window.prompt("Follow-up due date (YYYY-MM-DD)", defaultFollowupDate());
+      if (due === null) {
+        return;
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) {
+        toast.error("Follow-up needs a YYYY-MM-DD due date");
+        return;
+      }
+      setBusyId(insight.id);
+      try {
+        const r = await fetch(
+          `/api/bff/engagements/${encodeURIComponent(engagementId)}/insights/` +
+            `${encodeURIComponent(insight.id)}/followup`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            // owner_user_id is defaulted to the acting user server-side.
+            body: JSON.stringify({ due_date: due }),
+          },
+        );
+        if (!r.ok) {
+          toast.error("Could not create follow-up", {
+            description: (await readStrategistBffErrorDescription(r)).slice(0, 240),
+          });
+          return;
+        }
+        toast.success("Follow-up task created");
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [engagementId],
+  );
 
   const groups = React.useMemo(() => groupByKind(insights), [insights]);
 
@@ -160,6 +245,8 @@ export function EngagementInsights({ engagementId, onExplain }: EngagementInsigh
                 group={g}
                 busyId={busyId}
                 onDecide={decide}
+                onSnooze={snooze}
+                onFollowup={followup}
                 onExplain={onExplain}
               />
             </li>
@@ -174,12 +261,16 @@ function InsightGroupSection({
   group,
   busyId,
   onDecide,
+  onSnooze,
+  onFollowup,
   onExplain,
 }: {
-  group: InsightGroup;
+  group: InsightGroup<UnifiedInsight>;
   busyId: string | null;
-  onDecide: (insightId: string, decision: "dismiss" | "resolve") => void;
-  onExplain?: (insight: MatrixInsight) => void;
+  onDecide: (insight: UnifiedInsight, decision: "dismiss" | "resolve") => void;
+  onSnooze: (insight: UnifiedInsight) => void;
+  onFollowup: (insight: UnifiedInsight) => void;
+  onExplain?: (insight: UnifiedInsight) => void;
 }) {
   const [open, setOpen] = React.useState<boolean>(() => isOpenByDefault(group));
   const contentId = React.useId();
@@ -214,6 +305,7 @@ function InsightGroupSection({
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <InsightSeverityBadge severity={i.severity} />
+                  <ModelBadge model={i.model} />
                   <TimestampLabel value={i.created_at} prefix="created" />
                 </div>
                 <div className="flex gap-1">
@@ -228,20 +320,37 @@ function InsightGroupSection({
                       Explain
                     </Button>
                   ) : null}
-                  {/*
-                    Snooze + Follow-up buttons hidden: this component renders
-                    MatrixInsight (Oracle) rows but the snooze endpoint
-                    operates on temporal_insights. Re-enable once a dedicated
-                    TemporalInsight surface exists or the endpoint is extended
-                    to dispatch by table.
-                  */}
+                  {i.model === "temporal" ? (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs"
+                        disabled={busyId === i.id}
+                        onClick={() => onSnooze(i)}
+                      >
+                        Snooze
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs"
+                        disabled={busyId === i.id}
+                        onClick={() => onFollowup(i)}
+                      >
+                        Follow up
+                      </Button>
+                    </>
+                  ) : null}
                   <Button
                     type="button"
                     size="sm"
                     variant="outline"
                     className="h-7 px-2 text-xs"
                     disabled={busyId === i.id}
-                    onClick={() => onDecide(i.id, "resolve")}
+                    onClick={() => onDecide(i, "resolve")}
                   >
                     Resolve
                   </Button>
@@ -251,7 +360,7 @@ function InsightGroupSection({
                     variant="ghost"
                     className="h-7 px-2 text-xs"
                     disabled={busyId === i.id}
-                    onClick={() => onDecide(i.id, "dismiss")}
+                    onClick={() => onDecide(i, "dismiss")}
                   >
                     Dismiss
                   </Button>
@@ -284,9 +393,9 @@ function SeverityBadge({ severity }: { severity: GroupSeverity }) {
   );
 }
 
-function InsightSeverityBadge({ severity }: { severity: MatrixInsight["severity"] }) {
+function InsightSeverityBadge({ severity }: { severity: UnifiedInsight["severity"] }) {
   const classes =
-    severity === "high"
+    severity === "high" || severity === "critical"
       ? "bg-red-tint text-red-ink"
       : severity === "medium"
         ? "bg-orange-tint text-orange-ink"
@@ -297,6 +406,17 @@ function InsightSeverityBadge({ severity }: { severity: MatrixInsight["severity"
       aria-label={`severity ${severity}`}
     >
       {severity}
+    </span>
+  );
+}
+
+function ModelBadge({ model }: { model: UnifiedInsight["model"] }) {
+  return (
+    <span
+      className="rounded-full bg-hover px-1.5 py-0.5 font-mono text-[10px] uppercase text-ink-600 shadow-hairline"
+      aria-label={`source ${model === "matrix" ? "oracle" : "temporal"}`}
+    >
+      {model === "matrix" ? "oracle" : "temporal"}
     </span>
   );
 }

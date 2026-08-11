@@ -2,18 +2,25 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { decideSync } from "@deployai/authz";
 
+import {
+  normalizeMatrixInsight,
+  normalizeTemporalInsight,
+  type UnifiedInsight,
+} from "@/lib/bff/insight-types";
 import { getActorFromHeaders } from "@/lib/internal/actor";
-import { cpListMatrixInsights } from "@/lib/internal/insights-cp";
+import { cpListMatrixInsights, cpListTemporalInsights } from "@/lib/internal/insights-cp";
 import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
 import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strategist-queues-route-guard";
 
 type Ctx = { params: Promise<{ engagementId: string }> };
 
 /**
- * Phase 7 (increment 7.3) — list matrix insights for an engagement. Returns
- * `open` rows by default; pass `?status=dismissed` or `?status=resolved`
- * to surface history. Used by the EngagementInsights component on the
- * engagement detail page.
+ * Pilot-refresh F2 — unified insights read path. Returns BOTH insight
+ * models for the engagement as one normalized list (`UnifiedInsight`):
+ * Oracle `matrix_insights` rows (`model: "matrix"`, dismiss/resolve) and
+ * analyzer `temporal_insights` rows (`model: "temporal"`,
+ * snooze/follow-up/dismiss/resolve). `open` rows by default; pass
+ * `?status=dismissed` or `?status=resolved` for history.
  */
 export async function GET(request: NextRequest, ctx: Ctx) {
   const actor = await getActorFromHeaders();
@@ -45,7 +52,14 @@ export async function GET(request: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "invalid status" }, { status: 400 });
   }
   try {
-    const insights = await cpListMatrixInsights(tid, engagementId, status);
+    const [matrix, temporal] = await Promise.all([
+      cpListMatrixInsights(tid, engagementId, status),
+      cpListTemporalInsights(tid, engagementId, status),
+    ]);
+    const insights: UnifiedInsight[] = [
+      ...matrix.map(normalizeMatrixInsight),
+      ...temporal.map(normalizeTemporalInsight),
+    ];
     return NextResponse.json({ insights, source: "cp" }, { status: 200 });
   } catch (e) {
     return nextResponseFromStrategistCpFetchError(e);

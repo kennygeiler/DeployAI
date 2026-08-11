@@ -34,6 +34,7 @@ from control_plane.domain import canonical_memory as _canonical_memory  # noqa: 
 from control_plane.domain import edge_agents as _edge_agents  # noqa: F401
 from control_plane.domain import engagement as _engagement  # noqa: F401
 from control_plane.domain import integrations as _integrations  # noqa: F401
+from control_plane.domain import review_inbox as _review_inbox  # noqa: F401
 from control_plane.domain import strategist_personal as _strategist_personal  # noqa: F401
 from control_plane.domain import tenant_phase as _tenant_phase  # noqa: F401
 from control_plane.domain.base import Base

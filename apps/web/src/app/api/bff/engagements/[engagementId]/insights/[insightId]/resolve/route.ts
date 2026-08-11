@@ -3,18 +3,20 @@ import { type NextRequest, NextResponse } from "next/server";
 import { decideSync } from "@deployai/authz";
 
 import { getActorFromHeaders, getActorIdFromHeaders } from "@/lib/internal/actor";
-import { cpResolveMatrixInsight } from "@/lib/internal/insights-cp";
+import { cpPatchTemporalInsightStatus, cpResolveMatrixInsight } from "@/lib/internal/insights-cp";
 import { nextResponseFromStrategistCpFetchError } from "@/lib/internal/strategist-bff-cp-error";
 import { strategistQueueBffCpMisconfiguredResponse } from "@/lib/internal/strategist-queues-route-guard";
 
 type Ctx = { params: Promise<{ engagementId: string; insightId: string }> };
 
 /**
- * Phase 7 (increment 7.3) — resolve a matrix insight. Resolved insights
- * can re-open automatically on a future refresh if the predicate fires
+ * Phase 7 (increment 7.3) — resolve an insight. Pilot-refresh F2 extends
+ * this to both insight models: `?model=temporal` patches the temporal
+ * row's status; the default (`matrix`) keeps the Oracle behavior, where a
+ * resolved insight can re-open on a future refresh if the predicate fires
  * again with the same dedup_key (design §11).
  */
-export async function POST(_request: NextRequest, ctx: Ctx) {
+export async function POST(request: NextRequest, ctx: Ctx) {
   const actor = await getActorFromHeaders();
   if (!actor) {
     return new NextResponse("Unauthorized", { status: 401 });
@@ -33,7 +35,15 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
   const { engagementId, insightId } = await ctx.params;
   const tid = actor.tenantId!.trim();
   const actorId = await getActorIdFromHeaders();
+  const model = request.nextUrl.searchParams.get("model") ?? "matrix";
+  if (model !== "matrix" && model !== "temporal") {
+    return NextResponse.json({ error: "invalid model" }, { status: 400 });
+  }
   try {
+    if (model === "temporal") {
+      const insight = await cpPatchTemporalInsightStatus(tid, insightId, "resolved");
+      return NextResponse.json({ insight, source: "cp" }, { status: 200 });
+    }
     const insight = await cpResolveMatrixInsight(tid, engagementId, insightId, {
       actor_id: actorId,
     });

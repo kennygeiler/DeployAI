@@ -17,6 +17,8 @@ function mkCfg(overrides: Partial<TenantLlmConfig> = {}): TenantLlmConfig {
     secondary_model_name: null,
     secondary_api_key_masked: null,
     has_secondary_api_key: false,
+    proposal_auto_accept_threshold: null,
+    sampling_audit_rate: 0,
     updated_at: "2026-05-23T12:00:00Z",
     ...overrides,
   };
@@ -114,6 +116,66 @@ describe("LlmConfigForm", () => {
     expect((put.body as { api_key: string }).api_key).toBe("sk-new-key-value");
     // After save the input is cleared and the masked placeholder reflects the new key.
     await waitFor(() => expect(key.value).toBe(""));
+  });
+
+  it("prefills the E4 auto-accept fields and PUTs edited values", async () => {
+    const calls = mockFetch({
+      get: () => ({
+        config: mkCfg({ proposal_auto_accept_threshold: 0.8, sampling_audit_rate: 0.25 }),
+      }),
+      put: () => ({
+        config: mkCfg({ proposal_auto_accept_threshold: 0.9, sampling_audit_rate: 0.25 }),
+      }),
+    });
+    render(<LlmConfigForm />);
+    await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
+    const threshold = screen.getByLabelText(/auto-accept threshold/i) as HTMLInputElement;
+    expect(threshold.value).toBe("0.8");
+    const rate = screen.getByLabelText(/sampling audit rate/i) as HTMLInputElement;
+    expect(rate.value).toBe("0.25");
+
+    const user = userEvent.setup();
+    await user.clear(threshold);
+    await user.type(threshold, "0.9");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true));
+    const put = calls.find((c) => c.method === "PUT")!;
+    const sent = put.body as {
+      proposal_auto_accept_threshold: number | null;
+      sampling_audit_rate: number;
+    };
+    expect(sent.proposal_auto_accept_threshold).toBe(0.9);
+    expect(sent.sampling_audit_rate).toBe(0.25);
+  });
+
+  it("sends a null threshold (policy off) when the field is blank", async () => {
+    const calls = mockFetch({
+      get: () => ({ config: mkCfg() }),
+      put: () => ({ config: mkCfg() }),
+    });
+    render(<LlmConfigForm />);
+    await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true));
+    const put = calls.find((c) => c.method === "PUT")!;
+    const sent = put.body as {
+      proposal_auto_accept_threshold: number | null;
+      sampling_audit_rate: number;
+    };
+    expect(sent.proposal_auto_accept_threshold).toBeNull();
+    expect(sent.sampling_audit_rate).toBe(0);
+  });
+
+  it("rejects an out-of-range auto-accept threshold before the round-trip", async () => {
+    const calls = mockFetch({ get: () => ({ config: mkCfg() }) });
+    render(<LlmConfigForm />);
+    await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/auto-accept threshold/i), "1.5");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    // Client-side validation blocked the PUT.
+    expect(calls.some((c) => c.method === "PUT")).toBe(false);
   });
 
   it("does not render the failover inputs until the toggle is on", async () => {

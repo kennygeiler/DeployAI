@@ -124,6 +124,77 @@ describe("CitationPanel", () => {
     });
   });
 
+  it("flags a citation as disputed (E3) and shows the flagged badge", async () => {
+    const calls: Array<{ url: string; method: string; body?: string }> = [];
+    const fetchMock = vi.fn((url: string, init?: { method?: string; body?: string }) => {
+      calls.push({ url, method: init?.method ?? "GET", body: init?.body });
+      if (url.includes("/citations/dispute")) {
+        return Promise.resolve({
+          ok: true,
+          status: 201,
+          json: () => Promise.resolve({ item: { id: "ri1", kind: "citation_dispute" } }),
+          text: () => Promise.resolve(""),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ events: [mkEvent()] }),
+        text: () => Promise.resolve(""),
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <CitationPanel
+        engagementId="e1"
+        ids={["ev1"]}
+        title="Answer sources"
+        open={true}
+        onClose={() => undefined}
+        turnId="turn-42"
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Stakeholder confirmed the pilot date")).toBeTruthy(),
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /flag citation ev1/i }));
+    await user.type(screen.getByLabelText("Why is this citation wrong?"), "wrong stakeholder");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => expect(screen.getByText("flagged")).toBeTruthy());
+    const post = calls.find((c) => c.method === "POST");
+    expect(post?.url).toContain("/api/bff/engagements/e1/citations/dispute");
+    const body = JSON.parse(post?.body ?? "{}") as Record<string, unknown>;
+    expect(body.citation_id).toBe("ev1");
+    expect(body.turn_id).toBe("turn-42");
+    expect(body.reason).toBe("wrong stakeholder");
+  });
+
+  it("requires a reason before submitting a dispute", async () => {
+    const calls = mockFetch(() => ({ ok: true, body: { events: [mkEvent()] } }));
+    render(
+      <CitationPanel
+        engagementId="e1"
+        ids={["ev1"]}
+        title="Answer sources"
+        open={true}
+        onClose={() => undefined}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Stakeholder confirmed the pilot date")).toBeTruthy(),
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /flag citation ev1/i }));
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+    // No dispute POST happened — only the initial events GET.
+    expect(calls.length).toBe(1);
+    expect(screen.queryByText("flagged")).toBeNull();
+  });
+
   it("close button calls onClose", async () => {
     mockFetch(() => ({ ok: true, body: { events: [mkEvent()] } }));
     const onClose = vi.fn();

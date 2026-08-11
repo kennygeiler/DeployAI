@@ -3,6 +3,7 @@
  * Oracle endpoints — list / refresh / dismiss / resolve — so BFF routes
  * (and tests) call typed helpers, not raw URLs. Mirrors `matrix-cp.ts`.
  */
+import type { TemporalInsight } from "@/lib/bff/insight-types";
 import type { MatrixInsight } from "@/lib/bff/matrix-types";
 
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
@@ -182,6 +183,49 @@ export function cpResolveTenantInsight(
   body: { actor_id: string | null },
 ): Promise<MatrixInsight> {
   return cpDecideTenantInsight(tenantId, insightId, "resolve", body);
+}
+
+// --- F2 — temporal insights read + status patch (unified insight surface) ---
+
+export async function cpListTemporalInsights(
+  tenantId: string,
+  engagementId: string,
+  status: "open" | "dismissed" | "resolved" | null = "open",
+): Promise<TemporalInsight[]> {
+  const params = new URLSearchParams({
+    tenant_id: tenantId,
+    engagement_id: engagementId,
+  });
+  if (status) params.set("status", status);
+  const r = await fetch(`${cpBase()}/internal/v1/temporal-insights?${params.toString()}`, {
+    method: "GET",
+    headers: cpHeaders(),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    throw new Error(`cp temporal insights list ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as TemporalInsight[];
+}
+
+export async function cpPatchTemporalInsightStatus(
+  tenantId: string,
+  insightId: string,
+  status: "acknowledged" | "dismissed" | "resolved",
+): Promise<TemporalInsight> {
+  const url =
+    `${cpBase()}/internal/v1/temporal-insights/${encodeURIComponent(insightId)}` +
+    `?tenant_id=${encodeURIComponent(tenantId)}`;
+  const r = await fetch(url, {
+    method: "PATCH",
+    headers: { ...cpHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    throw new Error(`cp temporal insight patch ${r.status}: ${await r.text()}`);
+  }
+  return (await r.json()) as TemporalInsight;
 }
 
 // --- G4.b — temporal insight snooze + followup quick-actions ----------------
