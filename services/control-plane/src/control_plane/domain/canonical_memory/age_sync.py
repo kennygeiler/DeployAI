@@ -25,7 +25,7 @@ GRAPH_NAME = "deployai_matrix"
 
 
 NODE_TRIGGER_FN = """
-CREATE OR REPLACE FUNCTION matrix_nodes_age_sync_trigger()
+CREATE OR REPLACE FUNCTION public.matrix_nodes_age_sync_trigger()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $fn$
@@ -53,14 +53,22 @@ BEGIN
         RETURN OLD;
     END IF;
 
-    safe_title := replace(NEW.title, '''', '\\''');
+    -- Escape the free-text title for a single-quoted *Cypher* string literal:
+    -- Cypher uses backslash escapes (\\ then \'), not SQL quote-doubling, so
+    -- %L must not be applied to it. Backslashes are escaped first. The outer
+    -- EXECUTE wraps the statement in the $age_sync$ dollar tag, so any
+    -- occurrence of that tag in the title is stripped to keep the quoting
+    -- boundary intact (user titles are the only free text on this path).
+    safe_title := replace(NEW.title, E'\\\\', E'\\\\\\\\');
+    safe_title := replace(safe_title, '''', E'\\\\''');
+    safe_title := replace(safe_title, '$age_sync$', '');
 
     cypher_stmt := format(
         'MERGE (n:matrix_node {id: %L}) '
         || 'SET n.tenant_id = %L, '
         || '    n.engagement_id = %L, '
         || '    n.node_type = %L, '
-        || '    n.title = %L',
+        || '    n.title = ''%s''',
         NEW.id::text,
         NEW.tenant_id::text,
         NEW.engagement_id::text,
@@ -68,7 +76,7 @@ BEGIN
         safe_title
     );
     EXECUTE format(
-        'SELECT * FROM cypher(%L, $$%s$$) AS (n agtype)',
+        'SELECT * FROM cypher(%L, $age_sync$%s$age_sync$) AS (n agtype)',
         'deployai_matrix',
         cypher_stmt
     );
@@ -79,7 +87,7 @@ $fn$;
 
 
 EDGE_TRIGGER_FN = """
-CREATE OR REPLACE FUNCTION matrix_edges_age_sync_trigger()
+CREATE OR REPLACE FUNCTION public.matrix_edges_age_sync_trigger()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $fn$
@@ -152,7 +160,7 @@ NODE_TRIGGER_ATTACH = """
 DROP TRIGGER IF EXISTS matrix_nodes_age_sync ON matrix_nodes;
 CREATE TRIGGER matrix_nodes_age_sync
 AFTER INSERT OR UPDATE OR DELETE ON matrix_nodes
-FOR EACH ROW EXECUTE FUNCTION matrix_nodes_age_sync_trigger();
+FOR EACH ROW EXECUTE FUNCTION public.matrix_nodes_age_sync_trigger();
 """
 
 
@@ -160,17 +168,17 @@ EDGE_TRIGGER_ATTACH = """
 DROP TRIGGER IF EXISTS matrix_edges_age_sync ON matrix_edges;
 CREATE TRIGGER matrix_edges_age_sync
 AFTER INSERT OR UPDATE OR DELETE ON matrix_edges
-FOR EACH ROW EXECUTE FUNCTION matrix_edges_age_sync_trigger();
+FOR EACH ROW EXECUTE FUNCTION public.matrix_edges_age_sync_trigger();
 """
 
 
 NODE_TRIGGER_DROP = """
 DROP TRIGGER IF EXISTS matrix_nodes_age_sync ON matrix_nodes;
-DROP FUNCTION IF EXISTS matrix_nodes_age_sync_trigger();
+DROP FUNCTION IF EXISTS public.matrix_nodes_age_sync_trigger();
 """
 
 
 EDGE_TRIGGER_DROP = """
 DROP TRIGGER IF EXISTS matrix_edges_age_sync ON matrix_edges;
-DROP FUNCTION IF EXISTS matrix_edges_age_sync_trigger();
+DROP FUNCTION IF EXISTS public.matrix_edges_age_sync_trigger();
 """
