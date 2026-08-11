@@ -132,6 +132,17 @@ export async function middleware(request: NextRequest) {
   }
   const role = parseRole(requestHeaders.get("x-deployai-role"));
   if (!role) {
+    // Browser page loads get the login page, not a bare 403 — API callers
+    // (and anything not asking for HTML) keep the machine-readable status.
+    const wantsHtml = request.headers.get("accept")?.includes("text/html") ?? false;
+    const isPageRequest = wantsHtml && !pathname.startsWith("/api/");
+    if (isPageRequest) {
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = "/login";
+      loginUrl.search = "";
+      loginUrl.searchParams.set("next", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
     return new NextResponse("Forbidden: missing or invalid x-deployai-role (see docs).", {
       status: 403,
     });

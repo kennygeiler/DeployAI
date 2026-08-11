@@ -5,7 +5,13 @@
  * version can replace it later without touching the flow.
  */
 
+import { TokenForm } from "./TokenForm.client";
+
 export const metadata = { title: "Sign in — DeployAI" };
+
+// Bootstrap-token login is an operator escape hatch for hosted deploys that
+// don't have an OIDC issuer yet; hidden unless explicitly enabled.
+const bootstrapLoginEnabled = () => process.env.NEXT_PUBLIC_BOOTSTRAP_TOKEN_LOGIN === "1";
 
 const ERROR_MESSAGES: Record<string, string> = {
   issuer_unreachable: "Could not reach the identity provider. Please try again in a moment.",
@@ -17,9 +23,9 @@ const ERROR_MESSAGES: Record<string, string> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; next?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, next } = await searchParams;
   const message = error ? (ERROR_MESSAGES[error] ?? ERROR_MESSAGES.sso_failed) : null;
   return (
     <main
@@ -61,6 +67,7 @@ export default async function LoginPage({
         >
           Sign in with SSO
         </a>
+        {bootstrapLoginEnabled() ? <TokenForm next={next ?? "/engagements"} /> : null}
       </div>
     </main>
   );
