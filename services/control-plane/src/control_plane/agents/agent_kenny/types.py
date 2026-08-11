@@ -223,6 +223,28 @@ class McpOutboundSkippedDisabledChunk:
 
 
 @dataclass(frozen=True)
+class ApprovalRequiredChunk:
+    """The turn paused on a human-in-the-loop approval (pilot-refresh D4).
+
+    Emitted when the LangGraph runtime interrupts because the agent is
+    about to invoke an approval-gated tool (external MCP write-capable
+    tools by default). The stream ends after this frame — no ``done``
+    follows. The client resumes the turn by POSTing the decision to
+    ``/oracle/approvals/{thread_id}``, which returns the completed reply
+    as JSON (non-streaming).
+
+    ``tool`` is the flagged tool name (first of the batch when several
+    calls were flagged together); ``args_summary`` is a compact rendering
+    of the proposed arguments for the reviewer.
+    """
+
+    question: str
+    tool: str
+    args_summary: str
+    thread_id: str
+
+
+@dataclass(frozen=True)
 class AdversarialConcernChunk:
     concern_text: str
     severity: AdversarialSeverity
@@ -255,6 +277,7 @@ StreamChunk = (
     | CitationExternalChunk
     | McpExternalCallChunk
     | McpOutboundSkippedDisabledChunk
+    | ApprovalRequiredChunk
     | AdversarialConcernChunk
     | DoneChunk
     | ErrorChunk
@@ -341,6 +364,7 @@ __all__ = [
     "AdversarialConcernChunk",
     "AdversarialSeverity",
     "AgentState",
+    "ApprovalRequiredChunk",
     "BudgetExhaustedError",
     "CitationExternalChunk",
     "CitationOutcome",

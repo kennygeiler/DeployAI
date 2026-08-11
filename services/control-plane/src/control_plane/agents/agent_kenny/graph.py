@@ -1,23 +1,27 @@
-"""LangGraph StateGraph wiring for Agent Kenny v2 (scope-v2 §6.1).
+"""LangGraph StateGraph wiring for Agent Kenny v2.
 
 This module owns the *topology* — node names, edges, and the conditional
-routers used by the runtime. The actual node implementations live under
-``agent_kenny/nodes/`` and are wired into the :class:`KennyAgentService`
-driver loop in ``service.py``.
+routers. The node implementations live under ``agent_kenny/nodes/``; the
+LangGraph runtime (``runtime.py``, pilot-refresh D2) wraps them into node
+callables and passes them in via ``build_graph(nodes=...)`` together with
+the Postgres checkpointer, producing the executable graph.
 
-The compiled graph is used in two ways:
+The same compiled topology serves three consumers:
 
-- A small set of unit tests inspects ``has_tool_calls_router`` and
-  ``unverified_router`` to assert routing decisions without exercising the
-  LLM or DB.
-- The driver loop (``service.run_graph``) walks the same node names in the
-  same order. We keep the topology declarative here so a future migration
-  to native LangGraph execution (with checkpointer + replay) doesn't have
-  to re-derive the edges from imperative code.
+- ``runtime.py`` — the real LangGraph execution path
+  (``DEPLOYAI_AGENT_RUNTIME=langgraph``): real node callables + the
+  ``AsyncPostgresSaver`` checkpointer.
+- The legacy hand-rolled driver in ``service.py`` — walks the same node
+  names in the same order imperatively; it shares
+  :func:`has_tool_calls_router` / :func:`unverified_router` so routing
+  decisions cannot drift between the two runtimes.
+- Unit tests — ``build_graph()`` with no arguments compiles the topology
+  with inert nodes for introspection without an LLM or DB.
 """
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
 from control_plane.agents.agent_kenny.types import (
@@ -36,6 +40,19 @@ NODE_ADVERSARIAL = "adversarial"
 NODE_PERSIST = "persist"
 NODE_END = "__end__"
 
+NODE_NAMES: tuple[str, ...] = (
+    NODE_RETRIEVE,
+    NODE_LLM_CALL,
+    NODE_DISPATCH_TOOLS,
+    NODE_EXTRACT_CITATIONS,
+    NODE_VERIFY_CITATIONS,
+    NODE_REVISE,
+    NODE_ADVERSARIAL,
+    NODE_PERSIST,
+)
+
+NodeFn = Callable[[AgentState], Awaitable[dict[str, Any]]]
+
 
 def has_tool_calls_router(state: AgentState) -> str:
     """Decide whether to loop back to tool dispatch or continue to citations."""
@@ -52,39 +69,43 @@ def unverified_router(state: AgentState) -> str:
     if report is None:
         return NODE_ADVERSARIAL
     if report.cross_engagement:
-        # Security incident — short-circuit to persist with rejection text;
-        # the service layer flips state.security_rejected first.
+        # Security incident — short-circuit to persist; the persist node
+        # (or the legacy service layer) flips state.security_rejected and
+        # replaces the reply text.
         return NODE_PERSIST
     if report.not_found and state.revision_attempts < MAX_REVISION_ATTEMPTS:
         return NODE_REVISE
     return NODE_ADVERSARIAL
 
 
-def build_graph() -> Any:
-    """Compile a LangGraph StateGraph that mirrors the driver's execution order.
+def build_graph(
+    nodes: Mapping[str, NodeFn] | None = None,
+    *,
+    checkpointer: Any = None,
+) -> Any:
+    """Compile the Agent Kenny StateGraph.
 
-    The compiled graph is held by :class:`KennyAgentService` for introspection
-    + future native execution; the running path uses the hand-rolled driver
-    so we can pass the active ``AsyncSession`` + ``emit`` sink through.
+    ``nodes`` maps every name in :data:`NODE_NAMES` to an async callable
+    ``(AgentState) -> dict`` (a partial state update). When omitted, inert
+    passthrough nodes are used so the topology can be compiled and
+    inspected without runtime dependencies (the pre-D2 behaviour, kept for
+    unit tests and the legacy driver's introspection handle).
+
+    ``checkpointer`` is threaded into ``compile()`` — the LangGraph
+    runtime passes the ``AsyncPostgresSaver`` from ``checkpointer.py`` so
+    turns are durable and ``interrupt()`` / ``Command(resume=...)`` work.
     """
     from langgraph.graph import END, START, StateGraph
 
     g: Any = StateGraph(AgentState)
 
-    async def _noop(state: AgentState) -> AgentState:
-        return state
+    async def _noop(state: AgentState) -> dict[str, Any]:
+        _ = state
+        return {}
 
-    for name in (
-        NODE_RETRIEVE,
-        NODE_LLM_CALL,
-        NODE_DISPATCH_TOOLS,
-        NODE_EXTRACT_CITATIONS,
-        NODE_VERIFY_CITATIONS,
-        NODE_REVISE,
-        NODE_ADVERSARIAL,
-        NODE_PERSIST,
-    ):
-        g.add_node(name, _noop)
+    for name in NODE_NAMES:
+        fn: NodeFn = nodes[name] if nodes is not None else _noop
+        g.add_node(name, fn)
 
     g.add_edge(START, NODE_RETRIEVE)
     g.add_edge(NODE_RETRIEVE, NODE_LLM_CALL)
@@ -110,7 +131,7 @@ def build_graph() -> Any:
     g.add_edge(NODE_REVISE, NODE_EXTRACT_CITATIONS)
     g.add_edge(NODE_ADVERSARIAL, NODE_PERSIST)
     g.add_edge(NODE_PERSIST, END)
-    return g.compile()
+    return g.compile(checkpointer=checkpointer)
 
 
 __all__ = [
@@ -119,10 +140,12 @@ __all__ = [
     "NODE_END",
     "NODE_EXTRACT_CITATIONS",
     "NODE_LLM_CALL",
+    "NODE_NAMES",
     "NODE_PERSIST",
     "NODE_RETRIEVE",
     "NODE_REVISE",
     "NODE_VERIFY_CITATIONS",
+    "NodeFn",
     "build_graph",
     "has_tool_calls_router",
     "unverified_router",

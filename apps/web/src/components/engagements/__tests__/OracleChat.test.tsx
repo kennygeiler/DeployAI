@@ -429,6 +429,125 @@ describe("OracleChat", () => {
       expect(screen.getByText(/two risks/i)).toBeTruthy();
     });
 
+    it("renders the ApprovalCard on approval_required and finalizes the turn on approve", async () => {
+      const THREAD_ID = "tenant:t1:engagement:e1:conversation:c1";
+      const calls = installFetch({
+        "/oracle/history": () => ({
+          ok: true,
+          status: 200,
+          json: async () => ({ conversation_id: null, turns: [] }),
+        }),
+        "/oracle/chat/stream-v2": () => ({
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+          body: v2SseStream([
+            { event: "tool_call", data: { name: "slack__send_message", input: {} } },
+            {
+              event: "approval_required",
+              data: {
+                question: "Agent Kenny wants to run slack__send_message. Allow it?",
+                tool: "slack__send_message",
+                args_summary: '{"channel": "#deals"}',
+                thread_id: THREAD_ID,
+              },
+            },
+          ]),
+        }),
+        "/oracle/approvals/": () => ({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            status: "done",
+            turn_id: TURN_ID,
+            conversation_id: CONVO_ID,
+            content: "Message sent to #deals.",
+            tokens_used: 40,
+          }),
+        }),
+      });
+
+      render(<OracleChat engagementId="e1" />);
+      const user = userEvent.setup();
+      await openPanel(user);
+      const input = await screen.findByLabelText(/message agent kenny/i);
+      await user.type(input, "ping the channel");
+      await user.click(screen.getByRole("button", { name: /^send$/i }));
+
+      // The approval card appears with the question + tool details, and the
+      // stream did NOT fall back to the JSON chat route.
+      const card = await screen.findByTestId("oracle-approval-card");
+      expect(within(card).getByText(/allow it\?/i)).toBeTruthy();
+      expect(within(card).getByText("slack__send_message")).toBeTruthy();
+      expect(calls.some((c) => c.url.includes("/oracle/chat") && !c.url.includes("stream"))).toBe(
+        false,
+      );
+
+      await user.click(within(card).getByRole("button", { name: /^approve$/i }));
+
+      // The decision hits the approvals BFF route with the thread id.
+      await waitFor(() => {
+        const decision = calls.find((c) => c.url.includes("/oracle/approvals/"));
+        expect(decision).toBeTruthy();
+        expect(decision!.url).toContain(encodeURIComponent(THREAD_ID));
+        expect(decision!.body).toEqual({ approved: true });
+      });
+
+      // The completed reply lands in the transcript and the card goes away.
+      await waitFor(() => {
+        expect(screen.getByText(/message sent to #deals/i)).toBeTruthy();
+      });
+      expect(screen.queryByTestId("oracle-approval-card")).toBeNull();
+    });
+
+    it("keeps the ApprovalCard usable and surfaces a toast when the deny call fails", async () => {
+      const THREAD_ID = "tenant:t1:engagement:e1:conversation:c2";
+      installFetch({
+        "/oracle/history": () => ({
+          ok: true,
+          status: 200,
+          json: async () => ({ conversation_id: null, turns: [] }),
+        }),
+        "/oracle/chat/stream-v2": () => ({
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+          body: v2SseStream([
+            {
+              event: "approval_required",
+              data: {
+                question: "Allow this?",
+                tool: "slack__send_message",
+                args_summary: "{}",
+                thread_id: THREAD_ID,
+              },
+            },
+          ]),
+        }),
+        "/oracle/approvals/": () => ({
+          ok: false,
+          status: 404,
+          json: async () => ({ error: "approval not found" }),
+        }),
+      });
+
+      render(<OracleChat engagementId="e1" />);
+      const user = userEvent.setup();
+      await openPanel(user);
+      const input = await screen.findByLabelText(/message agent kenny/i);
+      await user.type(input, "try it");
+      await user.click(screen.getByRole("button", { name: /^send$/i }));
+
+      const card = await screen.findByTestId("oracle-approval-card");
+      await user.click(within(card).getByRole("button", { name: /^deny$/i }));
+
+      await waitFor(() => {
+        expect(toastErrorMock).toHaveBeenCalled();
+      });
+      // Card stays so the user can retry.
+      expect(screen.getByTestId("oracle-approval-card")).toBeTruthy();
+    });
+
     it("falls back to v1 stream when v2 returns 404 (feature flag off in CP)", async () => {
       const calls = installFetch({
         "/oracle/history": () => ({
