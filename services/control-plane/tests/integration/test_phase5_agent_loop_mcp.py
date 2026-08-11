@@ -313,6 +313,10 @@ def _build_outbound_client(
         rate_limiter=rate_limiter or NoopRateLimiter(),
         kill_switch=kill_switch or NoopKillSwitch(),
         audit_session_factory=_silent_audit_factory,
+        # MockTransport endpoints (*.example.com) never resolve; stub the
+        # egress-guard resolver with a public address so the SSRF guard
+        # (ticket A7) passes without real DNS.
+        egress_resolver=lambda host: ["93.184.216.34"],
     )
 
 

@@ -140,6 +140,10 @@ class TenantMcpConfigCreate(BaseModel):
 
     name: Annotated[str, Field(min_length=1, max_length=200)]
     connector_kind: ConnectorKind
+    # Length-bounded here; SSRF validation (https-only, no userinfo, no
+    # private/link-local/metadata targets) is enforced by
+    # ``control_plane.services.egress_guard`` at the route write path and
+    # again at request time in ``mcp_client.py``.
     endpoint: Annotated[str, Field(min_length=1, max_length=2000)]
     transport: McpTransport = "http_sse"
     # Raw auth token (e.g. OAuth bearer); the Wave 2D write path encrypts

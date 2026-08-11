@@ -216,9 +216,6 @@ async def read_resource(session: AsyncSession, principal: MCPPrincipal, uri: str
         payload = {"rows": result.rows, "truncated": result.truncated}
         row_count = len(result.rows)
         truncated = result.truncated
-        # special-case for the deferred vector_search call path:
-        if kind == "event_vector":
-            payload["detail"] = "vector search deferred to Phase 5.5"
     else:
         raise UnknownResourceError(f"unknown resource scheme: {scheme!r}")
 

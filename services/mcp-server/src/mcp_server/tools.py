@@ -11,6 +11,7 @@ the Phase 1 :class:`ToolResult` rendered as JSON for MCP ``CallToolResult``.
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from collections.abc import Awaitable, Callable
@@ -57,6 +58,42 @@ READ_TOOL_HANDLERS: dict[str, ToolHandler] = {
 
 # Hard guarantee: no write tool ever lands in the MCP-exposed set.
 FORBIDDEN_TOOLS: frozenset[str] = frozenset({"propose_action"})
+
+# ---------------------------------------------------------------------------
+# Embedder singleton — mirrors control-plane's lifespan wiring
+# (``control_plane.agents.agent_kenny.mcp_factory._build_default_embedder``):
+# one process-wide VoyageEmbedder, constructed lazily on first vector_search.
+# The embedder itself handles a missing VOYAGE_API_KEY by returning
+# zero-vectors (documented local-dev fallback), so construction here only
+# fails on import/runtime errors — in which case vector_search degrades to a
+# clear 503 instead of a JSON-RPC internal error.
+# ---------------------------------------------------------------------------
+
+_embedder: Any = None
+_embedder_initialized = False
+
+
+def _get_embedder() -> Any:
+    global _embedder, _embedder_initialized
+    if not _embedder_initialized:
+        _embedder_initialized = True
+        try:
+            from control_plane.agents.agent_kenny.embeddings.voyage_client import (
+                VoyageEmbedder,
+            )
+
+            _embedder = VoyageEmbedder()
+        except Exception:  # pragma: no cover — defensive
+            logging.getLogger(__name__).exception("VoyageEmbedder init failed; vector_search will be unavailable")
+            _embedder = None
+    return _embedder
+
+
+def reset_embedder_for_tests() -> None:
+    """Forget the cached embedder. Tests only."""
+    global _embedder, _embedder_initialized
+    _embedder = None
+    _embedder_initialized = False
 
 
 def list_mcp_tools() -> list[dict[str, Any]]:
@@ -187,10 +224,20 @@ def _build_kwargs(name: str, raw: dict[str, Any]) -> dict[str, Any]:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="query is required",
             )
+        if name == "keyword_search":
+            return {
+                "query": q,
+                "kinds": raw.get("kinds"),
+                "limit": int(raw.get("limit", 25)),
+            }
+        # vector_search takes a single ``kind`` (one of the four embedded
+        # source tables) — not keyword_search's ``kinds`` — plus the
+        # embedder injected by ``call_tool``. See
+        # ``control_plane.agents.tools.search.VECTOR_SEARCH_INPUT_SCHEMA``.
         return {
             "query": q,
-            "kinds": raw.get("kinds"),
-            "limit": int(raw.get("limit", 25)),
+            "kind": raw.get("kind"),
+            "limit": int(raw.get("limit", 10)),
         }
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"unknown tool: {name!r}")
 
@@ -225,6 +272,14 @@ async def call_tool(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"unknown tool: {name!r}")
     engagement_id = principal.scoped_engagement()
     kwargs = _build_kwargs(name, arguments)
+    if name == "vector_search":
+        embedder = _get_embedder()
+        if embedder is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="vector_search unavailable: no embedder configured for this process",
+            )
+        kwargs["embedder"] = embedder
     started = time.perf_counter()
     try:
         result = await handler(
@@ -257,4 +312,5 @@ __all__ = [
     "READ_TOOL_HANDLERS",
     "call_tool",
     "list_mcp_tools",
+    "reset_embedder_for_tests",
 ]

@@ -132,12 +132,21 @@ def _mock_http_client(
     return httpx.AsyncClient(transport=transport), seen
 
 
+def _public_resolver(host: str) -> list[str]:
+    """Egress-guard DNS stub — pretends every hostname is a public address
+    so the MockTransport endpoints (``*.example.com``) pass the SSRF guard.
+    Tests that exercise the guard itself pass their own resolver.
+    """
+    return ["93.184.216.34"]
+
+
 def _build_client(
     *,
     http_handler,
     rate_limiter=None,
     kill_switch=None,
     capture: _AuditCapture | None = None,
+    egress_resolver=_public_resolver,
 ) -> tuple[McpOutboundClient, list[httpx.Request], _AuditCapture]:
     capture = capture or _AuditCapture()
     client, seen = _mock_http_client(http_handler)
@@ -147,6 +156,7 @@ def _build_client(
         rate_limiter=rate_limiter or NoopRateLimiter(),
         kill_switch=kill_switch or NoopKillSwitch(),
         audit_session_factory=capture.make_factory(),
+        egress_resolver=egress_resolver,
     )
     return out, seen, capture
 
@@ -562,6 +572,82 @@ async def test_jsonrpc_request_is_2_0_with_method_and_params() -> None:
     assert captured_body["method"] == "tools/call"
     assert captured_body["params"]["name"] == "search_messages"
     assert captured_body["params"]["arguments"] == {"q": "z"}
+
+
+# ---------------------------------------------------------------------------
+# Egress guard (ticket A7) — fourth ordered guard, request-time SSRF defense
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_egress_guard_blocks_hostname_resolving_private_and_audits() -> None:
+    """DNS-rebinding case: a public-looking hostname resolving to a private
+    address must be blocked before any network traffic, with its own
+    distinct audit kind."""
+    from control_plane.agents.agent_kenny.mcp_types import McpEgressBlocked
+
+    def _should_never_run(req):  # pragma: no cover
+        return httpx.Response(500, request=req)
+
+    client, seen, capture = _build_client(
+        http_handler=_should_never_run,
+        egress_resolver=lambda host: ["10.0.0.5"],
+    )
+    config = _FakeConfig()
+    with pytest.raises(McpEgressBlocked) as excinfo:
+        await client.call_tool(
+            config,
+            tool_name="search_messages",
+            args={},
+            tenant_id=config.tenant_id,
+            engagement_id=uuid.uuid4(),
+            turn_id=uuid.uuid4(),
+        )
+    assert excinfo.value.reason == "private_address"
+    assert seen == [], "egress guard must prevent network calls"
+    rows = [r for r in capture.rows if r["source_kind"] == "mcp_outbound_egress_blocked"]
+    assert len(rows) == 1
+    assert rows[0]["detail"]["reason"] == "private_address"
+    assert rows[0]["detail"]["endpoint"] == config.endpoint
+
+
+@pytest.mark.asyncio
+async def test_egress_guard_blocks_http_scheme() -> None:
+    from control_plane.agents.agent_kenny.mcp_types import McpEgressBlocked
+
+    def _should_never_run(req):  # pragma: no cover
+        return httpx.Response(500, request=req)
+
+    client, seen, capture = _build_client(http_handler=_should_never_run)
+    config = _FakeConfig(endpoint="http://mcp.example.com/rpc")
+    with pytest.raises(McpEgressBlocked) as excinfo:
+        await client.call_tool(
+            config,
+            tool_name="search_messages",
+            args={},
+            tenant_id=config.tenant_id,
+            engagement_id=uuid.uuid4(),
+            turn_id=uuid.uuid4(),
+        )
+    assert excinfo.value.reason == "scheme_not_https"
+    assert seen == []
+    assert any(r["source_kind"] == "mcp_outbound_egress_blocked" for r in capture.rows)
+
+
+@pytest.mark.asyncio
+async def test_egress_guard_applies_to_list_tools() -> None:
+    from control_plane.agents.agent_kenny.mcp_types import McpEgressBlocked
+
+    def _should_never_run(req):  # pragma: no cover
+        return httpx.Response(500, request=req)
+
+    client, seen, _capture = _build_client(
+        http_handler=_should_never_run,
+        egress_resolver=lambda host: ["169.254.169.254"],
+    )
+    with pytest.raises(McpEgressBlocked):
+        await client.list_tools(_FakeConfig())
+    assert seen == []
 
 
 @pytest.mark.asyncio
