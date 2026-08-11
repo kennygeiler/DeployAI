@@ -360,6 +360,7 @@ export function OverviewDeck() {
         <ol className="flex flex-col gap-2">
           {SLIDES.map((slide, i) => (
             <li key={slide.id}>
+              {/* 24px button = axe target-size minimum; the visible dot stays small. */}
               <Button
                 type="button"
                 variant="ghost"
@@ -367,11 +368,16 @@ export function OverviewDeck() {
                 aria-label={`Go to slide ${i + 1}: ${slide.label}`}
                 aria-current={active === i ? "true" : undefined}
                 title={slide.label}
-                className={cn(
-                  "block size-2.5 rounded-full p-0 shadow-hairline transition-colors",
-                  active === i ? "bg-ink hover:bg-ink" : "bg-hover-2 hover:bg-ink-600",
-                )}
-              />
+                className="flex size-6 items-center justify-center rounded-full p-0"
+              >
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "block size-2.5 rounded-full shadow-hairline transition-colors",
+                    active === i ? "bg-ink" : "bg-hover-2",
+                  )}
+                />
+              </Button>
             </li>
           ))}
         </ol>
