@@ -32,7 +32,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.agents.agent_kenny.mcp_kill_switch_admin import set_mcp_outbound_disabled
-from control_plane.api.routes.engagements_internal import require_internal
+from control_plane.config.internal_auth import require_internal
 from control_plane.db import get_app_db_session
 from control_plane.domain.app_identity.models import AppTenant
 

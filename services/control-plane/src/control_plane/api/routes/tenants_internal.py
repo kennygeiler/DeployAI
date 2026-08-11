@@ -46,7 +46,7 @@ from control_plane.agents.oracle import (
     default_system_prompt as oracle_default_prompt,
 )
 from control_plane.agents.prompts import resolve_tenant_prompt
-from control_plane.api.routes.engagements_internal import require_internal
+from control_plane.config.internal_auth import require_internal
 from control_plane.db import get_app_db_session
 from control_plane.domain.app_identity.models import (
     AGENT_PROMPT_NAMES,

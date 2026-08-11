@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from control_plane.api.routes.engagements_internal import require_internal
+from control_plane.config.internal_auth import require_internal
 from control_plane.db import get_app_db_session
 from control_plane.domain.lint import LintFlag
 from control_plane.workers.wiki_lint import run_lint
