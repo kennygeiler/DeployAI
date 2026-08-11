@@ -76,3 +76,22 @@ describe("TimestampLabel", () => {
     expect(screen.getByText("never")).toBeTruthy();
   });
 });
+
+it("does not loop renders via useSyncExternalStore (stable snapshot)", () => {
+  // Regression: getNowMs returned a fresh Date.now() per call, so every render
+  // observed a "changed" external store and re-rendered until React threw
+  // "Maximum update depth exceeded" — taking down every page using timestamps.
+  // Rendering many instances together completes only when the snapshot is
+  // referentially stable across a render pass.
+  const stamps = Array.from({ length: 25 }, (_, i) =>
+    new Date(Date.now() - i * 60_000).toISOString(),
+  );
+  render(
+    <div>
+      {stamps.map((s) => (
+        <TimestampLabel key={s} value={s} />
+      ))}
+    </div>,
+  );
+  expect(screen.getAllByText(/ago|now|min|hour/i).length).toBeGreaterThan(0);
+});
