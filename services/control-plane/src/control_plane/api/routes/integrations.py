@@ -1,4 +1,4 @@
-"""Integration kill-switch (Epic 2 Story 2-6) — plumb to Epic 3 providers + SQS + secrets later."""
+"""Integration kill-switch routes — real revocation/purge/secret-deletion lives in services.integration_kill_switch."""
 
 from __future__ import annotations
 

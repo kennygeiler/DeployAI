@@ -1,0 +1,99 @@
+# Pilot-refresh ticket H1 — nightly pg_dump of the Fly-hosted Postgres to
+# S3-compatible storage (Tigris), plus retention pruning.
+#
+# Runs scripts/fly-backup.sh (pg_dump inside the Fly machine via
+# `fly ssh console -C`, gzip, upload) and then scripts/backup-prune.sh
+# against the same bucket prefix so the bucket doesn't grow without bound.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   FLY_API_TOKEN                 — already present for cloud-deploy.yml
+#   BACKUP_S3_BUCKET              — target bucket name (Tigris or AWS)
+#   BACKUP_AWS_ACCESS_KEY_ID      — bucket credentials
+#   BACKUP_AWS_SECRET_ACCESS_KEY  — bucket credentials
+#
+# Optional repo variables (Settings → Secrets and variables → Actions → Variables):
+#   BACKUP_S3_ENDPOINT_URL        — default https://fly.storage.tigris.dev;
+#                                   set empty/other for plain AWS S3
+#   BACKUP_RETENTION_DAYS         — default 30
+#
+# Failure posture: no continue-on-error anywhere. The final notify step runs
+# only when something failed and itself exits non-zero, so a broken backup
+# is a red run + a GitHub failure notification, never a quiet skip.
+
+name: fly-backup
+
+on:
+  schedule:
+    # 03:17 UTC nightly — offset from the top of the hour to dodge the
+    # GitHub cron thundering herd (whole-hour crons are heavily delayed).
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Validate configuration only (no dump, no upload)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fly-backup
+  cancel-in-progress: false # never kill a dump mid-upload
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Set up flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6
+
+      - name: Refuse to run without backup secrets
+        env:
+          S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          missing=0
+          [ -n "$S3_BUCKET" ] || { echo "::error::BACKUP_S3_BUCKET secret is not configured"; missing=1; }
+          [ -n "$FLY_API_TOKEN" ] || { echo "::error::FLY_API_TOKEN secret is not configured"; missing=1; }
+          exit "$missing"
+
+      - name: Run fly-backup.sh
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+          S3_ENDPOINT_URL: ${{ vars.BACKUP_S3_ENDPOINT_URL || 'https://fly.storage.tigris.dev' }}
+          AWS_REGION: auto
+        run: |
+          if [ "${{ inputs.dry_run || false }}" = "true" ]; then
+            ./scripts/fly-backup.sh --dry-run
+          else
+            ./scripts/fly-backup.sh
+          fi
+
+      - name: Prune backups past retention
+        if: ${{ !(inputs.dry_run || false) }}
+        env:
+          S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+          S3_ENDPOINT_URL: ${{ vars.BACKUP_S3_ENDPOINT_URL || 'https://fly.storage.tigris.dev' }}
+          AWS_REGION: auto
+          S3_PREFIX: deployai/backups/fly
+          BACKUP_RETENTION_DAYS: ${{ vars.BACKUP_RETENTION_DAYS || '30' }}
+          DEPLOYAI_PRUNE_CONFIRM: "YES"
+        run: ./scripts/backup-prune.sh
+
+      - name: Fail loudly on backup failure
+        if: ${{ failure() }}
+        run: |
+          echo "::error title=Fly backup failed::Nightly Postgres backup for ${{ github.repository }} failed. The database currently has NO fresh offsite backup — investigate before the next data-loss window."
+          exit 1

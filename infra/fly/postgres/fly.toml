@@ -9,10 +9,12 @@
 # Deploy: `fly deploy --config infra/fly/postgres/fly.toml --remote-only`
 #
 # Persistence: 10GB Fly volume mounted at /var/lib/postgresql/data.
-# Backup: `fly ssh console -a deployai-postgres -C "pg_dump -U deployai
-# deployai | gzip > /var/lib/postgresql/data/backups/<ts>.sql.gz"` on a
-# Fly cron, OR (recommended) point a separate process at the S3 backup
-# script in `scripts/backup.sh` once you wire S3 creds.
+# Backup: nightly via .github/workflows/fly-backup.yml, which runs
+# scripts/fly-backup.sh (pg_dump inside this machine over
+# `fly ssh console -C`, gzip, upload to Tigris/S3). Restore drill:
+# scripts/fly-restore.sh. Full runbook: docs/ops/backup.md ("Fly
+# production backups" section), including the secrets that must be set
+# before the workflow actually protects anything.
 #
 # Secrets:
 #   POSTGRES_PASSWORD   strong random password; consumed by the
