@@ -54,7 +54,6 @@ fuzz:
 # docs-only PRs because none of these touch the web app's rendered surface.
 a11y:
   - "apps/web/**"
-  - "packages/shared-ui/**"
   - "packages/design-tokens/**"
   - "packages/llama-citation-adapter/**"
   - "pnpm-lock.yaml"

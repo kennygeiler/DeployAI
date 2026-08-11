@@ -12,7 +12,7 @@ from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
-from ingest.idempotency import canonical_ingestion_dedup_key
+from deployai_ingestlib.idempotency import canonical_ingestion_dedup_key
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.config.settings import get_settings

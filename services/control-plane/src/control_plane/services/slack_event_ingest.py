@@ -6,7 +6,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from ingest.idempotency import canonical_ingestion_dedup_key
+from deployai_ingestlib.idempotency import canonical_ingestion_dedup_key
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 

@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
-from ingest.idempotency import canonical_ingestion_dedup_key
+from deployai_ingestlib.idempotency import canonical_ingestion_dedup_key
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.auth.oidc_flow import fetch_openid_metadata
