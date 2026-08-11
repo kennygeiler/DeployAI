@@ -24,7 +24,7 @@ from control_plane.auth.oidc_flow import (
 from control_plane.auth.session_service import issue_tokens
 from control_plane.config.settings import get_settings
 from control_plane.db import AppDbSession
-from control_plane.services.oidc_user import resolve_or_create_oidc_user
+from control_plane.services.oidc_user import JitProvisioningDisabledError, resolve_or_create_oidc_user
 
 _C_STATE: Final = "dep_oidc_state"
 _C_VERIFIER: Final = "dep_oidc_verifier"
@@ -214,8 +214,14 @@ async def oidc_callback(
             entra_sub=sub,
             email=email,
             idp_name=idp_name,
+            jit_enabled=sett.oidc_jit_enabled,
         )
         pair = await issue_tokens(user.tenant_id, user.id, roles)
+    except JitProvisioningDisabledError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unknown user and JIT provisioning is disabled (DEPLOYAI_OIDC_JIT_ENABLED=0).",
+        ) from e
     except RuntimeError as e:
         if "DEPLOYAI_JWT_PRIVATE_KEY" in str(e):
             raise HTTPException(

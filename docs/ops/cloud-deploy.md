@@ -1,16 +1,16 @@
-# Cloud deploy runbook — Fly.io + Cloudflare Access
+# Cloud deploy runbook — Fly.io
 
-Status: ready to deploy as of 2026-05-27. v2 build complete on `main`. This
+Status: ready to deploy as of 2026-08-11 (auth: OIDC, see §6; the earlier
+Cloudflare Access plan was dropped in Wave 1 ticket A1). This
 runbook stands alone — you should be able to follow it end-to-end without
 spelunking the codebase.
 
-> **WARNING — no authentication is implemented yet.** The Cloudflare Access
-> wiring in §5 puts a login wall *in front of* the apps, but the header-reading
-> middleware that would turn the CF-verified email into an app identity (§6)
-> **was never written** (backlog ticket A1). A deploy following this runbook
-> today either has no user identity at all, or — if you set
-> `DEPLOYAI_LOCAL_DEV_ROLE_INJECT=1` per §3 — grants **admin to every request**.
-> Do not put customer data on such a deploy.
+> **WARNING — hosted deploys must use real identity (§6).** Do not set
+> `DEPLOYAI_LOCAL_DEV_ROLE_INJECT` (or `DEPLOYAI_DEV_ROLE_INJECT_ALLOW_PRODUCTION`)
+> on a hosted deploy: since Wave 1 (ticket A2) role injection is a local-dev-only,
+> opt-in escape hatch and refuses to activate on production builds unless both
+> flags are set — setting them on a public URL grants a role to **every request**.
+> `DEPLOYAI_STRATEGIST_REQUIRE_TENANT` defaults ON; leave it unset in production.
 
 ---
 
@@ -111,18 +111,17 @@ fly secrets set \
 # apps/web/src/lib/internal/control-plane.ts reads. Setting the wrong name
 # causes Kenny chat + every BFF→CP call to fail with "service unreachable".
 #
-# ┌─────────────────────────────────────────────────────────────────────┐
-# │ INSECURE — `DEPLOYAI_LOCAL_DEV_ROLE_INJECT=1` auto-injects an ADMIN │
-# │ role into EVERY request. Anyone who can reach the URL is admin.     │
-# │ The §6 header-check middleware that would replace it was never      │
-# │ written (backlog ticket A1), so there is currently no secure        │
-# │ alternative. Deploy only demo/seed data with this flag set.        │
-# └─────────────────────────────────────────────────────────────────────┘
+# Do NOT set DEPLOYAI_LOCAL_DEV_ROLE_INJECT on a hosted deploy. Since Wave 1
+# (ticket A2) role injection is opt-in and additionally refuses to activate on
+# production builds unless DEPLOYAI_DEV_ROLE_INJECT_ALLOW_PRODUCTION=1 is set;
+# both flags are local-dev-only escape hatches. Hosted identity must come from
+# the CP-issued access JWT / SSO proxy headers (ticket A1). Note also that
+# DEPLOYAI_STRATEGIST_REQUIRE_TENANT now defaults ON: requests without a
+# tenant (JWT `tid` or `x-deployai-tenant`) are rejected on gated paths.
 fly secrets set \
   DEPLOYAI_INTERNAL_API_KEY="${INTERNAL_KEY}" \
   DEPLOYAI_CONTROL_PLANE_URL="http://deployai-control-plane.internal:8000" \
   NEXT_PUBLIC_CONTROL_PLANE_URL="https://deployai-control-plane.fly.dev" \
-  DEPLOYAI_LOCAL_DEV_ROLE_INJECT="1" \
   --app deployai-web
 
 # MCP inbound server (public)
@@ -265,43 +264,109 @@ this hostname.
 
 ---
 
-## 6. Trust the CF Access header inside the app
+## 6. Authentication: OIDC login (implemented — ticket A1)
 
-By default the web app and control-plane are agnostic to who is calling.
-With Cloudflare Access in front, every request carries
-`CF-Access-Authenticated-User-Email: <email>`.
+> Decision (2026-08-11 pilot-refresh backlog): **OIDC is the auth path.**
+> The earlier Cloudflare-Access-header plan described in previous versions
+> of this section is dropped — CF Access remains optional as an extra wall
+> in front (§5) but the app no longer plans to read its header.
 
-**TODO before customers can log in** — this is the one piece of code we
-haven't written yet:
+### 6.1 How the flow works
 
-> Add Next.js middleware in `apps/web/src/middleware.ts` that:
-> 1. Reads `CF-Access-Authenticated-User-Email` from the request
-> 2. If missing in production → 401 (defense-in-depth in case Access is bypassed)
-> 3. Sets it as a server-only header `X-DeployAI-Actor-Email` for the BFF
->    to forward to the control-plane.
->
-> Add CP middleware in
-> `services/control-plane/src/control_plane/api/middleware/cf_access_auth.py` that:
-> 1. Reads `X-DeployAI-Actor-Email`
-> 2. Looks up or creates an `app_user` for that email under the
->    operator's tenant (single-tenant deploy for v2)
-> 3. Sets `request.state.actor_id` so downstream routes use it
-> 4. Marks `request.state.is_admin = email in DEPLOYAI_ADMIN_EMAILS.split(",")`
->
-> Both middlewares are < 50 lines each. Ship them as a follow-up PR; the
-> rest of the deploy works without them (you just won't have multi-user
-> identity — every request gets the bootstrap user).
+1. Browser hits `GET /api/auth/login` on the **web app**. The route
+   generates state + nonce + PKCE (S256), stores them in short-lived
+   HttpOnly cookies (`dep_oidc_state` / `dep_oidc_verifier` /
+   `dep_oidc_nonce`, 10 min), and 302s to the issuer's authorize endpoint
+   (discovered via `{issuer}/.well-known/openid-configuration`).
+2. The IdP redirects back to `GET /api/auth/callback/oidc` (web app).
+   The route validates `state` against the cookie, then calls the
+   **control plane's** `GET /auth/oidc/callback` server-side, forwarding
+   the three transient cookies. The CP does the sensitive half: code
+   exchange with the client secret, JWKS verification of the ID token
+   (iss / aud / exp signature) + nonce check, JIT user provisioning, and
+   session minting (RS256 access JWT + opaque refresh JTI in Redis).
+3. The web route stores the CP-minted session in HttpOnly, SameSite=Lax,
+   Path=/ cookies (Secure when the redirect URI is https):
+   `deployai_access_token` (the RS256 JWT the existing middleware already
+   verifies via `apps/web/src/lib/internal/deployai-access-jwt.ts`),
+   `deployai_refresh_token`, and `deployai_session_tenant`, then 303s to
+   `/engagements`.
+4. `GET|POST /api/auth/logout` best-effort revokes the CP refresh session
+   (`POST {CP}/auth/logout` with `{tenant_id, refresh_token}`), clears
+   all three cookies, and redirects to `/login`.
 
-For now, deploy without that middleware to verify the rest of the stack
-works, then add it.
+Access JWT claims (minted by CP `create_access_token`, verified by web
+middleware): `sub` (user id), `tid` (tenant id — this is where
+multi-tenancy comes from; the tenant is read from the CP user record),
+`roles` (array), `iss`, `aud`, `iat`, `exp`, `jti`, `token_use: "access"`.
+
+JIT provisioning: first login upserts an `app_users` row keyed by the
+OIDC `sub` onto the system SSO-pending tenant with the least-privilege
+`pending_assignment` role (NOT admin). An admin must then assign the
+tenant + real role. Set `DEPLOYAI_OIDC_JIT_ENABLED=0` to reject unknown
+users with 403 instead.
+
+Failure paths: state mismatch → 400; issuer unreachable → redirect to
+`/login?error=issuer_unreachable`; CP unreachable → redirect to
+`/login?error=control_plane_unreachable`; unknown user with JIT disabled
+→ 403.
+
+### 6.2 Required env vars
+
+Control plane (`services/control-plane`):
+
+| Var | Value |
+|---|---|
+| `DEPLOYAI_OIDC_ISSUER` | e.g. `https://login.microsoftonline.com/<tenant-id>/v2.0` (must serve `openid-configuration`) |
+| `DEPLOYAI_OIDC_CLIENT_ID` | App registration client id |
+| `DEPLOYAI_OIDC_CLIENT_SECRET` | Client secret — **CP only, never set on the web app** |
+| `DEPLOYAI_OIDC_REDIRECT_URI` | The **web app's** callback, e.g. `https://deployai-web.fly.dev/api/auth/callback/oidc` (register this in the IdP) |
+| `DEPLOYAI_OIDC_JIT_ENABLED` | Optional; default on. `0` = reject unknown users (403) |
+| `DEPLOYAI_JWT_PRIVATE_KEY_PATH` | RS256 signing key for session JWTs |
+| `DEPLOYAI_REDIS_URL` | Refresh sessions live in Redis |
+
+Web app (`apps/web`):
+
+| Var | Value |
+|---|---|
+| `DEPLOYAI_OIDC_ISSUER` | Same value as the CP |
+| `DEPLOYAI_OIDC_CLIENT_ID` | Same value as the CP |
+| `DEPLOYAI_OIDC_REDIRECT_URI` | Same value as the CP (the web callback URL) |
+| `DEPLOYAI_CONTROL_PLANE_URL` | Internal CP base URL (server-side calls) |
+| `DEPLOYAI_WEB_TRUST_JWT` | `1` — middleware verifies the session JWT |
+| `DEPLOYAI_WEB_JWT_PUBLIC_KEY_PEM` | SPKI public PEM(s) matching the CP signing key (concatenate blocks for rotation) |
+| `DEPLOYAI_WEB_ACCESS_TOKEN_COOKIE` | Optional; default `deployai_access_token` |
+| `DEPLOYAI_WEB_REFRESH_TOKEN_COOKIE` | Optional; default `deployai_refresh_token` |
+| `DEPLOYAI_WEB_SESSION_TENANT_COOKIE` | Optional; default `deployai_session_tenant` |
+| `DEPLOYAI_WEB_REFRESH_COOKIE_MAX_AGE` | Optional; default 604800 (7 d, matches CP refresh TTL) |
+| `DEPLOYAI_OIDC_POST_LOGIN_PATH` | Optional; default `/engagements` |
+
+Make sure `DEPLOYAI_LOCAL_DEV_ROLE_INJECT` is **unset** on hosted
+deploys — it bypasses this whole flow (see §3 warning).
+
+### 6.3 Smoke test
+
+```bash
+# 1. Unauthenticated app surface should 401/403 (middleware, not a stub):
+curl -si https://deployai-web.fly.dev/engagements | head -1
+# 2. Login entry point should 302 to the IdP authorize endpoint:
+curl -si https://deployai-web.fly.dev/api/auth/login | grep -i '^location'
+# 3. Full browser round-trip: visit /login, click "Sign in with SSO",
+#    authenticate at the IdP, land on /engagements.
+```
+
+First login lands the user on the SSO-pending tenant with
+`pending_assignment` — assign the real tenant + role on the `app_users`
+row (SCIM or SQL) before they can see engagement surfaces.
 
 ---
 
 ## 7. Seed the first tenant
 
-**Why this matters:** the dev-role-inject middleware uses tenant id
-`11111111-1111-1111-1111-111111111111` as the default actor tenant when
-`DEPLOYAI_LOCAL_DEV_ROLE_INJECT=1` is set. That tenant row must exist in
+**Why this matters:** in local dev the role-inject middleware uses tenant id
+`11111111-1111-1111-1111-111111111111` as the default actor tenant (compose
+sets `DEPLOYAI_LOCAL_DEV_ROLE_INJECT=1`; hosted deploys must not — see the
+warning at the top of this runbook). That tenant row must exist in
 `app_tenants` or every BFF → CP call 404s ("That queue item was not found").
 Onboarding wizard's `/api/bff/tenant/llm-config` probe needs it too.
 
