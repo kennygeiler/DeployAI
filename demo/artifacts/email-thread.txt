@@ -1,0 +1,95 @@
+Subject: RE: RE: RE: RE: Fremont site survey — network assessment results
+From: Marcus Webb <mwebb@acmerobotics.com>
+To: Kenny Geiler <kenny@deployai.dev>
+Cc: Dana Ruiz <druiz@acmerobotics.com>; Priya Shah <pshah@acmerobotics.com>
+Date: Mon, Sep 22, 4:47 PM
+
+Kenny,
+
+Confirming what I told Dana this morning: the electricians finish the north
+zone drops on the 26th, so your access-point install can start the following
+Monday. Facilities will badge your contractor for the week.
+
+On the insurance question from two emails ago — I spoke with the safety
+consultant Friday. It's slower than I wanted, but it's committed: we'll have
+the safety-cert documentation package to you by October 3. That includes the
+R15.08 risk assessment and the floor-marking plan, which is everything your
+side needs for the deployment runbook. If the insurer kicks anything back
+after that it's on me to chase.
+
+Also, please tell Priya the WMS vendor finally scheduled the integration
+call — Thursday 2pm, invite coming from Dana's assistant.
+
+Marcus
+
+-----Original Message-----
+Subject: RE: RE: RE: Fremont site survey — network assessment results
+From: Kenny Geiler <kenny@deployai.dev>
+To: Marcus Webb <mwebb@acmerobotics.com>
+Cc: Dana Ruiz <druiz@acmerobotics.com>; Priya Shah <pshah@acmerobotics.com>
+Date: Mon, Sep 22, 11:03 AM
+
+Marcus,
+
+Thanks — glad the survey is unblocked. Two things I still need dates for:
+
+1. The electrician work in the north zone (gates our AP install)
+2. The safety-cert documentation — our runbook references it, and I can't
+   finalize the November go-live checklist without it. Who owns the date?
+
+On the dead-zone question from Priya's note: yes, we should talk about it,
+but let's get the AP positions fixed first and re-survey.
+
+Kenny
+
+-----Original Message-----
+Subject: RE: RE: Fremont site survey — network assessment results
+From: Priya Shah <pshah@acmerobotics.com>
+To: Kenny Geiler <kenny@deployai.dev>; Marcus Webb <mwebb@acmerobotics.com>
+Cc: Dana Ruiz <druiz@acmerobotics.com>
+Date: Fri, Sep 19, 6:12 PM
+
+All,
+
+Attaching the raw survey data. Headline numbers are fine for the picking
+zones — sustained 40Mbps everywhere the robots plan and pick, which is more
+than the telemetry channel needs now that inference is on-robot.
+
+One thing worth a conversation at some point: coverage between the racking
+rows in the southeast corner is patchier than the heatmap makes it look.
+Not a pilot blocker since the north zone is clean, just noting it before
+anyone promises full-floor coverage to the board.
+
+Have a good weekend,
+Priya
+
+-----Original Message-----
+Subject: RE: Fremont site survey — network assessment results
+From: Marcus Webb <mwebb@acmerobotics.com>
+To: Priya Shah <pshah@acmerobotics.com>; Kenny Geiler <kenny@deployai.dev>
+Cc: Dana Ruiz <druiz@acmerobotics.com>
+Date: Fri, Sep 19, 2:30 PM
+
+Priya — good news on the survey. Can you send the raw data, not just the
+vendor's summary? Our insurer's engineering reviewer asked for it as part
+of the site file.
+
+Kenny — heads up that the electricians are behind on the north zone power
+drops. I'm pushing them for a date and will confirm Monday.
+
+Marcus
+
+-----Original Message-----
+Subject: Fremont site survey — network assessment results
+From: Priya Shah <pshah@acmerobotics.com>
+To: Kenny Geiler <kenny@deployai.dev>; Marcus Webb <mwebb@acmerobotics.com>
+Cc: Dana Ruiz <druiz@acmerobotics.com>
+Date: Fri, Sep 19, 9:41 AM
+
+Team,
+
+The wireless vendor finished the Fremont site survey yesterday, a day early.
+Short version: the warehouse passes for the pilot scope. Full report and
+heatmaps by end of day. I'll flag anything that affects the AP install plan.
+
+Priya

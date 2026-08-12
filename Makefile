@@ -36,7 +36,7 @@ WEB_PORT ?= 3000
 .DEFAULT_GOAL := help
 
 .PHONY: help dev dev-verify dev-down dev-logs mcp-logs compose-smoke env init seed-app \
-	seed-scenario-bluestate backup restore backup-prune
+	seed-scenario-bluestate demo-reset backup restore backup-prune
 
 help:
 	@echo "DeployAI local stack — Story 1.7"
@@ -49,6 +49,7 @@ help:
 	@echo "  make init           First-run install (tenant + LLM + engagement + member). Pass INIT_ARGS or DEPLOYAI_INIT_* env vars. Add --template {gov,healthcare,saas,sales} to seed a vertical bundle."
 	@echo "  make seed-app       Seed 1 engagement + ~20 canonical events + run extraction (requires ANTHROPIC_API_KEY in .env)"
 	@echo "  make seed-scenario-bluestate  Seed the 26-week BlueState Health end-to-end test bed (deterministic insights for every analyzer)"
+	@echo "  make demo-reset     Reset the cold-start demo: fresh empty 'Acme Robotics — Pilot Deployment' engagement (DEMO_TENANT_ID overrides the tenant)"
 	@echo "  make backup         pg_dump + tenant-DEK metadata to S3/MinIO (requires S3_BUCKET; see docs/ops/backup.md)"
 	@echo "  make restore        Restore pg_dump from BACKUP=s3://... (requires DEPLOYAI_RESTORE_CONFIRM=YES; see docs/ops/backup.md)"
 	@echo "  make backup-prune   Delete S3 backup folders older than BACKUP_RETENTION_DAYS (dry-run unless DEPLOYAI_PRUNE_CONFIRM=YES)"
@@ -146,6 +147,14 @@ seed-app: env
 # See docs/test-scenarios/bluestate-health.md for expected outputs.
 seed-scenario-bluestate: env
 	@cd services/control-plane && uv run python ../../$(COMPOSE_DIR)/seed/seed_scenario_bluestate.py $(SEED_SCENARIO_ARGS)
+
+# Wave 3 K1 — cold-start demo reset. Wipes + recreates the empty
+# "Acme Robotics — Pilot Deployment" engagement via the CP internal API and
+# prints the three-act next steps (paste demo/artifacts/* into Capture).
+# Idempotent; rerun between meetings. Requires the stack up (`make dev`).
+# Env: DEMO_TENANT_ID (default: compose seed tenant), DEPLOYAI_CP_BASE_URL.
+demo-reset: env
+	@python3 $(COMPOSE_DIR)/seed/demo_reset.py
 
 # Phase C inc 12.1 — pg_dump + tenant-DEK metadata to S3 (or MinIO).
 # Requires the stack to be up. See docs/ops/backup.md for env vars

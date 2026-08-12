@@ -1,0 +1,65 @@
+Acme Robotics — Pilot Deployment Kickoff
+Video call, Tuesday Sept 9, 10:02–10:47 AM PT
+Attendees: Dana Ruiz (CTO, Acme Robotics), Marcus Webb (Head of Operations, Acme Robotics), Kenny Geiler (DeployAI), Priya Shah (Acme, Fleet Software Lead)
+
+[10:02] Kenny: Thanks for making time, everyone. Goal today is to lock scope for the pilot, name the owners, and get a date on the wall for first robots live in the Fremont warehouse.
+
+[10:03] Dana Ruiz: Sounds right. Quick framing from my side: the board approved the pilot on the condition we show a picking-accuracy number by end of Q4. Anything that doesn't serve that number is out of scope until January.
+
+[10:04] Marcus Webb: And from ops — I have twelve associates on the floor who are nervous about this. Whatever we deploy, the humans need to know where the robots will and won't go. That's non-negotiable for me.
+
+[10:05] Kenny: Understood. Let's start with the fleet itself. Priya, where does the software stand?
+
+[10:06] Priya Shah: Fleet manager is stable at our Reno test cell — six units running two shifts for about five weeks now. The gap is inference. Right now every pick decision round-trips to the cloud, and Fremont's uplink is not what Reno's is.
+
+[10:07] Dana Ruiz: This is the decision I want made today, actually. Edge versus cloud inference. I keep going back and forth in my own head.
+
+[10:08] Kenny: Let's lay it out. What's the latency budget on a pick decision?
+
+[10:09] Priya Shah: Under 200 milliseconds end to end or the arm stalls and re-plans. Cloud round-trip from Fremont measured 140 to 380ms depending on time of day. So cloud alone fails maybe a third of the time.
+
+[10:10] Marcus Webb: And when the arm stalls, an associate has to walk over and clear it. That's the exact experience that will poison the floor against the program.
+
+[10:11] Dana Ruiz: Okay. And edge — what does it cost us?
+
+[10:12] Priya Shah: An Orin module per robot, roughly $2,400 a unit at pilot volume, plus we take on model-update logistics. We'd push quantized models over the fleet channel weekly instead of just calling an endpoint.
+
+[10:13] Dana Ruiz: Weekly model pushes to twenty robots is a thing we know how to do. Unpredictable stalls in front of the board is a thing we cannot survive. I'm calling it: we go edge inference for the pilot. Cloud stays as the training and telemetry backend only.
+
+[10:14] Kenny: Recording that as decided — edge inference on-robot for the pilot, cloud for training and telemetry. Owner for the edge image?
+
+[10:15] Priya Shah: Me. I'll have the first Orin build on the bench by the end of the month.
+
+[10:16] Marcus Webb: I want to raise safety certification early, because it burned us at the Reno cell. The ANSI/RIA R15.08 documentation has to be in front of our insurer before a single robot moves in Fremont. Last time that paperwork took six weeks.
+
+[10:17] Dana Ruiz: Agreed, and our safety consultant is already engaged. Marcus, that package is yours to chase.
+
+[10:18] Marcus Webb: Fine, it's mine. I'll get a date from the consultant this week.
+
+[10:19] Kenny: Timeline, then. Working backwards from a board demo in mid-December.
+
+[10:20] Dana Ruiz: Here's what I can defend upstairs. October: site survey done, network assessment done, safety docs submitted. First week of November: five robots live in the north picking zone, humans-out-of-loop only in that zone. December 1: full pilot fleet of twenty robots, two shifts. December 15: we pull the accuracy report for the board.
+
+[10:22] Marcus Webb: The north zone first is right — it's the newest racking and the cleanest floor markings. But I want the associate training scheduled before the first robot arrives, not after.
+
+[10:23] Kenny: Noted — associate training lands in October alongside the site survey. Priya, anything in the fleet software that threatens the November date?
+
+[10:24] Priya Shah: The handoff between the fleet manager and Acme's WMS is the thing I'd watch. The integration is spec'd but not built. If the WMS vendor slips, picking tasks have to be entered manually, which caps us at maybe forty picks an hour.
+
+[10:25] Dana Ruiz: I'll take the WMS vendor conversation myself. They return my calls faster than they return engineering's.
+
+[10:26] Kenny: So owners: Priya has the edge inference build, Marcus has safety cert and associate training, Dana has the WMS vendor and board comms. I'll circulate a written summary plus the risk register by Thursday.
+
+[10:27] Marcus Webb: One more thing — visitor day is October 20th, investors walking the Fremont floor. Either the robots look deliberate and smooth that day, or they're in the staging cage. No half-working demos in front of investors.
+
+[10:28] Dana Ruiz: Strong agree. If we're not smooth by the 20th, they stay caged and we demo the Reno video instead.
+
+[10:29] Kenny: Understood. Last call for risks before we close?
+
+[10:30] Priya Shah: Just flagging battery logistics — twenty robots on two shifts means the charging bay layout matters more than people think. Not urgent this week, but it needs an owner by October.
+
+[10:31] Marcus Webb: That one can be mine too, it's a floor-space question.
+
+[10:32] Kenny: Great. Recap: edge inference decided, north zone first, five robots November 1, twenty by December 1, board report December 15. Safety cert with Marcus, edge build with Priya, WMS with Dana. Next sync is Tuesday the 16th, same time.
+
+[10:33] Dana Ruiz: Good meeting. Send the summary. Let's go build it.

@@ -1,0 +1,34 @@
+#fremont-pilot — Slack channel export (excerpt)
+Acme Robotics workspace · Wednesday, October 1
+
+[9:14 AM] Priya Shah: morning all — orin build v0.3 flashed onto units 07 and 08 last night, both ran the pick loop on the bench for 6 hours clean. inference p95 was 61ms 🎉
+
+[9:15 AM] Tom Okafor (Fleet Eng): that's with the quantized model? nice. what was p99?
+
+[9:16 AM] Priya Shah: 88ms. the 200ms budget suddenly looks roomy
+
+[9:31 AM] Marcus Webb: good news to start the day. reminder that associate training session 2 is tomorrow 7am, north zone crew. I need one engineer there for the Q&A portion
+
+[9:32 AM] Tom Okafor: I'll take it, was there for session 1 anyway
+
+[10:47 AM] Tom Okafor: unrelated — I was in Fremont yesterday walking the route with the survey heatmap and my laptop. the coverage map says the southeast racking aisles are "marginal" but honestly walking it with a live ping, it's worse than marginal. I was dropping packets for 3-4 seconds at a time between rows E and F
+
+[10:48 AM] Tom Okafor: doesn't matter for picking since inference is local now, but the fleet heartbeat runs on that same wifi. if a robot goes quiet for more than 5 seconds the fleet manager marks it lost and halts it in place, that's the safety default
+
+[10:49 AM] Tom Okafor: so a robot transiting E-F could theoretically halt itself in the middle of an aisle for no visible reason. anyway, not my call, just writing it down before I forget. north zone is fine
+
+[10:52 AM] Priya Shah: huh. yeah the pilot routes don't touch southeast so we're ok for november
+
+[10:53 AM] Priya Shah: worth remembering when we plan the full-floor expansion tho
+
+[11:20 AM] Marcus Webb: catching up on the above — training session moved to 7:30 tomorrow, same crew. Tom you're still good?
+
+[11:21 AM] Tom Okafor: 👍
+
+[2:05 PM] Dana Ruiz: FYI for the channel — WMS vendor call went well, their integration API test env is live for us as of this morning. priya's team gets credentials today. one less thing on the risk list
+
+[2:06 PM] Priya Shah: confirmed, creds received. we'll have the task-feed integration running against their test env by end of next week
+
+[2:41 PM] Marcus Webb: visitor day logistics doc is in the drive, October 20th agenda is final. robots demo in the north zone at 10:30 and 2:00, staging cage tour in between. keep that morning clear
+
+[2:42 PM] Dana Ruiz: 👀 make it smooth, team

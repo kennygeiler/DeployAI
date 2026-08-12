@@ -27,6 +27,7 @@ from control_plane.api.routes.auth import router as auth_router
 from control_plane.api.routes.auth_oidc import auth_entry_router, oidc_router
 from control_plane.api.routes.auth_saml import router as auth_saml_router
 from control_plane.api.routes.break_glass import router as break_glass_router
+from control_plane.api.routes.demo_reset_internal import router as demo_reset_internal_router
 from control_plane.api.routes.demo_session_internal import router as demo_session_internal_router
 from control_plane.api.routes.emails_internal import router as emails_internal_router
 from control_plane.api.routes.engagement_events import router as engagement_events_router
@@ -171,6 +172,7 @@ app.include_router(phase_transitions_internal_router, prefix="/internal/v1")
 app.include_router(internal_metrics_router, prefix="/internal/v1")
 app.include_router(internal_session_router, prefix="/internal/v1")
 app.include_router(demo_session_internal_router, prefix="/internal/v1")
+app.include_router(demo_reset_internal_router, prefix="/internal/v1")
 app.include_router(strategist_meeting_presence_internal_router, prefix="/internal/v1")
 app.include_router(strategist_pilot_surfaces_internal_router, prefix="/internal/v1")
 app.include_router(strategist_overrides_internal_router, prefix="/internal/v1")
