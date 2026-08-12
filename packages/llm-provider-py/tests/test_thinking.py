@@ -146,7 +146,9 @@ async def test_thinking_env_zero_unset_or_invalid_disables(monkeypatch: pytest.M
     captured: dict[str, Any] = {}
     p = _mock_provider(captured, events=_THINKING_EVENTS)
     await _collect(p)
-    assert "thinking" not in captured["body"]
+    # Default model is a 5-family model: thinking-off must be sent as an
+    # explicit disable, because omission means adaptive-on there.
+    assert captured["body"]["thinking"] == {"type": "disabled"}
 
 
 @pytest.mark.asyncio
@@ -226,5 +228,43 @@ async def test_method_budget_override_beats_constructor() -> None:
     ):
         out.append(c)
     await p.aclose()
-    assert "thinking" not in captured["body"]
+    # Per-call budget 0 on the default (5-family) model → explicit disable.
+    assert captured["body"]["thinking"] == {"type": "disabled"}
     assert captured["body"]["max_tokens"] == 800
+
+
+# --- 5-family default-on thinking (Wave 3 K4 demo-reliability fix) ---------
+#
+# Claude Sonnet 5 / Opus 5 run adaptive thinking when the `thinking` param is
+# omitted, and max_tokens caps thinking + text together — the Cartographer
+# extractor's 2000-token budget was burned entirely by thinking, returning
+# zero text. The provider must pin its thinking-off contract explicitly.
+
+
+def _capture_sync(captured: dict[str, Any], *, model: str) -> AnthropicProvider:
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content.decode())
+        return httpx.Response(
+            200,
+            json={"content": [{"type": "text", "text": "[]"}], "usage": {}},
+        )
+
+    return AnthropicProvider(api_key="sk-test", transport=httpx.MockTransport(handler), model=model)
+
+
+@pytest.mark.parametrize("model", ["claude-sonnet-5", "claude-opus-5"])
+def test_chat_complete_disables_thinking_on_5_family(model: str) -> None:
+    captured: dict[str, Any] = {}
+    p = _capture_sync(captured, model=model)
+    assert p.chat_complete([{"role": "user", "content": "extract"}], max_output_tokens=2000) == "[]"
+    assert captured["body"]["thinking"] == {"type": "disabled"}
+
+
+@pytest.mark.parametrize("model", ["claude-opus-4-1", "claude-sonnet-4-5", "claude-fable-5"])
+def test_chat_complete_omits_thinking_elsewhere(model: str) -> None:
+    """Pre-5 models: omission already means no thinking. claude-fable-5:
+    thinking is always-on and an explicit disable is REJECTED — must omit."""
+    captured: dict[str, Any] = {}
+    p = _capture_sync(captured, model=model)
+    p.chat_complete([{"role": "user", "content": "extract"}])
+    assert "thinking" not in captured["body"]

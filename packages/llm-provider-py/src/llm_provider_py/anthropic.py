@@ -49,6 +49,23 @@ def _model_supports_temperature(model: str) -> bool:
     return not model.startswith(_NO_TEMPERATURE_PREFIXES)
 
 
+# Claude Sonnet 5 / Opus 5 run ADAPTIVE THINKING when the `thinking` param is
+# omitted — a silent default change from the 4.x family, where omission meant
+# no thinking. `max_tokens` caps thinking + response text together, so a
+# request sized for its answer alone (e.g. the Cartographer extractor's 2000)
+# can burn the whole allowance on thinking and return zero text with
+# stop_reason=max_tokens. This provider's documented contract is
+# thinking-off unless a budget is configured; send an explicit
+# {"type": "disabled"} on models that think by default and accept it.
+# (claude-fable-5 / claude-mythos-5 think always-on and REJECT "disabled" —
+# they must not be listed here; callers wanting those models get adaptive.)
+_THINKING_DEFAULT_ON_PREFIXES = ("claude-sonnet-5", "claude-opus-5")
+
+
+def _model_thinks_by_default(model: str) -> bool:
+    return model.startswith(_THINKING_DEFAULT_ON_PREFIXES)
+
+
 def _thinking_budget_from_env() -> int:
     raw = os.environ.get(THINKING_BUDGET_ENV, "").strip()
     if not raw:
@@ -164,6 +181,9 @@ class AnthropicProvider:
             body["system"] = system
         if temperature is not None and _model_supports_temperature(self._model):
             body["temperature"] = temperature
+        if _model_thinks_by_default(self._model):
+            # chat_complete has no thinking support — pin the contract.
+            body["thinking"] = {"type": "disabled"}
         return body
 
     def _parse_complete_response(self, r: httpx.Response) -> str:
@@ -237,6 +257,11 @@ class AnthropicProvider:
             body["system"] = system
         if temperature is not None and _model_supports_temperature(self._model):
             body["temperature"] = temperature
+        if _model_thinks_by_default(self._model):
+            # chat_complete_stream_with_tools overwrites this key when a
+            # thinking budget is enabled; every other stream path keeps the
+            # provider contract of thinking-off unless explicitly enabled.
+            body["thinking"] = {"type": "disabled"}
         return body
 
     async def chat_stream(

@@ -15,6 +15,17 @@ type Ctx = { params: Promise<{ engagementId: string }> };
  * interaction (email / meeting note / field note / manual paste) as a
  * canonical_memory_events row on the engagement. Phase 6.2 layers an
  * extraction agent that reads these events and proposes matrix entities.
+ *
+ * Wave 3 K2: pass `extract: false` in the body to skip the chained
+ * extraction — the Capture flow then POSTs the sibling /extract route
+ * itself so the UI can stage its progress ("Saving…" → "Extracting…").
+ * Default stays `true` for existing callers (PastePreview commit path).
+ *
+ * Authz: gates with `canonical:read` like its /extract and /extract-preview
+ * peers. That deliberately means `demo_guest` sessions can ingest on the
+ * demo tenant — mutations are allowed by design on that disposable tenant
+ * so the guided tour's capture act works for guests (see
+ * services/control-plane/.../demo_session_internal.py for the posture).
  */
 export async function POST(request: NextRequest, ctx: Ctx) {
   const actor = await getActorFromHeaders();
@@ -40,6 +51,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     content?: unknown;
     source_ref?: unknown;
     dedup_key?: unknown;
+    extract?: unknown;
   };
   try {
     parsed = (await request.json()) as typeof parsed;
@@ -82,6 +94,11 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     });
   } catch (e) {
     return nextResponseFromStrategistCpFetchError(e);
+  }
+  // Wave 3 K2 — staged callers (Capture tab) skip the chained extraction
+  // and drive the sibling /extract route themselves for honest progress.
+  if (parsed.extract === false) {
+    return NextResponse.json({ event, extract_error: null, source: "cp" }, { status: 201 });
   }
   // Phase 6.2c — chain Cartographer extraction on the new event. Best-effort:
   // failure here MUST NOT fail the ingest (the event is real; the agent is

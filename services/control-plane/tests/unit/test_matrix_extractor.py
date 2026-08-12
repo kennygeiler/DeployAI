@@ -208,3 +208,51 @@ def test_extract_normalizes_node_type_emitted_as_kind() -> None:
         ("node", "risk", "Nightly-only eligibility feed"),
         ("node", "commitment", "Caching by Sep 12"),
     ]
+
+
+# --- Wave 3 K4: real-model response shapes (fenced + truncated JSON) --------
+#
+# Live Claude Sonnet 5 wraps the array in a ```json fence despite the
+# bare-JSON instruction, and a rich artifact can blow past the output-token
+# cap mid-array. Both shapes must still yield the complete proposals.
+
+
+def test_extract_parses_fenced_json_response() -> None:
+    fenced = (
+        '```json\n[\n  {"kind":"node","node_type":"decision","title":"Edge inference",'
+        '"rationale":"Dana called it."}\n]\n```'
+    )
+    drafts = extract_matrix_proposals(
+        **_event_args({"text": "kickoff"}),
+        existing_nodes=[],
+        llm=_FakeLLM(fenced),
+    )
+    assert [(d.kind, d.payload["title"]) for d in drafts] == [("node", "Edge inference")]
+
+
+def test_extract_salvages_truncated_array() -> None:
+    """max_tokens cut the response mid-item: keep every complete item."""
+    truncated = (
+        "```json\n["
+        '{"kind":"node","node_type":"decision","title":"Edge inference","rationale":"r1"},'
+        '{"kind":"node","node_type":"risk","title":"Wifi dead zones","rationale":"r2"},'
+        '{"kind":"node","node_type":"commitment","title":"Safety cert by Oct 3","rat'
+    )
+    drafts = extract_matrix_proposals(
+        **_event_args({"text": "kickoff"}),
+        existing_nodes=[],
+        llm=_FakeLLM(truncated),
+    )
+    assert [(d.payload["node_type"], d.payload["title"]) for d in drafts] == [
+        ("decision", "Edge inference"),
+        ("risk", "Wifi dead zones"),
+    ]
+
+
+def test_extract_still_rejects_hopeless_garbage() -> None:
+    drafts = extract_matrix_proposals(
+        **_event_args({"text": "kickoff"}),
+        existing_nodes=[],
+        llm=_FakeLLM("I could not find any entities in this transcript."),
+    )
+    assert drafts == []

@@ -63,6 +63,9 @@ export const KNOWN_TOUR_TARGETS = [
   "nav-review",
   "brief-graph-tab",
   "nav-overview",
+  // Wave 3 K2 — the Capture tab's paste box (CaptureIngest). No step
+  // references it yet; a parallel change adds the capture act to the tour.
+  "capture-input",
 ] as const;
 
 export type KnownTourTarget = (typeof KNOWN_TOUR_TARGETS)[number];
