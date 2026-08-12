@@ -14,6 +14,9 @@ from typing import Any
 from llm_provider_py.types import LLMProvider
 
 from control_plane.agents.agent_kenny.nodes.llm_call import call_llm_with_tools
+from control_plane.agents.agent_kenny.nodes.tool_dispatch import (
+    synthesize_unexecuted_tool_results,
+)
 from control_plane.agents.agent_kenny.types import (
     MAX_REVISION_ATTEMPTS,
     AgentState,
@@ -55,6 +58,19 @@ async def revise_if_unverified(
     state.accumulated_text = ""
     state.last_text = ""
     await call_llm_with_tools(provider, state, emit=emit)
+    if state.pending_tool_calls:
+        # Both drivers route revise -> extract_citations, never back to
+        # dispatch — any tool_use blocks the revision call emitted would
+        # dangle in state.messages and 400 the next LLM call. Answer them
+        # with is_error tool_results and drain the intents.
+        await synthesize_unexecuted_tool_results(
+            state,
+            state.pending_tool_calls,
+            emit,
+            reason="tool calls are not available while revising; rewrite the reply with what you already have",
+            error_code="tool_call_unavailable_in_revision",
+        )
+        state.pending_tool_calls = []
     return state
 
 

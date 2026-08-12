@@ -53,7 +53,10 @@ from control_plane.agents.agent_kenny.nodes.persist import (
 )
 from control_plane.agents.agent_kenny.nodes.retrieve import retrieve_initial_context
 from control_plane.agents.agent_kenny.nodes.revise import revise_if_unverified
-from control_plane.agents.agent_kenny.nodes.tool_dispatch import dispatch_tools
+from control_plane.agents.agent_kenny.nodes.tool_dispatch import (
+    dispatch_tools,
+    synthesize_unexecuted_tool_results,
+)
 from control_plane.agents.agent_kenny.runtime import (
     RUNTIME_LANGGRAPH,
     KennyRuntime,
@@ -404,7 +407,12 @@ class KennyAgentService:
             # should be forced to stop with the budget exhausted.
             if state.tool_calls_made >= MAX_TOOL_CALLS_PER_TURN:
                 # Drain any remaining pending intents to ensure a final reply.
+                # Each drained intent has a tool_use block already recorded in
+                # state.messages, so synthesize an is_error tool_result for it —
+                # otherwise a later LLM call (e.g. the revision loop) sends
+                # history with dangling tool_use ids and Anthropic 400s.
                 if state.pending_tool_calls:
+                    await synthesize_unexecuted_tool_results(state, state.pending_tool_calls, emit)
                     state.pending_tool_calls = []
                 if not state.accumulated_text:
                     state.accumulated_text = (

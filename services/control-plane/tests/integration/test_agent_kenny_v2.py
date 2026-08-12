@@ -89,6 +89,10 @@ class _LLMScript:
         self._replies = list(replies)
         self.calls = 0
         self.last_messages: list[ChatMessage] | None = None
+        # Per-call capture of the message history sent to the tools endpoint,
+        # so tests can assert every tool_use id was answered (Anthropic 400s
+        # on dangling ids — the prod tool-cap incident).
+        self.tools_messages: list[list[ChatMessage]] = []
 
     def chat_complete(
         self,
@@ -148,6 +152,7 @@ class _LLMScript:
     ) -> AsyncIterator[ToolStreamChunk]:
         _ = tools, temperature, max_output_tokens
         self.last_messages = messages
+        self.tools_messages.append(messages)
         idx = self.calls
         self.calls += 1
         reply = self._replies[idx] if idx < len(self._replies) else ""
@@ -400,6 +405,72 @@ async def test_v2_tool_call_cap_terminates_at_eight(
     frames = _parse_sse_frames(r.text)
     done = next(p for name, p in frames if name == "done")
     assert done["tool_calls"] == 8
+
+
+def _assert_every_tool_use_answered(msgs: list[ChatMessage]) -> None:
+    """Mimic the Anthropic Messages API validation that 400'd in production:
+    every assistant ``tool_use`` id must be answered by a ``tool_result``
+    block in the immediately following user message."""
+    for i, msg in enumerate(msgs):
+        content = msg.get("content")
+        if msg.get("role") != "assistant" or not isinstance(content, list):
+            continue
+        ids = [b["id"] for b in content if isinstance(b, dict) and b.get("type") == "tool_use"]
+        if not ids:
+            continue
+        assert i + 1 < len(msgs), f"dangling tool_use ids {ids} at end of history"
+        nxt = msgs[i + 1]
+        nxt_content = nxt.get("content")
+        assert nxt.get("role") == "user" and isinstance(nxt_content, list), (
+            f"tool_use ids {ids} not followed by a tool_result user message"
+        )
+        answered = {b.get("tool_use_id") for b in nxt_content if isinstance(b, dict) and b.get("type") == "tool_result"}
+        assert answered == set(ids), f"unanswered tool_use ids: {set(ids) - answered}"
+
+
+@pytest.mark.asyncio
+async def test_v2_cap_truncated_tool_batch_answers_every_tool_use_id(
+    k_client: AsyncClient, postgres_engine: Engine, stub_llm: _LLMScript
+) -> None:
+    """Prod repro (2026-08-11): ONE assistant turn requests 10 tool calls,
+    the cap executes only 8 — the follow-up LLM call previously failed with
+    Anthropic 400 on dangling tool_use ids and an error frame killed the
+    turn. The fix synthesizes is_error tool_results for the truncated tail."""
+    tid, eid, user_id = await _new_engagement(k_client, postgres_engine)
+    one_call = '<tool_call>{"name": "get_engagement_summary", "input": {}}</tool_call>'
+    stub_llm._replies = [
+        one_call * 10,  # 10 tool_use blocks in a single assistant turn (cap is 8)
+        "All caught up — nothing further to check.",
+    ]
+
+    r = await k_client.post(
+        f"/internal/v1/engagements/{eid}/oracle/chat/stream-v2?tenant_id={tid}",
+        json={"conversation_id": None, "message": "check everything"},
+        headers=_actor_headers(user_id),
+    )
+    assert r.status_code == 200, r.text
+    frames = _parse_sse_frames(r.text)
+    events = [name for name, _ in frames]
+    # (a) no malformed-history explosion: the turn ends in done, not error.
+    assert "error" not in events, frames
+    done = next(p for name, p in frames if name == "done")
+    # (c) the turn completed with the scripted final text.
+    assert done["final_text"] == "All caught up — nothing further to check."
+    assert done["tool_calls"] == 8
+    # Every requested call got a result frame: 8 executed + 2 synthesized.
+    assert events.count("tool_call") == 10
+    assert events.count("tool_result") == 10
+    cap_errors = [p for name, p in frames if name == "tool_result" and p.get("error") == "tool_call_cap_reached"]
+    assert len(cap_errors) == 2
+
+    # (b) the follow-up LLM request answered all 10 tool_use ids.
+    assert stub_llm.calls >= 2
+    follow_up = stub_llm.tools_messages[1]
+    assistant = next(m for m in follow_up if m["role"] == "assistant" and isinstance(m["content"], list))
+    requested = [b["id"] for b in assistant["content"] if isinstance(b, dict) and b.get("type") == "tool_use"]
+    assert len(requested) == 10
+    for sent in stub_llm.tools_messages:
+        _assert_every_tool_use_answered(sent)
 
 
 @pytest.mark.asyncio
