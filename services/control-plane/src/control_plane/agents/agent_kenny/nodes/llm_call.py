@@ -31,6 +31,7 @@ from llm_provider_py.types import (
     StopReason,
     TextDelta,
     ThinkingDelta,
+    ThinkingSignature,
     ToolStreamChunk,
     ToolUseEnd,
     ToolUseStart,
@@ -281,24 +282,37 @@ async def call_llm_with_tools(
     )
     # Native extended-thinking (provider ThinkingDelta chunks). Deltas are
     # buffered per thinking block and flushed as ONE `thinking` SSE frame —
-    # the web UI counts each frame as one reasoning step. Gated by
-    # DEPLOYAI_AGENT_THINKING_BUDGET; when off, deltas are dropped so the
-    # stream is byte-identical to the pre-thinking behaviour.
+    # the web UI counts each frame as one reasoning step. SSE frames are
+    # gated by DEPLOYAI_AGENT_THINKING_BUDGET so the stream is byte-identical
+    # to the pre-thinking behaviour when off; the replay capture below is NOT
+    # gated — it must run whenever the provider thinks, or the follow-up
+    # request after a tool call 400s.
     thinking_frames_on = _thinking_frames_enabled()
     native_thinking_buf: list[str] = []
+    # Closed thinking blocks with their signatures, in stream order. The API
+    # requires the replayed assistant turn to start with its original thinking
+    # block(s) verbatim (full content + signature) when it also carries
+    # tool_use blocks, so these are prepended to the synthesized assistant
+    # message below. Blocks that never got a signature can't be replayed and
+    # are dropped from capture (SSE framing is unaffected).
+    thinking_blocks: list[dict[str, Any]] = []
 
-    async def _flush_native_thinking() -> None:
+    async def _flush_native_thinking(signature: str | None = None) -> None:
         if not native_thinking_buf:
             return
-        joined = "".join(native_thinking_buf).strip()
+        joined = "".join(native_thinking_buf)
         native_thinking_buf.clear()
-        if joined and emit is not None:
-            await emit(ThinkingChunk(content=joined[:_THINKING_FRAME_MAX_CHARS]))
+        if signature:
+            thinking_blocks.append({"type": "thinking", "thinking": joined, "signature": signature})
+        stripped = joined.strip()
+        if stripped and thinking_frames_on and emit is not None:
+            await emit(ThinkingChunk(content=stripped[:_THINKING_FRAME_MAX_CHARS]))
 
     async for chunk in stream:
         if isinstance(chunk, ThinkingDelta):
-            if thinking_frames_on:
-                native_thinking_buf.append(chunk.content)
+            native_thinking_buf.append(chunk.content)
+        elif isinstance(chunk, ThinkingSignature):
+            await _flush_native_thinking(signature=chunk.signature)
         elif isinstance(chunk, TextDelta):
             await _flush_native_thinking()
             text_buf.append(chunk.content)
@@ -325,7 +339,10 @@ async def call_llm_with_tools(
         # Persist the assistant tool_use turn into state.messages so the next
         # iteration's _build_messages can pair it with the upcoming tool_result
         # text messages tool_dispatch will append.
-        assistant_content: list[dict[str, Any]] = []
+        # Thinking blocks MUST come first in the replayed assistant turn —
+        # the API rejects tool_use continuations whose assistant message
+        # doesn't start with the original signed thinking block.
+        assistant_content: list[dict[str, Any]] = list(thinking_blocks)
         if visible_text:
             assistant_content.append({"type": "text", "text": visible_text})
         for block in tool_use_blocks:

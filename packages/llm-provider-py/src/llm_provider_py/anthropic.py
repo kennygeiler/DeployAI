@@ -17,6 +17,7 @@ from llm_provider_py.types import (
     StreamChunk,
     TextDelta,
     ThinkingDelta,
+    ThinkingSignature,
     ToolStreamChunk,
     ToolUseEnd,
     ToolUseInputDelta,
@@ -307,6 +308,11 @@ class AnthropicProvider:
             body.pop("temperature", None)
         # block index → (id, name, partial-json buffer)
         active: dict[int, dict[str, Any]] = {}
+        # block index → accumulated signature for open thinking blocks. The
+        # signature arrives via one or more `signature_delta` events and is
+        # surfaced as a ThinkingSignature chunk when the block closes, so
+        # callers can replay the thinking block on follow-up requests.
+        thinking_sigs: dict[int, str] = {}
         stop_reason: str | None = None
         usage_input = 0
         usage_output = 0
@@ -322,22 +328,30 @@ class AnthropicProvider:
                         "buf": "",
                     }
                     yield ToolUseStart(id=str(block.get("id", "")), name=str(block.get("name", "")))
+                elif isinstance(idx, int) and isinstance(block, dict) and block.get("type") == "thinking":
+                    thinking_sigs[idx] = ""
             elif t == "content_block_delta" and isinstance(ev.get("delta"), dict):
                 d = ev["delta"]
                 idx = ev.get("index")
                 if d.get("type") == "text_delta" and "text" in d:
                     yield TextDelta(content=str(d["text"]))
                 elif d.get("type") == "thinking_delta" and "thinking" in d:
-                    # Extended-thinking stream. `signature_delta` events (the
-                    # block's integrity signature) are intentionally ignored.
+                    if isinstance(idx, int):
+                        # Register the block even without a content_block_start
+                        # so its signature + stop are still tracked.
+                        thinking_sigs.setdefault(idx, "")
                     yield ThinkingDelta(content=str(d["thinking"]))
+                elif d.get("type") == "signature_delta" and isinstance(idx, int):
+                    thinking_sigs[idx] = thinking_sigs.get(idx, "") + str(d.get("signature", ""))
                 elif d.get("type") == "input_json_delta" and isinstance(idx, int) and idx in active:
                     partial = str(d.get("partial_json", ""))
                     active[idx]["buf"] += partial
                     yield ToolUseInputDelta(id=str(active[idx]["id"]), partial_json=partial)
             elif t == "content_block_stop":
                 idx = ev.get("index")
-                if isinstance(idx, int) and idx in active:
+                if isinstance(idx, int) and idx in thinking_sigs:
+                    yield ThinkingSignature(signature=thinking_sigs.pop(idx))
+                elif isinstance(idx, int) and idx in active:
                     entry = active.pop(idx)
                     try:
                         parsed = json.loads(entry["buf"]) if entry["buf"] else {}

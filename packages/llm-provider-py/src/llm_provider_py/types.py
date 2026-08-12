@@ -36,6 +36,20 @@ class ThinkingDelta:
 
 
 @dataclass(frozen=True)
+class ThinkingSignature:
+    """The thinking block closed; ``signature`` is its integrity signature.
+
+    The Anthropic API requires that when thinking is enabled and an
+    assistant turn contains tool_use blocks, the replayed assistant message
+    on the follow-up request starts with the original thinking block
+    including this signature. Consumers that never replay thinking turns
+    can ignore it, like :class:`ThinkingDelta`.
+    """
+
+    signature: str
+
+
+@dataclass(frozen=True)
 class ToolUseStart:
     """Marker that a new tool_use content block has begun."""
 
@@ -68,7 +82,9 @@ class StopReason:
     usage: dict[str, int] = field(default_factory=dict)
 
 
-ToolStreamChunk = TextDelta | ThinkingDelta | ToolUseStart | ToolUseInputDelta | ToolUseEnd | StopReason
+ToolStreamChunk = (
+    TextDelta | ThinkingDelta | ThinkingSignature | ToolUseStart | ToolUseInputDelta | ToolUseEnd | StopReason
+)
 
 
 @runtime_checkable
