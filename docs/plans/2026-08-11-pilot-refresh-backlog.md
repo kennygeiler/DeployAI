@@ -269,6 +269,26 @@ features that fill the Brief's slots, F5–F7 are adoption features deferred pas
 | F6 | P3 | M | F1 | **DEMOTED** (adoption feature, post-conviction) Outbound weekly digest email (Resend or SES); per-user opt-in; D4 approval optional for first sends. |
 | F7 | P3 | L | A4 | **DEMOTED** (adoption feature, post-conviction) HubSpot one-way sync: companies/contacts/deals → stakeholders/engagements; idempotent upsert via external IDs; sync status UI. |
 
+### Wave 4S — Showcase (added 2026-08-11; the "send it out" wall)
+
+Reframing for the portfolio goal: the differentiator for an FDE/DS-with-agents skillset
+is **provable eval discipline, trust engineering, and operational durability** — not more
+features. Wave 4S extracts the highest-signal subset of Wave 4 and adds the two things a
+sendable demo needs.
+
+| ID | P | Sz | Deps | Ticket |
+|---|---|---|---|---|
+| S1 (=G2) | P0 | L | — | Derived ground truth: the XL generator emits its own grounded QA set (≥150 questions across lookup/causal/risk/temporal/negative/cross-engagement templates, deterministic, citation ids real). |
+| S2 (=G3) | P0 | L | S1 | Longitudinal replay CLI + weekly CI job: reseed at 5 horizons (26wk→5yr), run horizon-valid questions, hard-fail on >10% accuracy degradation or any cross-engagement leak. The headline claim: *bounded quality across a 5-year corpus, zero leaks, enforced in CI*. |
+| S3 (=G7-lite) | P0 | M | — | Durability chaos test: turn pauses at interrupt(), a *fresh process* (new runtime + checkpointer) resumes it to completion with citations intact; plus connection-drop recovery. "The agent survives process death mid-turn." |
+| S4 (=G8) | P1 | M | — | Eval history in-product: eval_runs table + runner --persist-url + admin-dashboard trend panel (pass rate sparkline, leak highlighting). Evals visible in a screenshot, not buried in CI logs. |
+| S5 | P0 | M | — | Guest demo access: `demo_guest` read-only role, CP demo-session mint (env-gated, demo tenant only), `/api/auth/demo` cookie flow, "View live demo" button on the login page. A recruiter clicks one link and is inside the seeded product. |
+| S6 | P1 | S | — | docs/engineering-highlights.md — one page mapping each engineering claim (citation verification, leak gate, RLS fuzz + anti-test, interrupt HITL, parity-gated runtime swap, eval gates) to the exact code + CI run proving it. For employers, the repo is the portfolio. |
+
+Deliberately excluded (low signal-per-effort for this goal): full G6 load/soak, F5–F7
+integrations, coverage ratchets. After Wave 4S: polish pass, then send the demo link +
+repo + /overview as the application artifact.
+
 ### Wave 4 — LongScale proof
 
 | ID | P | Sz | Deps | Ticket |
