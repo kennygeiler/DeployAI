@@ -29,13 +29,14 @@ RUN apt-get update \
     && apt-get purge -y --auto-remove build-essential flex bison postgresql-server-dev-16 curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY init/*.sql /docker-entrypoint-initdb.d/
+COPY infra/compose/postgres/init/*.sql /docker-entrypoint-initdb.d/
 
-# Fly mounts the persistent volume root-owned; the postgres base image
-# can't chown it from non-root. This shim chowns $PGDATA as root before
+# Cloud platforms mount the persistent volume root-owned (Railway today;
+# historically Fly, hence the shim's name); the postgres base image can't
+# chown it from non-root. This shim chowns $PGDATA as root before
 # delegating to docker-entrypoint.sh. Harmless under docker-compose
 # (volume there is already postgres-owned).
-COPY fly-entrypoint.sh /usr/local/bin/fly-entrypoint.sh
+COPY infra/compose/postgres/fly-entrypoint.sh /usr/local/bin/fly-entrypoint.sh
 RUN chmod +x /usr/local/bin/fly-entrypoint.sh
 ENTRYPOINT ["fly-entrypoint.sh"]
 CMD ["postgres"]

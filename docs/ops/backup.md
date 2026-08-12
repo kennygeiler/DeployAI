@@ -2,17 +2,22 @@
 
 Two backup paths exist, one per deployment mode:
 
-| Path | Target DB | Script | Schedule |
-|------|-----------|--------|----------|
+| Path | Target DB | Mechanism | Schedule |
+|------|-----------|-----------|----------|
 | **Compose** (`make backup`) | local docker-compose Postgres | `scripts/backup.sh` | manual / host cron |
-| **Fly production** | `deployai-postgres` Fly app | `scripts/fly-backup.sh` | nightly GitHub Actions (`.github/workflows/fly-backup.yml`) |
+| **Railway production** | `postgres` service in the Railway project `deployai` | Railway volume backups + documented manual `pg_dump` | volume backups scheduled in the dashboard; pg_dump manual |
 
-The compose path is documented first (it predates Fly); the Fly path is
-in the "[Fly production backups](#fly-production-backups)" section
-below. **Not covered by either path:** MinIO/Tigris object-storage
-artifacts (uploaded meeting audio, email bodies in `s3` mode) — that is
-ticket H3 follow-up work; until then a restore recovers the database but
-not uploaded artifact blobs.
+The compose path is documented first (it predates the cloud deploy); the
+Railway path is in the
+"[Railway production backups](#railway-production-backups)" section
+below. The Fly.io-era path (nightly `pg_dump` → S3 via
+`scripts/fly-backup.sh` + `.github/workflows/fly-backup.yml`) was retired
+in the 2026-08-11 Railway migration — the workflow is deleted and the
+scripts are archived under [`scripts/archive/`](../../scripts/archive/README.md).
+**Not covered by either path:** MinIO object-storage artifacts (uploaded
+meeting audio, email bodies in `s3` mode) — that is ticket H3 follow-up
+work; until then a restore recovers the database but not uploaded
+artifact blobs.
 
 ## `make backup` (compose path)
 
@@ -271,108 +276,95 @@ window before pruning if you need a longer recovery horizon.
   `$S3_PREFIX/<ts>/`.
 - No outbound telemetry. No upload of the deletion list anywhere.
 
-## Fly production backups
+## Railway production backups
 
-`scripts/fly-backup.sh` is the production sibling of `scripts/backup.sh`.
-Instead of `docker compose exec`, it runs `pg_dump` **inside** the Fly
-Postgres machine over `fly ssh console -C`, so no local Postgres client
-tools are needed and there is no client/server version-skew risk. The
-dump is plain-format SQL (`--clean --if-exists --no-owner
---no-privileges`), gzipped locally, and uploaded together with the
-tenant-DEK manifest to `s3://${S3_BUCKET}/${S3_PREFIX}/<TIMESTAMP>/`
-(default prefix `deployai/backups/fly`).
+The hosted stack runs on Railway (see
+[`docs/ops/cloud-deploy.md`](./cloud-deploy.md)); Postgres data lives on
+the `postgres-volume` volume mounted at `/var/lib/postgresql/data`.
+Two layers, honestly stated:
 
-Plain format (not `--format=custom`) is deliberate: `fly ssh console`
-sessions are only trustworthy for text output, and the script verifies
-the stream starts with the `pg_dump` header before uploading anything.
+1. **Railway volume backups** — the working automated layer. Configure in
+   the dashboard: `postgres` service → the attached volume → **Backups** →
+   enable a schedule (daily/weekly/monthly; each tier keeps its own
+   retention). Backups are snapshots of the volume; restore is also
+   dashboard-driven (pick a backup → restore — the service restarts on the
+   restored volume). Do this **one-time setup now** if it isn't enabled;
+   nothing in the repo can verify it for you.
+2. **Manual `pg_dump` for offsite copies** — documented below, manual by
+   design. There is currently **no scheduled dump-to-S3 automation** for
+   Railway: the Fly-era nightly workflow (`.github/workflows/fly-backup.yml`
+   → `scripts/fly-backup.sh`) was deleted/archived in the migration and has
+   no Railway replacement yet (backlog ticket H1 remains open in that
+   sense). Railway volume backups live in the same Railway account as the
+   data — they protect against bad deploys and fat-fingered SQL, not
+   account loss.
 
-### Schedule
+### Manual pg_dump over a TCP proxy
 
-`.github/workflows/fly-backup.yml` runs nightly at 03:17 UTC:
+`railway connect postgres` opens an interactive psql session, which is not
+scriptable for dumps. For a real `pg_dump` you need a TCP route to the
+database. Postgres has no public ingress by default; enable one
+deliberately, dump, then remove it:
 
-1. `scripts/fly-backup.sh` — dump + upload to Tigris (default endpoint
-   `https://fly.storage.tigris.dev`).
-2. `scripts/backup-prune.sh` with `S3_PREFIX=deployai/backups/fly` and
-   `DEPLOYAI_PRUNE_CONFIRM=YES` — deletes folders older than
-   `BACKUP_RETENTION_DAYS` (default 30).
-3. A final `if: failure()` step that fails loudly. There is no
-   `continue-on-error` anywhere in the workflow: a broken backup is a
-   red run and a GitHub failure notification, never a quiet skip.
+1. Dashboard → `postgres` service → Settings → Networking → **TCP Proxy**
+   → target port `5432`. Railway assigns a public `<host>:<port>` pair.
+2. From your laptop (needs a local `pg_dump`; password is the
+   `POSTGRES_PASSWORD` service variable, also in
+   `~/.deployai-railway-state` if `scripts/cloud-standup.sh` set it up):
 
-The workflow also supports `workflow_dispatch` with a `dry_run` input
-for validating configuration without dumping anything.
+   ```bash
+   pg_dump "postgresql://deployai:<PG_PASS>@<proxy-host>:<proxy-port>/deployai" \
+     --format=custom --no-owner --no-privileges \
+     -f "deployai-$(date -u +%Y%m%dT%H%M%SZ).dump"
+   ```
 
-### Activation checklist (one-time)
+3. Upload the dump wherever your offsite copies live (the compose-path
+   S3 conventions above work fine), and **remove the TCP proxy** again if
+   you don't want the DB port reachable from the internet (it is still
+   password-authenticated, but the smaller surface is free).
 
-The workflow does nothing useful until these are configured. In the
-repo: Settings → Secrets and variables → Actions.
+Restore of such a dump follows the compose "[Restore
+outline](#restore-outline)" above (`pg_restore --no-owner
+--no-privileges`), pointed at the proxy instead of a local container, with
+the same care: verify the dump is non-empty, know which tenant set you are
+overwriting, and run Alembic afterwards if the app has advanced.
 
-Secrets:
+The archived Fly scripts
+([`scripts/archive/fly-backup.sh`](../../scripts/archive/fly-backup.sh),
+[`scripts/archive/fly-restore.sh`](../../scripts/archive/fly-restore.sh))
+carry the safety patterns any future Railway automation should reuse:
+dump-header verification before upload, the
+`DEPLOYAI_RESTORE_CONFIRM` / `DEPLOYAI_RESTORE_FORCE_OVERWRITE` double
+gate, DEK-manifest printout before the destructive step, and
+single-transaction replay.
 
-| Secret | Value |
-|--------|-------|
-| `FLY_API_TOKEN` | already present for `cloud-deploy.yml`; must be able to `fly ssh console` into `deployai-postgres` and `deployai-control-plane` |
-| `BACKUP_S3_BUCKET` | bucket name. For Tigris: `fly storage create` prints it |
-| `BACKUP_AWS_ACCESS_KEY_ID` | bucket credential (Tigris prints these at `fly storage create`) |
-| `BACKUP_AWS_SECRET_ACCESS_KEY` | bucket credential |
+### DEK metadata
 
-Optional variables:
-
-| Variable | Default | Notes |
-|----------|---------|-------|
-| `BACKUP_S3_ENDPOINT_URL` | `https://fly.storage.tigris.dev` | set for non-Tigris S3 |
-| `BACKUP_RETENTION_DAYS` | `30` | prune window |
-
-Then run the workflow once by hand (Actions → fly-backup → Run
-workflow, `dry_run: true` first, then a real run) and confirm a
-`deployai/backups/fly/<ts>/` folder appears in the bucket with a
-non-trivial `postgres.sql.gz`.
-
-### Restore drill (Fly)
-
-`scripts/fly-restore.sh` replays a fly-backup into the Fly database
-through `fly proxy` + local `psql` (required locally; `fly ssh console`
-cannot reliably stream a large dump into remote stdin). It carries the
-same double gate as the compose restore: `DEPLOYAI_RESTORE_CONFIRM=YES`
-always, plus `DEPLOYAI_RESTORE_FORCE_OVERWRITE=YES` when the target DB
-already has tenant rows. It prints the DEK manifest and probes the
-target before the destructive step, and replays with
-`psql --single-transaction -v ON_ERROR_STOP=1` so a mid-restore failure
-rolls back completely.
+The compose path captures a tenant-DEK manifest alongside the dump. On
+Railway, capture the same manifest manually when taking an offsite dump —
+run it inside the control-plane container (`railway run` executes
+*locally* and cannot reach `postgres.railway.internal`; `railway ssh`
+runs in the deployed container):
 
 ```bash
-export BACKUP=s3://<bucket>/deployai/backups/fly/<TIMESTAMP>/
-export S3_ENDPOINT_URL=https://fly.storage.tigris.dev
-export AWS_ACCESS_KEY_ID=...            # bucket creds
-export AWS_SECRET_ACCESS_KEY=...
-export PGPASSWORD=...                    # the Fly POSTGRES_PASSWORD secret
-export DEPLOYAI_RESTORE_CONFIRM=YES
-# Only when overwriting a populated DB:
-# export DEPLOYAI_RESTORE_FORCE_OVERWRITE=YES
-
-./scripts/fly-restore.sh "$BACKUP"
+railway ssh --service control-plane "python -m control_plane.cli.dek_metadata" > dek_metadata.json
 ```
 
-After restore: if the application version has advanced past the dump,
-run Alembic (`fly ssh console -a deployai-control-plane -C "alembic
-upgrade head"` or redeploy control-plane, whose release command
-migrates), then smoke the deployment before directing traffic at it.
-
-Run the drill quarterly against a scratch Fly Postgres app
-(`FLY_APP=<scratch-app>`) so the procedure is proven without touching
-production.
+(As always: `(tenant_id, name, dek_key_id)` tuples only — never the key
+material itself.)
 
 ### What is NOT covered
 
-- **MinIO/Tigris artifact objects** (meeting audio uploads, email
-  bodies when `ingest_email_body_mode=s3`): not in `pg_dump`. Ticket
-  **H3** tracks artifact-bucket replication; until it lands, artifact
-  blobs referenced by restored DB rows may be missing.
-- **Fly volume snapshots**: Fly takes daily volume snapshots
-  automatically (5-day retention) — a useful extra layer, but not a
-  substitute: they are tied to the Fly account/region and are not
-  offsite.
-- **Secrets**: `fly secrets` values (`POSTGRES_PASSWORD`,
-  `DATABASE_URL`, OAuth client secrets) are not backed up anywhere by
-  these scripts on purpose. Keep them in your password manager; a
-  restore onto a fresh app requires re-setting them by hand.
+- **MinIO/S3 artifact objects** (meeting audio uploads, email bodies when
+  `ingest_email_body_mode=s3`): not in `pg_dump` and not on the Postgres
+  volume. Ticket **H3** tracks artifact-bucket replication; until it
+  lands, artifact blobs referenced by restored DB rows may be missing.
+- **Redis**: the managed Redis has its own volume, but its contents
+  (rate-limit counters, refresh sessions) are ephemeral by design — losing
+  them logs users out, nothing more.
+- **Secrets**: Railway service variables (`POSTGRES_PASSWORD`,
+  `DATABASE_URL`, `DEPLOYAI_JWT_PRIVATE_KEY_B64`, OAuth client secrets)
+  are not backed up by any of this on purpose. Keep them in your password
+  manager (plus `~/.deployai-railway-state` / `~/.deployai-keys` from the
+  standup script); a restore onto a fresh project requires re-setting them
+  by hand.

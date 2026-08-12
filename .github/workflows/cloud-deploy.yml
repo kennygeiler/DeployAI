@@ -1,20 +1,20 @@
-# Auto-deploy to Fly.io after CI passes on `main` (Wave 0 C3 — deploys
+# Auto-deploy to Railway after CI passes on `main` (Wave 0 C3 — deploys
 # used to trigger on raw push and race CI; now `workflow_run` gates on
-# the CI workflow's success).
+# the CI workflow's success. 2026-08-11: migrated from Fly.io to Railway).
 #
-# Order matters — control-plane runs alembic via `release_command`, so
-# Postgres must exist first. The 5 services land in two waves:
+# Each deploy is `railway up --service <name>` from the repo root: the CLI
+# tarballs the tree (honoring .gitignore) and the service builds with its
+# RAILWAY_DOCKERFILE_PATH. Order matters — control-plane runs
+# `alembic upgrade head` on boot (RUN_MIGRATIONS=1 in its service vars),
+# so Postgres must be up first. The 5 services land in three waves:
 #   wave A: postgres (independent)
-#   wave B: control-plane (waits for postgres)
+#   wave B: control-plane (waits for postgres; migrates on boot)
 #   wave C: web / mcp-server / embedder (depend on control-plane schema)
 #
-# Each service writes its deployment URL back to GitHub's Environments
-# so the repo sidebar shows the live URL + each commit gets a
-# "View deployment" link.
-#
 # Required repo secret:
-#   FLY_API_TOKEN  — `fly auth token` then paste into
-#                    Settings → Secrets and variables → Actions → New
+#   RAILWAY_TOKEN — a project token for the `deployai` Railway project
+#                   (Railway dashboard → Project Settings → Tokens), pasted
+#                   into Settings → Secrets and variables → Actions → New.
 #
 # Trigger:
 #   - workflow_run on "CI" (branch main, conclusion success) → deploy
@@ -91,7 +91,7 @@ jobs:
           fi
           git diff --name-only HEAD^1 HEAD > /tmp/changed.txt
           echo "Changed files:"; cat /tmp/changed.txt
-          if grep -qE '^(apps/web/|services/|packages/|infra/fly/|infra/compose/postgres/|scripts/cloud-deploy\.sh|\.github/workflows/cloud-deploy\.yml)' /tmp/changed.txt; then
+          if grep -qE '^(apps/web/|services/|packages/|infra/compose/postgres/|scripts/cloud-deploy\.sh|\.github/workflows/cloud-deploy\.yml)' /tmp/changed.txt; then
             echo "deploy=true" >> "$GITHUB_OUTPUT"
           else
             echo "No deploy-relevant paths changed — skipping deploy."
@@ -106,19 +106,16 @@ jobs:
     environment:
       name: production-postgres
     steps:
-      - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          ref: ${{ needs.ci-gate.outputs.sha }}
+          persist-credentials: false
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli
       - name: Deploy postgres
-        # init/*.sql lives in infra/compose/postgres, not infra/fly/postgres,
-        # so the build context must point at the compose dir. See
-        # scripts/cloud-deploy.sh for the same dance.
-        run: |
-          flyctl deploy "$GITHUB_WORKSPACE/infra/compose/postgres" \
-            --config "$GITHUB_WORKSPACE/infra/fly/postgres/fly.toml" \
-            --dockerfile "$GITHUB_WORKSPACE/infra/compose/postgres/Dockerfile" \
-            --remote-only
+        run: railway up --service postgres --detach --ci
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
   control-plane:
     name: Deploy control-plane
@@ -132,55 +129,71 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production-control-plane
-      url: https://deployai-control-plane.fly.dev
+      url: https://control-plane-production-798e.up.railway.app
     steps:
-      - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Deploy control-plane (runs alembic upgrade head as release_command)
-        run: flyctl deploy --config infra/fly/control-plane/fly.toml --remote-only
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          ref: ${{ needs.ci-gate.outputs.sha }}
+          persist-credentials: false
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli
+      - name: Deploy control-plane (runs alembic upgrade head on boot via RUN_MIGRATIONS=1)
+        run: railway up --service control-plane --detach --ci
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
   embedder:
     name: Deploy embedder
-    needs: control-plane
+    needs: [ci-gate, control-plane]
     if: ${{ always() && needs.control-plane.result == 'success' && (github.event.inputs.service == '' || github.event.inputs.service == 'embedder') }}
     runs-on: ubuntu-latest
     environment:
       name: production-embedder
     steps:
-      - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --config infra/fly/embedder/fly.toml --remote-only
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          ref: ${{ needs.ci-gate.outputs.sha }}
+          persist-credentials: false
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli
+      - run: railway up --service embedder --detach --ci
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
   mcp-server:
     name: Deploy mcp-server
-    needs: control-plane
+    needs: [ci-gate, control-plane]
     if: ${{ always() && needs.control-plane.result == 'success' && (github.event.inputs.service == '' || github.event.inputs.service == 'mcp-server') }}
     runs-on: ubuntu-latest
     environment:
       name: production-mcp-server
-      url: https://deployai-mcp-server.fly.dev
+      url: https://mcp-server-production-d7af.up.railway.app
     steps:
-      - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --config infra/fly/mcp-server/fly.toml --remote-only
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          ref: ${{ needs.ci-gate.outputs.sha }}
+          persist-credentials: false
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli
+      - run: railway up --service mcp-server --detach --ci
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
   web:
     name: Deploy web
-    needs: control-plane
+    needs: [ci-gate, control-plane]
     if: ${{ always() && needs.control-plane.result == 'success' && (github.event.inputs.service == '' || github.event.inputs.service == 'web') }}
     runs-on: ubuntu-latest
     environment:
       name: production-web
-      url: https://deployai-web.fly.dev
+      url: https://web-production-e4059.up.railway.app
     steps:
-      - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --config infra/fly/web/fly.toml --remote-only
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          ref: ${{ needs.ci-gate.outputs.sha }}
+          persist-credentials: false
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli
+      - run: railway up --service web --detach --ci
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}

@@ -25,7 +25,8 @@ for the full Kenny doc map. [`eval.md`](./eval.md) for the Phase 6 harness.
 | **Phase 5.5** — pgvector fuzzy fallback | shipped | #248, #249, #250 (Waves A / B / C) | 2026-05-26 |
 | **Phase 6** — Eval harness + dashboard | shipped | #251 (Wave B CI), #252 (Wave A harness), #253 (Wave C dashboard) | 2026-05-27 |
 
-**Next phase (not in this document):** cloud deploy on Fly.io + Cloudflare Access.
+**Next phase (not in this document):** cloud deploy — since shipped on Railway (2026-08-11), see
+[`docs/ops/cloud-deploy.md`](../ops/cloud-deploy.md). (The Fly.io + Cloudflare Access plan originally named here was dropped.)
 
 ### STATUS-Phase-5 — wave detail
 

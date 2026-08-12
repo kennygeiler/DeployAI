@@ -1,17 +1,29 @@
 #!/usr/bin/env bash
 #
-# Wrapper for the 5 `fly deploy` calls in correct order.
-# Read docs/ops/cloud-deploy.md first — this assumes Fly apps + secrets
-# already exist. Idempotent: safe to re-run after a failed deploy.
+# Deploy the five DeployAI services to Railway in dependency order.
+# Read docs/ops/cloud-deploy.md first — this assumes the project, services,
+# volume, and variables already exist (scripts/cloud-standup.sh creates
+# them). Idempotent: safe to re-run after a failed deploy.
+#
+# `railway up` tarballs the working tree from the repo root (honoring
+# .gitignore) and builds each service with its RAILWAY_DOCKERFILE_PATH.
+# Order matters only for first boots: control-plane runs
+# `alembic upgrade head` on start (RUN_MIGRATIONS=1), so Postgres must be
+# up first; web/mcp-server/embedder depend on the schema.
 #
 # Usage:
-#   bin/cloud-deploy.sh              # deploy all services in order
-#   bin/cloud-deploy.sh control-plane # deploy just one
+#   scripts/cloud-deploy.sh                 # deploy all services in order
+#   scripts/cloud-deploy.sh control-plane   # deploy just one
 #
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
+
+if ! command -v railway >/dev/null 2>&1; then
+  echo "cloud-deploy: railway CLI not found (brew install railway)" >&2
+  exit 2
+fi
 
 deploy_one() {
   local name="$1"
@@ -19,18 +31,7 @@ deploy_one() {
   echo "================================================================"
   echo "  Deploying $name"
   echo "================================================================"
-  if [ "$name" = "postgres" ]; then
-    # Postgres image + init SQL live in infra/compose/postgres; pass that
-    # dir as the build-context arg so init/*.sql is COPY-able. --config
-    # must be absolute since flyctl resolves relative paths against the
-    # positional working-dir arg.
-    fly deploy "$REPO_ROOT/infra/compose/postgres" \
-      --config "$REPO_ROOT/infra/fly/postgres/fly.toml" \
-      --dockerfile "$REPO_ROOT/infra/compose/postgres/Dockerfile" \
-      --remote-only
-  else
-    fly deploy --config "infra/fly/$name/fly.toml" --remote-only
-  fi
+  railway up --service "$name" --detach
 }
 
 services=(postgres control-plane embedder mcp-server web)
@@ -45,7 +46,8 @@ for svc in "${services[@]}"; do
 done
 
 echo
-echo "All deploys complete. Smoke check:"
-echo "  curl https://api.<your-domain>/health"
-echo "  curl https://mcp.<your-domain>/health"
-echo "  open https://app.<your-domain>"
+echo "All deploys triggered (--detach: builds continue on Railway)."
+echo "Watch:   railway logs --service control-plane"
+echo "Smoke:   curl https://control-plane-production-798e.up.railway.app/health"
+echo "         curl https://mcp-server-production-d7af.up.railway.app/health"
+echo "         open https://web-production-e4059.up.railway.app"
