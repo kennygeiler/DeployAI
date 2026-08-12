@@ -1,0 +1,47 @@
+# Daily production canary — exercises the exact path a demo visitor takes:
+# guest session mint -> authed page load -> one full Kenny turn. Zero secrets
+# needed (the guest flow is public by design). Fails loudly so a broken demo
+# is known before a stranger finds it. Costs one LLM turn per day.
+name: prod-canary
+
+on:
+  schedule:
+    - cron: "23 13 * * *" # daily 13:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prod-canary
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    name: Guest demo canary (Railway prod)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Guest session mint + page load
+        run: |
+          set -euo pipefail
+          jar=$(mktemp)
+          code=$(curl -s -c "$jar" -o /dev/null -w "%{http_code}" --max-time 20 \
+            "https://web-production-e4059.up.railway.app/api/auth/demo")
+          [ "$code" = "303" ] || { echo "::error title=Demo mint failed::/api/auth/demo returned $code (expected 303)"; exit 1; }
+          page=$(curl -s -b "$jar" -o /dev/null -w "%{http_code}" --max-time 25 -H "Accept: text/html" \
+            "https://web-production-e4059.up.railway.app/engagements")
+          [ "$page" = "200" ] || { echo "::error title=Guest page load failed::/engagements returned $page"; exit 1; }
+          echo "jar=$jar" >> "$GITHUB_ENV"
+
+      - name: Full Kenny turn (stream to done, no error frame)
+        run: |
+          set -euo pipefail
+          out=$(mktemp)
+          curl -s -b "$jar" -N --max-time 180 -X POST \
+            "https://web-production-e4059.up.railway.app/api/bff/engagements/dddddddd-dddd-4ddd-8ddd-dddddddddddd/oracle/chat/stream-v2" \
+            -H "Content-Type: application/json" \
+            -d '{"message":"Who is the executive sponsor?","conversation_id":null}' -o "$out"
+          grep -q "^event: done" "$out" || { echo "::error title=Turn never completed::no done frame"; tail -c 400 "$out"; exit 1; }
+          if grep -q "^event: error" "$out"; then echo "::error title=Turn errored::"; grep -A1 "^event: error" "$out" | head -4; exit 1; fi
+          echo "frames:"; grep -oE "^event: [a-z_]+" "$out" | sort | uniq -c
