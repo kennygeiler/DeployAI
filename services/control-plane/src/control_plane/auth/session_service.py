@@ -93,8 +93,15 @@ async def issue_tokens(
     tenant_id: uuid.UUID,
     user_id: uuid.UUID,
     roles: list[str],
+    *,
+    access_ttl_seconds: int | None = None,
 ) -> SessionPair:
-    """Mint opaque refresh (UUID) in Redis + RS256 access token."""
+    """Mint opaque refresh (UUID) in Redis + RS256 access token.
+
+    ``access_ttl_seconds`` overrides the access-token TTL for this one session
+    (threaded only from the demo mint); ``None`` — what every normal caller
+    passes — keeps ``access_token_ttl_seconds`` from settings.
+    """
     s = get_settings()
     r = get_async_redis()
     refresh_jti = str(uuid.uuid4())
@@ -116,11 +123,12 @@ async def issue_tokens(
         tid=str(tenant_id),
         roles=roles,
         access_jti=access_jti,
+        expires_in=access_ttl_seconds,
     )
     return SessionPair(
         access_token=access,
         refresh_jti=refresh_jti,
-        expires_in=s.access_token_ttl_seconds,
+        expires_in=access_ttl_seconds if access_ttl_seconds is not None else s.access_token_ttl_seconds,
     )
 
 

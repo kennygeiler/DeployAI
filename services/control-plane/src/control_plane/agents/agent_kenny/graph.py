@@ -55,7 +55,22 @@ NodeFn = Callable[[AgentState], Awaitable[dict[str, Any]]]
 
 
 def has_tool_calls_router(state: AgentState) -> str:
-    """Decide whether to loop back to tool dispatch or continue to citations."""
+    """Decide the next node after ``llm_call``.
+
+    Shared by both drivers (legacy loop + LangGraph runtime) so the
+    transitions cannot drift. Three outcomes:
+
+    - ``tools_exhausted`` and the cap-final call not yet made → back to
+      ``llm_call`` for exactly ONE more LLM call. That call runs with
+      ``tool_choice={"type": "none"}`` (see ``nodes/llm_call.py``) so the
+      model must answer with what it has instead of the turn ending on the
+      "(tool-call cap reached)" placeholder (prod bug, 2026-08-11).
+      ``cap_final_call_made`` guards the self-loop to a single pass.
+    - cap reached otherwise → citations.
+    - pending tool calls under the cap → dispatch.
+    """
+    if state.tools_exhausted and not state.cap_final_call_made:
+        return NODE_LLM_CALL
     if state.tool_calls_made >= MAX_TOOL_CALLS_PER_TURN:
         return NODE_EXTRACT_CITATIONS
     if state.pending_tool_calls:
@@ -131,6 +146,9 @@ def build_graph(
         {
             NODE_DISPATCH_TOOLS: NODE_DISPATCH_TOOLS,
             NODE_EXTRACT_CITATIONS: NODE_EXTRACT_CITATIONS,
+            # Cap-final self-loop: one no-tools LLM call after the budget is
+            # exhausted (has_tool_calls_router bounds it to a single pass).
+            NODE_LLM_CALL: NODE_LLM_CALL,
         },
     )
     g.add_edge(NODE_DISPATCH_TOOLS, NODE_LLM_CALL)

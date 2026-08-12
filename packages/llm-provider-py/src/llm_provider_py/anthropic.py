@@ -314,11 +314,17 @@ class AnthropicProvider:
         *,
         temperature: float = 0.0,
         max_output_tokens: int = 1024,
+        tool_choice: dict[str, Any] | None = None,
         thinking_budget_tokens: int | None = None,
     ) -> AsyncIterator[ToolStreamChunk]:
         body = self._build_stream_body(messages, temperature=temperature, max_output_tokens=max_output_tokens)
         if tools:
             body["tools"] = tools
+        if tool_choice is not None:
+            # e.g. {"type": "none"} — tools stay declared (the API requires
+            # them when history carries tool_use/tool_result blocks) but the
+            # model is barred from requesting more calls.
+            body["tool_choice"] = tool_choice
         budget = self._thinking_budget if thinking_budget_tokens is None else max(thinking_budget_tokens, 0)
         if budget > 0:
             body["thinking"] = {"type": "enabled", "budget_tokens": budget}

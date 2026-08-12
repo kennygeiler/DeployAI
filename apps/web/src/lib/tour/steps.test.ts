@@ -9,6 +9,10 @@ import {
 } from "@/lib/tour/steps";
 
 describe("TOUR_STEPS integrity", () => {
+  it("has the expected step count", () => {
+    expect(TOUR_STEPS).toHaveLength(11);
+  });
+
   it("has unique ids", () => {
     const ids = TOUR_STEPS.map((s) => s.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -37,6 +41,15 @@ describe("TOUR_STEPS integrity", () => {
         expect(step.advanceOn.pattern.startsWith("/"), step.id).toBe(true);
       }
     }
+  });
+
+  it("places the manual capture-paste step right after brief-needs-you", () => {
+    const needsYou = TOUR_STEPS.findIndex((s) => s.id === "brief-needs-you");
+    const capture = TOUR_STEPS[needsYou + 1]!;
+    expect(capture.id).toBe("capture-paste");
+    expect(capture.target).toBe("capture-input");
+    // Low-friction: manual advance — pasting is optional, Next always works.
+    expect(capture.advanceOn).toEqual({ type: "manual" });
   });
 
   it("wires the ask step to the chat-opened event with the decision prefill", () => {

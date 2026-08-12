@@ -71,7 +71,7 @@ export default async function LoginPage({
             </Button>
             <p style={{ marginTop: "0.5rem", fontSize: "0.875rem", opacity: 0.65 }}>
               Read-only guest on a demo workspace — no sign-up needed. A guided tour starts
-              automatically.
+              automatically (sessions last about an hour).
             </p>
           </div>
         ) : null}

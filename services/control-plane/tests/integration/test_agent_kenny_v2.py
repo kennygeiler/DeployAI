@@ -93,6 +93,9 @@ class _LLMScript:
         # so tests can assert every tool_use id was answered (Anthropic 400s
         # on dangling ids — the prod tool-cap incident).
         self.tools_messages: list[list[ChatMessage]] = []
+        # Per-call capture of tool_choice, so tests can assert the cap-final
+        # follow-up ran with {"type": "none"} (2026-08-12 prod fix).
+        self.tool_choices: list[dict[str, Any] | None] = []
 
     def chat_complete(
         self,
@@ -149,14 +152,20 @@ class _LLMScript:
         *,
         temperature: float = 0.0,
         max_output_tokens: int = 1024,
+        tool_choice: dict[str, Any] | None = None,
     ) -> AsyncIterator[ToolStreamChunk]:
         _ = tools, temperature, max_output_tokens
         self.last_messages = messages
         self.tools_messages.append(messages)
+        self.tool_choices.append(tool_choice)
         idx = self.calls
         self.calls += 1
         reply = self._replies[idx] if idx < len(self._replies) else ""
         text_val, tool_blocks = _split_reply_for_tool_use(reply)
+        if tool_choice is not None and tool_choice.get("type") == "none":
+            # Honour tool_choice "none" like the real API: no tool_use
+            # blocks may be emitted on this call.
+            tool_blocks = []
         if text_val:
             yield TextDelta(content=text_val)
         for block in tool_blocks:
@@ -405,6 +414,11 @@ async def test_v2_tool_call_cap_terminates_at_eight(
     frames = _parse_sse_frames(r.text)
     done = next(p for name, p in frames if name == "done")
     assert done["tool_calls"] == 8
+    # The cap triggered the one no-tools follow-up call; the scripted model
+    # "answered" with yet another tool_call, which tool_choice "none"
+    # suppresses — only then does the placeholder ship as a last resort.
+    assert stub_llm.tool_choices[-1] == {"type": "none"}
+    assert all(tc is None for tc in stub_llm.tool_choices[:-1])
 
 
 def _assert_every_tool_use_answered(msgs: list[ChatMessage]) -> None:
@@ -471,6 +485,96 @@ async def test_v2_cap_truncated_tool_batch_answers_every_tool_use_id(
     assistant = next(m for m in follow_up if m["role"] == "assistant" and isinstance(m["content"], list))
     requested = [b["id"] for b in assistant["content"] if isinstance(b, dict) and b.get("type") == "tool_use"]
     assert len(requested) == 10
+    for sent in stub_llm.tools_messages:
+        _assert_every_tool_use_answered(sent)
+    # (d) the follow-up is the cap-final call: tools disabled via tool_choice.
+    assert stub_llm.tool_choices[1] == {"type": "none"}
+
+
+@pytest.mark.asyncio
+async def test_v2_cap_final_answer_is_real_not_placeholder(
+    k_client: AsyncClient, postgres_engine: Engine, stub_llm: _LLMScript
+) -> None:
+    """Prod bug (2026-08-11, LangGraph prod default): a search-heavy turn
+    hit MAX_TOOL_CALLS_PER_TURN sequentially; the synthesized tool_results
+    landed (frames balanced) but the turn ENDED with final_text
+    "(tool-call cap reached)" — zero deltas, zero citations. The fix makes
+    exactly ONE more LLM call with tool_choice "none" so the model answers
+    with what it has; citations/adversarial/persist then run as normal.
+    Runs on BOTH runtimes via the parametrized ``k_client`` fixture."""
+    tid, eid, user_id = await _new_engagement(k_client, postgres_engine)
+    seed = _seed_event(postgres_engine, tenant_id=tid, engagement_id=eid, summary="cap-final seed")
+    one_call = '<tool_call>{"name": "get_engagement_summary", "input": {}}</tool_call>'
+    final_reply = f"Based on the eight lookups, two open risks remain [event:{seed}]."
+    # Calls 1-8 each request one tool (all dispatched); call 9 requests a
+    # 9th tool that the cap drains; call 10 is the forced no-tools final.
+    stub_llm._replies = [one_call] * 9 + [final_reply]
+
+    r = await k_client.post(
+        f"/internal/v1/engagements/{eid}/oracle/chat/stream-v2?tenant_id={tid}",
+        json={"conversation_id": None, "message": "search everything and summarize"},
+        headers=_actor_headers(user_id),
+    )
+    assert r.status_code == 200, r.text
+    frames = _parse_sse_frames(r.text)
+    events = [name for name, _ in frames]
+    assert "error" not in events, frames
+    done = next(p for name, p in frames if name == "done")
+    # The real answer shipped — NOT the salvage placeholder.
+    assert done["final_text"] == final_reply
+    assert done["final_text"] != "(tool-call cap reached)"
+    # Tool cap unchanged: 8 executed calls (the 9th intent was synthesized).
+    assert done["tool_calls"] == 8
+    # The final answer streamed as delta frames.
+    deltas = [p for name, p in frames if name == "delta" and p.get("content")]
+    assert len(deltas) > 0, frames
+    # The citation on the final answer verified and streamed.
+    verified = [p for name, p in frames if name == "citation_verified"]
+    assert {"kind": "event", "id": str(seed)} in verified, frames
+    # Exactly one extra LLM call, with tools disabled; all prior calls normal.
+    assert stub_llm.calls == 10
+    assert stub_llm.tool_choices[9] == {"type": "none"}
+    assert all(tc is None for tc in stub_llm.tool_choices[:9])
+    # History stayed well-formed on every request (no dangling tool_use ids).
+    for sent in stub_llm.tools_messages:
+        _assert_every_tool_use_answered(sent)
+
+
+@pytest.mark.asyncio
+async def test_v2_cap_final_answer_zero_citation_revision_is_bounded(
+    k_client: AsyncClient, postgres_engine: Engine, stub_llm: _LLMScript
+) -> None:
+    """Interaction guard: when the cap-final no-tools answer lacks citations
+    but evidence-bearing tool_results exist, the zero-citation revision may
+    fire — bounded by MAX_REVISION_ATTEMPTS, with NO loop back into the
+    cap-final path, and the revision call also runs tool-less."""
+    tid, eid, user_id = await _new_engagement(k_client, postgres_engine)
+    seed = _seed_event(postgres_engine, tenant_id=tid, engagement_id=eid, summary="cap-revision seed")
+    one_call = '<tool_call>{"name": "get_engagement_summary", "input": {}}</tool_call>'
+    uncited = "Two open risks remain and the cutover slipped a sprint."
+    cited = f"Two open risks remain and the cutover slipped a sprint [event:{seed}]."
+    stub_llm._replies = [one_call] * 9 + [uncited, cited]
+
+    r = await k_client.post(
+        f"/internal/v1/engagements/{eid}/oracle/chat/stream-v2?tenant_id={tid}",
+        json={"conversation_id": None, "message": "search everything and summarize"},
+        headers=_actor_headers(user_id),
+    )
+    assert r.status_code == 200, r.text
+    frames = _parse_sse_frames(r.text)
+    events = [name for name, _ in frames]
+    assert "error" not in events, frames
+    done = next(p for name, p in frames if name == "done")
+    assert done["revision_attempts"] == 1
+    assert done["final_text"] == cited
+    assert done["tool_calls"] == 8
+    verified = [p for name, p in frames if name == "citation_verified"]
+    assert {"kind": "event", "id": str(seed)} in verified, frames
+    # 9 tool-seeking calls + 1 cap-final + 1 revision — then the turn ENDS.
+    assert stub_llm.calls == 11
+    # Both post-cap calls ran with tools disabled (the budget never reopens).
+    assert stub_llm.tool_choices[9] == {"type": "none"}
+    assert stub_llm.tool_choices[10] == {"type": "none"}
     for sent in stub_llm.tools_messages:
         _assert_every_tool_use_answered(sent)
 

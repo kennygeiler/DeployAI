@@ -20,8 +20,10 @@ Security posture (be honest about it):
   demo_guest session. Mitigation: the demo tenant is disposable and isolated by
   tenancy/RLS; reseed it at will. Never enable demo mode on a deployment that
   hosts customer tenants.
-- Sessions use the standard access-token TTL (15 min default). The refresh JTI
-  is returned so the caller *could* extend a demo, but the web demo route
+- Sessions use a demo-specific TTL: ``DEPLOYAI_DEMO_SESSION_TTL`` (seconds,
+  default 900, clamped to 3600 max — see ``demo_session_ttl_seconds`` in
+  settings). Normal sessions keep the standard access-token TTL. The refresh
+  JTI is returned so the caller *could* extend a demo, but the web demo route
   intentionally sets only the access cookie — a demo session simply expires.
 """
 
@@ -68,7 +70,12 @@ async def mint_demo_session() -> dict[str, object]:
     caller cannot choose roles, tenant, or user — everything comes from settings.
     """
     tenant_id, user_id = _demo_config()
-    pair = await issue_tokens(tenant_id, user_id, [DEMO_GUEST_ROLE])
+    pair = await issue_tokens(
+        tenant_id,
+        user_id,
+        [DEMO_GUEST_ROLE],
+        access_ttl_seconds=get_settings().demo_session_ttl_seconds,
+    )
     logger.info(
         "demo_session.minted",
         extra={"tenant_id": str(tenant_id), "user_id": str(user_id)},

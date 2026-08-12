@@ -57,6 +57,7 @@ export const KNOWN_TOUR_TARGETS = [
   "portfolio-row",
   "brief-delta",
   "brief-needs-you",
+  "capture-input",
   "ask-kenny-bar",
   "oracle-citations",
   "nav-review",
@@ -113,6 +114,17 @@ export const TOUR_STEPS: readonly TourStep[] = [
       "Nothing enters the deal record without a human. Extraction proposals wait here for " +
       "accept/reject, and escalations land in the Review Inbox. The AI proposes; you decide.",
     action: "Note what's waiting on you, then hit Next.",
+    advanceOn: { type: "manual" },
+  },
+  {
+    id: "capture-paste",
+    target: "capture-input",
+    title: "Feed it",
+    body:
+      "This is where raw reality enters the record. Paste a real email thread or a meeting " +
+      "note and watch extraction propose memory — decisions, risks, commitments — each one " +
+      "queued for the human gate you just saw.",
+    action: "Open the Capture tab and paste any thread — or press Next to continue the tour.",
     advanceOn: { type: "manual" },
   },
   {
