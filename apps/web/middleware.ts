@@ -52,6 +52,7 @@ function parseRole(r: string | null): V1Role | null {
     "successor_strategist",
     "customer_records_officer",
     "external_auditor",
+    "demo_guest",
   ];
   if (!r) {
     return null;

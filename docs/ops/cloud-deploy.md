@@ -395,6 +395,53 @@ python3 infra/compose/seed/seed_app.py
 Requires the same `INTERNAL_API_KEY` you set on the CP. Use this when
 you want the synthetic `Acme County` engagement instead of BlueState.
 
+### 7.1 Demo mode — zero-friction "View live demo" guest access (Wave 4S)
+
+For showcase deploys (recruiters / founders), the login page can show a
+**View live demo** button that logs the visitor straight into a read-only
+guest session — no SSO, no tokens to paste.
+
+Four envs, all required:
+
+```bash
+# Control plane
+fly secrets set --app deployai-control-plane \
+  DEPLOYAI_DEMO_GUEST_ENABLED=1 \
+  DEPLOYAI_DEMO_TENANT_ID=<uuid of the seeded demo tenant> \
+  DEPLOYAI_DEMO_USER_ID=<uuid of a seeded app_users row on that tenant>
+
+# Web (NEXT_PUBLIC_* is baked at build time — set it before/at deploy)
+fly secrets set --app deployai-web NEXT_PUBLIC_DEMO_MODE=1
+```
+
+Seed the demo tenant first (§7 Path B BlueState is a good demo dataset) and
+insert the demo `app_users` row on it; the two UUIDs above must exist.
+
+How it works: `GET /api/auth/demo` (404 unless `NEXT_PUBLIC_DEMO_MODE=1`,
+lightly rate-limited per IP) calls the CP's `POST /internal/v1/demo/session`
+server-side with the internal key. The CP — only when
+`DEPLOYAI_DEMO_GUEST_ENABLED=1` and both IDs are set — mints a standard
+short-TTL (15 min) access JWT with the single `demo_guest` role on the demo
+tenant, which lands in the normal `deployai_access_token` cookie and the
+visitor is redirected to `/engagements`. When the session expires the demo
+simply ends; the button mints a fresh one.
+
+Security posture (read before enabling):
+
+- `demo_guest` holds `canonical:read` only (docs/authz/role-matrix.md):
+  strategist read surfaces + Oracle chat work; `/admin` and every
+  `/api/internal/v1` proxy route (bulk proposal accept, MCP config, Agent
+  Kenny dashboard) are denied at the web middleware; the cross-tenant rule
+  pins all calls to the demo tenant.
+- Known residual risk: BFF mutation routes that gate with `canonical:read`
+  today (single proposal accept/reject, review-item resolve/dismiss, insight
+  actions, onboarding seeds) remain callable by demo sessions. Accepted for
+  wave 1 because the demo tenant is disposable — reseed it whenever it gets
+  messy.
+- **Turn demo mode OFF (all four envs) on any deployment that hosts customer
+  tenants.** The demo tenant shares the database; demo mode is for
+  dedicated showcase deploys only.
+
 ---
 
 ## 8. Smoke checks (cloud edition of `make dev-verify`)
