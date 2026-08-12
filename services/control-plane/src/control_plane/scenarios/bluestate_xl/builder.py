@@ -87,6 +87,7 @@ def build_xl_scenario_sql(
     anchor: XlTimeAnchor,
     *,
     introspection: XlIntrospection | None = None,
+    max_week: int | None = None,
 ) -> tuple[str, dict[str, dict[str, uuid.UUID]]]:
     """Construct the full multi-statement SQL block for BlueState-XL.
 
@@ -94,7 +95,22 @@ def build_xl_scenario_sql(
     supplied, the builder records a typed fact for every stakeholder /
     decision / risk / system / commitment / edge it emits — same UUIDs,
     same weeks — without altering the SQL output in any way.
+
+    ``max_week`` is the explicit progressive mode (ticket G3): only events
+    whose timeline week is ``<= max_week`` are emitted, producing the true
+    prefix of the engagement — risks not yet closed stay open, stakeholders
+    not yet departed stay on the roster. Every emitted row keeps the exact
+    UUID it has in the full corpus (loops keep full-list enumeration so
+    idx-derived labels never shift), which is what makes longitudinal
+    checkpoints comparable. ``None`` (default) seeds all 260 weeks —
+    byte-identical to the pre-G3 output.
     """
+    if max_week is not None and not 1 <= max_week <= TOTAL_WEEKS:
+        raise ValueError(f"max_week must be in 1..{TOTAL_WEEKS}; got {max_week}")
+
+    def _beyond(week: int) -> bool:
+        return max_week is not None and week > max_week
+
     statements: list[str] = ["BEGIN;"]
     registry: dict[str, dict[str, uuid.UUID]] = {}
 
@@ -107,6 +123,8 @@ def build_xl_scenario_sql(
 
     cluster_to_event_id: dict[str, uuid.UUID] = {}
     for ev in NARRATIVE:
+        if _beyond(ev.week):
+            continue
         event_id = _det_id(f"xl-narrative|{ev.cluster}")
         cluster_to_event_id[ev.cluster or ""] = event_id
         occurred_at = anchor.at(ev.week, ev.day, ev.hour)
@@ -127,6 +145,8 @@ def build_xl_scenario_sql(
 
     stakeholder_node_ids: dict[str, uuid.UUID] = {}
     for ev in STAKEHOLDERS:
+        if _beyond(ev.week):
+            continue
         occurred_at = anchor.at(ev.week, ev.day, ev.hour)
         if ev.kind == "matrix_node_created":
             node_id = _det_id(f"xl-stakeholder-node|{ev.cluster}")
@@ -194,6 +214,8 @@ def build_xl_scenario_sql(
     decision_node_ids: dict[str, uuid.UUID] = {}
     accept_ledger_ids: dict[str, uuid.UUID] = {}
     for ev in DECISIONS:
+        if _beyond(ev.week):
+            continue
         proposal_id = _det_id(f"xl-decision-proposal|{ev.cluster}")
         node_id = _det_id(f"xl-decision-node|{ev.cluster}")
         created_at = anchor.at(ev.week, ev.day, ev.hour)
@@ -297,6 +319,8 @@ def build_xl_scenario_sql(
             )
 
     for ev in EXTRACTOR_NOISE:
+        if _beyond(ev.week):
+            continue
         proposal_id = _det_id(f"xl-extractor-noise-proposal|{ev.cluster}")
         created_at = anchor.at(ev.week, ev.day, ev.hour)
         decided_at = created_at + timedelta(hours=6)
@@ -334,6 +358,8 @@ def build_xl_scenario_sql(
 
     risk_insight_ids: dict[str, uuid.UUID] = {}
     for ev in RISKS_OPENED:
+        if _beyond(ev.week):
+            continue
         opened_at = anchor.at(ev.week, ev.day, ev.hour)
         insight_id = _det_id(f"xl-risk-insight|{ev.cluster}")
         risk_insight_ids[ev.cluster or ""] = insight_id
@@ -367,6 +393,10 @@ def build_xl_scenario_sql(
         _risk_open_meta[ev.cluster or ""] = (ev.title or ev.summary, insight_id, ev.week, open_evt_id)
 
     for ev in RISKS_CLOSED:
+        if _beyond(ev.week):
+            # Progressive prefix: a close beyond the horizon simply hasn't
+            # happened yet — the risk stays open, which is the honest state.
+            continue
         closed_at = anchor.at(ev.week, ev.day, ev.hour)
         insight_id = risk_insight_ids.get(
             ev.risk_close_of or "",
@@ -414,6 +444,8 @@ def build_xl_scenario_sql(
     for title, week in system_titles:
         node_id = _det_id(f"xl-system-node|{title}")
         system_node_ids[title] = node_id
+        if _beyond(week):
+            continue
         created_at = anchor.at(week, 1, 9)
         evt_id = _det_id(f"xl-system-evt|{title}")
         statements.append(
@@ -458,6 +490,8 @@ def build_xl_scenario_sql(
     for title, week in commitments:
         node_id = _det_id(f"xl-commit-node|{title}")
         commitment_node_ids[title] = node_id
+        if _beyond(week):
+            continue
         created_at = anchor.at(week, 1, 10)
         evt_id = _det_id(f"xl-commit-evt|{title}")
         statements.append(
@@ -532,6 +566,8 @@ def build_xl_scenario_sql(
     edge_budget = 620
     system_titles_only = [t for t, _ in system_titles]
     commitment_titles_only = [t for t, _ in commitments]
+    system_week_by_title = dict(system_titles)
+    commitment_week_by_title = dict(commitments)
 
     def _add_edge(
         kind: str,
@@ -588,9 +624,14 @@ def build_xl_scenario_sql(
         )
         edges_emitted += 1
 
+    # NOTE (G3): enumeration stays over the FULL accepted list even in
+    # progressive mode — the idx baked into each edge label must not shift
+    # with the horizon, or checkpoint corpora would stop being prefixes.
     for idx, ev in enumerate(accepted_decisions):
         if edges_emitted >= edge_budget:
             break
+        if _beyond(ev.week):
+            continue
         decision_id = decision_node_ids[ev.cluster or ""]
         alive_now = _alive_clusters_at(ev.week)
         if not alive_now:
@@ -608,25 +649,27 @@ def build_xl_scenario_sql(
         if edges_emitted >= edge_budget:
             break
         sys_title = system_titles_only[idx % len(system_titles_only)]
-        _add_edge(
-            "depends_on",
-            decision_id,
-            system_node_ids[sys_title],
-            ev.week,
-            f"xl-dep-{idx}-{ev.cluster}",
-            endpoints=("decision", ev.cluster or "", "system", sys_title),
-        )
+        if not _beyond(system_week_by_title[sys_title]):
+            _add_edge(
+                "depends_on",
+                decision_id,
+                system_node_ids[sys_title],
+                ev.week,
+                f"xl-dep-{idx}-{ev.cluster}",
+                endpoints=("decision", ev.cluster or "", "system", sys_title),
+            )
         if edges_emitted >= edge_budget:
             break
         commit_title = commitment_titles_only[idx % len(commitment_titles_only)]
-        _add_edge(
-            "affects",
-            decision_id,
-            commitment_node_ids[commit_title],
-            ev.week,
-            f"xl-affect-{idx}-{ev.cluster}",
-            endpoints=("decision", ev.cluster or "", "commitment", commit_title),
-        )
+        if not _beyond(commitment_week_by_title[commit_title]):
+            _add_edge(
+                "affects",
+                decision_id,
+                commitment_node_ids[commit_title],
+                ev.week,
+                f"xl-affect-{idx}-{ev.cluster}",
+                endpoints=("decision", ev.cluster or "", "commitment", commit_title),
+            )
 
     # Static structural edges between systems and stakeholders to add depth.
     structural_targets = [
@@ -642,11 +685,18 @@ def build_xl_scenario_sql(
     for idx, (src_title, dst_title) in enumerate(structural_targets):
         if edges_emitted >= edge_budget:
             break
+        structural_week = min(1 + idx * 30, TOTAL_WEEKS)
+        if (
+            _beyond(structural_week)
+            or _beyond(system_week_by_title[src_title])
+            or _beyond(system_week_by_title[dst_title])
+        ):
+            continue
         _add_edge(
             "depends_on",
             system_node_ids[src_title],
             system_node_ids[dst_title],
-            min(1 + idx * 30, TOTAL_WEEKS),
+            structural_week,
             f"xl-structural-{idx}-{src_title}-{dst_title}",
             endpoints=("system", src_title, "system", dst_title),
         )

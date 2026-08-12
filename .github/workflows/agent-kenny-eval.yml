@@ -194,3 +194,70 @@ jobs:
           path: eval-report.json
           retention-days: 90
           if-no-files-found: warn
+
+  # Longitudinal replay (ticket G3): weekly, alongside the Monday full-30
+  # but as its own job so a replay failure is distinguishable from a
+  # golden-set failure. Stub provider by design — the degradation gate
+  # measures RETRIEVAL quality over corpus growth, and the stub keeps the
+  # replay deterministic and free. 3 checkpoints (0.5y / 2y / 5y) keep
+  # runtime sane; the full 5-checkpoint sweep is a local/dispatch call.
+  #
+  # Exit codes are the contract (tests/golden/agent_kenny/longitudinal.py):
+  #   2 = cross-engagement leak at any checkpoint (security regression)
+  #   3 = pass_rate degraded beyond DEGRADATION_TOLERANCE vs an earlier
+  #       (shorter-horizon) checkpoint
+  # Either fails this job hard; the report artifact carries per-checkpoint
+  # detail for the post-mortem.
+  longitudinal:
+    name: Longitudinal replay + degradation gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    if: ${{ github.event.schedule == '0 8 * * 1' || github.event_name == 'workflow_dispatch' }}
+
+    env:
+      TESTCONTAINERS_RYUK_DISABLED: "true"
+      # Deterministic stub provider — no API key on this job on purpose.
+      DEPLOYAI_LLM_PROVIDER: "stub"
+      DEGRADATION_TOLERANCE: "0.10"
+      LONGITUDINAL_REPORT_PATH: ${{ github.workspace }}/longitudinal-report.json
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.7"
+          enable-cache: true
+
+      - name: uv sync (control-plane)
+        working-directory: services/control-plane
+        run: uv sync
+
+      - name: Run longitudinal replay
+        working-directory: services/control-plane
+        run: |
+          set -euo pipefail
+          uv run python -m tests.golden.agent_kenny.longitudinal \
+            --checkpoints 182,730,1825 \
+            --questions derived \
+            --per-checkpoint 12 \
+            --seed 0 \
+            --report "$LONGITUDINAL_REPORT_PATH"
+
+      - name: Upload longitudinal report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: agent-kenny-longitudinal-${{ github.run_id }}
+          path: longitudinal-report.json
+          retention-days: 90
+          if-no-files-found: warn

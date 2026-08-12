@@ -8,7 +8,7 @@ default in place.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -27,6 +27,7 @@ from control_plane.scenarios.bluestate_xl.builder import (
     XlTimeAnchor,
     build_xl_scenario_sql,
 )
+from control_plane.scenarios.bluestate_xl.events import TOTAL_WEEKS
 from control_plane.snapshots.cron import backfill_snapshots
 
 DEFAULT_SNAPSHOT_DAYS = 1825  # 5 years
@@ -137,6 +138,7 @@ async def apply_bluestate_xl_scenario(
     skip_snapshots: bool = False,
     skip_analyzers: bool = False,
     days: int = DEFAULT_SNAPSHOT_DAYS,
+    horizon_weeks: int | None = None,
 ) -> XlScenarioSummary:
     """Apply the BlueState-XL 5-year scenario via a single async session.
 
@@ -145,7 +147,19 @@ async def apply_bluestate_xl_scenario(
     accepted for API symmetry with the small fixture but the XL scenario
     runs no analyzers in-band — the targeted analyzer anchors don't
     translate to a 260-week timeline and would only add latency.
+
+    ``horizon_weeks`` (ticket G3) is the explicit progressive mode: seed
+    only the FIRST N weeks of the engagement, as a true prefix of the full
+    corpus (same UUIDs, risks past the horizon still open, stakeholders
+    past their hire week absent). The time anchor is shifted so week N
+    ends the usual 21 quiet days before ``base_now`` — i.e. the corpus
+    looks exactly like an engagement that is N weeks old today. Note this
+    is distinct from ``days``, which only trims snapshot backfill and
+    never the ledger corpus.
     """
+    if horizon_weeks is not None and not 1 <= horizon_weeks <= TOTAL_WEEKS:
+        raise ValueError(f"horizon_weeks must be in 1..{TOTAL_WEEKS}; got {horizon_weeks}")
+
     effective_tenant = tenant_id or uuid.UUID(TENANT_ID)
     effective_tenant_str = str(effective_tenant)
     is_default_tenant = effective_tenant_str == TENANT_ID
@@ -155,8 +169,14 @@ async def apply_bluestate_xl_scenario(
     await _seed_engagement(session, tenant_id=effective_tenant_str)
     await _seed_members(session, tenant_id=effective_tenant_str)
 
-    anchor = XlTimeAnchor(base_now=base_now or datetime.now(UTC))
-    sql, _registry = build_xl_scenario_sql(anchor)
+    effective_now = base_now or datetime.now(UTC)
+    if horizon_weeks is not None:
+        # Shift the anchor forward so the horizon week — not week 260 —
+        # lands 21 days before "now". All emitted timestamps stay in the
+        # past; weeks beyond the horizon are filtered by the builder.
+        effective_now = effective_now + timedelta(weeks=TOTAL_WEEKS - horizon_weeks)
+    anchor = XlTimeAnchor(base_now=effective_now)
+    sql, _registry = build_xl_scenario_sql(anchor, max_week=horizon_weeks)
     sql = sql.replace("BEGIN;", "").replace("COMMIT;", "")
     if not is_default_tenant:
         sql = sql.replace(TENANT_ID, effective_tenant_str)

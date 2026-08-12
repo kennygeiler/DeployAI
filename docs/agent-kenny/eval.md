@@ -2,10 +2,19 @@
 
 The eval harness exercises Agent Kenny v2 against the BlueState-XL
 fixture using 30 hand-curated golden questions
-([scope-v2 §11.1](./scope-v2.md)). Workflow:
+([scope-v2 §11.1](./scope-v2.md)) plus a **derived ground-truth set**
+(171 questions generated from the XL seeder itself — ticket G2) and a
+**longitudinal replay** that bounds retrieval quality across corpus
+growth (ticket G3). Workflow:
 `.github/workflows/agent-kenny-eval.yml` (scheduled + manual) plus the
 deterministic PR gate job `agent-kenny-pr-gate` in
 `.github/workflows/ci.yml`.
+
+**Headline claim the harness now supports:** retrieval quality bounded
+across a 5-year corpus; zero cross-engagement leaks enforced. The
+longitudinal gate replays an identical question subset at 0.5y/2y/5y
+corpus horizons and hard-fails if pass_rate degrades beyond tolerance or
+any answer cites another engagement.
 
 ## What it covers
 
@@ -31,13 +40,105 @@ replies, and the six `negative` questions (flagged
 `is_negative_control: true` in `questions.yaml`) are exempt: a
 citation-free decline is the correct outcome there.
 
+## Derived ground truth (ticket G2)
+
+The BlueState-XL generator is deterministic (uuid5 over stable labels),
+so it knows every stakeholder, decision, risk, and edge it seeds. The
+derivation CLI walks that knowledge (an additive introspection side
+channel on `build_xl_scenario_sql` — the seed SQL is byte-identical with
+or without it) and emits questions whose expected answers are **exact
+seeded strings** and whose expected citations are **real seeded UUIDs**:
+
+```bash
+cd services/control-plane
+uv run python -m tests.golden.agent_kenny.derive --out derived-questions.yaml
+# derived 171 questions -> derived-questions.yaml
+#   causal_chain: 40          sponsor_lookup: 40
+#   dependency_lookup: 20     risk_status: 35
+#   temporal: 12  negative_control: 12  cross_engagement: 12
+```
+
+Each derived question carries `template`, `difficulty`,
+`expected_citation_ids` (seeded ledger-event/node/insight UUIDs — the
+runner reports how many were actually cited via
+`expected_citation_ids_matched/total`), and `valid_from_week` — the
+earliest engagement week by which all its facts exist. Facts are chosen
+to be **monotone** (e.g. "open" status only for risks that never close),
+so a question valid at week N stays valid at every longer horizon.
+
+Run any derived file through the runner with `--questions PATH`
+(alternate files skip the curated-30 distribution check):
+
+```bash
+uv run python -m tests.golden.agent_kenny.runner \
+  --questions derived-questions.yaml --limit 20 --report /tmp/derived-report.json
+```
+
+## Longitudinal replay + degradation contract (ticket G3)
+
+The XL seeder gained an explicit progressive mode
+(`apply_bluestate_xl_scenario(..., horizon_weeks=N)`): it seeds the
+FIRST N weeks of the engagement as a true prefix of the full corpus —
+same UUIDs, later events simply absent, risks not yet closed still open —
+with the time anchor shifted so week N ends 21 quiet days before "now".
+(This is distinct from `--seed-days`, which only trims snapshot
+backfill.)
+
+```bash
+uv run python -m tests.golden.agent_kenny.longitudinal \
+  --checkpoints 182,365,730,1095,1825 --questions derived \
+  --per-checkpoint 12 --seed 0 --report /tmp/longitudinal.json
+```
+
+Per checkpoint the CLI drops + re-migrates the schema, reseeds the
+horizon prefix, and replays **one fixed question subset** — sampled
+deterministically from the questions valid at the earliest checkpoint —
+recording pass_rate, citation precision (fraction of expected seeded
+citation ids actually cited), latency p50/p95, and leak count. Holding
+the subset fixed is what makes pass_rate comparable: same questions,
+growing haystack.
+
+The degradation contract:
+
+- **exit 2** — any cross-engagement leak at any checkpoint. Security
+  gate; treat as an incident (see below).
+- **exit 3** — a checkpoint's pass_rate drops more than the tolerance
+  (`--tolerance`, or env `DEGRADATION_TOLERANCE`, default **0.10**)
+  below the best pass_rate of any *earlier (shorter-horizon)*
+  checkpoint — a slow bleed across checkpoints trips it too.
+- **exit 1** — transport/harness errors.
+
+CI runs this weekly (`longitudinal` job in agent-kenny-eval.yml):
+stub provider (deterministic, measures retrieval, zero API spend),
+3 checkpoints (182/730/1825 days) for runtime sanity, report uploaded
+as artifact `agent-kenny-longitudinal-<run_id>`.
+
+## Persisting reports (ticket G3)
+
+The golden runner can POST its report to the control plane after writing
+it locally:
+
+```bash
+uv run python -m tests.golden.agent_kenny.runner \
+  --report /tmp/eval-report.json \
+  --persist-url https://cp.internal/internal/v1/admin/eval-runs \
+  --persist-key "$DEPLOYAI_INTERNAL_API_KEY"
+```
+
+The report JSON is sent as the body with header
+`X-DeployAI-Internal-Key`. Persistence is best-effort by contract: any
+failure logs a warning and never changes the exit code (the receiving
+endpoint `POST /internal/v1/admin/eval-runs` is being built in
+parallel).
+
 ## CI cadence
 
 | Trigger | Selection | When |
 |---|---|---|
 | `cron: 0 7 * * *` | 5 random questions (seeded by `GITHUB_RUN_ID`) | Nightly 07:00 UTC |
 | `cron: 0 8 * * 1` | All 30 | Mondays 08:00 UTC |
-| `workflow_dispatch` | CSV of question IDs (empty = all 30) | On demand |
+| `cron: 0 8 * * 1` (`longitudinal` job) | Longitudinal replay: derived questions, checkpoints 182/730/1825d, stub provider, degradation + leak gates | Mondays 08:00 UTC |
+| `workflow_dispatch` | CSV of question IDs (empty = all 30); also runs the longitudinal job | On demand |
 | `pull_request` (ci.yml `agent-kenny-pr-gate`) | Fixed subset `q-017,q-018,q-019,q-023,q-024`, stub provider | Every PR touching `services/control-plane/**` |
 
 The scheduled workflow invokes the runner CLI directly (no pytest). The
@@ -90,6 +191,8 @@ Flags:
 | `--report PATH` | report location (default `eval-reports/agent-kenny-<ts>.json`) |
 | `--runtime legacy\|langgraph` | exported as `DEPLOYAI_AGENT_RUNTIME` (ticket D2 flag; `langgraph` takes effect once the D2 runtime lands) |
 | `--seed-days D` | BlueState-XL snapshot backfill horizon (default 30 for speed; production fixture uses 1825) |
+| `--questions PATH` | alternate questions YAML (e.g. the G2 derived set); skips the curated-30 distribution check |
+| `--persist-url URL` / `--persist-key KEY` | best-effort POST of the report to `POST /internal/v1/admin/eval-runs` (warns on failure, never fails the run) |
 
 Environment:
 

@@ -153,13 +153,58 @@ class RunReport(BaseModel):
     results: list[QuestionResult]
 
 
+class CheckpointReport(BaseModel):
+    """Metrics for one longitudinal checkpoint (ticket G3)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    checkpoint_days: int = Field(ge=1)
+    horizon_weeks: int = Field(ge=1)
+    eligible_questions: int = Field(ge=0)
+    questions_run: int = Field(ge=0)
+    question_ids: list[str]
+    pass_rate: float
+    # Fraction of expected seeded citation ids actually cited, across the
+    # subset's questions that carry expected ids. None when none do.
+    citation_precision: float | None
+    latency_p50_ms: int = Field(ge=0)
+    latency_p95_ms: int = Field(ge=0)
+    cross_engagement_leak_count: int = Field(ge=0)
+    run: RunReport
+
+
+class LongitudinalReport(BaseModel):
+    """Aggregate longitudinal replay report (ticket G3).
+
+    The degradation contract: ``degraded`` is True when any checkpoint's
+    pass_rate drops more than ``tolerance`` below the best pass_rate of
+    any EARLIER (shorter-horizon) checkpoint. The CLI exits 3 on
+    degradation and 2 on any cross-engagement leak.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    started_at: datetime
+    finished_at: datetime
+    seed: int
+    per_checkpoint: int
+    tolerance: float
+    questions_source: str
+    checkpoints: list[CheckpointReport]
+    total_leaks: int = Field(ge=0)
+    degraded: bool
+    degradation_notes: list[str]
+
+
 __all__ = [
     "CATEGORIES",
     "EXPECTED_DISTRIBUTION",
     "Category",
     "CategoryDistribution",
+    "CheckpointReport",
     "CitationKind",
     "Difficulty",
+    "LongitudinalReport",
     "Question",
     "QuestionResult",
     "RunReport",

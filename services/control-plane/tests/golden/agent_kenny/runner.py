@@ -732,6 +732,23 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "Alternate files skip the 30-question distribution check."
         ),
     )
+    parser.add_argument(
+        "--persist-url",
+        type=str,
+        default=None,
+        metavar="URL",
+        help=(
+            "optional: POST the report JSON to this control-plane endpoint after writing it "
+            "(POST /internal/v1/admin/eval-runs); failures warn but never fail the run"
+        ),
+    )
+    parser.add_argument(
+        "--persist-key",
+        type=str,
+        default=None,
+        metavar="KEY",
+        help="internal API key sent as X-DeployAI-Internal-Key with --persist-url",
+    )
     return parser
 
 
@@ -742,6 +759,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--question-ids is mutually exclusive with --limit/--random")
     if args.limit is not None and args.limit < 1:
         parser.error("--limit must be >= 1")
+    if (args.persist_url is None) != (args.persist_key is None):
+        parser.error("--persist-url and --persist-key must be given together")
     if args.seed is None:
         args.seed = _default_seed()
     return args
@@ -769,34 +788,8 @@ async def _amain(args: argparse.Namespace) -> RunReport:
     )
     print(f"selected {len(selected)}/{len(questions)} questions: {[q.id for q in selected]}")
 
-    # Postgres: reuse an externally provided DATABASE_URL, otherwise spin
-    # the same pgvector testcontainer image the integration conftest uses.
-    from tests.conftest import _PGVECTOR_IMAGE, _bootstrap_extensions, _run_alembic_upgrade
-
-    container = None
-    external_url = os.environ.get("DATABASE_URL", "").strip()
+    db_url, container = provision_database()
     try:
-        if external_url:
-            db_url = _psycopg_url(external_url)
-            print(f"using external DATABASE_URL ({db_url.split('@')[-1]})")
-        else:
-            try:
-                from testcontainers.postgres import PostgresContainer  # type: ignore[import-untyped]
-            except ImportError as exc:  # pragma: no cover
-                raise RuntimeError("no DATABASE_URL and testcontainers not installed — run `uv sync`") from exc
-            print(f"starting {_PGVECTOR_IMAGE} testcontainer (no DATABASE_URL in env)...")
-            container = PostgresContainer(
-                image=_PGVECTOR_IMAGE,
-                username="deployai",
-                password="deployai-eval",
-                dbname="deployai",
-            )
-            container.start()
-            db_url = _psycopg_url(container.get_connection_url())
-
-        _bootstrap_extensions(db_url)
-        _run_alembic_upgrade(db_url)
-
         os.environ["DATABASE_URL"] = db_url
         from control_plane.db import clear_engine_cache
         from control_plane.main import app
@@ -847,6 +840,68 @@ async def _amain(args: argparse.Namespace) -> RunReport:
     return report
 
 
+def provision_database() -> tuple[str, Any]:
+    """Resolve a migrated Postgres for the harness.
+
+    Reuses an externally provided ``DATABASE_URL`` when set, otherwise
+    starts the same pgvector testcontainer image the integration conftest
+    uses. Bootstraps extensions and runs alembic either way. Returns
+    ``(db_url, container)`` — ``container`` is ``None`` for external DBs
+    and must be ``.stop()``-ed by the caller otherwise.
+
+    Shared by the golden runner CLI and the longitudinal replay CLI
+    (ticket G3).
+    """
+    from tests.conftest import _PGVECTOR_IMAGE, _bootstrap_extensions, _run_alembic_upgrade
+
+    container = None
+    external_url = os.environ.get("DATABASE_URL", "").strip()
+    if external_url:
+        db_url = _psycopg_url(external_url)
+        print(f"using external DATABASE_URL ({db_url.split('@')[-1]})")
+    else:
+        try:
+            from testcontainers.postgres import PostgresContainer  # type: ignore[import-untyped]
+        except ImportError as exc:  # pragma: no cover
+            raise RuntimeError("no DATABASE_URL and testcontainers not installed — run `uv sync`") from exc
+        print(f"starting {_PGVECTOR_IMAGE} testcontainer (no DATABASE_URL in env)...")
+        container = PostgresContainer(
+            image=_PGVECTOR_IMAGE,
+            username="deployai",
+            password="deployai-eval",
+            dbname="deployai",
+        )
+        container.start()
+        db_url = _psycopg_url(container.get_connection_url())
+
+    _bootstrap_extensions(db_url)
+    _run_alembic_upgrade(db_url)
+    return db_url, container
+
+
+def reset_database_schema(db_url: str) -> None:
+    """Drop + recreate ``public`` and re-migrate — a truly fresh corpus.
+
+    The longitudinal replay (ticket G3) reseeds a different horizon per
+    checkpoint; ON CONFLICT DO NOTHING seeding would otherwise keep the
+    previous checkpoint's timestamps. DESTRUCTIVE by design — only ever
+    pointed at the harness's own throwaway database.
+    """
+    from sqlalchemy import create_engine, text
+
+    from tests.conftest import _bootstrap_extensions, _run_alembic_upgrade
+
+    engine = create_engine(db_url, future=True)
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("DROP SCHEMA public CASCADE"))
+            conn.execute(text("CREATE SCHEMA public"))
+    finally:
+        engine.dispose()
+    _bootstrap_extensions(db_url)
+    _run_alembic_upgrade(db_url)
+
+
 def _psycopg_url(url: str) -> str:
     """Normalise any postgres URL to the psycopg3 driver.
 
@@ -856,6 +911,33 @@ def _psycopg_url(url: str) -> str:
     """
     normalised = re.sub(r"^postgresql\+[a-z0-9]+://", "postgresql://", url)
     return normalised.replace("postgresql://", "postgresql+psycopg://", 1)
+
+
+def persist_report(url: str, key: str, payload: dict[str, Any]) -> bool:
+    """POST a report JSON to the internal eval-runs endpoint (ticket G3).
+
+    Best-effort by contract: the receiving endpoint
+    (``POST /internal/v1/admin/eval-runs``) is being built in parallel, so
+    any failure — connection refused, non-2xx, anything — logs a warning
+    and returns ``False`` without touching the process exit code.
+    """
+    import httpx
+
+    try:
+        resp = httpx.post(
+            url,
+            json=payload,
+            headers={"X-DeployAI-Internal-Key": key},
+            timeout=30.0,
+        )
+    except Exception as exc:
+        _log.warning("report persistence failed (%s): %s", url, exc)
+        return False
+    if resp.status_code >= 300:
+        _log.warning("report persistence rejected (%s): HTTP %s", url, resp.status_code)
+        return False
+    print(f"persisted report to {url} (HTTP {resp.status_code})")
+    return True
 
 
 def _print_summary(report: RunReport, report_path: Path) -> None:
@@ -889,6 +971,9 @@ def main(argv: list[str] | None = None) -> int:
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
 
+    if args.persist_url:
+        persist_report(args.persist_url, args.persist_key, report.model_dump(mode="json"))
+
     _print_summary(report, report_path)
 
     if report.cross_engagement_leak_count > 0:
@@ -907,6 +992,9 @@ __all__ = [
     "build_arg_parser",
     "load_questions",
     "main",
+    "persist_report",
+    "provision_database",
+    "reset_database_schema",
     "run_all",
     "run_question",
     "select_questions",
