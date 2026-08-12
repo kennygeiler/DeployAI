@@ -274,12 +274,31 @@ async def call_llm_with_tools(
     tool_use_blocks: list[dict[str, Any]] = []
     pending: dict[str, dict[str, Any]] = {}
     tokens = 0
-    stream: AsyncIterator[ToolStreamChunk] = provider.chat_complete_stream_with_tools(
-        messages,
-        tools,
-        temperature=_LLM_TEMPERATURE,
-        max_output_tokens=_LLM_MAX_OUTPUT_TOKENS,
-    )
+    stream: AsyncIterator[ToolStreamChunk]
+    if state.tools_exhausted:
+        # Cap-final answer (2026-08-12 prod fix): the tool budget is gone,
+        # so this call — and any revision calls after it — must not be able
+        # to request more tools. The tools array is still sent (the API
+        # requires it while history carries tool_use/tool_result blocks);
+        # tool_choice "none" is what bars further calls. The synthesized
+        # cap tool_results already instruct the model to answer with what
+        # it has. cap_final_call_made bounds the router's llm_call
+        # self-loop to a single pass.
+        state.cap_final_call_made = True
+        stream = provider.chat_complete_stream_with_tools(
+            messages,
+            tools,
+            temperature=_LLM_TEMPERATURE,
+            max_output_tokens=_LLM_MAX_OUTPUT_TOKENS,
+            tool_choice={"type": "none"},
+        )
+    else:
+        stream = provider.chat_complete_stream_with_tools(
+            messages,
+            tools,
+            temperature=_LLM_TEMPERATURE,
+            max_output_tokens=_LLM_MAX_OUTPUT_TOKENS,
+        )
     # Native extended-thinking (provider ThinkingDelta chunks). Deltas are
     # buffered per thinking block and flushed as ONE `thinking` SSE frame —
     # the web UI counts each frame as one reasoning step. SSE frames are

@@ -94,11 +94,16 @@ def create_stub_provider() -> Any:
             *,
             temperature: float = 0.0,
             max_output_tokens: int = 1024,
+            tool_choice: dict[str, Any] | None = None,
         ) -> AsyncIterator[ToolStreamChunk]:
             _ = messages, tools, temperature, max_output_tokens
             idx = self._tool_call_idx
             self._tool_call_idx += 1
             scripted = self.scripted_tool_calls[idx] if idx < len(self.scripted_tool_calls) else []
+            if tool_choice is not None and tool_choice.get("type") == "none":
+                # Honour tool_choice "none" the way the real API does: the
+                # model cannot request tool calls on this turn.
+                scripted = []
             text = self.scripted_text[idx] if idx < len(self.scripted_text) else ""
             if text:
                 yield TextDelta(content=text)

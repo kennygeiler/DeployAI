@@ -72,7 +72,7 @@ from control_plane.agents.agent_kenny.nodes.retrieve import retrieve_initial_con
 from control_plane.agents.agent_kenny.nodes.revise import revise_if_unverified
 from control_plane.agents.agent_kenny.nodes.tool_dispatch import (
     dispatch_tools,
-    synthesize_unexecuted_tool_results,
+    enforce_tool_call_cap,
 )
 from control_plane.agents.agent_kenny.types import (
     MAX_REVISION_ATTEMPTS,
@@ -191,21 +191,12 @@ def make_node_wrappers(ctx: KennyRuntime) -> dict[str, NodeFn]:
     async def _llm_call(state: AgentState) -> dict[str, Any]:
         state.external_tools = ctx.external_tools
         await call_llm_with_tools(ctx.provider, state, emit=ctx.emit)
-        # Cap guard (ported from the legacy driver): an LLM that keeps
-        # proposing tool calls past the cap is forced to stop with the
-        # budget exhausted — drain pending intents, salvage a final reply.
-        if state.tool_calls_made >= MAX_TOOL_CALLS_PER_TURN:
-            # Drained intents still have tool_use blocks in state.messages —
-            # synthesize an is_error tool_result for each so any later LLM
-            # call (revision loop) never sends dangling tool_use ids.
-            if state.pending_tool_calls:
-                await synthesize_unexecuted_tool_results(state, state.pending_tool_calls, ctx.emit)
-                state.pending_tool_calls = []
-            if not state.accumulated_text:
-                state.accumulated_text = (
-                    state.last_text.replace("<tool_call>", "").replace("</tool_call>", "").strip()
-                    or "(tool-call cap reached)"
-                )
+        # Cap guard (shared with the legacy driver): drain pending intents
+        # into synthesized is_error tool_results, flag tools_exhausted so
+        # the router schedules the ONE cap-final no-tools call, and only
+        # after that call salvage a placeholder if the model produced no
+        # text at all.
+        await enforce_tool_call_cap(state, ctx.emit)
         return _state_update(state)
 
     async def _dispatch_tools(state: AgentState) -> dict[str, Any]:

@@ -27,6 +27,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from control_plane.agents.agent_kenny.budget import charge_turn
 from control_plane.agents.agent_kenny.embeddings.voyage_client import VoyageEmbedder
 from control_plane.agents.agent_kenny.graph import (
+    NODE_DISPATCH_TOOLS,
+    NODE_LLM_CALL,
     has_tool_calls_router,
     unverified_router,
 )
@@ -55,7 +57,7 @@ from control_plane.agents.agent_kenny.nodes.retrieve import retrieve_initial_con
 from control_plane.agents.agent_kenny.nodes.revise import revise_if_unverified
 from control_plane.agents.agent_kenny.nodes.tool_dispatch import (
     dispatch_tools,
-    synthesize_unexecuted_tool_results,
+    enforce_tool_call_cap,
 )
 from control_plane.agents.agent_kenny.runtime import (
     RUNTIME_LANGGRAPH,
@@ -67,7 +69,6 @@ from control_plane.agents.agent_kenny.runtime import (
     run_langgraph_turn,
 )
 from control_plane.agents.agent_kenny.types import (
-    MAX_TOOL_CALLS_PER_TURN,
     TURN_HARD_TIMEOUT_S,
     AdversarialConcernChunk,
     AgentState,
@@ -391,35 +392,35 @@ class KennyAgentService:
         emit: Any,
         turn_id: uuid.UUID,
     ) -> None:
-        # 2. main loop: llm_call -> dispatch_tools -> llm_call ...
+        # 2. main loop: llm_call -> dispatch_tools -> llm_call ... The shared
+        # router owns every transition — including the cap-final no-tools
+        # call (2026-08-12 prod fix): when the tool budget runs out while
+        # the model still wants tools, enforce_tool_call_cap drains the
+        # intents into synthesized tool_results and flags tools_exhausted;
+        # the router then routes back to llm_call exactly once, and that
+        # call runs with tool_choice "none" so the model must produce a
+        # real final answer (not the "(tool-call cap reached)" placeholder).
         await call_llm_with_tools(self._provider, state, emit=emit)
-        while has_tool_calls_router(state) == "dispatch_tools" and state.tool_calls_made < MAX_TOOL_CALLS_PER_TURN:
-            await dispatch_tools(
-                session,
-                state,
-                emit=emit,
-                turn_id_hint=turn_id,
-                mcp_client=self._mcp_client,
-                embedder=self._embedder,
-            )
-            await call_llm_with_tools(self._provider, state, emit=emit)
-            # Guard: an LLM that keeps proposing tool calls past the cap
-            # should be forced to stop with the budget exhausted.
-            if state.tool_calls_made >= MAX_TOOL_CALLS_PER_TURN:
-                # Drain any remaining pending intents to ensure a final reply.
-                # Each drained intent has a tool_use block already recorded in
-                # state.messages, so synthesize an is_error tool_result for it —
-                # otherwise a later LLM call (e.g. the revision loop) sends
-                # history with dangling tool_use ids and Anthropic 400s.
-                if state.pending_tool_calls:
-                    await synthesize_unexecuted_tool_results(state, state.pending_tool_calls, emit)
-                    state.pending_tool_calls = []
-                if not state.accumulated_text:
-                    state.accumulated_text = (
-                        state.last_text.replace("<tool_call>", "").replace("</tool_call>", "").strip()
-                        or "(tool-call cap reached)"
-                    )
+        await enforce_tool_call_cap(state, emit)
+        while True:
+            route = has_tool_calls_router(state)
+            if route == NODE_DISPATCH_TOOLS:
+                await dispatch_tools(
+                    session,
+                    state,
+                    emit=emit,
+                    turn_id_hint=turn_id,
+                    mcp_client=self._mcp_client,
+                    embedder=self._embedder,
+                )
+            elif route == NODE_LLM_CALL:
+                # Cap-final no-tools call — fall through to the LLM call
+                # below (bounded to one pass by cap_final_call_made).
+                pass
+            else:
                 break
+            await call_llm_with_tools(self._provider, state, emit=emit)
+            await enforce_tool_call_cap(state, emit)
 
         # 3. citations + revision loop (parallel verify per scope-v2 §5.3).
         for _ in range(3):  # at most 1 initial + 2 revisions
