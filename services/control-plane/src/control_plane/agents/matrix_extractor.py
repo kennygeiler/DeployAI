@@ -238,6 +238,12 @@ def _validate(
     drafts: list[ProposalDraft] = []
     for item in items:
         kind = item.get("kind")
+        # Newer models sometimes emit the node type AS the kind
+        # ({"kind": "risk", ...} instead of {"kind": "node", "node_type": "risk"}).
+        # Normalize rather than drop — the intent is unambiguous.
+        if isinstance(kind, str) and kind in allowed_node_types:
+            item = {**item, "kind": "node", "node_type": item.get("node_type") or kind}
+            kind = "node"
         rationale = _trim_rationale(item.get("rationale"))
         if kind == "node":
             node_type = item.get("node_type")
