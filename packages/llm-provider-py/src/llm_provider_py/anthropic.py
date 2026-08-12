@@ -16,6 +16,7 @@ from llm_provider_py.types import (
     StopReason,
     StreamChunk,
     TextDelta,
+    ThinkingDelta,
     ToolStreamChunk,
     ToolUseEnd,
     ToolUseInputDelta,
@@ -34,6 +35,10 @@ from llm_provider_py.util import (
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 DEFAULT_MODEL = "claude-sonnet-5"
 
+# Extended-thinking token budget for tool-use streaming. Unset / 0 /
+# non-numeric → thinking disabled (the pre-existing behaviour).
+THINKING_BUDGET_ENV = "DEPLOYAI_ANTHROPIC_THINKING_BUDGET"
+
 # Claude 5-family models reject the `temperature` parameter
 # (invalid_request_error: "`temperature` is deprecated for this model").
 _NO_TEMPERATURE_PREFIXES = ("claude-sonnet-5", "claude-opus-5", "claude-fable-5")
@@ -41,6 +46,16 @@ _NO_TEMPERATURE_PREFIXES = ("claude-sonnet-5", "claude-opus-5", "claude-fable-5"
 
 def _model_supports_temperature(model: str) -> bool:
     return not model.startswith(_NO_TEMPERATURE_PREFIXES)
+
+
+def _thinking_budget_from_env() -> int:
+    raw = os.environ.get(THINKING_BUDGET_ENV, "").strip()
+    if not raw:
+        return 0
+    try:
+        return max(int(raw), 0)
+    except ValueError:
+        return 0
 
 
 class AnthropicProvider:
@@ -54,9 +69,15 @@ class AnthropicProvider:
         agent_name: str = "agent",
         on_usage: UsageCallback | None = None,
         transport: httpx.AsyncBaseTransport | httpx.BaseTransport | None = None,
+        thinking_budget_tokens: int | None = None,
     ) -> None:
         self._key = (api_key or resolve_anthropic_api_key()).strip()
         self._model = (model or os.environ.get("ANTHROPIC_MODEL") or DEFAULT_MODEL).strip()
+        # Extended-thinking budget: explicit constructor value wins, else the
+        # DEPLOYAI_ANTHROPIC_THINKING_BUDGET env var; <= 0 disables thinking.
+        self._thinking_budget = (
+            max(thinking_budget_tokens, 0) if thinking_budget_tokens is not None else _thinking_budget_from_env()
+        )
         self._timeout = timeout_s
         self._tenant_id = tenant_id
         self._agent_name = agent_name
@@ -267,10 +288,23 @@ class AnthropicProvider:
         *,
         temperature: float = 0.0,
         max_output_tokens: int = 1024,
+        thinking_budget_tokens: int | None = None,
     ) -> AsyncIterator[ToolStreamChunk]:
         body = self._build_stream_body(messages, temperature=temperature, max_output_tokens=max_output_tokens)
         if tools:
             body["tools"] = tools
+        budget = self._thinking_budget if thinking_budget_tokens is None else max(thinking_budget_tokens, 0)
+        if budget > 0:
+            body["thinking"] = {"type": "enabled", "budget_tokens": budget}
+            # API constraint: `max_tokens` must exceed `budget_tokens` —
+            # thinking spends from the same output allowance, so grow the cap
+            # to keep the caller's visible-output room intact.
+            if int(body["max_tokens"]) <= budget:
+                body["max_tokens"] = budget + (max_output_tokens or 1024)
+            # API constraint: thinking is incompatible with a pinned
+            # temperature (only the default is accepted). Claude 5 models
+            # already omit it; drop it for older models too when thinking on.
+            body.pop("temperature", None)
         # block index → (id, name, partial-json buffer)
         active: dict[int, dict[str, Any]] = {}
         stop_reason: str | None = None
@@ -293,6 +327,10 @@ class AnthropicProvider:
                 idx = ev.get("index")
                 if d.get("type") == "text_delta" and "text" in d:
                     yield TextDelta(content=str(d["text"]))
+                elif d.get("type") == "thinking_delta" and "thinking" in d:
+                    # Extended-thinking stream. `signature_delta` events (the
+                    # block's integrity signature) are intentionally ignored.
+                    yield ThinkingDelta(content=str(d["thinking"]))
                 elif d.get("type") == "input_json_delta" and isinstance(idx, int) and idx in active:
                     partial = str(d.get("partial_json", ""))
                     active[idx]["buf"] += partial

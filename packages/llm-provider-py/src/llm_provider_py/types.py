@@ -24,6 +24,18 @@ class TextDelta:
 
 
 @dataclass(frozen=True)
+class ThinkingDelta:
+    """Streamed extended-thinking text (Anthropic ``thinking_delta``).
+
+    Emitted by providers only when a thinking budget is enabled; consumers
+    that do not handle it can ignore it without affecting the text /
+    tool-use protocol.
+    """
+
+    content: str
+
+
+@dataclass(frozen=True)
 class ToolUseStart:
     """Marker that a new tool_use content block has begun."""
 
@@ -56,7 +68,7 @@ class StopReason:
     usage: dict[str, int] = field(default_factory=dict)
 
 
-ToolStreamChunk = TextDelta | ToolUseStart | ToolUseInputDelta | ToolUseEnd | StopReason
+ToolStreamChunk = TextDelta | ThinkingDelta | ToolUseStart | ToolUseInputDelta | ToolUseEnd | StopReason
 
 
 @runtime_checkable

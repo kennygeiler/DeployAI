@@ -437,10 +437,12 @@ async def test_v2_cap_truncated_tool_batch_answers_every_tool_use_id(
     Anthropic 400 on dangling tool_use ids and an error frame killed the
     turn. The fix synthesizes is_error tool_results for the truncated tail."""
     tid, eid, user_id = await _new_engagement(k_client, postgres_engine)
+    seed = _seed_event(postgres_engine, tenant_id=tid, engagement_id=eid, summary="cap seed")
     one_call = '<tool_call>{"name": "get_engagement_summary", "input": {}}</tool_call>'
+    final_reply = f"All caught up — nothing further to check [event:{seed}]."
     stub_llm._replies = [
         one_call * 10,  # 10 tool_use blocks in a single assistant turn (cap is 8)
-        "All caught up — nothing further to check.",
+        final_reply,
     ]
 
     r = await k_client.post(
@@ -455,7 +457,7 @@ async def test_v2_cap_truncated_tool_batch_answers_every_tool_use_id(
     assert "error" not in events, frames
     done = next(p for name, p in frames if name == "done")
     # (c) the turn completed with the scripted final text.
-    assert done["final_text"] == "All caught up — nothing further to check."
+    assert done["final_text"] == final_reply
     assert done["tool_calls"] == 8
     # Every requested call got a result frame: 8 executed + 2 synthesized.
     assert events.count("tool_call") == 10
@@ -537,3 +539,75 @@ async def test_v2_revision_replaces_bad_citation_with_valid(
     assert row[0] >= 1
     assert row[1] == 0
     assert row[2] == 1
+
+
+@pytest.mark.asyncio
+async def test_v2_zero_citation_reply_triggers_revision(
+    k_client: AsyncClient, postgres_engine: Engine, stub_llm: _LLMScript
+) -> None:
+    """GAP 1 (2026-08-11): an uncited factual reply after an evidence-bearing
+    tool call must be revised once into a cited reply, on BOTH runtimes
+    (the ``k_client`` fixture is parametrized legacy + langgraph)."""
+    tid, eid, user_id = await _new_engagement(k_client, postgres_engine)
+    seed = _seed_event(postgres_engine, tenant_id=tid, engagement_id=eid, summary="risk surfaced")
+
+    stub_llm._replies = [
+        # 1st call: gather evidence.
+        '<tool_call>{"name": "get_engagement_summary", "input": {}}</tool_call>',
+        # 2nd call: factual reply with ZERO citation markers (the live failure mode).
+        "Two open risks remain and the cutover slipped a sprint.",
+        # 3rd call (the revision): same claims, now cited.
+        f"Two open risks remain and the cutover slipped a sprint [event:{seed}].",
+    ]
+
+    r = await k_client.post(
+        f"/internal/v1/engagements/{eid}/oracle/chat/stream-v2?tenant_id={tid}",
+        json={"conversation_id": None, "message": "what's the state?"},
+        headers=_actor_headers(user_id),
+    )
+    assert r.status_code == 200, r.text
+    frames = _parse_sse_frames(r.text)
+    events = [name for name, _ in frames]
+    assert "error" not in events, frames
+    # The revision fired exactly once and the final reply carries the citation.
+    done = next(p for name, p in frames if name == "done")
+    assert done["revision_attempts"] == 1
+    assert str(seed) in done["final_text"]
+    # The verified-citation frame streamed (this is the "receipts" moment).
+    verified = [p for name, p in frames if name == "citation_verified"]
+    assert {"kind": "event", "id": str(seed)} in verified, frames
+    # The corrective rewrite instruction reached the model on the 3rd call.
+    assert stub_llm.calls == 3
+    revision_call = stub_llm.tools_messages[2]
+    assert any(
+        isinstance(m.get("content"), str) and "without any [kind:UUID] citation markers" in m["content"]
+        for m in revision_call
+    ), revision_call
+
+
+@pytest.mark.asyncio
+async def test_v2_refusal_without_citations_is_not_revised(
+    k_client: AsyncClient, postgres_engine: Engine, stub_llm: _LLMScript
+) -> None:
+    """Negative control: a decline after tool calls ships as-is — no forced
+    citation revision, no fabricated markers."""
+    tid, eid, user_id = await _new_engagement(k_client, postgres_engine)
+    _seed_event(postgres_engine, tenant_id=tid, engagement_id=eid, summary="unrelated event")
+
+    refusal = "I don't know — there is no relevant data about that vendor in this engagement."
+    stub_llm._replies = [
+        '<tool_call>{"name": "get_engagement_summary", "input": {}}</tool_call>',
+        refusal,
+    ]
+
+    r = await k_client.post(
+        f"/internal/v1/engagements/{eid}/oracle/chat/stream-v2?tenant_id={tid}",
+        json={"conversation_id": None, "message": "what did the vendor promise?"},
+        headers=_actor_headers(user_id),
+    )
+    assert r.status_code == 200, r.text
+    frames = _parse_sse_frames(r.text)
+    done = next(p for name, p in frames if name == "done")
+    assert done["revision_attempts"] == 0
+    assert done["final_text"] == refusal
+    assert stub_llm.calls == 2
