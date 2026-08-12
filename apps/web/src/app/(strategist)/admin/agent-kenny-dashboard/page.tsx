@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 
 import { AdminRecentActivity } from "@/components/admin/AdminRecentActivity.client";
 import { AgentKennyDashboardClient } from "@/components/admin/AgentKennyDashboardClient";
+import { EvalHistorySection } from "@/components/admin/EvalHistorySection.client";
 import {
   cpGetAgentKennyDashboard,
   WINDOW_DAYS_DEFAULT,
   type AgentKennyDashboard,
 } from "@/lib/internal/agent-kenny-dashboard-cp";
+import { cpListEvalRuns, type EvalRun } from "@/lib/internal/eval-runs-cp";
 import { requireCanonicalRead } from "@/lib/internal/strategist-surface";
 
 export const metadata: Metadata = {
@@ -48,6 +50,17 @@ export default async function AgentKennyDashboardPage() {
     initialError = "Actor missing tenant id.";
   }
 
+  // Wave 4 (G8) — eval-run history is platform-level (no tenant scope):
+  // fetch it independently so a CP hiccup here degrades to the section's
+  // own error state without taking down the telemetry above it.
+  let initialEvalRuns: EvalRun[] | null = null;
+  let initialEvalRunsError: string | null = null;
+  try {
+    initialEvalRuns = await cpListEvalRuns({ limit: 50 });
+  } catch (e) {
+    initialEvalRunsError = e instanceof Error ? e.message : "Could not load eval history.";
+  }
+
   return (
     <div className="max-w-6xl space-y-6 p-4">
       <header className="space-y-2">
@@ -65,6 +78,9 @@ export default async function AgentKennyDashboardPage() {
         initialData={initialData}
         initialError={initialError}
       />
+      {/* Wave 4 (G8) — longitudinal eval quality: recorded golden-eval
+          runs with a pass-rate sparkline. */}
+      <EvalHistorySection initialRuns={initialEvalRuns} initialError={initialEvalRunsError} />
       {/* Wave 2.5 U3 — the per-engagement activity strip (agent tool
           invocations and other ledger events) lives here now, off the Brief. */}
       <AdminRecentActivity />

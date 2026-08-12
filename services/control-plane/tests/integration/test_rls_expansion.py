@@ -51,6 +51,9 @@ _RLS_EXEMPT: frozenset[str] = frozenset(
         "app_tenants",  # the tenant registry itself
         "internal_service_tokens",  # auth infra: looked up before any scope exists
         "webhook_deliveries",  # no tenant_id column yet — documented follow-up
+        "eval_runs",  # platform-level ops data (G8): no tenant_id by design — eval
+        # runs measure product quality against synthetic fixtures, never
+        # tenant data; gated by require_internal at the route layer.
     }
 )
 

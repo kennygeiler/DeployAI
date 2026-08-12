@@ -35,6 +35,7 @@ from control_plane.api.routes.engagement_summary_internal import (
 )
 from control_plane.api.routes.engagement_timeline import router as engagement_timeline_router
 from control_plane.api.routes.engagements_internal import router as engagements_internal_router
+from control_plane.api.routes.eval_runs_internal import router as eval_runs_internal_router
 from control_plane.api.routes.event_search import router as event_search_router
 from control_plane.api.routes.extract_preview import router as extract_preview_router
 from control_plane.api.routes.ingestion_runs import router as ingestion_runs_internal_router
@@ -190,6 +191,7 @@ app.include_router(tenant_mcp_configs_internal_router, prefix="/internal/v1")
 app.include_router(tenant_mcp_killswitch_internal_router, prefix="/internal/v1")
 app.include_router(tenant_mcp_audit_internal_router, prefix="/internal/v1")
 app.include_router(agent_kenny_dashboard_internal_router, prefix="/internal/v1")
+app.include_router(eval_runs_internal_router, prefix="/internal/v1")
 app.include_router(audit_internal_router, prefix="/internal/v1")
 app.include_router(webhooks_internal_router, prefix="/internal/v1")
 app.include_router(meetings_internal_router, prefix="/internal/v1")
