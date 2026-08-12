@@ -12,8 +12,8 @@ import { NeedsYou } from "@/components/engagements/brief/NeedsYou.client";
 import { MatrixNodeDetail } from "@/components/engagements/MatrixNodeDetail.client";
 import { OracleChat } from "@/components/engagements/OracleChat.client";
 import { EngagementInsights } from "@/components/epic9/EngagementInsights.client";
+import { CaptureIngest } from "@/components/engagements/capture/CaptureIngest.client";
 import { EngagementTimeline } from "@/components/epic9/EngagementTimeline.client";
-import { InteractionImport } from "@/components/epic9/InteractionImport.client";
 import { MatrixCapture } from "@/components/epic9/MatrixCapture.client";
 import { MatrixGraph } from "@/components/epic9/MatrixGraph.client";
 import { RecommendationsPanel } from "@/components/epic9/RecommendationsPanel.client";
@@ -717,13 +717,16 @@ export function EngagementBrief({ engagementId }: { engagementId: string }) {
         </TabsContent>
 
         <TabsContent value="capture" className="space-y-2 pt-2">
-          <h2 className="text-ink-800 text-sm font-semibold">Interactions</h2>
+          <h2 className="text-ink-800 text-sm font-semibold">Capture an interaction</h2>
           <p className="text-ink-600 text-sm">
-            Drop an email, a meeting summary, a field note — or anything else that happened on this
-            deployment. Each import is captured as a canonical event; the matrix grows from it via
-            extraction.
+            Paste an email thread, meeting notes, or a Slack excerpt — or drop a .txt file. It lands
+            as a canonical event, extraction proposes matrix entities from it, and nothing enters
+            the record until you accept it in Needs&nbsp;you.
           </p>
-          <InteractionImport engagementId={engagementId} onChanged={refresh} />
+          <CaptureIngest
+            engagementId={engagementId}
+            onChanged={() => void Promise.all([refresh(), refreshSummary()])}
+          />
         </TabsContent>
       </Tabs>
 
