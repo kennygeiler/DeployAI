@@ -19,7 +19,9 @@ from llm_provider_py.types import (
     StopReason,
     TextDelta,
     ThinkingDelta,
+    ThinkingSignature,
     ToolStreamChunk,
+    ToolUseEnd,
 )
 
 _TOOL_SPEC: list[dict[str, Any]] = [
@@ -94,9 +96,16 @@ async def test_thinking_enabled_sends_param_and_yields_thinking_deltas() -> None
 
     thinking = [c for c in out if isinstance(c, ThinkingDelta)]
     assert [c.content for c in thinking] == ["Check the ", "open risks."]
-    # Text + stop are untouched; signature_delta produced no chunk.
+    # The thinking block's close surfaces its signature (from signature_delta)
+    # so callers can replay the block on the follow-up request.
+    sigs = [c for c in out if isinstance(c, ThinkingSignature)]
+    assert [c.signature for c in sigs] == ["sig=="]
+    # Boundary ordering: signature arrives after the block's deltas and
+    # before the text that follows it.
+    assert out.index(sigs[0]) > out.index(thinking[-1])
     text = [c for c in out if isinstance(c, TextDelta)]
     assert [c.content for c in text] == ["Two risks remain."]
+    assert out.index(sigs[0]) < out.index(text[0])
     assert isinstance(out[-1], StopReason)
     assert out[-1].reason == "end_turn"
 
@@ -147,6 +156,56 @@ async def test_thinking_max_tokens_kept_when_already_above_budget() -> None:
     await _collect(p, max_output_tokens=4096)
     assert captured["body"]["thinking"] == {"type": "enabled", "budget_tokens": 512}
     assert captured["body"]["max_tokens"] == 4096
+
+
+@pytest.mark.asyncio
+async def test_signature_accumulates_across_deltas_and_pairs_with_tool_use() -> None:
+    """Multi-part signature_delta events concatenate; tool_use blocks after a
+    thinking block still close normally (thinking + tool_use share the stream)."""
+    events: list[dict[str, Any]] = [
+        {"type": "message_start", "message": {"usage": {"input_tokens": 10, "output_tokens": 0}}},
+        {"type": "content_block_start", "index": 0, "content_block": {"type": "thinking", "thinking": ""}},
+        {"type": "content_block_delta", "index": 0, "delta": {"type": "thinking_delta", "thinking": "Need ledger."}},
+        {"type": "content_block_delta", "index": 0, "delta": {"type": "signature_delta", "signature": "abc"}},
+        {"type": "content_block_delta", "index": 0, "delta": {"type": "signature_delta", "signature": "def=="}},
+        {"type": "content_block_stop", "index": 0},
+        {
+            "type": "content_block_start",
+            "index": 1,
+            "content_block": {"type": "tool_use", "id": "toolu_1", "name": "query_ledger"},
+        },
+        {"type": "content_block_delta", "index": 1, "delta": {"type": "input_json_delta", "partial_json": "{}"}},
+        {"type": "content_block_stop", "index": 1},
+        {"type": "message_delta", "delta": {"stop_reason": "tool_use"}, "usage": {"output_tokens": 20}},
+    ]
+    captured: dict[str, Any] = {}
+    p = _mock_provider(captured, events=events, thinking_budget_tokens=1024)
+    out = await _collect(p)
+
+    sigs = [c for c in out if isinstance(c, ThinkingSignature)]
+    assert [c.signature for c in sigs] == ["abcdef=="]
+    ends = [c for c in out if isinstance(c, ToolUseEnd)]
+    assert [c.id for c in ends] == ["toolu_1"]
+    # The thinking block's stop must not be mistaken for the tool_use stop.
+    assert out.index(sigs[0]) < out.index(ends[0])
+    assert isinstance(out[-1], StopReason)
+    assert out[-1].reason == "tool_use"
+
+
+@pytest.mark.asyncio
+async def test_thinking_delta_without_block_start_still_yields_signature() -> None:
+    """A stream missing content_block_start for the thinking block (defensive)
+    still tracks the block via its deltas and surfaces the signature."""
+    events: list[dict[str, Any]] = [
+        {"type": "content_block_delta", "index": 0, "delta": {"type": "thinking_delta", "thinking": "hm"}},
+        {"type": "content_block_delta", "index": 0, "delta": {"type": "signature_delta", "signature": "s=="}},
+        {"type": "content_block_stop", "index": 0},
+        {"type": "message_delta", "delta": {"stop_reason": "end_turn"}, "usage": {"output_tokens": 5}},
+    ]
+    captured: dict[str, Any] = {}
+    p = _mock_provider(captured, events=events, thinking_budget_tokens=1024)
+    out = await _collect(p)
+    assert [c.signature for c in out if isinstance(c, ThinkingSignature)] == ["s=="]
 
 
 @pytest.mark.asyncio
