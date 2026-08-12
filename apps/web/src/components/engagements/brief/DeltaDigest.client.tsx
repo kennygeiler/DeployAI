@@ -61,6 +61,7 @@ export function DeltaDigest({
     <section
       aria-labelledby="delta-digest-heading"
       data-testid="delta-digest"
+      data-tour="brief-delta"
       className="space-y-2"
     >
       <h2 id="delta-digest-heading" className="text-ink-800 text-sm font-semibold">

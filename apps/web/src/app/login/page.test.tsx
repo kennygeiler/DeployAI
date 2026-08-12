@@ -25,8 +25,10 @@ describe("LoginPage demo button (Wave 4S)", () => {
     expect(link).not.toBeNull();
     expect(link?.getAttribute("href")).toBe("/api/auth/demo");
     expect(
-      screen.getByText("Read-only guest on a demo workspace — no sign-up needed."),
+      screen.getByText(/Read-only guest on a demo workspace — no sign-up needed\./),
     ).toBeInTheDocument();
+    // K6 — the caption promises the guided tour.
+    expect(screen.getByText(/guided tour starts automatically/)).toBeInTheDocument();
     // SSO stays available below the demo button.
     expect(screen.getByText("Sign in with SSO")).toBeInTheDocument();
   });

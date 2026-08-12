@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { PixelLoader, ShimmerLines } from "@/components/ui/shimmer";
 import { Textarea } from "@/components/ui/textarea";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
+import { TOUR_TURN_DONE_EVENT } from "@/lib/tour/steps";
 
 type Turn = {
   id: string;
@@ -513,6 +514,8 @@ export function OracleChat({
         setThoughtSeconds(Math.max(1, Math.round((Date.now() - thinkStartRef.current) / 1000)));
         thinkStartRef.current = null;
       }
+      // K6 demo tour — presentational turn-completion signal.
+      window.dispatchEvent(new CustomEvent(TOUR_TURN_DONE_EVENT));
     }
   }, [conversationId, consumeStream, engagementId, input, sending, sendJsonFallback]);
 
@@ -808,7 +811,11 @@ export function OracleChat({
 
               {/* Citation verification chips — inline sources row. */}
               {citationBadges.length > 0 ? (
-                <ul className="mt-2 flex flex-wrap gap-1.5" data-testid="oracle-chat-citations">
+                <ul
+                  className="mt-2 flex flex-wrap gap-1.5"
+                  data-testid="oracle-chat-citations"
+                  data-tour="oracle-citations"
+                >
                   {citationBadges.map((b, i) => (
                     <li
                       key={`${b.kind}-${b.id}-${i}`}

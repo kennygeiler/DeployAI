@@ -16,7 +16,13 @@ import {
 
 import { cn } from "@/lib/utils";
 
-type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  /** K6 demo tour spotlight target (`data-tour` value). */
+  tour?: string;
+};
 
 /**
  * MVP nav: Engagements (portfolio + per-engagement matrix + insights),
@@ -31,7 +37,7 @@ const primary: readonly NavItem[] = [
   { href: "/engagements", label: "Engagements", icon: Briefcase },
   // Wave 2.5 U10 — global Kenny: engagement-scoped Q&A from anywhere.
   { href: "/ask", label: "Ask", icon: MessageCircle },
-  { href: "/review", label: "Review inbox", icon: Inbox },
+  { href: "/review", label: "Review inbox", icon: Inbox, tour: "nav-review" },
   { href: "/search", label: "Search", icon: Search },
   { href: "/settings", label: "Settings", icon: Settings },
   // v2 Phase 5 Wave 3I — outbound MCP audit. The "Admin" surface grew
@@ -43,7 +49,7 @@ const primary: readonly NavItem[] = [
   { href: "/admin/agent-kenny-mcp-activity", label: "Admin · MCP activity", icon: Cable },
   { href: "/admin/agent-kenny-dashboard", label: "Admin · Agent Kenny dashboard", icon: Gauge },
   // Product-overview slide deck: real-screenshot walkthrough + per-surface tutorial.
-  { href: "/overview", label: "Overview", icon: BookOpen },
+  { href: "/overview", label: "Overview", icon: BookOpen, tour: "nav-overview" },
 ];
 
 function useOpenReviewCount(): number {
@@ -98,6 +104,7 @@ export function StrategistNav() {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  data-tour={item.tour}
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "flex items-center gap-3 rounded-control py-2 pr-2 pl-2 xl:pl-2.5",

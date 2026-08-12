@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { EngagementSummaryChange } from "@/lib/bff/summary-types";
 import type { MatrixNode } from "@/lib/bff/matrix-types";
 import { stripRedundantKindPrefix } from "@/lib/labels";
+import { TOUR_CHAT_OPENED_EVENT, TOUR_PREFILL_EVENT } from "@/lib/tour/steps";
 
 /**
  * Wave 2.5 U4 — Kenny's front door on the Brief.
@@ -86,10 +87,30 @@ export function AskKennyBar({
 
   const close = React.useCallback(() => setOverlay(null), []);
 
+  // K6 demo tour — the tour popover's "Use this question" button prefills
+  // the bar (closing the chat overlay if it's covering it), and the tour
+  // advances its "ask Kenny" step when the overlay opens.
+  React.useEffect(() => {
+    const onPrefill = (e: Event) => {
+      const question = (e as CustomEvent<{ question?: unknown }>).detail?.question;
+      if (typeof question === "string") {
+        setInput(question);
+        setOverlay(null);
+      }
+    };
+    window.addEventListener(TOUR_PREFILL_EVENT, onPrefill);
+    return () => window.removeEventListener(TOUR_PREFILL_EVENT, onPrefill);
+  }, []);
+
+  React.useEffect(() => {
+    if (overlay) window.dispatchEvent(new CustomEvent(TOUR_CHAT_OPENED_EVENT));
+  }, [overlay]);
+
   return (
     <>
       <div
         data-testid="ask-kenny-bar"
+        data-tour="ask-kenny-bar"
         className="sticky bottom-0 z-30 -mx-1 space-y-2 border-t border-line bg-page/95 px-1 py-3 backdrop-blur"
       >
         <form

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -7,6 +7,7 @@ import {
   deriveSuggestedQuestions,
 } from "@/components/engagements/brief/AskKennyBar.client";
 import type { MatrixNode } from "@/lib/bff/matrix-types";
+import { TOUR_CHAT_OPENED_EVENT, TOUR_PREFILL_EVENT } from "@/lib/tour/steps";
 
 function mkNode(id: string, node_type: string, title: string, status: string | null): MatrixNode {
   return {
@@ -134,5 +135,44 @@ describe("AskKennyBar", () => {
     await screen.findByTestId("ask-kenny-overlay");
     await user.click(screen.getByLabelText("Close chat"));
     await waitFor(() => expect(screen.queryByTestId("ask-kenny-overlay")).toBeNull());
+  });
+
+  // K6 demo tour wiring.
+  it("prefills the input from the tour-prefill event and closes an open overlay", async () => {
+    stubOracleFetch();
+    const user = userEvent.setup();
+    render(<AskKennyBar engagementId="e1" nodes={[]} changes={[]} />);
+
+    await user.click(screen.getByTestId("ask-kenny-open-chat"));
+    await screen.findByTestId("ask-kenny-overlay");
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent(TOUR_PREFILL_EVENT, {
+          detail: { question: "What led to the decision?" },
+        }),
+      );
+    });
+
+    await waitFor(() => expect(screen.queryByTestId("ask-kenny-overlay")).toBeNull());
+    expect(screen.getByLabelText<HTMLInputElement>("Ask Agent Kenny").value).toBe(
+      "What led to the decision?",
+    );
+  });
+
+  it("emits the tour chat-opened event when the overlay mounts", async () => {
+    stubOracleFetch();
+    const user = userEvent.setup();
+    const opened = vi.fn();
+    window.addEventListener(TOUR_CHAT_OPENED_EVENT, opened);
+    try {
+      render(<AskKennyBar engagementId="e1" nodes={[]} changes={[]} />);
+      expect(opened).not.toHaveBeenCalled();
+      await user.click(screen.getByTestId("ask-kenny-open-chat"));
+      await screen.findByTestId("ask-kenny-overlay");
+      await waitFor(() => expect(opened).toHaveBeenCalledTimes(1));
+    } finally {
+      window.removeEventListener(TOUR_CHAT_OPENED_EVENT, opened);
+    }
   });
 });

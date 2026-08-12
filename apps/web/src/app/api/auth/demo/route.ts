@@ -133,5 +133,14 @@ export async function GET(request: Request): Promise<NextResponse> {
     path: "/",
     secure,
   });
+  // K6 — guided-tour switch. Deliberately NOT httpOnly: the client-side
+  // TourProvider reads it to decide whether to start the tour.
+  res.cookies.set("demo_tour", "1", {
+    maxAge: session.expires_in,
+    httpOnly: false,
+    sameSite: "lax",
+    path: "/",
+    secure,
+  });
   return res;
 }

@@ -70,7 +70,8 @@ export default async function LoginPage({
               <a href="/api/auth/demo">View live demo</a>
             </Button>
             <p style={{ marginTop: "0.5rem", fontSize: "0.875rem", opacity: 0.65 }}>
-              Read-only guest on a demo workspace — no sign-up needed.
+              Read-only guest on a demo workspace — no sign-up needed. A guided tour starts
+              automatically.
             </p>
           </div>
         ) : null}

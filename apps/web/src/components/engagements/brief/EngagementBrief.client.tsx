@@ -445,7 +445,9 @@ export function EngagementBrief({ engagementId }: { engagementId: string }) {
       {/* 5 — Tabs: heavy surfaces. */}
       <Tabs defaultValue="graph" className="w-full">
         <TabsList aria-label="Engagement surfaces">
-          <TabsTrigger value="graph">Graph</TabsTrigger>
+          <TabsTrigger value="graph" data-tour="brief-graph-tab">
+            Graph
+          </TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="chat">Chat</TabsTrigger>
           <TabsTrigger value="people">People</TabsTrigger>
