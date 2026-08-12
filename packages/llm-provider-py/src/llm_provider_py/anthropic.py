@@ -66,6 +66,24 @@ def _model_thinks_by_default(model: str) -> bool:
     return model.startswith(_THINKING_DEFAULT_ON_PREFIXES)
 
 
+# Thinking-ON request shape differs by family: pre-5 models take
+# {"type": "enabled", "budget_tokens": N}; the 5-family removed
+# `budget_tokens` (400 invalid_request_error) and takes {"type": "adaptive"};
+# claude-fable-5 / claude-mythos-5 reject ANY explicit thinking config —
+# omit the param and they think adaptively anyway.
+_ADAPTIVE_THINKING_PREFIXES = ("claude-sonnet-5", "claude-opus-5")
+_NO_THINKING_CONFIG_PREFIXES = ("claude-fable-5", "claude-mythos-5")
+
+
+def _thinking_on_config(model: str, budget_tokens: int) -> dict[str, Any] | None:
+    """Thinking-on request value for ``model``, or None when the param must be omitted."""
+    if model.startswith(_NO_THINKING_CONFIG_PREFIXES):
+        return None
+    if model.startswith(_ADAPTIVE_THINKING_PREFIXES):
+        return {"type": "adaptive"}
+    return {"type": "enabled", "budget_tokens": budget_tokens}
+
+
 def _thinking_budget_from_env() -> int:
     raw = os.environ.get(THINKING_BUDGET_ENV, "").strip()
     if not raw:
@@ -327,10 +345,16 @@ class AnthropicProvider:
             body["tool_choice"] = tool_choice
         budget = self._thinking_budget if thinking_budget_tokens is None else max(thinking_budget_tokens, 0)
         if budget > 0:
-            body["thinking"] = {"type": "enabled", "budget_tokens": budget}
-            # API constraint: `max_tokens` must exceed `budget_tokens` —
-            # thinking spends from the same output allowance, so grow the cap
-            # to keep the caller's visible-output room intact.
+            on_config = _thinking_on_config(self._model, budget)
+            if on_config is not None:
+                body["thinking"] = on_config
+            else:
+                # Model rejects explicit thinking config (always-on adaptive) —
+                # also clear any "disabled" set by _build_stream_body.
+                body.pop("thinking", None)
+            # Thinking spends from the same output allowance as visible text —
+            # grow the cap to keep the caller's visible-output room intact
+            # (and satisfy the pre-5 constraint `max_tokens` > `budget_tokens`).
             if int(body["max_tokens"]) <= budget:
                 body["max_tokens"] = budget + (max_output_tokens or 1024)
             # API constraint: thinking is incompatible with a pinned

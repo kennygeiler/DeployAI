@@ -88,8 +88,10 @@ async def test_thinking_enabled_sends_param_and_yields_thinking_deltas() -> None
     out = await _collect(p)
 
     body = captured["body"]
-    assert body["thinking"] == {"type": "enabled", "budget_tokens": 2048}
-    # max_tokens must exceed the budget: 800 <= 2048 → grown to 2048 + 800.
+    # Default model is 5-family: budget_tokens was removed there (400), the
+    # on-shape is adaptive. The budget still sizes the max_tokens headroom.
+    assert body["thinking"] == {"type": "adaptive"}
+    # Thinking spends from max_tokens: 800 <= 2048 → grown to 2048 + 800.
     assert body["max_tokens"] == 2848
     # thinking is incompatible with a pinned temperature.
     assert "temperature" not in body
@@ -132,7 +134,7 @@ async def test_thinking_budget_resolves_from_env(monkeypatch: pytest.MonkeyPatch
     captured: dict[str, Any] = {}
     p = _mock_provider(captured, events=_THINKING_EVENTS)
     await _collect(p)
-    assert captured["body"]["thinking"] == {"type": "enabled", "budget_tokens": 1024}
+    assert captured["body"]["thinking"] == {"type": "adaptive"}
     assert captured["body"]["max_tokens"] == 1024 + 800
 
 
@@ -156,8 +158,33 @@ async def test_thinking_max_tokens_kept_when_already_above_budget() -> None:
     captured: dict[str, Any] = {}
     p = _mock_provider(captured, events=_THINKING_EVENTS, thinking_budget_tokens=512)
     await _collect(p, max_output_tokens=4096)
-    assert captured["body"]["thinking"] == {"type": "enabled", "budget_tokens": 512}
+    assert captured["body"]["thinking"] == {"type": "adaptive"}
     assert captured["body"]["max_tokens"] == 4096
+
+
+@pytest.mark.asyncio
+async def test_thinking_enabled_pre5_model_keeps_budget_tokens_shape() -> None:
+    captured: dict[str, Any] = {}
+    p = _mock_provider(captured, events=_THINKING_EVENTS, model="claude-opus-4-1", thinking_budget_tokens=2048)
+    await _collect(p)
+    body = captured["body"]
+    assert body["thinking"] == {"type": "enabled", "budget_tokens": 2048}
+    assert body["max_tokens"] == 2848
+    # Pre-5 models normally take a temperature; thinking-on must drop it.
+    assert "temperature" not in body
+
+
+@pytest.mark.asyncio
+async def test_thinking_budget_on_fable_omits_thinking_param_entirely() -> None:
+    # claude-fable-5 / claude-mythos-5 reject ANY explicit thinking config —
+    # a configured budget must not produce a thinking param (only headroom).
+    captured: dict[str, Any] = {}
+    p = _mock_provider(captured, events=_THINKING_EVENTS, model="claude-fable-5", thinking_budget_tokens=2048)
+    await _collect(p)
+    body = captured["body"]
+    assert "thinking" not in body
+    assert body["max_tokens"] == 2848
+    assert "temperature" not in body
 
 
 @pytest.mark.asyncio
