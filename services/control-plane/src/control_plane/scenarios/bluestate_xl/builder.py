@@ -29,6 +29,15 @@ from control_plane.scenarios.bluestate_xl.events import (
     STAKEHOLDERS,
     TOTAL_WEEKS,
 )
+from control_plane.scenarios.bluestate_xl.introspect import (
+    CommitmentFact,
+    DecisionFact,
+    EdgeFact,
+    RiskFact,
+    StakeholderFact,
+    SystemFact,
+    XlIntrospection,
+)
 
 TENANT_ID = "11111111-1111-1111-1111-111111111111"
 USER_STRATEGIST_ID = "aaaaaaa1-1111-4111-8111-111111111111"
@@ -76,13 +85,46 @@ class XlTimeAnchor:
 
 def build_xl_scenario_sql(
     anchor: XlTimeAnchor,
+    *,
+    introspection: XlIntrospection | None = None,
+    max_week: int | None = None,
 ) -> tuple[str, dict[str, dict[str, uuid.UUID]]]:
-    """Construct the full multi-statement SQL block for BlueState-XL."""
+    """Construct the full multi-statement SQL block for BlueState-XL.
+
+    ``introspection`` is an optional side channel (ticket G2): when
+    supplied, the builder records a typed fact for every stakeholder /
+    decision / risk / system / commitment / edge it emits — same UUIDs,
+    same weeks — without altering the SQL output in any way.
+
+    ``max_week`` is the explicit progressive mode (ticket G3): only events
+    whose timeline week is ``<= max_week`` are emitted, producing the true
+    prefix of the engagement — risks not yet closed stay open, stakeholders
+    not yet departed stay on the roster. Every emitted row keeps the exact
+    UUID it has in the full corpus (loops keep full-list enumeration so
+    idx-derived labels never shift), which is what makes longitudinal
+    checkpoints comparable. ``None`` (default) seeds all 260 weeks —
+    byte-identical to the pre-G3 output.
+    """
+    if max_week is not None and not 1 <= max_week <= TOTAL_WEEKS:
+        raise ValueError(f"max_week must be in 1..{TOTAL_WEEKS}; got {max_week}")
+
+    def _beyond(week: int) -> bool:
+        return max_week is not None and week > max_week
+
     statements: list[str] = ["BEGIN;"]
     registry: dict[str, dict[str, uuid.UUID]] = {}
 
+    # Introspection staging (assembled into facts at the end of the walk,
+    # once departure / closure weeks are known).
+    _stake_meta: dict[str, tuple[str, uuid.UUID, uuid.UUID, int]] = {}
+    _stake_departs: dict[str, int] = {}
+    _risk_open_meta: dict[str, tuple[str, uuid.UUID, int, uuid.UUID]] = {}
+    _risk_close_meta: dict[str, tuple[int, uuid.UUID]] = {}
+
     cluster_to_event_id: dict[str, uuid.UUID] = {}
     for ev in NARRATIVE:
+        if _beyond(ev.week):
+            continue
         event_id = _det_id(f"xl-narrative|{ev.cluster}")
         cluster_to_event_id[ev.cluster or ""] = event_id
         occurred_at = anchor.at(ev.week, ev.day, ev.hour)
@@ -103,6 +145,8 @@ def build_xl_scenario_sql(
 
     stakeholder_node_ids: dict[str, uuid.UUID] = {}
     for ev in STAKEHOLDERS:
+        if _beyond(ev.week):
+            continue
         occurred_at = anchor.at(ev.week, ev.day, ev.hour)
         if ev.kind == "matrix_node_created":
             node_id = _det_id(f"xl-stakeholder-node|{ev.cluster}")
@@ -142,6 +186,7 @@ def build_xl_scenario_sql(
                     affects=[("matrix_node", node_id)],
                 )
             )
+            _stake_meta[ev.cluster or ""] = (ev.title or "stakeholder", node_id, event_id, ev.week)
         elif ev.kind == "matrix_node_deleted":
             base_lookup = (ev.cluster or "").removesuffix("-out")
             node_id = stakeholder_node_ids.get(
@@ -164,10 +209,13 @@ def build_xl_scenario_sql(
                     detail_json='{"node_type": "stakeholder", "title": "' + _q(ev.title or "") + '"}',
                 )
             )
+            _stake_departs[base_lookup] = ev.week
 
     decision_node_ids: dict[str, uuid.UUID] = {}
     accept_ledger_ids: dict[str, uuid.UUID] = {}
     for ev in DECISIONS:
+        if _beyond(ev.week):
+            continue
         proposal_id = _det_id(f"xl-decision-proposal|{ev.cluster}")
         node_id = _det_id(f"xl-decision-node|{ev.cluster}")
         created_at = anchor.at(ev.week, ev.day, ev.hour)
@@ -180,6 +228,11 @@ def build_xl_scenario_sql(
         else:
             cycle_hours = 96
         decided_at = created_at + timedelta(hours=cycle_hours)
+        # Week the accept/reject event lands in (1-based, aligned with
+        # ``anchor.at``'s hour-9 Monday origin). Introspection only.
+        decided_week = ((ev.week - 1) * 168 + (ev.day - 1) * 24 + (ev.hour - 9) + cycle_hours) // 168 + 1
+        accept_evt_for_fact: uuid.UUID | None = None
+        reject_evt_for_fact: uuid.UUID | None = None
 
         create_evt_id = _det_id(f"xl-decision-create-evt|{ev.cluster}")
         statements.append(
@@ -213,6 +266,7 @@ def build_xl_scenario_sql(
             )
             decision_node_ids[ev.cluster or ""] = node_id
             accept_ledger_ids[ev.cluster or ""] = accept_evt_id
+            accept_evt_for_fact = accept_evt_id
             statements.append(
                 _emit_ledger_sql(
                     event_id=accept_evt_id,
@@ -233,6 +287,7 @@ def build_xl_scenario_sql(
             )
         elif ev.rejects_acceptance:
             reject_evt_id = _det_id(f"xl-decision-reject-evt|{ev.cluster}")
+            reject_evt_for_fact = reject_evt_id
             statements.append(
                 _emit_ledger_sql(
                     event_id=reject_evt_id,
@@ -248,8 +303,24 @@ def build_xl_scenario_sql(
                     caused_by=[create_evt_id],
                 )
             )
+        if introspection is not None:
+            introspection.decisions.append(
+                DecisionFact(
+                    cluster=ev.cluster or "",
+                    title=ev.title or ev.summary,
+                    proposal_week=ev.week,
+                    decided_week=decided_week,
+                    accepted=ev.accept_decision,
+                    node_id=node_id if ev.accept_decision else None,
+                    create_event_id=create_evt_id,
+                    accept_event_id=accept_evt_for_fact,
+                    reject_event_id=reject_evt_for_fact,
+                )
+            )
 
     for ev in EXTRACTOR_NOISE:
+        if _beyond(ev.week):
+            continue
         proposal_id = _det_id(f"xl-extractor-noise-proposal|{ev.cluster}")
         created_at = anchor.at(ev.week, ev.day, ev.hour)
         decided_at = created_at + timedelta(hours=6)
@@ -287,6 +358,8 @@ def build_xl_scenario_sql(
 
     risk_insight_ids: dict[str, uuid.UUID] = {}
     for ev in RISKS_OPENED:
+        if _beyond(ev.week):
+            continue
         opened_at = anchor.at(ev.week, ev.day, ev.hour)
         insight_id = _det_id(f"xl-risk-insight|{ev.cluster}")
         risk_insight_ids[ev.cluster or ""] = insight_id
@@ -317,8 +390,13 @@ def build_xl_scenario_sql(
                 affects=[("insight", insight_id)],
             )
         )
+        _risk_open_meta[ev.cluster or ""] = (ev.title or ev.summary, insight_id, ev.week, open_evt_id)
 
     for ev in RISKS_CLOSED:
+        if _beyond(ev.week):
+            # Progressive prefix: a close beyond the horizon simply hasn't
+            # happened yet — the risk stays open, which is the honest state.
+            continue
         closed_at = anchor.at(ev.week, ev.day, ev.hour)
         insight_id = risk_insight_ids.get(
             ev.risk_close_of or "",
@@ -348,6 +426,7 @@ def build_xl_scenario_sql(
                 affects=[("insight", insight_id)],
             )
         )
+        _risk_close_meta[ev.risk_close_of or ""] = (ev.week, close_evt_id)
 
     system_titles = [
         ("Member Portal (web)", 1),
@@ -365,6 +444,8 @@ def build_xl_scenario_sql(
     for title, week in system_titles:
         node_id = _det_id(f"xl-system-node|{title}")
         system_node_ids[title] = node_id
+        if _beyond(week):
+            continue
         created_at = anchor.at(week, 1, 9)
         evt_id = _det_id(f"xl-system-evt|{title}")
         statements.append(
@@ -393,6 +474,8 @@ def build_xl_scenario_sql(
                 affects=[("matrix_node", node_id)],
             )
         )
+        if introspection is not None:
+            introspection.systems.append(SystemFact(title=title, node_id=node_id, week=week, create_event_id=evt_id))
 
     commitments = [
         ("MSA + BAA signed", 8),
@@ -407,6 +490,8 @@ def build_xl_scenario_sql(
     for title, week in commitments:
         node_id = _det_id(f"xl-commit-node|{title}")
         commitment_node_ids[title] = node_id
+        if _beyond(week):
+            continue
         created_at = anchor.at(week, 1, 10)
         evt_id = _det_id(f"xl-commit-evt|{title}")
         statements.append(
@@ -435,6 +520,10 @@ def build_xl_scenario_sql(
                 affects=[("matrix_node", node_id)],
             )
         )
+        if introspection is not None:
+            introspection.commitments.append(
+                CommitmentFact(title=title, node_id=node_id, week=week, create_event_id=evt_id)
+            )
 
     # Edges: build enough to clear the ~600 target. Spread across the
     # accepted-decision set, the system catalog and the stakeholder roster
@@ -477,6 +566,8 @@ def build_xl_scenario_sql(
     edge_budget = 620
     system_titles_only = [t for t, _ in system_titles]
     commitment_titles_only = [t for t, _ in commitments]
+    system_week_by_title = dict(system_titles)
+    commitment_week_by_title = dict(commitments)
 
     def _add_edge(
         kind: str,
@@ -484,11 +575,27 @@ def build_xl_scenario_sql(
         dst: uuid.UUID,
         week: int,
         label: str,
+        *,
+        endpoints: tuple[str, str, str, str] | None = None,
     ) -> None:
         nonlocal edges_emitted
         edge_id = _det_id(f"xl-edge|{label}|{kind}")
         edge_evt_id = _det_id(f"xl-edge-evt|{label}|{kind}")
         edge_at = anchor.at(min(max(week, 1), TOTAL_WEEKS), 1, 9)
+        if introspection is not None and endpoints is not None:
+            from_kind, from_key, to_kind, to_key = endpoints
+            introspection.edges.append(
+                EdgeFact(
+                    edge_type=kind,
+                    from_kind=from_kind,
+                    from_key=from_key,
+                    to_kind=to_kind,
+                    to_key=to_key,
+                    week=min(max(week, 1), TOTAL_WEEKS),
+                    edge_id=edge_id,
+                    event_id=edge_evt_id,
+                )
+            )
         statements.append(
             _matrix_edge_sql(
                 edge_id=edge_id,
@@ -517,9 +624,14 @@ def build_xl_scenario_sql(
         )
         edges_emitted += 1
 
+    # NOTE (G3): enumeration stays over the FULL accepted list even in
+    # progressive mode — the idx baked into each edge label must not shift
+    # with the horizon, or checkpoint corpora would stop being prefixes.
     for idx, ev in enumerate(accepted_decisions):
         if edges_emitted >= edge_budget:
             break
+        if _beyond(ev.week):
+            continue
         decision_id = decision_node_ids[ev.cluster or ""]
         alive_now = _alive_clusters_at(ev.week)
         if not alive_now:
@@ -532,27 +644,32 @@ def build_xl_scenario_sql(
             decision_id,
             ev.week,
             f"xl-sponsor-{idx}-{ev.cluster}",
+            endpoints=("stakeholder", sponsor_cluster, "decision", ev.cluster or ""),
         )
         if edges_emitted >= edge_budget:
             break
         sys_title = system_titles_only[idx % len(system_titles_only)]
-        _add_edge(
-            "depends_on",
-            decision_id,
-            system_node_ids[sys_title],
-            ev.week,
-            f"xl-dep-{idx}-{ev.cluster}",
-        )
+        if not _beyond(system_week_by_title[sys_title]):
+            _add_edge(
+                "depends_on",
+                decision_id,
+                system_node_ids[sys_title],
+                ev.week,
+                f"xl-dep-{idx}-{ev.cluster}",
+                endpoints=("decision", ev.cluster or "", "system", sys_title),
+            )
         if edges_emitted >= edge_budget:
             break
         commit_title = commitment_titles_only[idx % len(commitment_titles_only)]
-        _add_edge(
-            "affects",
-            decision_id,
-            commitment_node_ids[commit_title],
-            ev.week,
-            f"xl-affect-{idx}-{ev.cluster}",
-        )
+        if not _beyond(commitment_week_by_title[commit_title]):
+            _add_edge(
+                "affects",
+                decision_id,
+                commitment_node_ids[commit_title],
+                ev.week,
+                f"xl-affect-{idx}-{ev.cluster}",
+                endpoints=("decision", ev.cluster or "", "commitment", commit_title),
+            )
 
     # Static structural edges between systems and stakeholders to add depth.
     structural_targets = [
@@ -568,12 +685,20 @@ def build_xl_scenario_sql(
     for idx, (src_title, dst_title) in enumerate(structural_targets):
         if edges_emitted >= edge_budget:
             break
+        structural_week = min(1 + idx * 30, TOTAL_WEEKS)
+        if (
+            _beyond(structural_week)
+            or _beyond(system_week_by_title[src_title])
+            or _beyond(system_week_by_title[dst_title])
+        ):
+            continue
         _add_edge(
             "depends_on",
             system_node_ids[src_title],
             system_node_ids[dst_title],
-            min(1 + idx * 30, TOTAL_WEEKS),
+            structural_week,
             f"xl-structural-{idx}-{src_title}-{dst_title}",
+            endpoints=("system", src_title, "system", dst_title),
         )
 
     for user_id, role in (
@@ -599,6 +724,32 @@ def build_xl_scenario_sql(
         )
 
     statements.append("COMMIT;")
+
+    if introspection is not None:
+        for cluster, (title, node_id, event_id, hired) in _stake_meta.items():
+            introspection.stakeholders.append(
+                StakeholderFact(
+                    cluster=cluster,
+                    title=title,
+                    node_id=node_id,
+                    create_event_id=event_id,
+                    hire_week=hired,
+                    depart_week=_stake_departs.get(cluster),
+                )
+            )
+        for cluster, (title, insight_id, opened, open_evt) in _risk_open_meta.items():
+            close = _risk_close_meta.get(cluster)
+            introspection.risks.append(
+                RiskFact(
+                    cluster=cluster,
+                    title=title,
+                    insight_id=insight_id,
+                    open_week=opened,
+                    open_event_id=open_evt,
+                    close_week=close[0] if close else None,
+                    close_event_id=close[1] if close else None,
+                )
+            )
 
     registry["clusters"] = cluster_to_event_id
     registry["stakeholders"] = stakeholder_node_ids

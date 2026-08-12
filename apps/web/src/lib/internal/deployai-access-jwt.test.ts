@@ -40,6 +40,9 @@ describe("deployai-access-jwt", () => {
     expect(v1RoleFromJwtRoles(["fde"])).toBe("fde");
     expect(v1RoleFromJwtRoles(["biz_dev"])).toBe("biz_dev");
     expect(v1RoleFromJwtRoles(["fde", "deployment_strategist"])).toBe("deployment_strategist");
+    // Wave 4S: CP demo sessions carry exactly ["demo_guest"]; lowest priority.
+    expect(v1RoleFromJwtRoles(["demo_guest"])).toBe("demo_guest");
+    expect(v1RoleFromJwtRoles(["demo_guest", "biz_dev"])).toBe("biz_dev");
     expect(v1RoleFromJwtRoles(["unknown"])).toBeNull();
   });
 

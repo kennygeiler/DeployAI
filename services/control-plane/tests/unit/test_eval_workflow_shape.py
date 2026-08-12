@@ -144,6 +144,56 @@ def test_permissions_are_least_privilege() -> None:
     assert perms.get("contents") == "read", "workflow-level permissions must be contents: read (no write scopes)"
 
 
+# --- Longitudinal replay job (ticket G3) --------------------------------------
+
+
+def _longitudinal_job() -> dict[Any, Any]:
+    wf = _load_workflow()
+    job = wf["jobs"].get("longitudinal")
+    assert job is not None, "agent-kenny-eval.yml is missing the longitudinal job (ticket G3)"
+    return cast("dict[Any, Any]", job)
+
+
+def test_longitudinal_job_runs_weekly_or_on_dispatch() -> None:
+    condition = str(_longitudinal_job().get("if", ""))
+    assert "0 8 * * 1" in condition, "longitudinal job must key off the weekly Monday cron"
+    assert "workflow_dispatch" in condition, "longitudinal job must be runnable on demand"
+
+
+def test_longitudinal_job_invokes_the_longitudinal_cli() -> None:
+    job = _longitudinal_job()
+    run_scripts = [step.get("run", "") for step in job["steps"]]
+    cli = next((s for s in run_scripts if "tests.golden.agent_kenny.longitudinal" in s), None)
+    assert cli is not None, "longitudinal job does not invoke the longitudinal CLI"
+    assert "--checkpoints 182,730,1825" in cli, "CI keeps 3 checkpoints (0.5y/2y/5y) for runtime sanity"
+    assert "--questions derived" in cli, "longitudinal job must run the derived (G2) question set"
+    assert not any("pytest" in s for s in run_scripts), "longitudinal job must not invoke pytest"
+
+
+def test_longitudinal_job_pins_stub_provider_and_tolerance() -> None:
+    env = _longitudinal_job().get("env") or {}
+    assert env.get("DEPLOYAI_LLM_PROVIDER") == "stub", (
+        "longitudinal job must pin the stub provider — the degradation gate measures retrieval, "
+        "deterministically and without API spend"
+    )
+    assert "DEGRADATION_TOLERANCE" in env, "longitudinal job must set the degradation tolerance explicitly"
+
+
+def test_longitudinal_report_artifact_uploaded() -> None:
+    job = _longitudinal_job()
+    uploads = [
+        step
+        for step in job["steps"]
+        if isinstance(step.get("uses"), str) and step["uses"].startswith("actions/upload-artifact@")
+    ]
+    assert uploads, "longitudinal job has no upload-artifact step"
+    with_block = uploads[0].get("with") or {}
+    assert with_block.get("name", "").startswith("agent-kenny-longitudinal-"), (
+        "artifact name must be prefixed agent-kenny-longitudinal-"
+    )
+    assert str(uploads[0].get("if", "")).find("always()") != -1, "report must upload even when the gate fails"
+
+
 # --- ci.yml PR gate (ticket G5) -----------------------------------------------
 
 

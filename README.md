@@ -179,6 +179,7 @@ cd services/control-plane && uv run mypy && uv run pytest tests/unit
 
 ## Where to find more
 
+- [`docs/engineering-highlights.md`](./docs/engineering-highlights.md) — every engineering claim mapped to the code and CI gate that proves it
 - [`docs/agent-kenny/ethos.md`](./docs/agent-kenny/ethos.md) — architectural rationale (the load-bearing doc)
 - [`docs/agent-kenny/eval.md`](./docs/agent-kenny/eval.md) — the golden-question harness, CLI, and CI cadence
 - [`docs/plans/2026-08-11-pilot-refresh-backlog.md`](./docs/plans/2026-08-11-pilot-refresh-backlog.md) — the DRM reframe, HITL design, and wave-by-wave backlog (Waves 0–2 shipped)

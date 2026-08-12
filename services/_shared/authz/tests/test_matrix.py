@@ -55,6 +55,17 @@ def test_matrix_parity_sample() -> None:
         ("fde", "break_glass:invoke", False),
         ("biz_dev", "canonical:read", True),
         ("biz_dev", "ingest:view_runs", False),
+        # demo_guest (Wave 4S): read-only guest for the public demo workspace.
+        ("demo_guest", "canonical:read", True),
+        ("demo_guest", "override:submit", False),
+        ("demo_guest", "ingest:view_runs", False),
+        ("demo_guest", "ingest:sync", False),
+        ("demo_guest", "integration:kill_switch", False),
+        ("demo_guest", "scim:manage", False),
+        ("demo_guest", "foia:export", False),
+        ("demo_guest", "break_glass:invoke", False),
+        ("demo_guest", "solidification:promote", False),
+        ("demo_guest", "admin:promote_schema", False),
     ],
 )
 def test_role_action(
@@ -76,6 +87,9 @@ def test_role_action(
         ("deployment_strategist", T_A, T_B, False),
         ("customer_admin", T_A, T_B, False),
         ("fde", T_A, T_B, False),
+        # demo_guest reads only inside the disposable demo tenant
+        ("demo_guest", T_A, T_A, True),
+        ("demo_guest", T_A, T_B, False),
         # platform_admin is exempt from the cross-tenant block (support/ops role)
         ("platform_admin", T_A, T_B, True),
         # actor without a tenant: only the both-present-and-differ rule applies
@@ -130,6 +144,8 @@ def test_tenant_scoped_kind_without_tenant_id_denied_in_production(monkeypatch: 
         ("fde", "admin:read", False),
         ("biz_dev", "admin:read", False),
         ("external_auditor", "admin:read", False),
+        # demo_guest must never see /admin pages or /api/internal/v1 proxy routes.
+        ("demo_guest", "admin:read", False),
         ("platform_admin", "internal:proxy", True),
         ("customer_admin", "internal:proxy", True),
         ("deployment_strategist", "internal:proxy", True),
@@ -138,6 +154,7 @@ def test_tenant_scoped_kind_without_tenant_id_denied_in_production(monkeypatch: 
         ("successor_strategist", "internal:proxy", False),
         ("customer_records_officer", "internal:proxy", False),
         ("external_auditor", "internal:proxy", False),
+        ("demo_guest", "internal:proxy", False),
     ],
 )
 def test_admin_and_internal_actions(role: str, action: str, expect: bool) -> None:

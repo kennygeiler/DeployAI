@@ -116,6 +116,52 @@ describe("internal API gating (internal:proxy)", () => {
   });
 });
 
+describe("demo_guest role (Wave 4S guest demo access)", () => {
+  it("is accepted on strategist read surfaces (canonical:read)", async () => {
+    const res = await middleware(
+      req("/engagements", { "x-deployai-role": "demo_guest", "x-deployai-tenant": T_A }),
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("is accepted on /api/bff routes (read + Oracle chat surfaces)", async () => {
+    const res = await middleware(
+      req("/api/bff/engagements", { "x-deployai-role": "demo_guest", "x-deployai-tenant": T_A }),
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("is denied on /admin pages (no admin:read)", async () => {
+    const res = await middleware(
+      req("/admin/agent-kenny-dashboard", {
+        "x-deployai-role": "demo_guest",
+        "x-deployai-tenant": T_A,
+      }),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("is denied on /api/internal/v1 proxy routes (no internal:proxy — bulk accept, MCP config)", async () => {
+    const res = await middleware(
+      req(`/api/internal/v1/tenants/${T_A}/mcp_configs`, {
+        "x-deployai-role": "demo_guest",
+        "x-deployai-tenant": T_A,
+      }),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("cannot reach another tenant's internal routes either", async () => {
+    const res = await middleware(
+      req(`/api/internal/v1/tenants/${T_B}/mcp_configs`, {
+        "x-deployai-role": "demo_guest",
+        "x-deployai-tenant": T_A,
+      }),
+    );
+    expect(res.status).toBe(403);
+  });
+});
+
 describe("inbound strategist header stripping runs on newly matched paths", () => {
   function activateStripPolicy() {
     vi.stubEnv("DEPLOYAI_WEB_CLEAR_STRATEGIST_HEADERS_BEFORE_JWT", "1");
