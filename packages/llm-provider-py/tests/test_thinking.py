@@ -1,0 +1,171 @@
+"""Extended-thinking support in AnthropicProvider.chat_complete_stream_with_tools.
+
+Covers the request-body contract (the ``thinking`` param appears only when
+a budget is enabled, ``max_tokens`` always exceeds the budget, temperature
+is dropped) and the stream contract (``thinking_delta`` SSE events surface
+as :class:`ThinkingDelta` chunks without disturbing text / tool-use).
+"""
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+import httpx
+import pytest
+
+from llm_provider_py.anthropic import AnthropicProvider
+from llm_provider_py.types import (
+    StopReason,
+    TextDelta,
+    ThinkingDelta,
+    ToolStreamChunk,
+)
+
+_TOOL_SPEC: list[dict[str, Any]] = [
+    {
+        "name": "query_ledger",
+        "description": "Query the ledger.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    }
+]
+
+_THINKING_EVENTS: list[dict[str, Any]] = [
+    {"type": "message_start", "message": {"usage": {"input_tokens": 10, "output_tokens": 0}}},
+    {"type": "content_block_start", "index": 0, "content_block": {"type": "thinking", "thinking": ""}},
+    {"type": "content_block_delta", "index": 0, "delta": {"type": "thinking_delta", "thinking": "Check the "}},
+    {"type": "content_block_delta", "index": 0, "delta": {"type": "thinking_delta", "thinking": "open risks."}},
+    {"type": "content_block_delta", "index": 0, "delta": {"type": "signature_delta", "signature": "sig=="}},
+    {"type": "content_block_stop", "index": 0},
+    {"type": "content_block_start", "index": 1, "content_block": {"type": "text", "text": ""}},
+    {"type": "content_block_delta", "index": 1, "delta": {"type": "text_delta", "text": "Two risks remain."}},
+    {"type": "content_block_stop", "index": 1},
+    {"type": "message_delta", "delta": {"stop_reason": "end_turn"}, "usage": {"output_tokens": 40}},
+]
+
+
+def _sse_payload(events: list[dict[str, Any]]) -> bytes:
+    return b"".join(f"data: {json.dumps(e)}\n".encode() for e in events)
+
+
+def _mock_provider(
+    captured: dict[str, Any],
+    *,
+    events: list[dict[str, Any]],
+    **provider_kwargs: Any,
+) -> AnthropicProvider:
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content.decode())
+        return httpx.Response(200, content=_sse_payload(events))
+
+    return AnthropicProvider(api_key="sk-test", transport=httpx.MockTransport(handler), **provider_kwargs)
+
+
+async def _collect(
+    provider: AnthropicProvider,
+    *,
+    temperature: float = 0.1,
+    max_output_tokens: int = 800,
+) -> list[ToolStreamChunk]:
+    out: list[ToolStreamChunk] = []
+    async for c in provider.chat_complete_stream_with_tools(
+        [{"role": "user", "content": "state?"}],
+        _TOOL_SPEC,
+        temperature=temperature,
+        max_output_tokens=max_output_tokens,
+    ):
+        out.append(c)
+    await provider.aclose()
+    return out
+
+
+@pytest.mark.asyncio
+async def test_thinking_enabled_sends_param_and_yields_thinking_deltas() -> None:
+    captured: dict[str, Any] = {}
+    p = _mock_provider(captured, events=_THINKING_EVENTS, thinking_budget_tokens=2048)
+    out = await _collect(p)
+
+    body = captured["body"]
+    assert body["thinking"] == {"type": "enabled", "budget_tokens": 2048}
+    # max_tokens must exceed the budget: 800 <= 2048 → grown to 2048 + 800.
+    assert body["max_tokens"] == 2848
+    # thinking is incompatible with a pinned temperature.
+    assert "temperature" not in body
+
+    thinking = [c for c in out if isinstance(c, ThinkingDelta)]
+    assert [c.content for c in thinking] == ["Check the ", "open risks."]
+    # Text + stop are untouched; signature_delta produced no chunk.
+    text = [c for c in out if isinstance(c, TextDelta)]
+    assert [c.content for c in text] == ["Two risks remain."]
+    assert isinstance(out[-1], StopReason)
+    assert out[-1].reason == "end_turn"
+
+
+@pytest.mark.asyncio
+async def test_thinking_disabled_omits_param_and_drops_nothing_else() -> None:
+    captured: dict[str, Any] = {}
+    # model pinned pre-5 so a temperature would normally be sent.
+    p = _mock_provider(captured, events=_THINKING_EVENTS, model="claude-opus-4-1")
+    out = await _collect(p)
+
+    body = captured["body"]
+    assert "thinking" not in body
+    assert body["max_tokens"] == 800
+    assert body["temperature"] == 0.1
+    # A rogue thinking_delta without the request param still parses safely.
+    assert [c.content for c in out if isinstance(c, ThinkingDelta)] == ["Check the ", "open risks."]
+    assert [c.content for c in out if isinstance(c, TextDelta)] == ["Two risks remain."]
+
+
+@pytest.mark.asyncio
+async def test_thinking_budget_resolves_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DEPLOYAI_ANTHROPIC_THINKING_BUDGET", "1024")
+    captured: dict[str, Any] = {}
+    p = _mock_provider(captured, events=_THINKING_EVENTS)
+    await _collect(p)
+    assert captured["body"]["thinking"] == {"type": "enabled", "budget_tokens": 1024}
+    assert captured["body"]["max_tokens"] == 1024 + 800
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("raw", ["", "0", "-5", "lots"])
+async def test_thinking_env_zero_unset_or_invalid_disables(monkeypatch: pytest.MonkeyPatch, raw: str) -> None:
+    if raw:
+        monkeypatch.setenv("DEPLOYAI_ANTHROPIC_THINKING_BUDGET", raw)
+    else:
+        monkeypatch.delenv("DEPLOYAI_ANTHROPIC_THINKING_BUDGET", raising=False)
+    captured: dict[str, Any] = {}
+    p = _mock_provider(captured, events=_THINKING_EVENTS)
+    await _collect(p)
+    assert "thinking" not in captured["body"]
+
+
+@pytest.mark.asyncio
+async def test_thinking_max_tokens_kept_when_already_above_budget() -> None:
+    captured: dict[str, Any] = {}
+    p = _mock_provider(captured, events=_THINKING_EVENTS, thinking_budget_tokens=512)
+    await _collect(p, max_output_tokens=4096)
+    assert captured["body"]["thinking"] == {"type": "enabled", "budget_tokens": 512}
+    assert captured["body"]["max_tokens"] == 4096
+
+
+@pytest.mark.asyncio
+async def test_method_budget_override_beats_constructor() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content.decode())
+        return httpx.Response(200, content=_sse_payload(_THINKING_EVENTS))
+
+    p = AnthropicProvider(api_key="sk-test", transport=httpx.MockTransport(handler), thinking_budget_tokens=2048)
+    out: list[ToolStreamChunk] = []
+    async for c in p.chat_complete_stream_with_tools(
+        [{"role": "user", "content": "x"}],
+        _TOOL_SPEC,
+        max_output_tokens=800,
+        thinking_budget_tokens=0,
+    ):
+        out.append(c)
+    await p.aclose()
+    assert "thinking" not in captured["body"]
+    assert captured["body"]["max_tokens"] == 800

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
@@ -29,6 +30,7 @@ from llm_provider_py.types import (
     LLMProvider,
     StopReason,
     TextDelta,
+    ThinkingDelta,
     ToolStreamChunk,
     ToolUseEnd,
     ToolUseStart,
@@ -44,6 +46,14 @@ from control_plane.agents.tools import TOOL_REGISTRY
 
 _LLM_TEMPERATURE = 0.2
 _LLM_MAX_OUTPUT_TOKENS = 800
+# GAP 2 (2026-08-11): surface provider extended-thinking as SSE `thinking`
+# frames. 0 / unset / non-numeric → off (no behaviour change). The provider
+# side is enabled separately via DEPLOYAI_ANTHROPIC_THINKING_BUDGET — set
+# both to light up the "Thought for Ns" trace in the web UI.
+AGENT_THINKING_BUDGET_ENV = "DEPLOYAI_AGENT_THINKING_BUDGET"
+# Matches the pre-existing <thinking>-tag frame cap so frame semantics stay
+# identical for the web client.
+_THINKING_FRAME_MAX_CHARS = 500
 _TOOL_RESULT_RE = re.compile(
     r'<tool_result name="(?P<name>[^"]*)"(?:\s+error="(?P<error>[^"]*)")?>(?P<body>.*?)</tool_result>',
     re.DOTALL,
@@ -53,6 +63,17 @@ _THINKING_RE = re.compile(r"<thinking>(.*?)</thinking>", re.DOTALL)
 # the previous Phase 2 unit tests that asserted on the parser API keep
 # compiling. New code MUST use the native ToolUseStart/End chunks instead.
 _LEGACY_TOOL_CALL_RE = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL)
+
+
+def _thinking_frames_enabled() -> bool:
+    """Resolve the SSE-thinking gate; read per call so tests can flip the env."""
+    raw = os.environ.get(AGENT_THINKING_BUDGET_ENV, "").strip()
+    if not raw:
+        return False
+    try:
+        return int(raw) > 0
+    except ValueError:
+        return False
 
 
 def _anthropic_tool_specs(
@@ -258,12 +279,33 @@ async def call_llm_with_tools(
         temperature=_LLM_TEMPERATURE,
         max_output_tokens=_LLM_MAX_OUTPUT_TOKENS,
     )
+    # Native extended-thinking (provider ThinkingDelta chunks). Deltas are
+    # buffered per thinking block and flushed as ONE `thinking` SSE frame —
+    # the web UI counts each frame as one reasoning step. Gated by
+    # DEPLOYAI_AGENT_THINKING_BUDGET; when off, deltas are dropped so the
+    # stream is byte-identical to the pre-thinking behaviour.
+    thinking_frames_on = _thinking_frames_enabled()
+    native_thinking_buf: list[str] = []
+
+    async def _flush_native_thinking() -> None:
+        if not native_thinking_buf:
+            return
+        joined = "".join(native_thinking_buf).strip()
+        native_thinking_buf.clear()
+        if joined and emit is not None:
+            await emit(ThinkingChunk(content=joined[:_THINKING_FRAME_MAX_CHARS]))
+
     async for chunk in stream:
-        if isinstance(chunk, TextDelta):
+        if isinstance(chunk, ThinkingDelta):
+            if thinking_frames_on:
+                native_thinking_buf.append(chunk.content)
+        elif isinstance(chunk, TextDelta):
+            await _flush_native_thinking()
             text_buf.append(chunk.content)
             if emit is not None and chunk.content:
                 await emit(DeltaChunk(content=chunk.content))
         elif isinstance(chunk, ToolUseStart):
+            await _flush_native_thinking()
             pending[chunk.id] = {"id": chunk.id, "name": chunk.name, "input": {}}
         elif isinstance(chunk, ToolUseEnd):
             entry = pending.pop(chunk.id, {"id": chunk.id, "name": chunk.name, "input": {}})
@@ -272,6 +314,7 @@ async def call_llm_with_tools(
         elif isinstance(chunk, StopReason):
             usage = chunk.usage or {}
             tokens = int(usage.get("input_tokens", 0) or 0) + int(usage.get("output_tokens", 0) or 0)
+    await _flush_native_thinking()
 
     raw_text = "".join(text_buf)
     thinking = [m.group(1).strip() for m in _THINKING_RE.finditer(raw_text) if m.group(1).strip()]
