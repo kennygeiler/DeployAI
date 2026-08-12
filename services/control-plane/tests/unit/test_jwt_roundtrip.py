@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
+import jwt
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -44,3 +45,30 @@ def test_rs256_roundtrip(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Non
     assert out["roles"] == roles
     clear_jwt_key_cache()
     clear_settings_cache()
+
+
+def test_expires_in_override_and_normal_ttl_unaffected(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """``expires_in`` overrides the TTL for that one token; a token minted the
+    normal way (no ``expires_in``) keeps ``access_token_ttl_seconds`` even when
+    ``DEPLOYAI_DEMO_SESSION_TTL`` is set — the demo TTL only applies where the
+    demo mint threads it explicitly."""
+    clear_settings_cache()
+    clear_jwt_key_cache()
+    priv, pub = _write_rsa(tmp_path)
+    monkeypatch.setenv("DEPLOYAI_JWT_PRIVATE_KEY_PATH", str(priv))
+    monkeypatch.setenv("DEPLOYAI_JWT_PUBLIC_KEY_PATHS", str(pub))
+    monkeypatch.setenv("DEPLOYAI_DEMO_SESSION_TTL", "3600")
+    try:
+        s = get_settings()
+        normal = create_access_token(sub="u", tid="t", roles=["platform_admin"], access_jti=str(uuid.uuid4()))
+        out = jwt.decode(normal, options={"verify_signature": False})
+        assert out["exp"] - out["iat"] == s.access_token_ttl_seconds == 900
+
+        overridden = create_access_token(
+            sub="u", tid="t", roles=["platform_admin"], access_jti=str(uuid.uuid4()), expires_in=1234
+        )
+        out = jwt.decode(overridden, options={"verify_signature": False})
+        assert out["exp"] - out["iat"] == 1234
+    finally:
+        clear_jwt_key_cache()
+        clear_settings_cache()

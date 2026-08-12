@@ -62,12 +62,20 @@ def create_access_token(
     tid: str,
     roles: list[str],
     access_jti: str,
+    expires_in: int | None = None,
 ) -> str:
+    """Sign an RS256 access JWT.
+
+    ``expires_in`` overrides the standard ``access_token_ttl_seconds`` for this
+    one token (used by the demo-session mint); ``None`` — the default and what
+    every normal session path passes — keeps the settings TTL.
+    """
     s = get_settings()
     m = _load_key_material()
     if m.private_pem is None:
         raise RuntimeError("JWT signing requires DEPLOYAI_JWT_PRIVATE_KEY_PATH")
     now = int(time.time())
+    ttl = expires_in if expires_in is not None else s.access_token_ttl_seconds
     payload: dict[str, Any] = {
         "sub": sub,
         "tid": tid,
@@ -75,7 +83,7 @@ def create_access_token(
         "iss": s.jwt_issuer,
         "aud": s.jwt_audience,
         "iat": now,
-        "exp": now + s.access_token_ttl_seconds,
+        "exp": now + ttl,
         "jti": access_jti,
         "token_use": "access",
     }

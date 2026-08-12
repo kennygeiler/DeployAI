@@ -5,8 +5,11 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEMO_SESSION_TTL_MAX_SECONDS = 3600
+"""Hard ceiling for ``demo_session_ttl_seconds`` — a demo session never outlives an hour."""
 
 
 class ControlPlaneSettings(BaseSettings):
@@ -50,6 +53,14 @@ class ControlPlaneSettings(BaseSettings):
 
     demo_user_id: str | None = None
     """UUID of the seeded demo user row all guest sessions share (audit trails attribute to it)."""
+
+    demo_session_ttl_seconds: int = Field(
+        default=900,
+        validation_alias=AliasChoices("DEPLOYAI_DEMO_SESSION_TTL", "demo_session_ttl_seconds"),
+    )
+    """Access-token TTL for demo guest sessions ONLY (env ``DEPLOYAI_DEMO_SESSION_TTL``).
+    Clamped to [1, 3600] — a demo session never outlives an hour. Normal sessions keep
+    ``access_token_ttl_seconds``; the demo mint threads this value explicitly."""
 
     tenant_dek_mode: Literal["stub", "aws_kms"] = "stub"
     """``stub`` stores random key material (dev/tests). ``aws_kms`` — TODO(Story 2-5+): real KMS wrap."""
@@ -135,6 +146,11 @@ class ControlPlaneSettings(BaseSettings):
     session_access_cookie: str = "dep_access"
     session_refresh_cookie: str = "dep_refresh"
     """HttpOnly cookies set on OIDC callback (browser clients); `POST /auth/refresh` still uses JSON body too."""
+
+    @field_validator("demo_session_ttl_seconds", mode="after")
+    @classmethod
+    def _clamp_demo_session_ttl(cls, v: int) -> int:
+        return max(1, min(v, DEMO_SESSION_TTL_MAX_SECONDS))
 
     @field_validator(
         "allow_test_session_mint",
