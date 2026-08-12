@@ -104,9 +104,7 @@ async def test_follow_up_request_carries_thinking_block_first_in_assistant_turn(
     state = _state()
     await call_llm_with_tools(provider, state, emit=None)
     # Simulate tool_dispatch appending the result as user text.
-    state.messages.append(
-        {"role": "user", "content": '<tool_result name="query_ledger">3 events</tool_result>'}
-    )
+    state.messages.append({"role": "user", "content": '<tool_result name="query_ledger">3 events</tool_result>'})
     await call_llm_with_tools(provider, state, emit=None)
 
     follow_up = provider.captured_messages[1]
