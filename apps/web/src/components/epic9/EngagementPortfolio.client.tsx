@@ -101,6 +101,7 @@ export function EngagementPortfolio() {
               ranked.map((e) => (
                 <tr
                   key={e.id}
+                  data-tour="portfolio-row"
                   className="border-t border-line transition-colors first:border-t-0 hover:bg-hover"
                 >
                   <td className="px-3 py-2.5 font-medium">

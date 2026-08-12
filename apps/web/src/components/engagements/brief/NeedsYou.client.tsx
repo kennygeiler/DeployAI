@@ -39,7 +39,12 @@ export function NeedsYou({
   const reviewHref = `/review?engagementId=${encodeURIComponent(engagementId)}`;
 
   return (
-    <section aria-labelledby="needs-you-heading" data-testid="needs-you" className="space-y-2">
+    <section
+      aria-labelledby="needs-you-heading"
+      data-testid="needs-you"
+      data-tour="brief-needs-you"
+      className="space-y-2"
+    >
       <div className="flex items-center gap-2">
         <h2 id="needs-you-heading" className="text-ink-800 text-sm font-semibold">
           Needs you

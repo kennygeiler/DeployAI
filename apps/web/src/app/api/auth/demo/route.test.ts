@@ -84,6 +84,11 @@ describe("GET /api/auth/demo", () => {
     );
     // No refresh cookie: demo sessions just expire.
     expect(res.cookies.get("deployai_refresh_token")).toBeUndefined();
+    // K6 — guided-tour switch: readable by the client (NOT httpOnly).
+    const tour = res.cookies.get("demo_tour");
+    expect(tour?.value).toBe("1");
+    expect(tour?.httpOnly).toBe(false);
+    expect(tour?.maxAge).toBe(900);
   });
 
   it("mirrors CP 404 (demo disabled on the CP) as 404", async () => {
