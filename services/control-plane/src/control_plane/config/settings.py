@@ -39,6 +39,18 @@ class ControlPlaneSettings(BaseSettings):
     allow_test_session_mint: bool = False
     """When True, ``POST /internal/v1/test/session-tokens`` may mint (still needs internal key)."""
 
+    # --- Wave 4S: public "View live demo" guest access ---
+    demo_guest_enabled: bool = False
+    """When True AND ``demo_tenant_id``/``demo_user_id`` are set, ``POST /internal/v1/demo/session``
+    (still behind the internal key) mints short-TTL ``demo_guest`` sessions onto the demo tenant.
+    NEVER enable on a deployment that hosts customer tenants — see docs/ops/cloud-deploy.md §7.1."""
+
+    demo_tenant_id: str | None = None
+    """UUID of the disposable, pre-seeded demo tenant every guest session is scoped to."""
+
+    demo_user_id: str | None = None
+    """UUID of the seeded demo user row all guest sessions share (audit trails attribute to it)."""
+
     tenant_dek_mode: Literal["stub", "aws_kms"] = "stub"
     """``stub`` stores random key material (dev/tests). ``aws_kms`` — TODO(Story 2-5+): real KMS wrap."""
 
@@ -126,6 +138,7 @@ class ControlPlaneSettings(BaseSettings):
 
     @field_validator(
         "allow_test_session_mint",
+        "demo_guest_enabled",
         "break_glass_bypass_webauthn",
         "slack_allow_unsigned",
         "oidc_jit_enabled",

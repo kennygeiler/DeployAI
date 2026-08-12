@@ -7,4 +7,5 @@ export type V1Role =
   | "successor_strategist"
   | "customer_records_officer"
   | "external_auditor"
+  | "demo_guest"
   | "pending_assignment";

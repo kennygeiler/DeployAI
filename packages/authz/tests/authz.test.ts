@@ -69,6 +69,18 @@ describe("canAccess + matrix (Epic 2.1)", () => {
     ["fde", "break_glass:invoke", false],
     ["biz_dev", "canonical:read", true],
     ["biz_dev", "override:submit", false],
+    // demo_guest (Wave 4S): read-only guest for the public demo workspace.
+    ["demo_guest", "canonical:read", true],
+    ["demo_guest", "override:submit", false],
+    ["demo_guest", "ingest:view_runs", false],
+    ["demo_guest", "ingest:sync", false],
+    ["demo_guest", "integration:kill_switch", false],
+    ["demo_guest", "scim:manage", false],
+    ["demo_guest", "foia:export", false],
+    ["demo_guest", "break_glass:invoke", false],
+    ["demo_guest", "solidification:promote", false],
+    ["demo_guest", "admin:promote_schema", false],
+    ["demo_guest", "eval:view_adjudication", false],
   ])("role %s action %s -> %s", (role, action, expectAllow) => {
     const d = canAccess({ role }, action, global, opts);
     expect(d.allow).toBe(expectAllow);
@@ -112,6 +124,23 @@ describe("tenant comparison on every resource kind (Wave 1 ticket A5)", () => {
       }
     },
   );
+
+  it("demo_guest reads only inside the demo tenant (cross-tenant blocked)", () => {
+    const ok = canAccess(
+      { role: "demo_guest", tenantId: T_A },
+      "canonical:read",
+      { kind: "canonical_memory", tenantId: T_A },
+      opts,
+    );
+    expect(ok.allow).toBe(true);
+    const cross = canAccess(
+      { role: "demo_guest", tenantId: T_A },
+      "canonical:read",
+      { kind: "canonical_memory", tenantId: T_B },
+      opts,
+    );
+    expect(cross.allow).toBe(false);
+  });
 
   it("cross-tenant block applies to the override kind too", () => {
     const d = canAccess(
@@ -173,6 +202,9 @@ describe("admin:read / internal:proxy actions (Wave 1 tickets A2+A5)", () => {
     ["successor_strategist", "admin:read", false],
     ["customer_records_officer", "admin:read", false],
     ["external_auditor", "admin:read", false],
+    // demo_guest must never see /admin pages or /api/internal/v1 proxy routes
+    // (bulk proposal accept, MCP config, Agent Kenny dashboard).
+    ["demo_guest", "admin:read", false],
     ["platform_admin", "internal:proxy", true],
     ["customer_admin", "internal:proxy", true],
     ["deployment_strategist", "internal:proxy", true],
@@ -181,6 +213,7 @@ describe("admin:read / internal:proxy actions (Wave 1 tickets A2+A5)", () => {
     ["successor_strategist", "internal:proxy", false],
     ["customer_records_officer", "internal:proxy", false],
     ["external_auditor", "internal:proxy", false],
+    ["demo_guest", "internal:proxy", false],
   ])("role %s action %s -> %s", (role, action, expectAllow) => {
     const d = canAccess({ role, tenantId: "t1" }, action, res, opts);
     expect(d.allow).toBe(expectAllow);

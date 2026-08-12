@@ -12,6 +12,7 @@ const ROLE_PRIORITY: V1Role[] = [
   "customer_records_officer",
   "external_auditor",
   "biz_dev",
+  "demo_guest",
 ];
 
 const spkiCache = new Map<string, Promise<CryptoKey>>();

@@ -20,7 +20,8 @@ function roleFromHeaders(h: Headers): V1Role | null {
     r === "fde" ||
     r === "biz_dev" ||
     r === "successor_strategist" ||
-    r === "customer_records_officer"
+    r === "customer_records_officer" ||
+    r === "demo_guest"
   ) {
     return r;
   }

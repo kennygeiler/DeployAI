@@ -15,6 +15,7 @@ V1Role = Literal[
     "successor_strategist",
     "customer_records_officer",
     "external_auditor",
+    "demo_guest",  # public demo auto-login (Wave 4S); canonical:read only, disposable demo tenant
     "pending_assignment",  # SSO: no matrix capabilities until tenant/role bound (Story 2-2)
 ]
 
@@ -141,6 +142,10 @@ _ALLOWED: Final[frozenset[tuple[str, str]]] = frozenset(
         ("fde", "override:submit"),
         # biz_dev — business development; reads the engagement memory.
         ("biz_dev", "canonical:read"),
+        # demo_guest — auto-logged-in public demo sessions (Wave 4S showcase).
+        # canonical:read ONLY: read + Oracle chat surfaces work; admin:read,
+        # internal:proxy, override:submit, ingest:*, scim, foia are all denied.
+        ("demo_guest", "canonical:read"),
         ("successor_strategist", "ingest:view_runs"),
         ("successor_strategist", "canonical:read"),
         ("successor_strategist", "override:submit"),

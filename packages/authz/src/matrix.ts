@@ -47,6 +47,13 @@ const can: Array<[V1Role, Action]> = [
   // biz_dev — business development; reads the engagement memory. Least
   // privilege for now; expand when the Phase 4 collaboration model lands.
   ["biz_dev", "canonical:read"],
+  // demo_guest — auto-logged-in public demo sessions (Wave 4S showcase).
+  // canonical:read ONLY: strategist pages + /api/bff read/chat surfaces work;
+  // admin:read (/admin), internal:proxy (/api/internal/v1 incl. bulk proposal
+  // accept + MCP config), override:submit, ingest:*, scim, foia, break-glass
+  // are all denied. Sessions are minted only by the CP demo endpoint onto a
+  // disposable demo tenant.
+  ["demo_guest", "canonical:read"],
   ["successor_strategist", "ingest:view_runs"],
   ["successor_strategist", "canonical:read"],
   ["successor_strategist", "override:submit"],
