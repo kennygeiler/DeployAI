@@ -46,6 +46,7 @@ import yaml
 from httpx import AsyncClient
 
 from .types import (
+    CATEGORIES,
     EXPECTED_DISTRIBUTION,
     CategoryDistribution,
     Question,
@@ -83,23 +84,30 @@ _IDK_PATTERNS: tuple[re.Pattern[str], ...] = (
 # --- YAML loading -------------------------------------------------------------
 
 
-def load_questions(path: Path | None = None) -> list[Question]:
-    """Load + validate every entry in ``questions.yaml``.
+def load_questions(path: Path | None = None, *, enforce_distribution: bool = True) -> list[Question]:
+    """Load + validate every entry in a questions YAML file.
 
     Validates that:
 
     1. The file parses as a YAML sequence.
     2. Each entry parses as a :class:`Question` (Pydantic enforces the
        schema — closed category enum, no extra fields).
-    3. The count and per-category distribution match
-       :data:`EXPECTED_DISTRIBUTION` exactly.
+    3. With ``enforce_distribution=True`` (the default, and always the
+       right choice for the curated ``questions.yaml``), the count and
+       per-category distribution match :data:`EXPECTED_DISTRIBUTION`
+       exactly. The CLI's ``--questions PATH`` (e.g. the G2 derived set)
+       passes ``False`` — schema validation and the duplicate-id check
+       still apply.
     """
     src = path or QUESTIONS_PATH
     raw = yaml.safe_load(src.read_text(encoding="utf-8"))
     if not isinstance(raw, list):
         raise ValueError(f"{src} must be a YAML sequence; got {type(raw).__name__}")
     questions = [Question.model_validate(entry) for entry in raw]
-    _assert_distribution(questions)
+    if enforce_distribution:
+        _assert_distribution(questions)
+    else:
+        _assert_unique_ids(questions)
     return questions
 
 
@@ -111,10 +119,16 @@ def _assert_distribution(questions: list[Question]) -> None:
         raise ValueError(f"expected {expected_total} questions; got {total}")
     counts: dict[str, int] = dict.fromkeys(EXPECTED_DISTRIBUTION, 0)
     for q in questions:
+        if q.category not in counts:
+            raise ValueError(f"category {q.category!r} not allowed in the curated set (question {q.id})")
         counts[q.category] += 1
     for cat, want in EXPECTED_DISTRIBUTION.items():
         if counts[cat] != want:
             raise ValueError(f"category {cat!r}: expected {want} questions, got {counts[cat]}")
+    _assert_unique_ids(questions)
+
+
+def _assert_unique_ids(questions: list[Question]) -> None:
     ids = [q.id for q in questions]
     if len(set(ids)) != len(ids):
         dupes = sorted({i for i in ids if ids.count(i) > 1})
@@ -235,6 +249,8 @@ def _empty_result(question: Question, *, elapsed_ms: int, error: str) -> Questio
         substring_pass=question.should_idk,
         judged_pass=None,
         is_negative_control=question.is_negative_control,
+        expected_citation_ids_total=len(question.expected_citation_ids),
+        expected_citation_ids_matched=0,
     )
 
 
@@ -259,11 +275,15 @@ def _classify_frames(question: Question, frames: list[_Frame], *, latency_ms: in
             revisions = 0
 
     citation_kinds_seen: set[str] = set()
+    citation_ids_seen: set[str] = set()
     for f in frames:
         if f.event in ("citation_verified", "citation_unverified", "citation_external"):
             kind = f.data.get("kind")
             if isinstance(kind, str):
                 citation_kinds_seen.add(kind)
+            identifier = f.data.get("id")
+            if isinstance(identifier, str):
+                citation_ids_seen.add(identifier.strip().lower())
 
     citations_total = citations_verified + citations_unverified + citations_external
     idk = _detect_idk(final_text)
@@ -281,6 +301,12 @@ def _classify_frames(question: Question, frames: list[_Frame], *, latency_ms: in
             judged_pass = False
     expected_pass = substring_pass or judged_pass is True
     expected_kind_match = _expected_kind_match(question, citation_kinds_seen)
+
+    # Ticket G2 — citation-id ground truth for derived questions. Every
+    # expected id is a real seeded UUID (ledger event / node / insight);
+    # count how many the reply actually cited, any citation frame kind.
+    expected_ids = {i.strip().lower() for i in question.expected_citation_ids}
+    matched_ids = len(expected_ids & citation_ids_seen)
 
     return QuestionResult(
         id=question.id,
@@ -302,6 +328,8 @@ def _classify_frames(question: Question, frames: list[_Frame], *, latency_ms: in
         substring_pass=substring_pass,
         judged_pass=judged_pass,
         is_negative_control=question.is_negative_control,
+        expected_citation_ids_total=len(expected_ids),
+        expected_citation_ids_matched=matched_ids,
     )
 
 
@@ -535,7 +563,7 @@ def _aggregate(results: list[QuestionResult], *, started_at: datetime, finished_
     latencies = sorted(r.latency_ms for r in results)
 
     by_category: list[CategoryDistribution] = []
-    for cat in EXPECTED_DISTRIBUTION:
+    for cat in CATEGORIES:
         subset = [r for r in results if r.category == cat]
         if not subset:
             continue
@@ -693,6 +721,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
         metavar="D",
         help="BlueState-XL snapshot-backfill horizon in days (default 30; production fixture uses 1825)",
     )
+    parser.add_argument(
+        "--questions",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "alternate questions YAML (e.g. the G2 derived set from "
+            "`python -m tests.golden.agent_kenny.derive`); default is the curated questions.yaml. "
+            "Alternate files skip the 30-question distribution check."
+        ),
+    )
     return parser
 
 
@@ -719,7 +758,7 @@ async def _amain(args: argparse.Namespace) -> RunReport:
     os.environ["DEPLOYAI_AGENT_RUNTIME"] = args.runtime
     os.environ.setdefault("DEPLOYAI_INTERNAL_API_KEY", "agent-kenny-eval-cli")
 
-    questions = load_questions()
+    questions = load_questions(args.questions, enforce_distribution=args.questions is None)
     ids = [s.strip() for s in args.question_ids.split(",") if s.strip()] if args.question_ids else None
     selected = select_questions(
         questions,
