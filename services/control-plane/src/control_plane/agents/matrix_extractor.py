@@ -30,7 +30,11 @@ _log = logging.getLogger(__name__)
 _MAX_CONTENT_CHARS = 8000
 _MAX_PROPOSALS = 20
 _MAX_RATIONALE_CHARS = 500
-_MAX_OUTPUT_TOKENS = 2000
+# 4000, not 2000: a rich artifact (the demo kickoff transcript) yields
+# ~20 proposals whose JSON alone exceeds 2000 tokens on the Sonnet 5
+# tokenizer — the old cap truncated the array mid-item. _parse_response
+# additionally salvages complete items from a truncated tail.
+_MAX_OUTPUT_TOKENS = 4000
 _TEMPERATURE = 0.0
 
 
@@ -215,11 +219,58 @@ def _content_to_text(payload: dict[str, Any]) -> str:
 # --- parse + validate -------------------------------------------------------
 
 
-def _parse_response(raw: str) -> list[dict[str, Any]] | None:
-    try:
-        value = json.loads(raw)
-    except json.JSONDecodeError:
+def _strip_code_fence(raw: str) -> str:
+    """Peel a Markdown code fence (```json … ```) off the response, if any."""
+    s = raw.strip()
+    if not s.startswith("```"):
+        return s
+    first_newline = s.find("\n")
+    if first_newline == -1:
+        return s
+    s = s[first_newline + 1 :]
+    if s.rstrip().endswith("```"):
+        s = s.rstrip()[:-3]
+    return s.strip()
+
+
+def _salvage_truncated_array(s: str) -> list[Any] | None:
+    """Recover the complete items of a JSON array whose tail was cut off.
+
+    A response that hit ``max_tokens`` mid-item is invalid JSON but every
+    element before the cut is intact: retry the parse at each ``}`` from the
+    end, closing the array there. Better to keep 18 good proposals than to
+    drop all of them.
+    """
+    start = s.find("[")
+    if start == -1:
         return None
+    s = s[start:]
+    cut = len(s)
+    for _ in range(_MAX_PROPOSALS + 1):
+        cut = s.rfind("}", 0, cut)
+        if cut == -1:
+            return None
+        try:
+            value = json.loads(s[: cut + 1] + "]")
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, list):
+            return value
+    return None
+
+
+def _parse_response(raw: str) -> list[dict[str, Any]] | None:
+    # Models sometimes wrap the array in a Markdown fence despite the
+    # bare-JSON instruction; peel it before parsing.
+    text = _strip_code_fence(raw)
+    value: Any
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError:
+        value = _salvage_truncated_array(text)
+        if value is None:
+            _log.warning("matrix_extractor: unparseable response head: %r", raw[:200])
+            return None
     if not isinstance(value, list):
         return None
     out: list[dict[str, Any]] = []
