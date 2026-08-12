@@ -64,7 +64,19 @@ def has_tool_calls_router(state: AgentState) -> str:
 
 
 def unverified_router(state: AgentState) -> str:
-    """After citation verification, decide whether to revise or ship."""
+    """After citation verification, decide whether to revise or ship.
+
+    Shared by both drivers (legacy loop + LangGraph runtime), so both
+    revision triggers — unverified citations AND the zero-citation case —
+    reach both execution paths from this single function.
+    """
+    # Local import: graph.py is the topology module and stays importable
+    # without the node implementations for inert-compile unit tests; the
+    # router is only *called* at runtime when the nodes are loaded anyway.
+    from control_plane.agents.agent_kenny.nodes.revise import (
+        needs_zero_citation_revision,
+    )
+
     report = state.citation_report
     if report is None:
         return NODE_ADVERSARIAL
@@ -74,6 +86,10 @@ def unverified_router(state: AgentState) -> str:
         # replaces the reply text.
         return NODE_PERSIST
     if report.not_found and state.revision_attempts < MAX_REVISION_ATTEMPTS:
+        return NODE_REVISE
+    if needs_zero_citation_revision(state):
+        # A factual reply with zero citation markers after evidence-bearing
+        # tool calls — force one rewrite pass so the reply carries receipts.
         return NODE_REVISE
     return NODE_ADVERSARIAL
 
