@@ -15,12 +15,15 @@ COPY packages/llm-provider-py /repo/packages/llm-provider-py
 COPY services/control-plane /repo/services/control-plane
 
 COPY services/mcp-server/pyproject.toml \
+     services/mcp-server/uv.lock \
      services/mcp-server/README.md \
      /repo/services/mcp-server/
 WORKDIR /repo/services/mcp-server
-RUN uv sync --no-install-project --no-dev
+# --frozen: install exactly the committed lock — the image must match what
+# the CVE scan saw, never a fresh resolution (NFR65 triage follow-up #1).
+RUN uv sync --frozen --no-install-project --no-dev
 COPY services/mcp-server/src /repo/services/mcp-server/src
-RUN uv sync --no-dev
+RUN uv sync --frozen --no-dev
 
 FROM python:3.13-slim AS runtime
 WORKDIR /repo/services/mcp-server
