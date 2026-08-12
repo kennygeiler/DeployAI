@@ -215,11 +215,12 @@ class OpenAIProvider:
         *,
         temperature: float = 0.0,
         max_output_tokens: int = 1024,
+        tool_choice: dict[str, Any] | None = None,
     ) -> AsyncIterator[ToolStreamChunk]:
         # Caller pattern is `async for chunk in provider.chat_complete_stream_with_tools(...)`;
         # raising synchronously from a non-async method would break the
         # try/except-around-iteration contract. Wrap in an async generator.
-        _ = messages, tools, temperature, max_output_tokens
+        _ = messages, tools, temperature, max_output_tokens, tool_choice
         msg = "OpenAI chat_complete_stream_with_tools not implemented; use AnthropicProvider for streaming tool_use"
         raise NotImplementedError(msg)
         yield StopReason(reason="end_turn", usage={})  # pragma: no cover

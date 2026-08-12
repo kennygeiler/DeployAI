@@ -11,6 +11,7 @@ from control_plane.agents.agent_kenny.graph import (
     NODE_ADVERSARIAL,
     NODE_DISPATCH_TOOLS,
     NODE_EXTRACT_CITATIONS,
+    NODE_LLM_CALL,
     NODE_PERSIST,
     NODE_REVISE,
     build_graph,
@@ -61,6 +62,29 @@ def test_has_tool_calls_router_caps_at_max_tools() -> None:
     s = _state()
     s.pending_tool_calls = [{"name": "query_ledger", "input": {}}]
     s.tool_calls_made = MAX_TOOL_CALLS_PER_TURN
+    assert has_tool_calls_router(s) == NODE_EXTRACT_CITATIONS
+
+
+def test_has_tool_calls_router_tools_exhausted_routes_back_to_llm_call() -> None:
+    """Cap-final answer (2026-08-12): tools_exhausted schedules ONE more
+    no-tools llm_call so the model produces a real answer at the cap."""
+    s = _state()
+    s.tool_calls_made = MAX_TOOL_CALLS_PER_TURN
+    s.tools_exhausted = True
+    assert has_tool_calls_router(s) == NODE_LLM_CALL
+
+
+def test_has_tool_calls_router_cap_final_call_happens_at_most_once() -> None:
+    """After the cap-final call, the router must NOT loop back to llm_call
+    again — cap_final_call_made ends the self-loop."""
+    s = _state()
+    s.tool_calls_made = MAX_TOOL_CALLS_PER_TURN
+    s.tools_exhausted = True
+    s.cap_final_call_made = True
+    assert has_tool_calls_router(s) == NODE_EXTRACT_CITATIONS
+    # Even a misbehaving provider that still proposed tool calls on the
+    # no-tools request cannot reopen the loop.
+    s.pending_tool_calls = [{"name": "query_ledger", "input": {}}]
     assert has_tool_calls_router(s) == NODE_EXTRACT_CITATIONS
 
 

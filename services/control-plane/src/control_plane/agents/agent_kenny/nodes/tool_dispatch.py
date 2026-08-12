@@ -127,6 +127,42 @@ async def synthesize_unexecuted_tool_results(
             await emit(ToolResultChunk(name=name, row_count=0, truncated=False, error=error_code))
 
 
+async def enforce_tool_call_cap(
+    state: AgentState,
+    emit: Callable[[Any], Awaitable[None]] | None = None,
+) -> None:
+    """Post-``llm_call`` cap guard, shared by BOTH drivers (legacy + LangGraph).
+
+    No-op while the tool budget remains. At/over the cap:
+
+    - any pending tool_use intents are answered with synthesized is_error
+      tool_results (the API rejects dangling ids) and drained, and
+      ``tools_exhausted`` is set so the shared router sends the flow back
+      to ``llm_call`` for ONE final no-tools call (``tool_choice="none"``)
+      that produces a real answer;
+    - while that final call is still ahead, the reply is left untouched —
+      stamping the "(tool-call cap reached)" placeholder here was the prod
+      bug (2026-08-11): the turn ended with the placeholder as final_text;
+    - once the final call has happened (or none was needed because the
+      model stopped requesting tools on its own), an empty reply falls
+      back to the salvage placeholder as a last resort.
+    """
+    if state.tool_calls_made < MAX_TOOL_CALLS_PER_TURN:
+        return
+    if state.pending_tool_calls:
+        await synthesize_unexecuted_tool_results(state, state.pending_tool_calls, emit)
+        state.pending_tool_calls = []
+        if not state.cap_final_call_made:
+            state.tools_exhausted = True
+    if state.tools_exhausted and not state.cap_final_call_made:
+        # The cap-final no-tools call comes next via the router.
+        return
+    if not state.accumulated_text:
+        state.accumulated_text = (
+            state.last_text.replace("<tool_call>", "").replace("</tool_call>", "").strip() or "(tool-call cap reached)"
+        )
+
+
 def validate_input(schema: dict[str, Any], data: dict[str, Any]) -> None:
     """Minimal JSON-schema spot-check: type=object + required props present."""
     if schema.get("type") != "object":
@@ -199,6 +235,11 @@ async def dispatch_tools(
             # one must still be answered or the next LLM call 400s on
             # dangling tool_use ids.
             await synthesize_unexecuted_tool_results(state, pending[idx:], emit)
+            # The model asked for more than the budget allowed — the next
+            # llm_call is the cap-final one and runs with tool_choice
+            # "none" so it must produce the real answer.
+            if not state.cap_final_call_made:
+                state.tools_exhausted = True
             break
         name = str(call.get("name", ""))
         raw_input = call.get("input", {}) or {}
@@ -593,6 +634,7 @@ def tool_budget_remaining(state: AgentState) -> int:
 __all__ = [
     "TOOL_CAP_REACHED_TEXT",
     "dispatch_tools",
+    "enforce_tool_call_cap",
     "has_pending_tool_calls",
     "synthesize_unexecuted_tool_results",
     "tool_budget_remaining",

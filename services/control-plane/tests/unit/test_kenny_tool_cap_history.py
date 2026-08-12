@@ -100,6 +100,8 @@ async def test_dispatch_cap_truncation_synthesizes_results_for_skipped_calls() -
 
     assert state.pending_tool_calls == []
     assert state.tool_calls_made == MAX_TOOL_CALLS_PER_TURN
+    # The truncation flags the turn for the cap-final no-tools LLM call.
+    assert state.tools_exhausted is True
     results = [m for m in state.messages if m["role"] == "user"]
     assert len(results) == 4  # 2 executed (unknown_tool errors) + 2 synthesized
     for m in results[2:]:

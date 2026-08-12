@@ -134,4 +134,5 @@ class LLMProvider(Protocol):
         *,
         temperature: float = 0.0,
         max_output_tokens: int = 1024,
+        tool_choice: dict[str, Any] | None = None,
     ) -> AsyncIterator[ToolStreamChunk]: ...

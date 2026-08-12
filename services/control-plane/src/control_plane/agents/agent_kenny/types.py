@@ -104,6 +104,18 @@ class AgentState:
     last_text: str = ""
     accumulated_text: str = ""
     tool_calls_made: int = 0
+    # Cap-final answer (2026-08-12 prod fix). ``tools_exhausted`` flips True
+    # when MAX_TOOL_CALLS_PER_TURN is reached while the model still wanted
+    # more tool calls (the drained intents get synthesized is_error
+    # tool_results). The shared router then sends the flow back to llm_call
+    # exactly once; that call is made with ``tool_choice={"type": "none"}``
+    # so the model must produce a real final answer instead of the
+    # "(tool-call cap reached)" placeholder. ``cap_final_call_made`` records
+    # that this no-tools call has happened and guards the self-loop to a
+    # single pass (revision attempts after it remain allowed and also run
+    # tool-less while ``tools_exhausted`` is set).
+    tools_exhausted: bool = False
+    cap_final_call_made: bool = False
     revision_attempts: int = 0
     citation_report: CitationReport | None = None
     adversarial_concerns: list[str] = field(default_factory=list)
