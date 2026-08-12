@@ -90,6 +90,43 @@ _INVOKERS: dict[str, Callable[..., Awaitable[ToolResult]]] = {
 }
 
 
+# Body of the synthesized tool_result for a call the per-turn cap prevented
+# from executing. Phrased as an instruction so the LLM stops requesting tools.
+TOOL_CAP_REACHED_TEXT = "tool-call limit for this turn reached; answer with what you have"
+
+
+async def synthesize_unexecuted_tool_results(
+    state: AgentState,
+    calls: list[dict[str, Any]],
+    emit: Callable[[Any], Awaitable[None]] | None = None,
+    *,
+    reason: str = TOOL_CAP_REACHED_TEXT,
+    error_code: str = "tool_call_cap_reached",
+) -> None:
+    """Answer dangling ``tool_use`` ids that will never be executed.
+
+    The Anthropic Messages API rejects any history in which an assistant
+    ``tool_use`` block is not answered by a ``tool_result`` block in the
+    immediately following user message ("``tool_use`` ids were found
+    without ``tool_result`` blocks"). Whenever the per-turn cap (or any
+    other truncation) skips requested calls, this appends an is_error
+    ``<tool_result>`` for each skipped call — ordinally paired with the
+    assistant's tool_use blocks by ``llm_call._native_messages`` — so the
+    next LLM call always sees well-formed history.
+    """
+    safe = reason.replace('"', "'")
+    for call in calls:
+        name = str(call.get("name", ""))
+        state.messages.append(
+            {
+                "role": "user",
+                "content": f'<tool_result name="{name}" error="true">{safe}</tool_result>',
+            }
+        )
+        if emit is not None:
+            await emit(ToolResultChunk(name=name, row_count=0, truncated=False, error=error_code))
+
+
 def validate_input(schema: dict[str, Any], data: dict[str, Any]) -> None:
     """Minimal JSON-schema spot-check: type=object + required props present."""
     if schema.get("type") != "object":
@@ -154,8 +191,14 @@ async def dispatch_tools(
     is_error tool_result so the LLM falls back to ``keyword_search``
     instead of crashing the turn.
     """
-    for call in state.pending_tool_calls:
+    pending = list(state.pending_tool_calls)
+    for idx, call in enumerate(pending):
         if state.tool_calls_made >= MAX_TOOL_CALLS_PER_TURN:
+            # Cap truncation mid-batch: the assistant message already
+            # carries a tool_use block for every remaining call, so each
+            # one must still be answered or the next LLM call 400s on
+            # dangling tool_use ids.
+            await synthesize_unexecuted_tool_results(state, pending[idx:], emit)
             break
         name = str(call.get("name", ""))
         raw_input = call.get("input", {}) or {}
@@ -548,8 +591,10 @@ def tool_budget_remaining(state: AgentState) -> int:
 
 
 __all__ = [
+    "TOOL_CAP_REACHED_TEXT",
     "dispatch_tools",
     "has_pending_tool_calls",
+    "synthesize_unexecuted_tool_results",
     "tool_budget_remaining",
     "validate_input",
 ]

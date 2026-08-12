@@ -184,3 +184,27 @@ def test_extract_includes_existing_nodes_in_prompt() -> None:
     user_content = llm.last_messages[-1]["content"]
     assert "NYC DOT" in user_content
     assert "organization" in user_content
+
+
+def test_extract_normalizes_node_type_emitted_as_kind() -> None:
+    # Newer models emit {"kind": "risk", ...} instead of
+    # {"kind": "node", "node_type": "risk"}; the validator normalizes
+    # instead of dropping (observed live with claude-sonnet-5).
+    llm = _FakeLLM(
+        json.dumps(
+            [
+                {"kind": "risk", "title": "Nightly-only eligibility feed", "rationale": "r1"},
+                {"kind": "commitment", "node_type": "commitment", "title": "Caching by Sep 12"},
+                {"kind": "gremlin", "title": "Still bogus"},
+            ]
+        )
+    )
+    drafts = extract_matrix_proposals(
+        **_event_args({"text": "x"}),
+        existing_nodes=[],
+        llm=llm,
+    )
+    assert [(d.kind, d.payload["node_type"], d.payload["title"]) for d in drafts] == [
+        ("node", "risk", "Nightly-only eligibility feed"),
+        ("node", "commitment", "Caching by Sep 12"),
+    ]

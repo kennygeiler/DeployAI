@@ -70,7 +70,10 @@ from control_plane.agents.agent_kenny.nodes.persist import (
 )
 from control_plane.agents.agent_kenny.nodes.retrieve import retrieve_initial_context
 from control_plane.agents.agent_kenny.nodes.revise import revise_if_unverified
-from control_plane.agents.agent_kenny.nodes.tool_dispatch import dispatch_tools
+from control_plane.agents.agent_kenny.nodes.tool_dispatch import (
+    dispatch_tools,
+    synthesize_unexecuted_tool_results,
+)
 from control_plane.agents.agent_kenny.types import (
     MAX_REVISION_ATTEMPTS,
     MAX_TOOL_CALLS_PER_TURN,
@@ -192,7 +195,11 @@ def make_node_wrappers(ctx: KennyRuntime) -> dict[str, NodeFn]:
         # proposing tool calls past the cap is forced to stop with the
         # budget exhausted — drain pending intents, salvage a final reply.
         if state.tool_calls_made >= MAX_TOOL_CALLS_PER_TURN:
+            # Drained intents still have tool_use blocks in state.messages —
+            # synthesize an is_error tool_result for each so any later LLM
+            # call (revision loop) never sends dangling tool_use ids.
             if state.pending_tool_calls:
+                await synthesize_unexecuted_tool_results(state, state.pending_tool_calls, ctx.emit)
                 state.pending_tool_calls = []
             if not state.accumulated_text:
                 state.accumulated_text = (
