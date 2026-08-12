@@ -1,2 +1,32 @@
 # Grype triage ignores. Every entry needs a justification and a removal plan.
-ignore: []
+# See docs/security/cve-triage-2026-08-12.md for the full NFR65 review.
+
+# Exclude stale local git worktrees (.claude/worktrees) — they duplicate old
+# copies of the lockfiles and never exist in CI checkouts.
+exclude:
+  - "./.claude/worktrees/**"
+
+ignore:
+  # image-size 2.0.2 — GHSA-5p2g-fcmc-qvqq / GHSA-w3rx-r6r6-pgpr, no fix
+  # released. Dev-only: pulled solely by vite-plugin-storybook-nextjs ->
+  # @storybook/nextjs-vite (devDependencies); never in the Next standalone
+  # production image. Remove once upstream releases a fixed version and the
+  # storybook chain picks it up. (cve-triage-2026-08-12.md, cluster N1)
+  - vulnerability: GHSA-5p2g-fcmc-qvqq
+    package:
+      name: image-size
+      version: 2.0.2
+  - vulnerability: GHSA-w3rx-r6r6-pgpr
+    package:
+      name: image-size
+      version: 2.0.2
+
+  # Go stdlib findings inside the vendored esbuild darwin binary under
+  # node_modules (local scans only — CI checkouts have no node_modules).
+  # Dev-only build tooling, never in any production image; remediated when
+  # esbuild ships binaries built with a patched Go toolchain.
+  # (cve-triage-2026-08-12.md, cluster N2)
+  - package:
+      name: stdlib
+      type: go-module
+      location: "**/node_modules/**"
