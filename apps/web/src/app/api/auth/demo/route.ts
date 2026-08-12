@@ -47,6 +47,18 @@ function clientIp(request: Request): string {
   return xff?.split(",")[0]?.trim() || "unknown";
 }
 
+/**
+ * Origin for redirects. Behind a proxy (Railway/Fly) `request.url`'s host is
+ * the container bind address (e.g. 0.0.0.0:3000) — a redirect built from it
+ * sends the browser nowhere. Prefer the forwarded host/proto headers.
+ */
+function requestOrigin(request: Request): string {
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  const proto = request.headers.get("x-forwarded-proto") ?? "https";
+  if (host) return `${proto}://${host}`;
+  return new URL(request.url).origin;
+}
+
 export async function GET(request: Request): Promise<NextResponse> {
   if (process.env.NEXT_PUBLIC_DEMO_MODE !== "1") {
     return new NextResponse("Not Found", { status: 404 });
@@ -70,7 +82,10 @@ export async function GET(request: Request): Promise<NextResponse> {
       signal: AbortSignal.timeout(15000),
     });
   } catch {
-    return NextResponse.redirect(new URL("/login?error=demo_unavailable", request.url), 302);
+    return NextResponse.redirect(
+      new URL("/login?error=demo_unavailable", requestOrigin(request)),
+      302,
+    );
   }
 
   if (cpRes.status === 404) {
@@ -79,7 +94,10 @@ export async function GET(request: Request): Promise<NextResponse> {
     return new NextResponse("Not Found", { status: 404 });
   }
   if (!cpRes.ok) {
-    return NextResponse.redirect(new URL("/login?error=demo_unavailable", request.url), 302);
+    return NextResponse.redirect(
+      new URL("/login?error=demo_unavailable", requestOrigin(request)),
+      302,
+    );
   }
 
   let body: unknown;
@@ -90,14 +108,17 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
   const session = parseCpSessionIssued(body);
   if (!session) {
-    return NextResponse.redirect(new URL("/login?error=demo_unavailable", request.url), 302);
+    return NextResponse.redirect(
+      new URL("/login?error=demo_unavailable", requestOrigin(request)),
+      302,
+    );
   }
 
   // Same cookie attributes as the OIDC callback route. Demo deploys may not
   // configure OIDC at all, so also mark Secure whenever the request itself is
   // https. No refresh cookie — a demo session just expires.
-  const secure = secureCookiesFromRedirectUri() || new URL(request.url).protocol === "https:";
-  const res = NextResponse.redirect(new URL("/engagements", request.url), 303);
+  const secure = secureCookiesFromRedirectUri() || requestOrigin(request).startsWith("https:");
+  const res = NextResponse.redirect(new URL("/engagements", requestOrigin(request)), 303);
   res.cookies.set(accessTokenCookieNameFromEnv(), session.access_token, {
     maxAge: session.expires_in,
     httpOnly: true,
