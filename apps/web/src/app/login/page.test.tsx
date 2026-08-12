@@ -27,8 +27,11 @@ describe("LoginPage demo button (Wave 4S)", () => {
     expect(
       screen.getByText(/Read-only guest on a demo workspace — no sign-up needed\./),
     ).toBeInTheDocument();
-    // K6 — the caption promises the guided tour.
-    expect(screen.getByText(/guided tour starts automatically/)).toBeInTheDocument();
+    // K6 — the caption promises the guided tour and states the session length
+    // (matches DEPLOYAI_DEMO_SESSION_TTL=3600 on the showcase deploy).
+    expect(
+      screen.getByText(/guided tour starts automatically \(sessions last about an hour\)/),
+    ).toBeInTheDocument();
     // SSO stays available below the demo button.
     expect(screen.getByText("Sign in with SSO")).toBeInTheDocument();
   });
