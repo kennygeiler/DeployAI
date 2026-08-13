@@ -54,8 +54,7 @@ def upgrade() -> None:
     # Login resolves the credentialed row by lowercased email; partial index
     # keeps SSO/SCIM-only rows (password_hash IS NULL) out of it.
     op.execute(
-        "CREATE INDEX ix_app_users_email_password ON public.app_users (lower(email)) "
-        "WHERE password_hash IS NOT NULL"
+        "CREATE INDEX ix_app_users_email_password ON public.app_users (lower(email)) WHERE password_hash IS NOT NULL"
     )
 
     op.create_table(
