@@ -22,7 +22,12 @@ const isStrategistSurface = (p: string) =>
   p === "/settings" ||
   p.startsWith("/settings/") ||
   p === "/onboarding" ||
-  p.startsWith("/onboarding/");
+  p.startsWith("/onboarding/") ||
+  // Account management (self-serve accounts): any signed-in role with
+  // canonical:read may view/manage its own account; anonymous browsers get
+  // the login redirect below like every other strategist surface.
+  p === "/account" ||
+  p.startsWith("/account/");
 
 /** BFF routes the strategist shell polls; need the same actor as pages. */
 const isStrategistApi = (p: string) => p.startsWith("/api/bff/");
@@ -196,6 +201,8 @@ export const config = {
     "/settings/:path*",
     "/onboarding",
     "/onboarding/:path*",
+    "/account",
+    "/account/:path*",
     "/admin",
     "/admin/:path*",
     "/api/bff/:path*",
