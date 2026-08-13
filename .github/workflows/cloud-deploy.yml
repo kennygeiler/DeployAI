@@ -76,9 +76,20 @@ jobs:
         id: paths
         env:
           EVENT_NAME: ${{ github.event_name }}
+          # `secrets.*` must not appear in a step `if:` (workflow fails to
+          # parse) — resolve presence into an env string here instead.
+          HAS_RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN != '' }}
         run: |
           set -euo pipefail
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          if [ "$HAS_RAILWAY_TOKEN" != "true" ]; then
+            # Without the token every `railway up` job fails, stamping a red
+            # ✗ deployment on the repo each push. Skip cleanly instead until
+            # the RAILWAY_TOKEN repo secret is configured (docs/ops/cloud-deploy.md).
+            echo "::notice title=Cloud deploy skipped::RAILWAY_TOKEN secret is not set — CLI deploys remain the path to production."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "workflow_dispatch — deploying unconditionally."
             echo "deploy=true" >> "$GITHUB_OUTPUT"
