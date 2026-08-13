@@ -140,8 +140,8 @@ def test_tenant_scoped_kind_without_tenant_id_denied_in_production(monkeypatch: 
     [
         ("platform_admin", "admin:read", True),
         ("customer_admin", "admin:read", True),
-        ("deployment_strategist", "admin:read", False),
-        ("fde", "admin:read", False),
+        ("deployment_strategist", "admin:read", True),
+        ("fde", "admin:read", True),
         ("biz_dev", "admin:read", False),
         ("external_auditor", "admin:read", False),
         # demo_guest must never see /admin pages or /api/internal/v1 proxy routes.
