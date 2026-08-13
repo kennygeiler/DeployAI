@@ -197,6 +197,55 @@ async def test_reset_wipes_demo_trail_and_recreates_empty(
 
 
 @pytest.mark.asyncio
+async def test_reset_wipes_wave5_engagement_scoped_tables(client: AsyncClient, postgres_engine: Engine) -> None:
+    """Wave 5 rows (gap-ask dismissals, intake address, Slack mapping) don't break the reset.
+
+    All three tables FK the engagement with ON DELETE CASCADE, but the reset
+    wipes them explicitly (see _MANUAL_DELETE_TABLES) so the endpoint never
+    silently depends on each new table's FK choice. This test proves the
+    reset still succeeds — and clears the rows — once a demo session has
+    produced Wave 5 state.
+    """
+    _ins_tenant(postgres_engine, TENANT_ID)
+    await _reset(client, TENANT_ID)
+
+    with postgres_engine.begin() as c:
+        c.execute(
+            text(
+                "INSERT INTO gap_ask_dismissals (tenant_id, engagement_id, ask_id, dismissed_by) "
+                "VALUES (:t, :e, 'ask-commitment-no-owner-x', 'demo-guest')"
+            ),
+            {"t": str(TENANT_ID), "e": str(ACME_ENGAGEMENT_ID)},
+        )
+        c.execute(
+            text(
+                "INSERT INTO engagement_intake_addresses (tenant_id, engagement_id, local_part) "
+                "VALUES (:t, :e, 'acme-robotics-pilot-deployment-test1234')"
+            ),
+            {"t": str(TENANT_ID), "e": str(ACME_ENGAGEMENT_ID)},
+        )
+        c.execute(
+            text(
+                "INSERT INTO slack_channel_mappings (tenant_id, engagement_id, channel_id, channel_name) "
+                "VALUES (:t, :e, 'C0DEM0CHAN', 'fremont-pilot')"
+            ),
+            {"t": str(TENANT_ID), "e": str(ACME_ENGAGEMENT_ID)},
+        )
+
+    for table in ("gap_ask_dismissals", "engagement_intake_addresses", "slack_channel_mappings"):
+        assert _count(postgres_engine, table, ACME_ENGAGEMENT_ID) == 1, table
+
+    body = await _reset(client, TENANT_ID)
+    assert body["deleted_engagements"] == 1
+
+    for table in ("gap_ask_dismissals", "engagement_intake_addresses", "slack_channel_mappings"):
+        assert _count(postgres_engine, table, ACME_ENGAGEMENT_ID) == 0, table
+
+    r = await client.get(f"/internal/v1/engagements/{ACME_ENGAGEMENT_ID}?tenant_id={TENANT_ID}")
+    assert r.status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_reset_also_removes_same_name_twin(client: AsyncClient, postgres_engine: Engine) -> None:
     """A hand-created engagement with the demo name is cleaned up too."""
     _ins_tenant(postgres_engine, TENANT_ID)
