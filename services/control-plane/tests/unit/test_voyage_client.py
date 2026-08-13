@@ -10,9 +10,12 @@ from control_plane.agents.agent_kenny.embeddings.voyage_client import (
     VOYAGE_DIM,
     VOYAGE_MODEL,
     VOYAGE_URL,
+    VoyageCircuitOpen,
     VoyageEmbedder,
     VoyageError,
+    reset_voyage_breaker_for_tests,
 )
+from control_plane.infra.circuit_breaker import CircuitBreaker
 
 
 @pytest.fixture(autouse=True)
@@ -21,10 +24,12 @@ def _reset_warn_state(monkeypatch: pytest.MonkeyPatch) -> None:
 
     The CI runner may have ``VOYAGE_API_KEY`` populated via compose ``.env``;
     the missing-key tests need a guaranteed-empty env. Tests that need the
-    key set re-monkeypatch.
+    key set re-monkeypatch. The shared circuit breaker is also reset so no
+    test inherits tripped state from an earlier one.
     """
     monkeypatch.setattr(voyage_client, "_warned_missing_key", False)
     monkeypatch.delenv("VOYAGE_API_KEY", raising=False)
+    reset_voyage_breaker_for_tests()
 
 
 def _ok_payload(n: int, *, dim: int = VOYAGE_DIM) -> dict[str, object]:
@@ -174,6 +179,69 @@ async def test_embed_rejects_wrong_dim_response(monkeypatch: pytest.MonkeyPatch)
         embedder = VoyageEmbedder(client=client)
         with pytest.raises(VoyageError, match="wrong shape"):
             await embedder.embed(["x"])
+
+
+@pytest.mark.asyncio
+async def test_circuit_open_raises_voyage_error_without_network(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Tripped breaker → VoyageCircuitOpen (a VoyageError) and zero HTTP attempts,
+    so callers degrade exactly as they do for a live Voyage outage."""
+    counter = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        counter["n"] += 1
+        return httpx.Response(503, text="down")
+
+    monkeypatch.setenv("VOYAGE_API_KEY", "test-key")
+    monkeypatch.setattr(voyage_client, "VOYAGE_RETRY_BACKOFF_S", 0.0)
+    breaker = CircuitBreaker("voyage-t-open", failure_threshold=1, cooldown_s=30.0)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        embedder = VoyageEmbedder(client=client, breaker=breaker)
+        with pytest.raises(VoyageError):
+            await embedder.embed(["x"])  # trips: one embed = one breaker failure
+        attempts_before = counter["n"]
+        with pytest.raises(VoyageCircuitOpen) as excinfo:
+            await embedder.embed(["x"])
+
+    assert counter["n"] == attempts_before, "open circuit must not touch the network"
+    assert isinstance(excinfo.value, VoyageError)
+
+
+@pytest.mark.asyncio
+async def test_circuit_probe_success_closes_and_embeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Clock:
+        now = 0.0
+
+        def __call__(self) -> float:
+            return _Clock.now
+
+    counter = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        counter["n"] += 1
+        if counter["n"] <= 2:  # first embed: initial attempt + one retry, both 503
+            return httpx.Response(503, text="down")
+        return httpx.Response(200, json=_ok_payload(1))
+
+    monkeypatch.setenv("VOYAGE_API_KEY", "test-key")
+    monkeypatch.setattr(voyage_client, "VOYAGE_RETRY_BACKOFF_S", 0.0)
+    breaker = CircuitBreaker("voyage-t-probe", failure_threshold=1, cooldown_s=30.0, clock=_Clock())
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        embedder = VoyageEmbedder(client=client, breaker=breaker)
+        with pytest.raises(VoyageError):
+            await embedder.embed(["x"])
+        with pytest.raises(VoyageCircuitOpen):
+            await embedder.embed(["x"])
+        _Clock.now = 31.0
+        vectors = await embedder.embed(["x"])  # the probe — succeeds, closes
+
+    assert len(vectors) == 1
+    assert len(vectors[0]) == VOYAGE_DIM
 
 
 @pytest.mark.asyncio

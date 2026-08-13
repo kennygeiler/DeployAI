@@ -40,6 +40,7 @@ from control_plane.agents.agent_kenny.mcp_loader import (
     split_external_tool_name,
 )
 from control_plane.agents.agent_kenny.mcp_types import (
+    McpCircuitOpen,
     McpOutboundDisabled,
     McpOutboundError,
     McpProtocolError,
@@ -419,6 +420,27 @@ async def _dispatch_external(
                 )
             )
             await emit(ToolResultChunk(name=name, row_count=0, truncated=False, error="mcp_rate_limited"))
+        return
+    except McpCircuitOpen as exc:
+        latency_ms = int((time.monotonic() - started) * 1000)
+        status = "circuit_open"
+        retry_hint = max(1, round(exc.retry_after_s)) if exc.retry_after_s > 0 else 1
+        _append_external_error(
+            state,
+            name=name,
+            error_text=(f"external connector temporarily unavailable (circuit open); retry in ~{retry_hint}s"),
+        )
+        if emit is not None:
+            await emit(
+                McpExternalCallChunk(
+                    config_id=str(config.id),
+                    connector_kind=connector_kind,
+                    tool=upstream_tool,
+                    status=status,
+                    latency_ms=latency_ms,
+                )
+            )
+            await emit(ToolResultChunk(name=name, row_count=0, truncated=False, error="mcp_circuit_open"))
         return
     except McpToolNotAllowed:
         latency_ms = int((time.monotonic() - started) * 1000)

@@ -147,6 +147,7 @@ def _build_client(
     kill_switch=None,
     capture: _AuditCapture | None = None,
     egress_resolver=_public_resolver,
+    circuit_breakers=None,
 ) -> tuple[McpOutboundClient, list[httpx.Request], _AuditCapture]:
     capture = capture or _AuditCapture()
     client, seen = _mock_http_client(http_handler)
@@ -157,6 +158,7 @@ def _build_client(
         kill_switch=kill_switch or NoopKillSwitch(),
         audit_session_factory=capture.make_factory(),
         egress_resolver=egress_resolver,
+        circuit_breakers=circuit_breakers,
     )
     return out, seen, capture
 
@@ -648,6 +650,155 @@ async def test_egress_guard_applies_to_list_tools() -> None:
     with pytest.raises(McpEgressBlocked):
         await client.list_tools(_FakeConfig())
     assert seen == []
+
+
+# ---------------------------------------------------------------------------
+# Circuit breaker (docs/ops/resilience.md) — fifth guard, per-connector
+# ---------------------------------------------------------------------------
+
+
+def _call_kwargs(config: _FakeConfig) -> dict[str, Any]:
+    return {
+        "tool_name": "search_messages",
+        "args": {},
+        "tenant_id": config.tenant_id,
+        "engagement_id": uuid.uuid4(),
+        "turn_id": uuid.uuid4(),
+    }
+
+
+@pytest.mark.asyncio
+async def test_circuit_open_blocks_network_and_audits() -> None:
+    from control_plane.agents.agent_kenny.mcp_types import McpCircuitOpen
+    from control_plane.infra.circuit_breaker import CircuitBreakerRegistry
+
+    def _always_503(req):
+        return httpx.Response(503, text="down", request=req)
+
+    registry = CircuitBreakerRegistry(failure_threshold=1, cooldown_s=30.0)
+    client, seen, capture = _build_client(http_handler=_always_503, circuit_breakers=registry)
+    config = _FakeConfig()
+    with pytest.raises(McpTransportError):
+        await client.call_tool(config, **_call_kwargs(config))
+    assert len(seen) == 1  # the tripping call reached the network
+    with pytest.raises(McpCircuitOpen) as excinfo:
+        await client.call_tool(config, **_call_kwargs(config))
+    assert len(seen) == 1, "open circuit must prevent the HTTP attempt"
+    assert excinfo.value.connector_kind == "slack"
+    assert excinfo.value.retry_after_s > 0
+    rows = [r for r in capture.rows if r["source_kind"] == "mcp_circuit_open"]
+    assert len(rows) == 1
+    assert rows[0]["detail"]["reason"] == "circuit_open"
+    assert rows[0]["detail"]["retry_after_s"] > 0
+
+
+@pytest.mark.asyncio
+async def test_circuit_recovers_after_cooldown_probe_success() -> None:
+    from control_plane.agents.agent_kenny.mcp_types import McpCircuitOpen
+    from control_plane.infra.circuit_breaker import CircuitBreakerRegistry
+
+    class _Clock:
+        now = 0.0
+
+        def __call__(self) -> float:
+            return _Clock.now
+
+    calls = {"n": 0}
+
+    def _fail_then_ok(req):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(503, text="down", request=req)
+        return _jsonrpc_response(req, {"content": [{"type": "text", "text": "back"}]})
+
+    registry = CircuitBreakerRegistry(failure_threshold=1, cooldown_s=30.0, clock=_Clock())
+    client, _seen, _capture = _build_client(http_handler=_fail_then_ok, circuit_breakers=registry)
+    config = _FakeConfig()
+    with pytest.raises(McpTransportError):
+        await client.call_tool(config, **_call_kwargs(config))
+    with pytest.raises(McpCircuitOpen):
+        await client.call_tool(config, **_call_kwargs(config))
+    _Clock.now = 31.0
+    result = await client.call_tool(config, **_call_kwargs(config))  # the probe
+    assert result.status == "ok"
+    # Probe success closed the circuit — subsequent calls flow normally.
+    result = await client.call_tool(config, **_call_kwargs(config))
+    assert result.status == "ok"
+
+
+@pytest.mark.asyncio
+async def test_circuit_breakers_are_per_connector() -> None:
+    from control_plane.agents.agent_kenny.mcp_types import McpCircuitOpen
+    from control_plane.infra.circuit_breaker import CircuitBreakerRegistry
+
+    def _handler(req):
+        if req.url.host == "slack.example.com":
+            return httpx.Response(503, text="down", request=req)
+        return _jsonrpc_response(req, {"content": []})
+
+    registry = CircuitBreakerRegistry(failure_threshold=1, cooldown_s=30.0)
+    client, seen, _capture = _build_client(http_handler=_handler, circuit_breakers=registry)
+    slack = _FakeConfig(connector_kind="slack", endpoint="https://slack.example.com/rpc")
+    github = _FakeConfig(connector_kind="github", endpoint="https://github.example.com/rpc")
+    with pytest.raises(McpTransportError):
+        await client.call_tool(slack, **_call_kwargs(slack))
+    with pytest.raises(McpCircuitOpen):
+        await client.call_tool(slack, **_call_kwargs(slack))
+    # Slack's open circuit must not block the github connector.
+    result = await client.call_tool(github, **_call_kwargs(github))
+    assert result.status == "ok"
+    assert len(seen) == 2  # slack trip + github call; no second slack attempt
+
+
+@pytest.mark.asyncio
+async def test_upstream_4xx_does_not_trip_breaker() -> None:
+    from control_plane.infra.circuit_breaker import CircuitBreakerRegistry
+
+    def _always_401(req):
+        return httpx.Response(401, text="bad token", request=req)
+
+    registry = CircuitBreakerRegistry(failure_threshold=1, cooldown_s=30.0)
+    client, seen, _capture = _build_client(http_handler=_always_401, circuit_breakers=registry)
+    config = _FakeConfig()
+    for _ in range(3):
+        with pytest.raises(McpTransportError):
+            await client.call_tool(config, **_call_kwargs(config))
+    # 4xx means the upstream is reachable — every call still hits the network.
+    assert len(seen) == 3
+
+
+@pytest.mark.asyncio
+async def test_circuit_denial_releases_rate_limit_budget() -> None:
+    from control_plane.agents.agent_kenny.mcp_types import McpCircuitOpen
+    from control_plane.infra.circuit_breaker import CircuitBreakerRegistry
+
+    class _CountingLimiter:
+        acquired = 0
+        released = 0
+
+        async def acquire(self, tenant_id, tool_name):
+            _CountingLimiter.acquired += 1
+            return True
+
+        async def release(self, tenant_id, tool_name):
+            _CountingLimiter.released += 1
+
+    def _always_503(req):
+        return httpx.Response(503, text="down", request=req)
+
+    registry = CircuitBreakerRegistry(failure_threshold=1, cooldown_s=30.0)
+    client, _seen, _capture = _build_client(
+        http_handler=_always_503,
+        rate_limiter=_CountingLimiter(),
+        circuit_breakers=registry,
+    )
+    config = _FakeConfig()
+    with pytest.raises(McpTransportError):
+        await client.call_tool(config, **_call_kwargs(config))
+    with pytest.raises(McpCircuitOpen):
+        await client.call_tool(config, **_call_kwargs(config))
+    assert _CountingLimiter.acquired == 2
+    assert _CountingLimiter.released == 2  # both failures refunded the budget
 
 
 @pytest.mark.asyncio

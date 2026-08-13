@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from prometheus_client import REGISTRY, Counter, generate_latest
+from prometheus_client import REGISTRY, Counter, Gauge, generate_latest
 
 _LOG = logging.getLogger("deployai.ingest")
 
@@ -23,6 +23,16 @@ _rate_limited = Counter(
     "Requests rejected with 429 by the inbound API rate limiter",
     ("route",),
 )
+_circuit_state = Gauge(
+    "deployai_circuit_state",
+    "Outbound-dependency circuit breaker state (0 closed, 1 half-open, 2 open)",
+    ("dependency",),
+)
+_circuit_opens = Counter(
+    "deployai_circuit_opens_total",
+    "Circuit breaker transitions into the open state",
+    ("dependency",),
+)
 
 
 def observe_events_written(integration: str, n: int) -> None:
@@ -39,6 +49,14 @@ def observe_rate_limited(route: str) -> None:
     # Label is the route template (or "unknown"), never the raw path —
     # raw paths would explode cardinality on ids and 404 probes.
     _rate_limited.labels(route).inc()
+
+
+def observe_circuit_state(dependency: str, state: int) -> None:
+    _circuit_state.labels(dependency).set(state)
+
+
+def observe_circuit_open(dependency: str) -> None:
+    _circuit_opens.labels(dependency).inc()
 
 
 def metrics_payload() -> tuple[bytes, str]:

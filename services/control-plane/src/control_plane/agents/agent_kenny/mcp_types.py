@@ -131,6 +131,28 @@ class McpToolNotAllowed(McpOutboundError):  # noqa: N818 — Wave 2D public cont
         self.tool_name = tool_name
 
 
+class McpCircuitOpen(McpOutboundError):  # noqa: N818 — matches guard-exception naming
+    """The per-connector circuit breaker is open — no network call was made.
+
+    Raised after ``failure_threshold`` consecutive transport-level failures
+    (timeouts, connect errors, upstream 5xx) against this connector; see
+    :mod:`control_plane.infra.circuit_breaker` and docs/ops/resilience.md.
+    ``retry_after_s`` is the time until the breaker admits its next probe
+    so the agent loop can render "try again in ~Ns".
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        connector_kind: str | None = None,
+        retry_after_s: float = 0.0,
+    ) -> None:
+        super().__init__(message)
+        self.connector_kind = connector_kind
+        self.retry_after_s = retry_after_s
+
+
 class McpEgressBlocked(McpOutboundError):  # noqa: N818 — matches guard-exception naming
     """The SSRF egress guard rejected the endpoint — no network call was made.
 
@@ -165,6 +187,7 @@ class McpProtocolError(McpOutboundError):
 
 
 __all__ = [
+    "McpCircuitOpen",
     "McpEgressBlocked",
     "McpErrorKind",
     "McpOutboundDisabled",
