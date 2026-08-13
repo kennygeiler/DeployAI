@@ -14,6 +14,7 @@ import {
   TOUR_STEP_KEY,
   TOUR_STEPS,
   matchesRoutePattern,
+  resolveTourRoutePattern,
   type TourStep,
 } from "@/lib/tour/steps";
 
@@ -188,7 +189,11 @@ export function TourProvider() {
 
   React.useEffect(() => {
     if (!active || !step || step.advanceOn.type !== "route" || !pathname) return;
-    if (!matchesRoutePattern(pathname, step.advanceOn.pattern)) return;
+    // Per-guest sandbox: the Acme-path sentinel resolves to THIS visitor's
+    // sandbox engagement (demo_engagement cookie), falling back to the
+    // stable Acme id for presenter/local flows without a sandbox.
+    const pattern = resolveTourRoutePattern(step.advanceOn.pattern, document.cookie);
+    if (!matchesRoutePattern(pathname, pattern)) return;
     const t = window.setTimeout(advance, 0);
     return () => window.clearTimeout(t);
   }, [active, step, pathname, advance]);

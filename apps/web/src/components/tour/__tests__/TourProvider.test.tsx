@@ -79,6 +79,44 @@ describe("TourProvider", () => {
     );
   });
 
+  it("slip act advances on the visitor's OWN sandbox path from the demo_engagement cookie", async () => {
+    const sandbox = "55555555-5555-4555-8555-555555555555";
+    document.cookie = `demo_engagement=${sandbox}; path=/`;
+    window.sessionStorage.setItem(TOUR_STEP_KEY, String(stepIndexOf("slip-week-intro")));
+    try {
+      const { rerender } = render(<TourProvider />);
+      await screen.findByTestId("demo-tour-popover");
+      // The stable Acme path is NOT this guest's deal — no advance.
+      mockPathname = "/engagements/acacacac-acac-4aca-8aca-acacacacacac";
+      rerender(<TourProvider />);
+      expect(screen.getByTestId("demo-tour-popover").getAttribute("data-tour-step")).toBe(
+        "slip-week-intro",
+      );
+      mockPathname = `/engagements/${sandbox}`;
+      rerender(<TourProvider />);
+      await waitFor(() =>
+        expect(screen.getByTestId("demo-tour-popover").getAttribute("data-tour-step")).toBe(
+          "slip-monday-kickoff",
+        ),
+      );
+    } finally {
+      document.cookie = "demo_engagement=; path=/; max-age=0";
+    }
+  });
+
+  it("slip act falls back to the stable Acme path without the sandbox cookie", async () => {
+    window.sessionStorage.setItem(TOUR_STEP_KEY, String(stepIndexOf("slip-week-intro")));
+    const { rerender } = render(<TourProvider />);
+    await screen.findByTestId("demo-tour-popover");
+    mockPathname = "/engagements/acacacac-acac-4aca-8aca-acacacacacac";
+    rerender(<TourProvider />);
+    await waitFor(() =>
+      expect(screen.getByTestId("demo-tour-popover").getAttribute("data-tour-step")).toBe(
+        "slip-monday-kickoff",
+      ),
+    );
+  });
+
   it("advances when the target of a click-target step is clicked", async () => {
     window.sessionStorage.setItem(TOUR_STEP_KEY, String(stepIndexOf("click-citation")));
     const user = userEvent.setup();

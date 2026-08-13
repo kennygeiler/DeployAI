@@ -23,8 +23,27 @@ function cpBase(): string {
   return base;
 }
 
-export async function cpListEngagements(tenantId: string): Promise<Engagement[]> {
-  const url = `${cpBase()}/internal/v1/engagements?tenant_id=${encodeURIComponent(tenantId)}`;
+export async function cpListEngagements(
+  tenantId: string,
+  opts?: {
+    /**
+     * Guest-sandbox hygiene: hide per-visitor demo sandbox engagements,
+     * except the one named by `visibleSandboxId` (the caller's own — from
+     * its demo_engagement cookie). The filter runs CP-side in SQL; the BFF
+     * only decides WHEN to apply it (it alone knows the actor's role).
+     */
+    excludeDemoSandboxes?: boolean;
+    visibleSandboxId?: string | null;
+  },
+): Promise<Engagement[]> {
+  const params = new URLSearchParams({ tenant_id: tenantId });
+  if (opts?.excludeDemoSandboxes) {
+    params.set("exclude_demo_sandboxes", "true");
+    if (opts.visibleSandboxId) {
+      params.set("visible_sandbox_id", opts.visibleSandboxId);
+    }
+  }
+  const url = `${cpBase()}/internal/v1/engagements?${params.toString()}`;
   const r = await fetch(url, { method: "GET", headers: cpHeaders(), cache: "no-store" });
   if (!r.ok) {
     throw new Error(`cp engagements list ${r.status}: ${await r.text()}`);
