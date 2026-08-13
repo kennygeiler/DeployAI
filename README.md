@@ -64,7 +64,7 @@ One Railway project, five services (postgres / control-plane / web / mcp-server 
 managed Redis, each built from the repo root against its own Dockerfile
 (`railway up --service <name>`), with CI auto-deploy on `main` gated on the test suite and volume
 backups for Postgres. Hosted auth is currently a short-lived bootstrap JWT
-(`scripts/cloud-token.sh`) — real OIDC login is a pre-pilot task. Full operator runbook:
+(`scripts/cloud-token.sh`). Full operator runbook:
 [`docs/ops/cloud-deploy.md`](./docs/ops/cloud-deploy.md).
 
 ---
@@ -194,7 +194,7 @@ implements it and the doc or test that proves it:
 | `packages/authz/` · `packages/contracts/` · `packages/design-tokens/` | Role/action matrix (TS + Python twins) · cross-workspace schemas · design system |
 | `infra/compose/` | Local stack + seed scenarios (BlueState, BlueState-XL, Portfolio) — the Postgres image here (pgvector + Apache AGE) is also what Railway builds |
 | `infra/archive/fly/` | Superseded Fly.io configs, kept as history (cloud deploy is Railway; no per-service config files needed) |
-| `docs/` | Start at [`docs/agent-kenny/INDEX.md`](./docs/agent-kenny/INDEX.md); plans in `docs/plans/`; superseded material in `docs/archive/` |
+| `docs/` | Start at [`docs/agent-kenny/INDEX.md`](./docs/agent-kenny/INDEX.md); superseded material in `docs/archive/` |
 
 ---
 
@@ -203,23 +203,11 @@ implements it and the doc or test that proves it:
 - [`docs/engineering-highlights.md`](./docs/engineering-highlights.md) — every engineering claim mapped to the code and CI gate that proves it
 - [`docs/agent-kenny/ethos.md`](./docs/agent-kenny/ethos.md) — architectural rationale (the load-bearing doc)
 - [`docs/agent-kenny/eval.md`](./docs/agent-kenny/eval.md) — the golden-question harness, CLI, and CI cadence
-- [`docs/plans/2026-08-11-pilot-refresh-backlog.md`](./docs/plans/2026-08-11-pilot-refresh-backlog.md) — the DRM reframe, HITL design, and wave-by-wave backlog (Waves 0–2 shipped)
 - [`docs/security/`](./docs/security/) — tenant-isolation model, MCP outbound threat model, cross-tenant fuzz harness
 - [`docs/ops/cloud-deploy.md`](./docs/ops/cloud-deploy.md) — Railway operator runbook · [`docs/ops/backup.md`](./docs/ops/backup.md) — backup/restore, local + cloud
 - [`docs/dev-environment.md`](./docs/dev-environment.md) — toolchains and workflows
 
 ---
-
-## Maturity
-
-Honest status, code-verified (2026-08-12): the full loop — ingest → extract → review → matrix → ask
-Kenny → audit — runs end-to-end on the checkpointed LangGraph runtime (now the production default,
-parity-gated against the legacy driver), with OIDC login, full-coverage RLS, HITL review, and CI eval
-gates in place. M365/Gmail/Slack ingest connectors are real; HubSpot/Notion/GitHub are not yet built.
-The stack is deployed to Railway with a public guided demo and a daily zero-secret canary, but hosted
-auth is still a bootstrap-JWT shim — wiring real OIDC on the hosted deploy is a pre-pilot blocker. **No paying customers yet** — the next milestone is a pilot
-with a real team's engagement data (Wave 3 of the backlog: delta digest, commitment tracking,
-Kenny-in-Slack).
 
 ## License
 
