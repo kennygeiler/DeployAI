@@ -35,6 +35,11 @@ const can: Array<[V1Role, Action]> = [
   ["deployment_strategist", "canonical:read"],
   ["deployment_strategist", "override:submit"],
   ["deployment_strategist", "eval:view_adjudication"],
+  // The /admin pages (MCP activity, Agent Kenny dashboard) are tenant-scoped
+  // read-only telemetry, and strategists already hold the stronger
+  // internal:proxy that serves those pages their data — withholding the
+  // page-level action was an inconsistency, not a security boundary.
+  ["deployment_strategist", "admin:read"],
   // fde — Forward Deployed Engineer; operationally equivalent to a
   // deployment strategist (both run the engagement).
   ["fde", "ingest:view_runs"],
@@ -44,6 +49,7 @@ const can: Array<[V1Role, Action]> = [
   ["fde", "canonical:read"],
   ["fde", "override:submit"],
   ["fde", "eval:view_adjudication"],
+  ["fde", "admin:read"],
   // biz_dev — business development; reads the engagement memory. Least
   // privilege for now; expand when the Phase 4 collaboration model lands.
   ["biz_dev", "canonical:read"],

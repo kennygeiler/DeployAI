@@ -18,7 +18,7 @@
 #                (default: the Railway CP public domain)
 #   TENANT_ID    default 11111111-1111-1111-1111-111111111111 (dev tenant)
 #   USER_ID      default 22222222-2222-2222-2222-222222222222
-#   ROLES        comma-separated, default "admin"
+#   ROLES        comma-separated, default "platform_admin"
 #   STATE_FILE   default ~/.deployai-railway-state
 #
 # Exit codes: 0 ok, 2 misconfig, 1 mint failure.
@@ -28,7 +28,10 @@ set -euo pipefail
 CP_URL="${CP_URL:-https://control-plane-production-798e.up.railway.app}"
 TENANT_ID="${TENANT_ID:-11111111-1111-1111-1111-111111111111}"
 USER_ID="${USER_ID:-22222222-2222-2222-2222-222222222222}"
-ROLES="${ROLES:-admin}"
+# "platform_admin" is a real role in the authz matrix; the old default
+# ("admin") is not a role at all — the web middleware parses it to null and
+# every strategist page 403s, which reads as a broken deploy.
+ROLES="${ROLES:-platform_admin}"
 STATE_FILE="${STATE_FILE:-$HOME/.deployai-railway-state}"
 
 if [[ -z "${DEPLOYAI_INTERNAL_API_KEY:-}" && -f "$STATE_FILE" ]]; then

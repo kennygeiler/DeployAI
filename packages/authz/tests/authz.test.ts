@@ -196,8 +196,8 @@ describe("admin:read / internal:proxy actions (Wave 1 tickets A2+A5)", () => {
   it.each<[V1Role, Action, boolean]>([
     ["platform_admin", "admin:read", true],
     ["customer_admin", "admin:read", true],
-    ["deployment_strategist", "admin:read", false],
-    ["fde", "admin:read", false],
+    ["deployment_strategist", "admin:read", true],
+    ["fde", "admin:read", true],
     ["biz_dev", "admin:read", false],
     ["successor_strategist", "admin:read", false],
     ["customer_records_officer", "admin:read", false],

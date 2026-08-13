@@ -36,10 +36,20 @@ describe("middleware matcher (ticket A2)", () => {
 });
 
 describe("admin surface gating (admin:read)", () => {
-  it("denies deployment_strategist on /admin pages", async () => {
+  it("allows deployment_strategist on /admin pages (tenant-scoped read-only telemetry)", async () => {
     const res = await middleware(
       req("/admin/agent-kenny-dashboard", {
         "x-deployai-role": "deployment_strategist",
+        "x-deployai-tenant": T_A,
+      }),
+    );
+    expect(res.status).not.toBe(403);
+  });
+
+  it("denies demo_guest on /admin pages", async () => {
+    const res = await middleware(
+      req("/admin/agent-kenny-dashboard", {
+        "x-deployai-role": "demo_guest",
         "x-deployai-tenant": T_A,
       }),
     );
