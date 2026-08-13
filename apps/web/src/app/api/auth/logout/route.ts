@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import * as jose from "jose";
 
 import { getControlPlaneBaseUrl } from "@/lib/internal/control-plane";
+import { requestOrigin } from "@/lib/internal/account-auth";
 import { accessTokenCookieNameFromEnv } from "@/lib/internal/deployai-access-jwt";
 import {
   parseCookieHeader,
@@ -52,7 +53,7 @@ async function handleLogout(request: Request): Promise<NextResponse> {
     }
   }
 
-  const res = NextResponse.redirect(new URL("/login", request.url), 303);
+  const res = NextResponse.redirect(new URL("/login", requestOrigin(request)), 303);
   const secure = secureCookiesFromRedirectUri();
   for (const name of [accessCookieName, refreshCookieName, tenantCookieName]) {
     res.cookies.set(name, "", { maxAge: 0, httpOnly: true, sameSite: "lax", path: "/", secure });
