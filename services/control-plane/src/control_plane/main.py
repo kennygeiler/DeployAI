@@ -32,6 +32,7 @@ from control_plane.api.routes.demo_reset_internal import router as demo_reset_in
 from control_plane.api.routes.demo_session_internal import router as demo_session_internal_router
 from control_plane.api.routes.emails_internal import router as emails_internal_router
 from control_plane.api.routes.engagement_events import router as engagement_events_router
+from control_plane.api.routes.engagement_gap_asks import router as engagement_gap_asks_router
 from control_plane.api.routes.engagement_recommendations import router as engagement_recommendations_router
 from control_plane.api.routes.engagement_summary_internal import (
     router as engagement_summary_internal_router,
@@ -197,6 +198,7 @@ app.include_router(strategist_queues_internal_router, prefix="/internal/v1")
 app.include_router(engagements_internal_router, prefix="/internal/v1")
 app.include_router(engagement_summary_internal_router, prefix="/internal/v1")
 app.include_router(engagement_events_router, prefix="/internal/v1")
+app.include_router(engagement_gap_asks_router, prefix="/internal/v1")
 app.include_router(engagement_recommendations_router, prefix="/internal/v1")
 app.include_router(event_search_router, prefix="/internal/v1")
 app.include_router(extract_preview_router, prefix="/internal/v1")

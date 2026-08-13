@@ -454,7 +454,7 @@ function LlmStep(props: {
           id="ob-model"
           value={props.modelName}
           onChange={(e) => props.setModelName(e.target.value)}
-          placeholder={props.provider === "anthropic" ? "claude-opus-4-5" : "(provider default)"}
+          placeholder={props.provider === "anthropic" ? "claude-sonnet-5" : "(provider default)"}
           autoComplete="off"
         />
       </div>

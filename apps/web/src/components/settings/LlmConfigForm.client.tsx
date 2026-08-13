@@ -203,7 +203,7 @@ export function LlmConfigForm() {
           name="model_name"
           value={modelName}
           onChange={(e) => setModelName(e.target.value)}
-          placeholder={provider === "anthropic" ? "claude-opus-4-5" : "(provider default)"}
+          placeholder={provider === "anthropic" ? "claude-sonnet-5" : "(provider default)"}
           autoComplete="off"
         />
         <p className="text-ink-600 text-xs">
@@ -317,7 +317,7 @@ export function LlmConfigForm() {
                 value={secondaryModelName}
                 onChange={(e) => setSecondaryModelName(e.target.value)}
                 placeholder={
-                  secondaryProvider === "anthropic" ? "claude-opus-4-5" : "(provider default)"
+                  secondaryProvider === "anthropic" ? "claude-sonnet-5" : "(provider default)"
                 }
                 autoComplete="off"
               />
