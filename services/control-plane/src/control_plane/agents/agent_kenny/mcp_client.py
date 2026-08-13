@@ -50,6 +50,7 @@ from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.agents.agent_kenny.mcp_types import (
+    McpCircuitOpen,
     McpEgressBlocked,
     McpOutboundDisabled,
     McpOutboundError,
@@ -61,6 +62,11 @@ from control_plane.agents.agent_kenny.mcp_types import (
     McpTransportError,
 )
 from control_plane.domain.mcp_outbound import TenantMcpConfig
+from control_plane.infra.circuit_breaker import (
+    CircuitBreakerRegistry,
+    CircuitOpenError,
+    registry_from_settings,
+)
 
 # Re-use the canonical secret scrubber so the needle list stays in one
 # place (threat-model §3.4.2). Module-private import is intentional —
@@ -91,6 +97,12 @@ _HARD_TIMEOUT_CAP_S: float = 60.0
 # bloat the ledger row. Detail JSONB columns are PostgreSQL-row-size
 # bound (~8KB) so we keep a generous head-room.
 _AUDIT_BODY_CHAR_CAP = 2000
+
+# Audit error_kinds that count as circuit-breaker failures: only outcomes
+# meaning "the upstream is unreachable or erroring". A 4xx or a malformed
+# 200 body proves the upstream is up, so those record as breaker successes —
+# a misconfigured token must not masquerade as an outage.
+_BREAKER_FAILURE_KINDS = frozenset({"transport_timeout", "transport_error", "upstream_5xx"})
 
 
 # --------------------------------------------------------------------------
@@ -192,6 +204,7 @@ class McpOutboundClient:
         audit_session_factory: AuditSessionFactory,
         timeout_s: float = DEFAULT_TIMEOUT_S,
         egress_resolver: Resolver | None = None,
+        circuit_breakers: CircuitBreakerRegistry | None = None,
     ) -> None:
         if timeout_s <= 0 or timeout_s > _HARD_TIMEOUT_CAP_S:
             raise ValueError(
@@ -207,6 +220,10 @@ class McpOutboundClient:
         # tests with MockTransport endpoints (``*.example.com``) can stub
         # resolution; production uses the default getaddrinfo path.
         self._egress_resolver = egress_resolver
+        # One breaker PER connector kind (dependency key ``mcp:<kind>``) so
+        # a dead Slack upstream never blocks GitHub calls. Injectable for
+        # deterministic tests; defaults to the DEPLOYAI_CIRCUIT_* config.
+        self._breakers = circuit_breakers if circuit_breakers is not None else registry_from_settings()
 
     # ----- public surface ---------------------------------------------------
 
@@ -264,15 +281,17 @@ class McpOutboundClient:
         engagement_id: uuid.UUID,
         turn_id: uuid.UUID,
     ) -> McpToolResult:
-        """Invoke one external MCP tool. Four guards fire BEFORE the network call.
+        """Invoke one external MCP tool. Five guards fire BEFORE the network call.
 
         Order matters: kill-switch first (cheapest, most-likely-true
         during incident response), then allow-list (cheap, deterministic),
         then rate-limiter (may touch Redis), then the egress guard
-        (resolves DNS, so most expensive — see ``_invoke_jsonrpc``). Each
-        guard emits its own typed ledger row so reviewers can tell denials
-        from operational throttling from incident lockdowns from SSRF
-        blocks at audit time.
+        (resolves DNS, so most expensive — see ``_invoke_jsonrpc``), then
+        the per-connector circuit breaker (skips a call the last N
+        failures prove is doomed — fail-closed-fast, keeps the turn
+        moving). Each guard emits its own typed ledger row so reviewers
+        can tell denials from operational throttling from incident
+        lockdowns from SSRF blocks from breaker trips at audit time.
         """
         started = time.monotonic()
         # Span opened by @traced (no-op without a tracer provider). Each
@@ -361,6 +380,8 @@ class McpOutboundClient:
             await self._rate.release(tenant_id, tool_name)
             if isinstance(exc, McpEgressBlocked):
                 span.set_attribute("mcp.denial_reason", f"egress_blocked:{exc.reason or 'unknown'}")
+            elif isinstance(exc, McpCircuitOpen):
+                span.set_attribute("mcp.denial_reason", "circuit_open")
             raise
         except Exception as exc:  # pragma: no cover — defensive belt
             await self._rate.release(tenant_id, tool_name)
@@ -432,6 +453,34 @@ class McpOutboundClient:
             ) from exc
 
         token = await self._authorize_token(config)
+
+        # 5. Circuit breaker — per connector, acquired AFTER token
+        # resolution so a DEK failure can never strand a half-open probe
+        # slot (every acquire below is balanced by exactly one record_*
+        # in the finally block).
+        breaker = self._breakers.get(f"mcp:{config.connector_kind}")
+        try:
+            await breaker.acquire()
+        except CircuitOpenError as exc:
+            await self._emit_guard_audit(
+                source_kind="mcp_circuit_open",
+                tenant_id=tenant_id,
+                engagement_id=engagement_id,
+                config=config,
+                tool_name=audit_tool_name,
+                turn_id=turn_id,
+                detail_extra={
+                    "reason": "circuit_open",
+                    "retry_after_s": round(exc.retry_after_s, 1),
+                },
+            )
+            raise McpCircuitOpen(
+                f"connector {config.connector_kind!r} temporarily unavailable "
+                f"(circuit open; next probe in {exc.retry_after_s:.1f}s)",
+                connector_kind=config.connector_kind,
+                retry_after_s=exc.retry_after_s,
+            ) from exc
+
         headers = {
             "Authorization": f"Bearer {token}",
             "Accept": "text/event-stream, application/json",
@@ -515,6 +564,12 @@ class McpOutboundClient:
             raise McpProtocolError(f"upstream returned non-JSON body: {error_message}") from exc
         finally:
             latency_ms = int((time.monotonic() - started) * 1000)
+            # Balance the breaker acquire: only transport-level outcomes
+            # count as failures (see _BREAKER_FAILURE_KINDS).
+            if error_kind in _BREAKER_FAILURE_KINDS:
+                await breaker.record_failure()
+            else:
+                await breaker.record_success()
             # Best-effort audit — never let an audit failure mask the
             # original outcome (success or typed failure).
             try:

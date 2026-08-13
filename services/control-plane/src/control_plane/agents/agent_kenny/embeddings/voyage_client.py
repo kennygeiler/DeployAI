@@ -21,6 +21,16 @@ Reliability
   indicate a malformed payload — retrying would just burn quota.
 - Network exceptions also retry once; persistent failure raises ``VoyageError``
   so the worker can mark the affected ``embedding_jobs`` row failed.
+- A process-wide circuit breaker (docs/ops/resilience.md) wraps the HTTP
+  call: after ``DEPLOYAI_CIRCUIT_FAILURE_THRESHOLD`` consecutive
+  network/5xx failures the breaker opens and ``embed`` raises
+  :class:`VoyageCircuitOpen` (a :class:`VoyageError` subclass) without a
+  network attempt — vector search degrades exactly as an embedder outage
+  does today (is_error tool_result; the agent falls back to keyword_search)
+  and the embedder worker marks jobs failed for later retry. The breaker is
+  module-level, not per-instance, because the worker constructs a fresh
+  ``VoyageEmbedder`` per tick; state is process-local (no cross-instance
+  coordination — same caveat as the in-memory rate limiter).
 """
 
 from __future__ import annotations
@@ -31,6 +41,11 @@ from typing import Any
 
 import httpx
 
+from control_plane.infra.circuit_breaker import (
+    CircuitBreaker,
+    CircuitOpenError,
+    breaker_from_settings,
+)
 from control_plane.infra.tracing import inject_trace_context
 
 _log = logging.getLogger(__name__)
@@ -47,6 +62,35 @@ _warned_missing_key = False
 
 class VoyageError(RuntimeError):
     """Raised when the Voyage API returns an unrecoverable error."""
+
+
+class VoyageCircuitOpen(VoyageError):  # noqa: N818 — matches VoyageError naming
+    """The Voyage circuit breaker is open — no network call was made.
+
+    Subclasses :class:`VoyageError` so every existing caller (the
+    ``vector_search`` tool, the embedder worker) degrades exactly as it
+    does for a live Voyage outage.
+    """
+
+
+# Shared across VoyageEmbedder instances: the embedder worker constructs a
+# fresh client per tick, so per-instance state would reset every tick and
+# never accumulate enough failures to trip. Lazy so settings are read at
+# first use, not import.
+_default_breaker: CircuitBreaker | None = None
+
+
+def _get_default_breaker() -> CircuitBreaker:
+    global _default_breaker
+    if _default_breaker is None:
+        _default_breaker = breaker_from_settings("voyage")
+    return _default_breaker
+
+
+def reset_voyage_breaker_for_tests() -> None:
+    """Forget the shared breaker so tests never inherit tripped state."""
+    global _default_breaker
+    _default_breaker = None
 
 
 def _resolve_api_key() -> str:
@@ -80,6 +124,7 @@ class VoyageEmbedder:
         model: str = VOYAGE_MODEL,
         timeout_s: float = VOYAGE_TIMEOUT_S,
         client: httpx.AsyncClient | None = None,
+        breaker: CircuitBreaker | None = None,
     ) -> None:
         # Resolve the key lazily on each ``embed`` call, not at construction:
         # the local-dev fallback log line should fire when the worker actually
@@ -88,6 +133,9 @@ class VoyageEmbedder:
         self._model = model
         self._timeout_s = timeout_s
         self._client = client
+        # ``None`` → the module-level shared breaker (resolved per call so
+        # test resets take effect); explicit instance for deterministic tests.
+        self._breaker = breaker
 
     def _headers(self, key: str) -> dict[str, str]:
         headers = {
@@ -115,11 +163,40 @@ class VoyageEmbedder:
 
         body: dict[str, Any] = {"input": texts, "model": self._model}
         if self._client is not None:
-            response = await self._post_with_retries(self._client, key, body)
+            response = await self._post_guarded(self._client, key, body)
         else:
             async with httpx.AsyncClient(timeout=self._timeout_s) as client:
-                response = await self._post_with_retries(client, key, body)
+                response = await self._post_guarded(client, key, body)
         return self._parse_response(response, expected=len(texts))
+
+    async def _post_guarded(
+        self,
+        client: httpx.AsyncClient,
+        key: str,
+        body: dict[str, Any],
+    ) -> httpx.Response:
+        """Circuit-breaker wrapper around :meth:`_post_with_retries`.
+
+        Failure = the retry-exhausted network error or a (post-retry) 5xx
+        response; a 4xx means Voyage is up and rejecting our payload, so
+        it records as success and never trips the breaker.
+        """
+        breaker = self._breaker if self._breaker is not None else _get_default_breaker()
+        try:
+            await breaker.acquire()
+        except CircuitOpenError as exc:
+            msg = f"Voyage circuit open; next probe in {exc.retry_after_s:.1f}s"
+            raise VoyageCircuitOpen(msg) from exc
+        try:
+            response = await self._post_with_retries(client, key, body)
+        except VoyageError:
+            await breaker.record_failure()
+            raise
+        if response.status_code >= 500:
+            await breaker.record_failure()
+        else:
+            await breaker.record_success()
+        return response
 
     async def _post_with_retries(
         self,
@@ -187,4 +264,11 @@ class VoyageEmbedder:
         return vectors
 
 
-__all__ = ["VOYAGE_DIM", "VOYAGE_MODEL", "VoyageEmbedder", "VoyageError"]
+__all__ = [
+    "VOYAGE_DIM",
+    "VOYAGE_MODEL",
+    "VoyageCircuitOpen",
+    "VoyageEmbedder",
+    "VoyageError",
+    "reset_voyage_breaker_for_tests",
+]

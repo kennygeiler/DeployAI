@@ -133,6 +133,16 @@ class ControlPlaneSettings(BaseSettings):
     api_rate_limit_burst: int | None = None
     """Token-bucket capacity (max burst). Defaults to ``api_rate_limit_per_minute``."""
 
+    # --- Outbound dependency circuit breakers (docs/ops/resilience.md) ---
+    circuit_failure_threshold: int = 5
+    """Consecutive failures before an outbound dependency's breaker opens
+    (MCP connectors, Voyage embedder). On by default — a healthy dependency
+    never trips. ``DEPLOYAI_CIRCUIT_FAILURE_THRESHOLD=0`` disables breakers
+    entirely (every call goes to the network)."""
+
+    circuit_cooldown_s: float = 30.0
+    """Seconds an open breaker waits before admitting one half-open probe."""
+
     # --- Gmail / Slack (Epic 3+): optional; stub routes work without these ---
     google_gmail_client_id: str | None = None
     google_gmail_client_secret: str | None = None

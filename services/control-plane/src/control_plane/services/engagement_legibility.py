@@ -109,6 +109,7 @@ SOURCE_KIND_BUCKETS: dict[str, str] = {
     "mcp_outbound_rate_limited": "system",
     "mcp_outbound_denied": "system",
     "mcp_outbound_egress_blocked": "system",
+    "mcp_circuit_open": "system",
     "killswitch_oauth_revoked": "system",
     "killswitch_oauth_revoke_failed": "system",
     "killswitch_queue_purged": "system",
@@ -180,6 +181,7 @@ TELEMETRY_SOURCE_KINDS: frozenset[str] = frozenset(
         "mcp_outbound_rate_limited",
         "mcp_outbound_denied",
         "mcp_outbound_egress_blocked",
+        "mcp_circuit_open",
         # integration kill-switch internals (the admin flip,
         # mcp_outbound_killswitch_changed, is a human action and stays)
         "killswitch_oauth_revoked",

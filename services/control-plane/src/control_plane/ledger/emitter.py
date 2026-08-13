@@ -96,6 +96,11 @@ ALLOWED_SOURCE_KINDS: frozenset[str] = frozenset(
         # private/link-local/metadata addresses) rejects an outbound MCP
         # call before any network traffic leaves the box.
         "mcp_outbound_egress_blocked",
+        # Trust layer — per-connector circuit breaker (docs/ops/resilience.md).
+        # Emitted when the breaker rejects a call because the last N calls
+        # against this connector failed at the transport level; no network
+        # traffic left the box.
+        "mcp_circuit_open",
         # Pilot-refresh ticket A8 — integration kill switch (Epic 2 Story
         # 2-6, now real). One row per phase so the audit timeline shows
         # exactly what the kill switch did; failures land a distinct kind
