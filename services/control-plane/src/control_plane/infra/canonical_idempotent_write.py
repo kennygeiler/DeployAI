@@ -50,3 +50,42 @@ async def try_insert_with_ingestion_dedup(
     r = await t_sess.execute(ins)
     row = r.fetchone()
     return row is not None
+
+
+async def insert_snapshot_with_ingestion_dedup(
+    t_sess: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    engagement_id: uuid.UUID | None,
+    event_type: str,
+    occurred_at: datetime,
+    source_ref: str | None,
+    payload: dict[str, Any],
+    ingestion_dedup_key: str,
+) -> uuid.UUID | None:
+    """Engagement-scoped sibling of :func:`try_insert_with_ingestion_dedup`.
+
+    Returns the new event id, or ``None`` when deduped. Used by snapshot
+    batchers (SL1 Slack flush) that need the id to chain extraction.
+    """
+    ins = (
+        insert(CanonicalMemoryEvent)
+        .values(
+            tenant_id=tenant_id,
+            engagement_id=engagement_id,
+            event_type=event_type,
+            occurred_at=occurred_at,
+            source_ref=source_ref,
+            payload=payload,
+            evidence_span={},
+            ingestion_dedup_key=ingestion_dedup_key,
+        )
+        .on_conflict_do_nothing(
+            index_elements=[CanonicalMemoryEvent.tenant_id, CanonicalMemoryEvent.ingestion_dedup_key],
+            index_where=CanonicalMemoryEvent.ingestion_dedup_key.isnot(None),
+        )
+        .returning(CanonicalMemoryEvent.id)
+    )
+    r = await t_sess.execute(ins)
+    row = r.fetchone()
+    return row[0] if row is not None else None
