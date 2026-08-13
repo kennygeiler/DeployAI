@@ -106,6 +106,8 @@ class EngagementRead(BaseModel):
     customer_account: str | None
     current_phase: str
     status: str
+    # Non-NULL only on per-guest demo sandboxes (see services/demo_sandbox.py).
+    demo_sandbox_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -134,11 +136,23 @@ async def _require_tenant(session: AsyncSession, tenant_id: uuid.UUID) -> None:
 async def list_engagements(
     session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
+    exclude_demo_sandboxes: Annotated[bool, Query()] = False,
+    visible_sandbox_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> list[EngagementListRead]:
     await _require_tenant(session, tenant_id)
-    r = await session.execute(
-        select(Engagement).where(Engagement.tenant_id == tenant_id).order_by(Engagement.created_at.desc())
-    )
+    query = select(Engagement).where(Engagement.tenant_id == tenant_id)
+    if exclude_demo_sandboxes:
+        # Guest-sandbox hygiene: a demo_guest session sees the seeded fixtures
+        # (demo_sandbox_at NULL) plus at most its OWN sandbox — never other
+        # visitors'. The BFF passes the caller's demo_engagement cookie as
+        # visible_sandbox_id; role knowledge lives web-side (this internal API
+        # is key-authed and carries no user identity). Omitted
+        # visible_sandbox_id (expired cookie) hides every sandbox.
+        if visible_sandbox_id is not None:
+            query = query.where(Engagement.demo_sandbox_at.is_(None) | (Engagement.id == visible_sandbox_id))
+        else:
+            query = query.where(Engagement.demo_sandbox_at.is_(None))
+    r = await session.execute(query.order_by(Engagement.created_at.desc()))
     engagements = list(r.scalars().all())
 
     # U7 attention inputs — three tenant-wide grouped aggregates, so the cost

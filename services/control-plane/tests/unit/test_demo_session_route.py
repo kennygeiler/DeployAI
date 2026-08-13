@@ -1,16 +1,20 @@
 """ASGI tests for POST /internal/v1/demo/session (Wave 4S guest demo access).
 
-No Redis: ``issue_tokens`` is monkeypatched where enabled-path minting is
-asserted; the disabled/misconfigured paths never reach it.
+No Redis, no Postgres: ``issue_tokens`` and the per-guest sandbox
+provisioning are monkeypatched where enabled-path minting is asserted; the
+disabled/misconfigured paths never reach either. Real sandbox provisioning
+(reaper included) is covered by tests/integration/test_demo_sandbox.py.
 """
 
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import control_plane.api.routes.demo_session_internal as demo_mod
 from control_plane.auth.session_service import SessionPair
@@ -20,6 +24,7 @@ from control_plane.main import app
 DEMO_TENANT = "33333333-3333-3333-3333-333333333333"
 DEMO_USER = "44444444-4444-4444-4444-444444444444"
 INTERNAL_KEY = "demo-int-key"
+SANDBOX_ID = uuid.UUID("55555555-5555-4555-8555-555555555555")
 
 
 def _client() -> AsyncClient:
@@ -105,10 +110,30 @@ def _capture_issue(
     return calls
 
 
+def _stub_sandbox(monkeypatch: pytest.MonkeyPatch) -> list[uuid.UUID]:
+    """Monkeypatch the DB-touching sandbox provisioning; record tenant ids."""
+    provisioned: list[uuid.UUID] = []
+
+    @asynccontextmanager
+    async def fake_session(tenant_id: uuid.UUID) -> AsyncIterator[object]:
+        _ = tenant_id
+        yield object()
+
+    async def fake_provision(session: AsyncSession, tenant_id: uuid.UUID) -> uuid.UUID:
+        _ = session
+        provisioned.append(tenant_id)
+        return SANDBOX_ID
+
+    monkeypatch.setattr(demo_mod, "tenant_request_session", fake_session)
+    monkeypatch.setattr(demo_mod, "provision_sandbox_engagement", fake_provision)
+    return provisioned
+
+
 @pytest.mark.asyncio
 async def test_mints_demo_guest_session_on_demo_tenant(monkeypatch: pytest.MonkeyPatch) -> None:
     _configure(monkeypatch)
     calls = _capture_issue(monkeypatch)
+    provisioned = _stub_sandbox(monkeypatch)
     async with _client() as c:
         r = await c.post("/internal/v1/demo/session", headers={"X-DeployAI-Internal-Key": INTERNAL_KEY})
     assert r.status_code == 201, r.text
@@ -119,6 +144,10 @@ async def test_mints_demo_guest_session_on_demo_tenant(monkeypatch: pytest.Monke
     assert body["expires_in"] == 900
     assert body["tenant_id"] == DEMO_TENANT
     assert body["roles"] == ["demo_guest"]
+    # Guest-sandbox wave: each mint provisions one sandbox engagement on the
+    # demo tenant and reports its id for the web demo_engagement cookie.
+    assert body["engagement_id"] == str(SANDBOX_ID)
+    assert provisioned == [uuid.UUID(DEMO_TENANT)]
     # The caller cannot influence roles / tenant / user — all come from settings.
     assert calls == [(uuid.UUID(DEMO_TENANT), uuid.UUID(DEMO_USER), ["demo_guest"], 900)]
 
@@ -127,6 +156,7 @@ async def test_mints_demo_guest_session_on_demo_tenant(monkeypatch: pytest.Monke
 async def test_demo_session_ttl_env_is_honored(monkeypatch: pytest.MonkeyPatch) -> None:
     _configure(monkeypatch, DEPLOYAI_DEMO_SESSION_TTL="1800")
     calls = _capture_issue(monkeypatch)
+    _stub_sandbox(monkeypatch)
     async with _client() as c:
         r = await c.post("/internal/v1/demo/session", headers={"X-DeployAI-Internal-Key": INTERNAL_KEY})
     assert r.status_code == 201, r.text
@@ -138,6 +168,7 @@ async def test_demo_session_ttl_env_is_honored(monkeypatch: pytest.MonkeyPatch) 
 async def test_demo_session_ttl_clamped_to_one_hour(monkeypatch: pytest.MonkeyPatch) -> None:
     _configure(monkeypatch, DEPLOYAI_DEMO_SESSION_TTL="7200")
     calls = _capture_issue(monkeypatch)
+    _stub_sandbox(monkeypatch)
     async with _client() as c:
         r = await c.post("/internal/v1/demo/session", headers={"X-DeployAI-Internal-Key": INTERNAL_KEY})
     assert r.status_code == 201, r.text
