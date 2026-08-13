@@ -70,6 +70,7 @@ from control_plane.agents.tools.matrix import (
 )
 from control_plane.agents.tools.search import keyword_search, vector_search
 from control_plane.agents.tools.synthesis import read_synthesis
+from control_plane.infra.tracing import tracer
 
 # Tool name → invoker. Each invoker normalizes the JSON input the LLM sent
 # into the kwargs the python tool accepts (e.g. ``from`` → ``from_``).
@@ -247,76 +248,85 @@ async def dispatch_tools(
             raw_input = {}
         tool_use_id = str(call.get("_tool_use_id") or "")
 
-        if is_external_tool_name(name):
-            await _dispatch_external(
-                state,
-                emit=emit,
-                turn_id_hint=turn_id_hint,
-                mcp_client=mcp_client,
-                name=name,
-                raw_input=raw_input,
-                tool_use_id=tool_use_id,
-            )
-            state.tool_calls_made += 1
-            continue
-
-        spec = TOOL_REGISTRY.get(name)
-        invoker = _INVOKERS.get(name)
-        if spec is None or invoker is None:
-            error = f"unknown_tool:{name}"
-            state.messages.append(
-                {
-                    "role": "user",
-                    "content": (f'<tool_result name="{name}" error="{error}">no such tool</tool_result>'),
-                }
-            )
-            if emit is not None:
-                await emit(ToolResultChunk(name=name, row_count=0, truncated=False, error=error))
-            state.tool_calls_made += 1
-            continue
-        try:
-            validate_input(spec.input_schema, raw_input)
-            kwargs = _coerce_kwargs(name, raw_input)
-            if name == "vector_search":
-                if embedder is None:
-                    raise ToolError("vector_search unavailable: no embedder configured for this process")
-                kwargs["embedder"] = embedder
-            result = await invoker(
-                session,
-                tenant_id=state.tenant_id,
-                engagement_id=state.engagement_id,
-                turn_id=turn_id_hint,
-                **kwargs,
-            )
-        except ToolError as exc:
-            error_msg = f"tool_error: {exc}"
-            state.messages.append(
-                {
-                    "role": "user",
-                    "content": f'<tool_result name="{name}" error="true">{error_msg}</tool_result>',
-                }
-            )
-            if emit is not None:
-                await emit(ToolResultChunk(name=name, row_count=0, truncated=False, error=str(exc)))
-            state.tool_calls_made += 1
-            continue
-        # Persist a compact rendering for the next LLM prompt round.
-        rendered = _render_tool_result(result)
-        state.messages.append(
-            {
-                "role": "user",
-                "content": f'<tool_result name="{name}">{rendered}</tool_result>',
-            }
-        )
-        if emit is not None:
-            await emit(
-                ToolResultChunk(
+        # One span per tool call (no-op without a tracer provider). The
+        # `continue` branches below exit the span cleanly via the context
+        # manager.
+        with tracer().start_as_current_span("agent_kenny.tool_dispatch") as span:
+            span.set_attribute("tool.name", name)
+            if is_external_tool_name(name):
+                span.set_attribute("tool.external", True)
+                await _dispatch_external(
+                    state,
+                    emit=emit,
+                    turn_id_hint=turn_id_hint,
+                    mcp_client=mcp_client,
                     name=name,
-                    row_count=len(result.rows),
-                    truncated=result.truncated,
+                    raw_input=raw_input,
+                    tool_use_id=tool_use_id,
                 )
+                state.tool_calls_made += 1
+                continue
+
+            spec = TOOL_REGISTRY.get(name)
+            invoker = _INVOKERS.get(name)
+            if spec is None or invoker is None:
+                error = f"unknown_tool:{name}"
+                span.set_attribute("tool.error", error)
+                state.messages.append(
+                    {
+                        "role": "user",
+                        "content": (f'<tool_result name="{name}" error="{error}">no such tool</tool_result>'),
+                    }
+                )
+                if emit is not None:
+                    await emit(ToolResultChunk(name=name, row_count=0, truncated=False, error=error))
+                state.tool_calls_made += 1
+                continue
+            try:
+                validate_input(spec.input_schema, raw_input)
+                kwargs = _coerce_kwargs(name, raw_input)
+                if name == "vector_search":
+                    if embedder is None:
+                        raise ToolError("vector_search unavailable: no embedder configured for this process")
+                    kwargs["embedder"] = embedder
+                result = await invoker(
+                    session,
+                    tenant_id=state.tenant_id,
+                    engagement_id=state.engagement_id,
+                    turn_id=turn_id_hint,
+                    **kwargs,
+                )
+            except ToolError as exc:
+                error_msg = f"tool_error: {exc}"
+                span.set_attribute("tool.error", str(exc))
+                state.messages.append(
+                    {
+                        "role": "user",
+                        "content": f'<tool_result name="{name}" error="true">{error_msg}</tool_result>',
+                    }
+                )
+                if emit is not None:
+                    await emit(ToolResultChunk(name=name, row_count=0, truncated=False, error=str(exc)))
+                state.tool_calls_made += 1
+                continue
+            # Persist a compact rendering for the next LLM prompt round.
+            rendered = _render_tool_result(result)
+            span.set_attribute("tool.row_count", len(result.rows))
+            state.messages.append(
+                {
+                    "role": "user",
+                    "content": f'<tool_result name="{name}">{rendered}</tool_result>',
+                }
             )
-        state.tool_calls_made += 1
+            if emit is not None:
+                await emit(
+                    ToolResultChunk(
+                        name=name,
+                        row_count=len(result.rows),
+                        truncated=result.truncated,
+                    )
+                )
+            state.tool_calls_made += 1
     state.pending_tool_calls = []
     return state
 

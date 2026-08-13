@@ -13,6 +13,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from opentelemetry import trace
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,6 +35,7 @@ from control_plane.agents.agent_kenny.types import (
 from control_plane.domain.canonical_memory.matrix import MatrixEdge, MatrixInsight, MatrixNode
 from control_plane.domain.ledger import LedgerEvent
 from control_plane.domain.oracle import OracleChatTurn
+from control_plane.infra.tracing import traced
 
 _TABLE_BY_KIND: dict[str, Any] = {
     "event": LedgerEvent,
@@ -86,6 +88,7 @@ async def verify_citations(
     return state
 
 
+@traced("agent_kenny.citations")
 async def verify_citations_parallel(
     session: AsyncSession,
     state: AgentState,
@@ -109,6 +112,12 @@ async def verify_citations_parallel(
         if emit is not None and emit_chunk is not None:
             await emit(emit_chunk)
     state.citation_report = report
+    # Span opened by @traced; no-op without a tracer provider.
+    span = trace.get_current_span()
+    span.set_attribute("citations.verified", len(report.verified))
+    span.set_attribute("citations.unverified", len(report.not_found))
+    span.set_attribute("citations.cross_engagement", len(report.cross_engagement))
+    span.set_attribute("citations.external", len(report.external))
     return state
 
 

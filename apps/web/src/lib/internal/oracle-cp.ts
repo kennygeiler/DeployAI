@@ -8,6 +8,7 @@
 import { z } from "zod";
 
 import { getControlPlaneBaseUrl, getControlPlaneInternalKey } from "@/lib/internal/control-plane";
+import { ensureTraceparent } from "@/lib/internal/traceparent";
 
 const _UUID = z.string().uuid();
 
@@ -73,7 +74,7 @@ export class OracleBudgetExhaustedError extends Error {
   }
 }
 
-function cpHeaders(actorId: string): Record<string, string> {
+function cpHeaders(actorId: string, traceparent?: string | null): Record<string, string> {
   const key = getControlPlaneInternalKey();
   if (!key) {
     throw new Error("DEPLOYAI_INTERNAL_API_KEY not set");
@@ -81,6 +82,9 @@ function cpHeaders(actorId: string): Record<string, string> {
   return {
     "X-DeployAI-Internal-Key": key,
     "X-DeployAI-Actor-Id": actorId,
+    // Forward the caller's traceparent (or mint one) so the CP server span
+    // joins this request's trace — see docs/ops/tracing.md.
+    traceparent: ensureTraceparent(traceparent),
   };
 }
 
@@ -176,6 +180,7 @@ export async function cpStreamOracleChatV2(
   engagementId: string,
   actorId: string,
   body: OracleChatRequest,
+  traceparent?: string | null,
 ): Promise<Response> {
   const url =
     `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}/oracle/chat/stream-v2` +
@@ -183,7 +188,7 @@ export async function cpStreamOracleChatV2(
   const r = await fetch(url, {
     method: "POST",
     headers: {
-      ...cpHeaders(actorId),
+      ...cpHeaders(actorId, traceparent),
       "Content-Type": "application/json",
       Accept: "text/event-stream",
     },
