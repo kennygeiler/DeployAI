@@ -73,6 +73,7 @@ from control_plane.api.routes.seed_scenarios_internal import router as seed_scen
 from control_plane.api.routes.service_tokens_internal import (
     router as service_tokens_internal_router,
 )
+from control_plane.api.routes.slack_intake_internal import router as slack_intake_internal_router
 from control_plane.api.routes.strategist_integration_records import (
     router as strategist_integration_records_internal_router,
 )
@@ -220,6 +221,7 @@ app.include_router(seed_scenarios_internal_router, prefix="/internal/v1")
 app.include_router(review_inbox_internal_router, prefix="/internal/v1")
 app.include_router(synthesis_internal_router, prefix="/internal/v1")
 app.include_router(lint_internal_router, prefix="/internal/v1")
+app.include_router(slack_intake_internal_router, prefix="/internal/v1")
 app.include_router(tools_internal_router, prefix="/internal/v1")
 app.include_router(scim_users_router, prefix="/scim/v2")
 
