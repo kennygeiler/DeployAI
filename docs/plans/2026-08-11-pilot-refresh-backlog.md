@@ -319,3 +319,29 @@ repo + /overview as the application artifact.
 4. **Wave 2.5 = legibility (Part 5)**: the product must *read* before it grows — Brief layout, humanized identity, Kenny as front door, graph-as-lens, progressive loading. U3's digest/needs-you slots are the landing zones Wave 3 fills. — DONE 2026-08-11 (#273)
 5. Wave 3 re-scoped (see Part 5 "The demo thesis"): demo kit + conviction features (K1–K5, F3, F1) first; adoption features (F5–F7) after first pilot.
 6. Wave 4 = longscale proof for buyer conversations.
+
+## Part 7 — Wave 5: Intake (added 2026-08-13)
+
+Design context: onboarding critique session. At pilot stage, org-wide OAuth grants
+(admin consent, security review) are unavailable, so intake must be built from
+zero-permission gestures the team already makes: CC an address, invite a bot to one
+channel, drop a transcript. Humans select (at source, with context); the system
+extracts; Kenny pulls what's missing. Signature-based auto-routing + historical
+sweeps are deliberately deferred to expansion stage (post-trust).
+
+| # | Pri | Size | Deps | Ticket |
+|---|---|---|---|---|
+| IN1 | P0 | L | — | Inbound engagement email, CP side: per-engagement intake address (`<slug>-<token>@<intake domain>`, unguessable token, stored via migration), provider-agnostic inbound-webhook endpoint (Postmark-shaped JSON; HMAC/secret verification via env), address→engagement resolution, `email.thread` canonical event through the existing idempotent ingest path (dedup on Message-ID), auto-extract chained, size caps + rate limit, unknown-address = silent 200 (no bounce-leak), audit events. |
+| IN2 | P0 | M | IN1 | Inbound email, web side: intake address surfaced on the Capture tab with copy button + "CC this on deal email" explainer; admin regenerate-address action; docs/ops/intake-email.md (Postmark/SES inbound setup, MX/DNS, env vars). |
+| IN3 | P1 | S | IN1 | Capture accepts `.eml`/`.vtt`/`.srt`/`.md` in the file picker (transcript-drop ritual); parser strips VTT/SRT timestamps to plain text. |
+| SL1 | P0 | L | — | Slack channel bot: channel→engagement mapping (settings UI + CP storage), channel-scoped event ingestion on the existing Slack events path, message batching into per-thread/day snapshot events (no per-message spam), auto-extract chained, bot-membership = consent boundary, docs for the Slack app manifest. |
+| GA1 | P0 | M | — | Kenny gap-asks, CP side: deterministic gap detection over the matrix (commitment w/o owner or due date, risk w/o mitigation edge, no economic-buyer stakeholder, decision w/o evidence link, engagement silent >14d), ask objects with suggested remedy ("forward the latest status thread to <address>"), endpoint on the Brief's attention path. Deterministic core; LLM phrasing optional and off by default. |
+| GA2 | P0 | M | GA1 | Gap-asks, web side: "Kenny asks" cards in the Brief's Needs-you region — each ask carries a one-click remedy (copy intake address / open Capture pre-focused); dismiss/snooze per ask; empty state stays quiet. |
+| RT1 | P3 | L | IN1,SL1 | (Expansion-stage, do NOT build now) Engagement signature + auto-routing + admin-consent historical sweep + unrouted queue — deferred per design note above. |
+
+Priorities: IN1/IN2 first (habit-former; demo beat = CC the address live, watch the
+Brief update), GA1/GA2 second (differentiator, zero external deps), SL1 third
+(needs a Slack app config to exercise live), IN3 rides along. External user-owned
+steps: intake domain + Postmark/SES inbound webhook config; Slack app creation.
+Parallelization: three disjoint lanes — (IN1+IN2+IN3) / (SL1) / (GA1+GA2);
+IN2 and GA2 both touch the Brief area — merge intake lane before gap-asks lane.
