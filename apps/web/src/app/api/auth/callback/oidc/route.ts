@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getControlPlaneBaseUrl } from "@/lib/internal/control-plane";
+import { requestOrigin } from "@/lib/internal/account-auth";
 import { accessTokenCookieNameFromEnv } from "@/lib/internal/deployai-access-jwt";
 import {
   OIDC_NONCE_COOKIE,
@@ -45,7 +46,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   const state = url.searchParams.get("state");
   const idpError = url.searchParams.get("error");
   if (idpError) {
-    return NextResponse.redirect(new URL("/login?error=idp_error", request.url), 302);
+    return NextResponse.redirect(new URL("/login?error=idp_error", requestOrigin(request)), 302);
   }
   if (!code || !state) {
     return new NextResponse("oidc-missing-code-or-state", { status: 400 });
@@ -85,7 +86,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     });
   } catch {
     return NextResponse.redirect(
-      new URL("/login?error=control_plane_unreachable", request.url),
+      new URL("/login?error=control_plane_unreachable", requestOrigin(request)),
       302,
     );
   }
@@ -101,7 +102,10 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (cpRes.status === 502) {
     // CP could not reach the issuer (metadata / token endpoint).
     return clearTransient(
-      NextResponse.redirect(new URL("/login?error=issuer_unreachable", request.url), 302),
+      NextResponse.redirect(
+        new URL("/login?error=issuer_unreachable", requestOrigin(request)),
+        302,
+      ),
     );
   }
   if (cpRes.status === 403) {
@@ -118,7 +122,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
   if (!cpRes.ok) {
     return clearTransient(
-      NextResponse.redirect(new URL("/login?error=sso_failed", request.url), 302),
+      NextResponse.redirect(new URL("/login?error=sso_failed", requestOrigin(request)), 302),
     );
   }
 
@@ -131,7 +135,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   const session = parseCpSessionIssued(body);
   if (!session) {
     return clearTransient(
-      NextResponse.redirect(new URL("/login?error=sso_failed", request.url), 302),
+      NextResponse.redirect(new URL("/login?error=sso_failed", requestOrigin(request)), 302),
     );
   }
 
