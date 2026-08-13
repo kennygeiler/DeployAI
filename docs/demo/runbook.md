@@ -50,6 +50,81 @@ auto-starts — hit **Skip** when you're presenting live).
    everything you just watched, explorable."* Repo close, if technical audience:
    `docs/engineering-highlights.md` — *"every claim in this demo has a CI gate."*
 
+## The catch-the-slip act (3 turns, ~6 min)
+
+One week of the Acme deal, played by the audience (or a volunteer): Monday
+builds trust, midweek a commitment quietly moves, Friday the record answers
+for it. The guided tour runs this act self-serve (steps `slip-week-intro` …
+`slip-friday-answer`, after the graph-tab step); this section is the
+presenter version. **Run `make demo-reset` first** — the act needs the
+cold-start Acme engagement, and its route step keys off the stable id the
+reset guarantees.
+
+### Turn 1 — Monday, the trust beat (~2 min)
+
+1. Open **Acme Robotics — Pilot Deployment** → **Capture tab**.
+2. Load `demo/artifacts/kickoff-transcript.txt` (tour button does this;
+   presenters paste it) → source **Meeting note** → **Capture**.
+3. Narrate the honest progress states: Saving → Extracting (**25–30s
+   measured**) → **~20 proposals ready**.
+   > "Forty-five minutes of kickoff just became proposed memory — decisions,
+   > risks, commitments, owners. Proposed, not written: nothing enters the
+   > record without a human."
+4. Accept a few in **Needs you** — including the commitment
+   *"safety certification package submitted by October"* (it matters later).
+   Point at the **Kenny asks** cards: *"the record already knows what it's
+   missing — it asks for the artifact, you don't guess."*
+
+### Turn 2 — midweek, the slip (~2 min)
+
+5. Capture `demo/artifacts/slip-email.txt` as **Email**. Before submitting,
+   dare the room: *"Routine end-of-day ops roundup. Read it. Would anything
+   stop you?"* (The date change is one clause, mid-paragraph, sentence four.)
+6. Extraction (**8–11s measured**) surfaces the catch — a commitment
+   proposal titled *"Safety certification package by October 17 (was
+   October 3)"* right next to the original commitment it contradicts.
+   Accept it.
+   > "One buried sentence just moved a committed date by two weeks. The
+   > record caught it on a Wednesday afternoon. Would you have?"
+7. Second beat: download/open `demo/artifacts/acme-standup.vtt` and **drag
+   the file into the Capture box** (the drop is the demo moment — raw
+   meeting exhaust, straight in). Extraction (**7–10s measured**) proposes
+   the risk *"e-stop faults blocking safety certification test logs"* —
+   a blocker aimed at the very milestone that just slipped. Accept.
+8. Scroll to **Since you last looked**: the week replayed — new memory, a
+   slipped date, a new blocker, each entry traceable to an artifact.
+
+### Turn 3 — Friday, the payoff (~2 min)
+
+9. Ask bar: *"Are we on track for the safety certification?"* Let the tool
+   chips and stream play (**42–55s measured** — narrate the trace, don't
+   fill silence with apology).
+10. The answer weaves all three sources with verified citation chips
+    (5–14 chips across measured runs): original October commitment
+    (kickoff) → moved October 3 → 17 (the buried email sentence) → blocked
+    by e-stop firmware faults (the standup file). Click a chip.
+    > "That answer exists because *you* fed the record this week. Cited,
+    > grounded, and it will say 'I can't confirm' rather than guess."
+11. Optional coda: the refusal trap from Act 2 (*Active Directory
+    migration*) — same bar, opposite behavior — if the room needs the
+    trust proof.
+
+### Which beats are model-dependent (measured 2026-08-13, 3 full runs)
+
+- **Stable across all runs**: kickoff → ~20 proposals; slip email → a
+  commitment proposal carrying "October 17 (was October 3)" in the title
+  (3/3); standup → a risk proposal tying e-stop faults to the safety
+  certification test logs (3/3); final answer citing all three sources with
+  both dates (3/3, 42–53s).
+- **Varies between runs**: exact proposal counts on the slip email (3–5)
+  and standup (2–4); citation-chip counts (5–14); occasional extra edges.
+  Near-duplicate commitments (the October original beside the October 17
+  revision) are **by design** — the record is append-only; say so.
+- **Known failure mode**: the Friday ask has a 60s hard turn budget; a
+  wandering run can end with "turn_timeout" (~1 in 6 pre-tuning runs, none
+  after). Recovery: ask again — the retry re-runs retrieval and has always
+  completed in our runs.
+
 ## Recovery moves
 
 | Symptom | Move |
@@ -58,6 +133,9 @@ auto-starts — hit **Skip** when you're presenting live).
 | 429 budget message | Daily cap hit — switch to narrating the citation panel + provenance on existing answers |
 | Session expired mid-demo | Click View live demo again (one click, ~5 seconds) |
 | Extraction slow in Act 1 | Keep talking over the progress state; >30s, move to Act 2 and return |
+| Slip-act extraction slow | The kickoff is the long pole (~30s) — narrate the human gate while it runs; the email/vtt beats are <12s |
+| Friday ask hits turn_timeout | Ask the same question again — retries completed every time in rehearsal; meanwhile show the accepted Oct 17 proposal as the manual proof |
+| Slip proposal wording drifts | The date is always in the proposal (title or rationale, 3/3 runs titled) — read it aloud from whichever field carries it |
 | Anything hard-fails | The `/overview` walkthrough carries the pitch with screenshots — no live deps |
 
 ## The one-liner
