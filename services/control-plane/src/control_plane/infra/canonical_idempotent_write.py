@@ -21,12 +21,19 @@ async def try_insert_with_ingestion_dedup(
     source_ref: str | None,
     payload: dict[str, Any],
     ingestion_dedup_key: str,
+    engagement_id: uuid.UUID | None = None,
 ) -> bool:
-    """Return ``True`` if a new row was inserted, ``False`` if deduped (existing row for same key)."""
+    """Return ``True`` if a new row was inserted, ``False`` if deduped (existing row for same key).
+
+    ``engagement_id`` is optional: provider-pull writers (M365/Gmail/Slack)
+    land tenant-scoped events and omit it; engagement-scoped writers (email
+    intake, Wave 5 IN1) pass it so the extraction chain can find the event.
+    """
     ins = (
         insert(CanonicalMemoryEvent)
         .values(
             tenant_id=tenant_id,
+            engagement_id=engagement_id,
             event_type=event_type,
             occurred_at=occurred_at,
             source_ref=source_ref,

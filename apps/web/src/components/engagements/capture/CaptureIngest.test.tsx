@@ -61,6 +61,11 @@ describe("CaptureIngest", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((url: string, init?: { body?: unknown }) => {
+        // The IN2 intake-address block fetches on mount; answer 404 so it
+        // stays hidden and out of the staged-flow call bookkeeping.
+        if (url.includes("/intake-address")) {
+          return Promise.resolve(jsonResponse({ error: "not configured" }, false, 404));
+        }
         calls.push({ url, body: typeof init?.body === "string" ? init.body : "" });
         if (url.includes("/ingest")) {
           return ingestGate.promise;
@@ -144,7 +149,12 @@ describe("CaptureIngest", () => {
     await user.click(screen.getByRole("button", { name: "Capture" }));
 
     expect(await screen.findByText(/Could not save the interaction/)).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Only the ingest call — /extract never fires (the mount-time
+    // intake-address fetch is not part of the staged flow).
+    const flowCalls = fetchMock.mock.calls.filter(
+      (args: unknown[]) => !String(args[0]).includes("/intake-address"),
+    );
+    expect(flowCalls).toHaveLength(1);
   });
 
   it("keeps the saved event when extraction fails, and says both", async () => {
@@ -174,13 +184,64 @@ describe("CaptureIngest", () => {
     const file = new File(["[9:14 AM] Priya Shah: orin build v0.3 flashed"], "slack-export.txt", {
       type: "text/plain",
     });
-    await user.upload(screen.getByLabelText("Pick a .txt file"), file);
+    await user.upload(screen.getByLabelText("Pick a file"), file);
 
     await waitFor(() =>
       expect(screen.getByLabelText("Interaction")).toHaveValue(
         "[9:14 AM] Priya Shah: orin build v0.3 flashed",
       ),
     );
+  });
+
+  it("converts a picked .eml to headers-kept plain text (IN3)", async () => {
+    const user = userEvent.setup();
+    render(<CaptureIngest engagementId="e1" />);
+
+    const eml = [
+      "Return-Path: <dana@acme.com>",
+      "From: Dana <dana@acme.com>",
+      "Subject: Kickoff",
+      "Date: Tue, 11 Aug 2026 09:00:00 +0000",
+      "MIME-Version: 1.0",
+      "",
+      "We agreed to start with the pilot cell.",
+    ].join("\n");
+    const file = new File([eml], "kickoff.eml", { type: "message/rfc822" });
+    await user.upload(screen.getByLabelText("Pick a file"), file);
+
+    await waitFor(() => {
+      const value = (screen.getByLabelText("Interaction") as HTMLTextAreaElement).value;
+      expect(value).toContain("Subject: Kickoff");
+      expect(value).toContain("We agreed to start with the pilot cell.");
+      expect(value).not.toContain("Return-Path");
+    });
+  });
+
+  it("strips cue machinery from a picked .vtt (IN3)", async () => {
+    const user = userEvent.setup();
+    render(<CaptureIngest engagementId="e1" />);
+
+    const vtt = [
+      "WEBVTT",
+      "",
+      "1",
+      "00:00:01.000 --> 00:00:03.000",
+      "<v Priya>Calibration is done.",
+      "",
+      "2",
+      "00:00:04.000 --> 00:00:06.000",
+      "Ship it Thursday.",
+    ].join("\n");
+    const file = new File([vtt], "standup.vtt", { type: "text/vtt" });
+    await user.upload(screen.getByLabelText("Pick a file"), file);
+
+    await waitFor(() => {
+      const value = (screen.getByLabelText("Interaction") as HTMLTextAreaElement).value;
+      expect(value).toContain("Priya: Calibration is done.");
+      expect(value).toContain("Ship it Thursday.");
+      expect(value).not.toContain("-->");
+      expect(value).not.toContain("WEBVTT");
+    });
   });
 
   it("marks the paste box as the tour's capture-input target", () => {

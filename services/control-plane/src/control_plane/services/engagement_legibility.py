@@ -122,8 +122,10 @@ SOURCE_KIND_BUCKETS: dict[str, str] = {
     "killswitch_queue_purge_failed": "system",
     "killswitch_secrets_deleted": "system",
     "killswitch_secrets_delete_failed": "system",
+    "intake_address_regenerated": "system",
     # raw activity / entity CRUD — no better bucket without reading detail
     "email_ingest": "other",
+    "intake_email_received": "other",
     "meeting_webhook": "other",
     "manual_capture": "other",
     "matrix_node_created": "other",

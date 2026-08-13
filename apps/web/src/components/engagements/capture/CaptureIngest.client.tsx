@@ -4,12 +4,15 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { PastePreview } from "@/components/epic9/PastePreview.client";
+import { IntakeAddressBlock } from "@/components/engagements/capture/IntakeAddress.client";
 import { Button } from "@/components/ui/button";
 import { PixelLoader } from "@/components/ui/shimmer";
 import type { MatrixProposal } from "@/lib/bff/matrix-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 import { parseEmail } from "@/lib/parsers/email";
+import { emlToText } from "@/lib/parsers/eml";
 import { parseMeetingNotes } from "@/lib/parsers/meeting-notes";
+import { subtitlesToText } from "@/lib/parsers/subtitles";
 
 const SOURCES = ["email", "meeting_note", "manual_import", "field_note"] as const;
 
@@ -22,6 +25,25 @@ const SOURCE_LABEL: Record<string, string> = {
 
 /** The demo's stated turnaround budget — shown so the wait is honest. */
 const EXTRACT_HINT = "usually 10–25s";
+
+/** File types the picker/drop accepts (IN3). All are read as text client-side. */
+const ACCEPTED_FILE_TYPES = ".txt,.eml,.vtt,.srt,.md,text/plain";
+
+/**
+ * Convert a picked/dropped file's text by extension: .eml keeps
+ * Subject/From/Date and strips the rest of the headers, .vtt/.srt strip cue
+ * timing machinery, .txt/.md (and anything unknown) pass through as-is.
+ */
+function fileTextToPaste(fileName: string, text: string): string {
+  const ext = fileName.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? "";
+  if (ext === "eml") {
+    return emlToText(text);
+  }
+  if (ext === "vtt" || ext === "srt") {
+    return subtitlesToText(text);
+  }
+  return text;
+}
 
 type Phase =
   | { name: "idle" }
@@ -68,7 +90,10 @@ function buildContent(
  *
  * One large paste box (email thread / meeting notes / Slack excerpt), a
  * source-type select, an occurred-at picker defaulting to now, and drag-drop
- * or file-pick of a .txt that lands in the same box. Submit runs the staged
+ * or file-pick of a .txt/.md/.eml/.vtt/.srt that lands in the same box
+ * (converted to plain text client-side — see `fileTextToPaste`). Below the
+ * paste card, the IN2 intake-address block offers the CC-a-deal-address
+ * alternative. Submit runs the staged
  * flow — POST /ingest with `extract: false`, then POST /extract — so the
  * progress line can say what is actually happening: "Saving…" →
  * "Extracting ({EXTRACT_HINT})…" with a live elapsed counter → "N proposals
@@ -107,7 +132,7 @@ export function CaptureIngest({
         reader.onerror = () => reject(reader.error ?? new Error("read failed"));
         reader.readAsText(file);
       });
-      setBody(text);
+      setBody(fileTextToPaste(file.name, text));
       setPhase({ name: "idle" });
       toast.success(`Loaded ${file.name}`, { description: "Review the text, then Capture it." });
     } catch {
@@ -236,7 +261,7 @@ export function CaptureIngest({
             <textarea
               id="capture-content"
               className="min-h-40 rounded-control border border-transparent bg-field px-2 py-1.5 font-mono text-xs shadow-inset-field outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              placeholder="Paste an email thread, meeting notes, or a Slack excerpt — or drop a .txt file here"
+              placeholder="Paste an email thread, meeting notes, or a Slack excerpt — or drop a .txt, .md, .eml, .vtt or .srt file here"
               value={body}
               onChange={(e) => setBody(e.target.value)}
               disabled={busy}
@@ -277,9 +302,9 @@ export function CaptureIngest({
             <input
               ref={fileInputRef}
               type="file"
-              accept=".txt,text/plain"
+              accept={ACCEPTED_FILE_TYPES}
               className="sr-only"
-              aria-label="Pick a .txt file"
+              aria-label="Pick a file"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
@@ -295,7 +320,7 @@ export function CaptureIngest({
               disabled={busy}
               onClick={() => fileInputRef.current?.click()}
             >
-              Pick a .txt file
+              Pick a file
             </Button>
             <Button
               type="button"
@@ -331,6 +356,7 @@ export function CaptureIngest({
           </div>
         </div>
       )}
+      <IntakeAddressBlock engagementId={engagementId} />
     </div>
   );
 }

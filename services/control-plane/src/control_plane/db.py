@@ -45,6 +45,16 @@ def tenant_session(tenant_id: UUID) -> AbstractAsyncContextManager[AsyncSession]
     return TenantScopedSession(tenant_id, get_engine())
 
 
+def tenant_request_session(tenant_id: UUID) -> AbstractAsyncContextManager[AsyncSession]:
+    """Like :func:`tenant_session`, but the GUC is re-applied on every transaction.
+
+    Use when the code inside the block may ``commit()`` mid-flow (the same
+    semantics route handlers get from :func:`get_tenant_db_session`) — e.g.
+    the intake webhook calling the extract handler outside a request.
+    """
+    return TenantScopedRequestSession(tenant_id, _get_app_session_maker())
+
+
 @lru_cache(maxsize=1)
 def _get_app_session_maker() -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(get_engine(), expire_on_commit=False, class_=AsyncSession)
