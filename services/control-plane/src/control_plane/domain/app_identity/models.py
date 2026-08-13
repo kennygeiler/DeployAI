@@ -66,10 +66,43 @@ class AppUser(Base):
     active: Mapped[bool] = mapped_column(Boolean(), nullable=False, server_default="true")
     roles: Mapped[Any] = mapped_column(JSONB(), nullable=True)
     entra_sub: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    # Native email/password credential (nullable: SSO/SCIM users have no
+    # password). Argon2id string from control_plane.auth.passwords — never
+    # serialize either column into an API response or log line.
+    password_hash: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    password_updated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
     tenant: Mapped[AppTenant] = relationship("AppTenant", back_populates="users")
+
+
+class UserInvite(Base):
+    """Single-use invite link into an existing tenant (no email delivery —
+    the admin copies the join URL out of the UI and sends it themselves).
+
+    The raw token never touches the database: only its SHA-256 hex lands in
+    ``token_hash``, so a DB leak cannot mint sessions. Accept marks
+    ``accepted_at`` + ``accepted_user_id`` instead of deleting the row, so the
+    audit trail keeps who-invited-whom.
+    """
+
+    __tablename__ = "user_invites"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=func.gen_random_uuid()
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("app_tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    email: Mapped[str] = mapped_column(Text(), nullable=False)
+    role: Mapped[str] = mapped_column(Text(), nullable=False)
+    token_hash: Mapped[str] = mapped_column(Text(), nullable=False, unique=True, index=True)
+    invited_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    accepted_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    accepted_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
 
 # Allowed provider values; kept in lock-step with the migration's check constraint

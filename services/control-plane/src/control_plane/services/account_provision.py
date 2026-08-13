@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,7 +25,14 @@ async def provision_platform_account(
     organization_name: str,
     initial_strategist_email: str,
     actor_sub: str | None,
+    initial_roles: list[str] | None = None,
+    password_hash: str | None = None,
+    display_name: str | None = None,
 ) -> PlatformAccountCreated:
+    """Canonical tenant + initial-user provisioning (platform admin AND self-serve
+    signup share this path — same DEK wrap, same empty-baseline check, same audit
+    log). Defaults keep the Story 2-5 platform route byte-identical; self-serve
+    signup passes ``initial_roles=["customer_admin"]`` + the argon2id hash."""
     tid = uuid.uuid4()
     email_norm = initial_strategist_email.strip().lower()
     dek_ct, key_id = wrap_tenant_dek()
@@ -33,8 +41,11 @@ async def provision_platform_account(
         scim_external_id=None,
         user_name=email_norm,
         email=email_norm,
+        given_name=display_name,
         active=True,
-        roles=["deployment_strategist"],
+        roles=initial_roles if initial_roles is not None else ["deployment_strategist"],
+        password_hash=password_hash,
+        password_updated_at=datetime.now(UTC) if password_hash is not None else None,
     )
     t = AppTenant(
         id=tid,

@@ -57,6 +57,8 @@ SOURCE_KIND_BUCKETS: dict[str, str] = {
     "member_added": "stakeholder",
     "member_removed": "stakeholder",
     "user_provisioned": "stakeholder",
+    "invite_created": "stakeholder",
+    "invite_accepted": "stakeholder",
     # commitments
     "followup_task_created": "commitment",
     # extraction / review-loop proposals
@@ -94,6 +96,10 @@ SOURCE_KIND_BUCKETS: dict[str, str] = {
     "human_escalation_answer": "agent",
     # platform / ops
     "settings_change": "system",
+    "account_signup": "system",
+    "user_login_succeeded": "system",
+    "user_login_failed": "system",
+    "password_changed": "system",
     "tenant_api_key_minted": "system",
     "tenant_api_key_revoked": "system",
     "mcp_resource_read": "system",

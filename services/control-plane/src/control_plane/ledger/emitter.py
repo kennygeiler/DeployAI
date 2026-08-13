@@ -132,6 +132,17 @@ ALLOWED_SOURCE_KINDS: frozenset[str] = frozenset(
         "review_item_dismissed",
         "human_escalation_answer",
         "proposal_auto_accepted",
+        # Self-serve accounts (docs/ops/accounts.md). ``user_login_failed`` is
+        # only emitted for a KNOWN credentialed user (a tenant to attribute the
+        # row to exists); unknown-identifier attempts are log-only by design —
+        # ledger rows are tenant-scoped and inventing a tenant would leak
+        # which emails exist.
+        "account_signup",
+        "user_login_succeeded",
+        "user_login_failed",
+        "password_changed",
+        "invite_created",
+        "invite_accepted",
     }
 )
 
