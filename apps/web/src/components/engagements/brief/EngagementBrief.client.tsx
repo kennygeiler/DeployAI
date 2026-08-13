@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { SectionWithTimeline } from "@/components/common/SectionWithTimeline.client";
 import { AskKennyBar } from "@/components/engagements/brief/AskKennyBar.client";
 import { DeltaDigest } from "@/components/engagements/brief/DeltaDigest.client";
+import { KennyAsks } from "@/components/engagements/brief/KennyAsks.client";
 import { NeedsYou } from "@/components/engagements/brief/NeedsYou.client";
 import { MatrixNodeDetail } from "@/components/engagements/MatrixNodeDetail.client";
 import { OracleChat } from "@/components/engagements/OracleChat.client";
@@ -228,6 +229,8 @@ export function EngagementBrief({ engagementId }: { engagementId: string }) {
   const matrixProposals = React.useMemo(() => data?.matrix?.proposals ?? [], [data]);
 
   const [matrixView, setMatrixView] = React.useState<"table" | "graph">("table");
+  // GA2: controlled so a "Kenny asks" remedy can jump to the Capture tab.
+  const [activeTab, setActiveTab] = React.useState("graph");
   const [roleLens, setRoleLens] = React.useState<RoleLens>("all");
   const [citation, setCitation] = React.useState<{
     open: boolean;
@@ -388,6 +391,9 @@ export function EngagementBrief({ engagementId }: { engagementId: string }) {
         onChanged={() => void Promise.all([refresh(), refreshSummary()])}
       />
 
+      {/* 3b — Kenny asks: what the decision record is missing (GA2). */}
+      <KennyAsks engagementId={engagementId} onOpenCapture={() => setActiveTab("capture")} />
+
       {/* 4 — Narrative cards. */}
       <section aria-labelledby="brief-narrative-heading" className="space-y-2">
         <h2 id="brief-narrative-heading" className="sr-only">
@@ -443,7 +449,7 @@ export function EngagementBrief({ engagementId }: { engagementId: string }) {
       <RecommendationsPanel engagementId={engagementId} />
 
       {/* 5 — Tabs: heavy surfaces. */}
-      <Tabs defaultValue="graph" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList aria-label="Engagement surfaces">
           <TabsTrigger value="graph" data-tour="brief-graph-tab">
             Graph
