@@ -25,6 +25,15 @@ Security posture (be honest about it):
   settings). Normal sessions keep the standard access-token TTL. The refresh
   JTI is returned so the caller *could* extend a demo, but the web demo route
   intentionally sets only the access cookie — a demo session simply expires.
+
+Per-guest sandbox (guest-sandbox wave): every mint also provisions one fresh
+"Acme Robotics — Pilot Deployment" engagement marked with
+``engagements.demo_sandbox_at``, so concurrent visitors each play the
+catch-the-slip act on their own cold-start deal instead of trampling a shared
+one. The response's ``engagement_id`` feeds the web route's
+``demo_engagement`` cookie. Expired sandboxes (>24h) are reaped
+opportunistically on each mint — bounded work, no scheduler; see
+``control_plane/services/demo_sandbox.py``.
 """
 
 from __future__ import annotations
@@ -37,6 +46,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from control_plane.auth.session_service import issue_tokens
 from control_plane.config.internal_auth import require_internal
 from control_plane.config.settings import get_settings
+from control_plane.db import tenant_request_session
+from control_plane.services.demo_sandbox import provision_sandbox_engagement
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +81,14 @@ async def mint_demo_session() -> dict[str, object]:
     caller cannot choose roles, tenant, or user — everything comes from settings.
     """
     tenant_id, user_id = _demo_config()
+
+    # Sandbox first: if the DB is down we fail before minting a token the
+    # visitor could not use for the slip act anyway. One session per mint —
+    # the mint route has no tenant_id query param (tenant comes from
+    # settings), so it cannot use the get_tenant_db_session dependency.
+    async with tenant_request_session(tenant_id) as db:
+        engagement_id = await provision_sandbox_engagement(db, tenant_id)
+
     pair = await issue_tokens(
         tenant_id,
         user_id,
@@ -78,7 +97,11 @@ async def mint_demo_session() -> dict[str, object]:
     )
     logger.info(
         "demo_session.minted",
-        extra={"tenant_id": str(tenant_id), "user_id": str(user_id)},
+        extra={
+            "tenant_id": str(tenant_id),
+            "user_id": str(user_id),
+            "engagement_id": str(engagement_id),
+        },
     )
     return {
         "access_token": pair.access_token,
@@ -87,4 +110,7 @@ async def mint_demo_session() -> dict[str, object]:
         "expires_in": pair.expires_in,
         "tenant_id": str(tenant_id),
         "roles": [DEMO_GUEST_ROLE],
+        # The visitor's private sandbox engagement — the web route surfaces it
+        # to the tour via the non-httpOnly demo_engagement cookie.
+        "engagement_id": str(engagement_id),
     }

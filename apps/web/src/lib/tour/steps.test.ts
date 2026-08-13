@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   ACME_ENGAGEMENT_PATH,
+  DEMO_ENGAGEMENT_COOKIE,
   KNOWN_TOUR_TARGETS,
   TOUR_CAPTURE_DONE_EVENT,
   TOUR_CHAT_OPENED_EVENT,
   TOUR_STEPS,
   TOUR_TURN_DONE_EVENT,
   matchesRoutePattern,
+  resolveDemoEngagementPath,
+  resolveTourRoutePattern,
 } from "@/lib/tour/steps";
 
 describe("TOUR_STEPS integrity", () => {
@@ -94,7 +97,7 @@ describe("catch-the-slip act (K7)", () => {
     expect(ids[start + act.length]).toBe("finale");
   });
 
-  it("opens by routing to the stable Acme engagement (reset keeps the id)", () => {
+  it("opens by routing to the Acme-path sentinel (resolved per guest at runtime)", () => {
     const intro = TOUR_STEPS.find((s) => s.id === "slip-week-intro");
     expect(intro?.advanceOn).toEqual({ type: "route", pattern: ACME_ENGAGEMENT_PATH });
     expect(ACME_ENGAGEMENT_PATH).toBe("/engagements/acacacac-acac-4aca-8aca-acacacacacac");
@@ -127,6 +130,36 @@ describe("catch-the-slip act (K7)", () => {
     expect(ask?.prefill).toBe("Are we on track for the safety certification?");
     const answer = TOUR_STEPS.find((s) => s.id === "slip-friday-answer");
     expect(answer?.advanceOn).toEqual({ type: "event", name: TOUR_TURN_DONE_EVENT });
+  });
+});
+
+describe("per-guest sandbox path resolution", () => {
+  const SANDBOX = "55555555-5555-4555-8555-555555555555";
+
+  it("resolves the sandbox path from the demo_engagement cookie", () => {
+    const cookie = `demo_tour=1; ${DEMO_ENGAGEMENT_COOKIE}=${SANDBOX}`;
+    expect(resolveDemoEngagementPath(cookie)).toBe(`/engagements/${SANDBOX}`);
+  });
+
+  it("falls back to the stable Acme path without the cookie", () => {
+    expect(resolveDemoEngagementPath("demo_tour=1")).toBe(ACME_ENGAGEMENT_PATH);
+    expect(resolveDemoEngagementPath("")).toBe(ACME_ENGAGEMENT_PATH);
+  });
+
+  it("rejects a non-UUID cookie value (never becomes a path segment)", () => {
+    expect(resolveDemoEngagementPath(`${DEMO_ENGAGEMENT_COOKIE}=..%2Fadmin`)).toBe(
+      ACME_ENGAGEMENT_PATH,
+    );
+    expect(resolveDemoEngagementPath(`${DEMO_ENGAGEMENT_COOKIE}=`)).toBe(ACME_ENGAGEMENT_PATH);
+  });
+
+  it("resolveTourRoutePattern swaps only the Acme sentinel", () => {
+    const cookie = `${DEMO_ENGAGEMENT_COOKIE}=${SANDBOX}`;
+    expect(resolveTourRoutePattern(ACME_ENGAGEMENT_PATH, cookie)).toBe(`/engagements/${SANDBOX}`);
+    expect(resolveTourRoutePattern("/engagements/:engagementId", cookie)).toBe(
+      "/engagements/:engagementId",
+    );
+    expect(resolveTourRoutePattern("/review", cookie)).toBe("/review");
   });
 });
 

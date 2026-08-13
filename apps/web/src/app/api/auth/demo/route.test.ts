@@ -17,7 +17,9 @@ function demoRequest(ip = "203.0.113.7"): Request {
   });
 }
 
-function cpDemoSessionJson(): Response {
+const SANDBOX_ID = "55555555-5555-4555-8555-555555555555";
+
+function cpDemoSessionJson(body?: Record<string, unknown>): Response {
   return new Response(
     JSON.stringify({
       access_token: "demo-access-jwt",
@@ -26,6 +28,9 @@ function cpDemoSessionJson(): Response {
       expires_in: 900,
       tenant_id: "33333333-3333-3333-3333-333333333333",
       roles: ["demo_guest"],
+      // Guest-sandbox wave: the per-visitor sandbox engagement.
+      engagement_id: SANDBOX_ID,
+      ...body,
     }),
     { status: 201, headers: { "Content-Type": "application/json" } },
   );
@@ -89,6 +94,22 @@ describe("GET /api/auth/demo", () => {
     expect(tour?.value).toBe("1");
     expect(tour?.httpOnly).toBe(false);
     expect(tour?.maxAge).toBe(900);
+    // Guest-sandbox wave: the visitor's private sandbox engagement id, also
+    // client-readable (the tour resolves the slip act's route from it).
+    const sandbox = res.cookies.get("demo_engagement");
+    expect(sandbox?.value).toBe(SANDBOX_ID);
+    expect(sandbox?.httpOnly).toBe(false);
+    expect(sandbox?.sameSite).toBe("lax");
+    expect(sandbox?.maxAge).toBe(900);
+  });
+
+  it("omits the demo_engagement cookie when the CP predates sandboxes", async () => {
+    fetchMock.mockResolvedValue(cpDemoSessionJson({ engagement_id: undefined }));
+    const res = await GET(demoRequest());
+    expect(res.status).toBe(303);
+    expect(res.cookies.get("demo_engagement")).toBeUndefined();
+    // The tour then falls back to the stable Acme engagement path.
+    expect(res.cookies.get("demo_tour")?.value).toBe("1");
   });
 
   it("mirrors CP 404 (demo disabled on the CP) as 404", async () => {

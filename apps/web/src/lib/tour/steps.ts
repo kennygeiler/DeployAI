@@ -41,6 +41,14 @@ export type TourStep = {
 /** Non-httpOnly cookie set by /api/auth/demo — the tour's mount switch. */
 export const TOUR_COOKIE = "demo_tour";
 
+/**
+ * Non-httpOnly cookie set by /api/auth/demo alongside TOUR_COOKIE: the id of
+ * THIS visitor's private sandbox engagement (minted per session by the CP so
+ * concurrent visitors never share the slip act's deal). Read client-side by
+ * the tour and server-side by the BFF engagements list filter.
+ */
+export const DEMO_ENGAGEMENT_COOKIE = "demo_engagement";
+
 /** sessionStorage keys — dismissal + resume-at-step survive navigation. */
 export const TOUR_DISMISSED_KEY = "deployai:tour-dismissed";
 export const TOUR_STEP_KEY = "deployai:tour-step";
@@ -68,10 +76,40 @@ export const TOUR_CAPTURE_DONE_EVENT = "deployai:tour-capture-done";
 
 /**
  * The stable Acme engagement id (mirrors ACME_ENGAGEMENT_ID in the CP's
- * demo_reset_internal.py) — the slip act's route advance keys off it so the
- * act only starts once the visitor is on the cold-start deal.
+ * demo_reset_internal.py). Used as a route-pattern SENTINEL in TOUR_STEPS
+ * and as the fallback when no per-guest sandbox cookie is present (presenter
+ * flows and local dev use the stable engagement directly): at runtime the
+ * TourProvider swaps it for the visitor's own sandbox path via
+ * `resolveTourRoutePattern`, so the slip act only starts once the visitor is
+ * on THEIR cold-start deal.
  */
 export const ACME_ENGAGEMENT_PATH = "/engagements/acacacac-acac-4aca-8aca-acacacacacac";
+
+/** Loose UUID shape — guards against a mangled cookie becoming a path segment. */
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The demo engagement path for THIS visitor: their sandbox (from the
+ * `demo_engagement` cookie) when present and well-formed, else the stable
+ * Acme path. `cookieString` is `document.cookie` — passed in so the logic
+ * stays testable outside a browser.
+ */
+export function resolveDemoEngagementPath(cookieString: string): string {
+  const found = cookieString
+    .split(";")
+    .map((c) => c.trim())
+    .find((c) => c.startsWith(`${DEMO_ENGAGEMENT_COOKIE}=`));
+  const id = found ? decodeURIComponent(found.slice(DEMO_ENGAGEMENT_COOKIE.length + 1)) : null;
+  return id && UUID_SHAPE.test(id) ? `/engagements/${id}` : ACME_ENGAGEMENT_PATH;
+}
+
+/**
+ * Resolve a step's route pattern at runtime: the Acme sentinel becomes the
+ * visitor's sandbox path; every other pattern passes through unchanged.
+ */
+export function resolveTourRoutePattern(pattern: string, cookieString: string): string {
+  return pattern === ACME_ENGAGEMENT_PATH ? resolveDemoEngagementPath(cookieString) : pattern;
+}
 
 /**
  * Every `data-tour` value that exists in the codebase. The steps-integrity

@@ -8,6 +8,7 @@ import {
   secureCookiesFromRedirectUri,
   sessionTenantCookieNameFromEnv,
 } from "@/lib/internal/oidc-web-flow";
+import { DEMO_ENGAGEMENT_COOKIE } from "@/lib/tour/steps";
 
 /**
  * Zero-friction guest demo login (Wave 4S showcase).
@@ -142,5 +143,19 @@ export async function GET(request: Request): Promise<NextResponse> {
     path: "/",
     secure,
   });
+  // Guest-sandbox wave — the visitor's private sandbox engagement id. NOT
+  // httpOnly: the tour resolves the slip act's route against it client-side;
+  // the BFF engagements list reads it server-side to hide other visitors'
+  // sandboxes. Absent from older CPs → the tour falls back to the stable
+  // Acme id (shared-engagement behavior, same as before this wave).
+  if (session.engagement_id) {
+    res.cookies.set(DEMO_ENGAGEMENT_COOKIE, session.engagement_id, {
+      maxAge: session.expires_in,
+      httpOnly: false,
+      sameSite: "lax",
+      path: "/",
+      secure,
+    });
+  }
   return res;
 }

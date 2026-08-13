@@ -34,6 +34,10 @@ class Engagement(Base):
     customer_account: Mapped[str | None] = mapped_column(Text(), nullable=True)
     current_phase: Mapped[str] = mapped_column(Text(), nullable=False, server_default="P1_pre_engagement")
     status: Mapped[str] = mapped_column(Text(), nullable=False, server_default="active")
+    # Set (to the mint time) only on per-guest demo sandbox engagements — see
+    # control_plane/services/demo_sandbox.py. NULL for real engagements and
+    # for the seeded demo fixtures. Doubles as the sandbox reaper's clock.
+    demo_sandbox_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
 

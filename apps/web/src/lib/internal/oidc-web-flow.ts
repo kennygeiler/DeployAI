@@ -207,6 +207,11 @@ export type CpOidcSessionIssued = {
   refresh_token: string;
   tenant_id: string;
   expires_in: number;
+  /**
+   * Demo mint only (`POST /internal/v1/demo/session`): the per-guest sandbox
+   * engagement provisioned for this session. Absent on OIDC callbacks.
+   */
+  engagement_id?: string;
 };
 
 export function parseCpSessionIssued(body: unknown): CpOidcSessionIssued | null {
@@ -233,5 +238,10 @@ export function parseCpSessionIssued(body: unknown): CpOidcSessionIssued | null 
     refresh_token: b.refresh_token,
     tenant_id: b.tenant_id,
     expires_in: expiresIn,
+    // Optional (demo mint only) — tolerate its absence so older CPs and the
+    // OIDC callback keep parsing.
+    ...(typeof b.engagement_id === "string" && b.engagement_id
+      ? { engagement_id: b.engagement_id }
+      : {}),
   };
 }
