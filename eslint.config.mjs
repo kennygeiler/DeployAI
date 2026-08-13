@@ -5,6 +5,8 @@ export default [
   {
     ignores: [
       "node_modules/",
+      "**/.venv/",
+      ".claude/",
       ".turbo/",
       "**/dist/",
       "**/build/",

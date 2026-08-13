@@ -165,6 +165,14 @@ def _system_prompt() -> str:
         "Rules:\n"
         "- Only propose what the text clearly supports. Return [] if nothing extractable.\n"
         "- Do not duplicate existing matrix nodes — prefer drawing edges to them.\n"
+        "- Exception: when the text moves the date (or materially changes the terms) of an\n"
+        "  existing commitment, propose a NEW node whose title carries the updated date —\n"
+        '  the record is append-only, so "Package delivery by Oct 17 (was Oct 3)" beside\n'
+        "  the original is correct, and silently keeping the old date is not.\n"
+        "- When the text ties an entity to a concrete date, keep the date in the title.\n"
+        "- Titles reuse the text's own key phrases verbatim — never abbreviate terms the\n"
+        '  text spells out (if the text says "safety certification package", the title\n'
+        '  says "safety certification package", not "safety cert pkg").\n'
         "- Output ONLY the JSON array. No prose, no code fences, no commentary."
     )
 

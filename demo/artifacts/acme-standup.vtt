@@ -1,0 +1,63 @@
+WEBVTT
+
+NOTE
+Acme Robotics — Fremont pilot standup (recorded)
+Thursday, October 9, 8:32 AM PT
+
+1
+00:00:01.000 --> 00:00:07.500
+<v Priya Shah>Quick one today — three things: fleet software, the cert
+package, and visitor day prep. Fleet first.
+
+2
+00:00:08.000 --> 00:00:16.000
+<v Priya Shah>WMS task-feed integration is running against their test
+environment since Tuesday. Four hundred simulated picks overnight, zero
+dropped tasks. That risk is basically retired.
+
+3
+00:00:16.500 --> 00:00:24.000
+<v Tom Okafor>Good. Less good: units 07 and 08 are throwing intermittent
+e-stop faults on the v0.4 Orin firmware. Roughly one fault per three-hour
+bench run, no pattern yet.
+
+4
+00:00:24.500 --> 00:00:34.000
+<v Tom Okafor>The problem isn't the fault itself, it's the paperwork. The
+R15.08 package has to include clean safety-function test logs — e-stop and
+interlock — and we cannot generate those logs while the firmware is
+faulting.
+
+5
+00:00:34.500 --> 00:00:41.000
+<v Priya Shah>So that's a new blocker: the safety certification package
+is blocked on a firmware fix for the e-stop faults. How long to
+root-cause?
+
+6
+00:00:41.500 --> 00:00:49.000
+<v Tom Okafor>If it's the watchdog timing change from v0.4, two days to fix
+and one clean 24-hour run to prove it. If it's hardware, longer. I'd call
+it a real risk to the cert milestone, not a scare.
+
+7
+00:00:49.500 --> 00:00:57.000
+<v Marcus Webb>Then log it in the risk register as e-stop faults blocking
+the safety certification test logs. The package date is already tight
+against the November go-live, and I don't want to find out on the 16th
+that we have no test logs to attach.
+
+8
+00:00:57.500 --> 00:01:04.000
+<v Priya Shah>Agreed. Tom owns the root-cause on the e-stop faults, daily
+update in the channel until it's closed.
+
+9
+00:01:04.500 --> 00:01:11.000
+<v Marcus Webb>Visitor day: agenda is final, training session three is
+tomorrow at seven. Associates are asking good questions — that part is
+going well.
+
+10
+00:01:11.500 --> 00:01:15.000
+<v Priya Shah>That's everything. Back to it — thanks all.

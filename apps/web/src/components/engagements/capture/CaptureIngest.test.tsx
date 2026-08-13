@@ -1,8 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CaptureIngest } from "./CaptureIngest.client";
+import { TOUR_CAPTURE_DONE_EVENT, TOUR_CAPTURE_PREFILL_EVENT } from "@/lib/tour/steps";
 
 /**
  * Wave 3 K2/K4 — the staged capture flow. Extraction takes real seconds
@@ -258,5 +259,65 @@ describe("CaptureIngest", () => {
     expect(screen.getByRole("button", { name: "Capture" })).toBeDisabled();
     await user.type(screen.getByLabelText("Interaction"), "x");
     expect(screen.getByRole("button", { name: "Capture" })).toBeEnabled();
+  });
+
+  it("fills the box (and source) from the tour capture-prefill event (K7)", async () => {
+    render(<CaptureIngest engagementId="e1" />);
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent(TOUR_CAPTURE_PREFILL_EVENT, {
+          detail: { text: "Acme kickoff transcript…", source: "meeting_note" },
+        }),
+      );
+    });
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Interaction")).toHaveValue("Acme kickoff transcript…"),
+    );
+    expect(screen.getByLabelText("Source")).toHaveValue("meeting_note");
+
+    // An unknown source is ignored rather than breaking the select.
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent(TOUR_CAPTURE_PREFILL_EVENT, {
+          detail: { text: "Wednesday email", source: "carrier_pigeon" },
+        }),
+      );
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText("Interaction")).toHaveValue("Wednesday email"),
+    );
+    expect(screen.getByLabelText("Source")).toHaveValue("meeting_note");
+  });
+
+  it("announces capture completion via the tour capture-done event (K7)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.includes("/intake-address")) {
+          return Promise.resolve(jsonResponse({ error: "not configured" }, false, 404));
+        }
+        if (url.includes("/ingest")) {
+          return Promise.resolve(jsonResponse({ event: { id: "ev1" } }, true, 201));
+        }
+        return Promise.resolve(jsonResponse({ proposals: [proposal("p1")] }));
+      }),
+    );
+    const seen: Array<{ proposalCount?: number }> = [];
+    const onDone = (e: Event) => {
+      seen.push((e as CustomEvent<{ proposalCount?: number }>).detail ?? {});
+    };
+    window.addEventListener(TOUR_CAPTURE_DONE_EVENT, onDone);
+    try {
+      const user = userEvent.setup();
+      render(<CaptureIngest engagementId="e1" />);
+      await user.type(screen.getByLabelText("Interaction"), "Wednesday roundup email");
+      await user.click(screen.getByRole("button", { name: "Capture" }));
+      await screen.findByText(/1 proposal ready — review below/);
+      expect(seen).toEqual([{ proposalCount: 1 }]);
+    } finally {
+      window.removeEventListener(TOUR_CAPTURE_DONE_EVENT, onDone);
+    }
   });
 });

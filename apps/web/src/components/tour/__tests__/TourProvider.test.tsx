@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TourProvider } from "@/components/tour/TourProvider.client";
 import {
+  TOUR_CAPTURE_DONE_EVENT,
+  TOUR_CAPTURE_PREFILL_EVENT,
   TOUR_CHAT_OPENED_EVENT,
   TOUR_DISMISSED_KEY,
   TOUR_PREFILL_EVENT,
@@ -195,6 +197,59 @@ describe("TourProvider", () => {
     await user.click(await screen.findByTestId("demo-tour-next"));
     expect(screen.queryByTestId("demo-tour-popover")).toBeNull();
     expect(window.sessionStorage.getItem(TOUR_DISMISSED_KEY)).toBe("1");
+  });
+
+  it("capture-prefill button fetches the artifact and dispatches the capture-prefill event", async () => {
+    window.sessionStorage.setItem(TOUR_STEP_KEY, String(stepIndexOf("slip-monday-kickoff")));
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve("Acme Robotics — Pilot Deployment Kickoff…"),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const seen: Array<{ text?: string; source?: string }> = [];
+    const onPrefill = (e: Event) => {
+      seen.push((e as CustomEvent<{ text?: string; source?: string }>).detail ?? {});
+    };
+    window.addEventListener(TOUR_CAPTURE_PREFILL_EVENT, onPrefill);
+    try {
+      render(<TourProvider />);
+      await user.click(await screen.findByTestId("demo-tour-capture-prefill"));
+      await waitFor(() => expect(seen).toHaveLength(1));
+      expect(fetchMock).toHaveBeenCalledWith("/demo/kickoff-transcript.txt");
+      expect(seen[0]).toEqual({
+        text: "Acme Robotics — Pilot Deployment Kickoff…",
+        source: "meeting_note",
+      });
+    } finally {
+      window.removeEventListener(TOUR_CAPTURE_PREFILL_EVENT, onPrefill);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("capture steps advance on the capture-done event (real state change)", async () => {
+    window.sessionStorage.setItem(TOUR_STEP_KEY, String(stepIndexOf("slip-midweek-email")));
+    render(<TourProvider />);
+    await screen.findByTestId("demo-tour-popover");
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent(TOUR_CAPTURE_DONE_EVENT, { detail: { proposalCount: 3 } }),
+      );
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("demo-tour-popover").getAttribute("data-tour-step")).toBe(
+        "slip-midweek-caught",
+      ),
+    );
+  });
+
+  it("the standup step renders the .vtt download link", async () => {
+    window.sessionStorage.setItem(TOUR_STEP_KEY, String(stepIndexOf("slip-thursday-standup")));
+    render(<TourProvider />);
+    await screen.findByTestId("demo-tour-popover");
+    const link = screen.getByTestId("demo-tour-download");
+    expect(link.getAttribute("href")).toBe("/demo/acme-standup.vtt");
+    expect(link.hasAttribute("download")).toBe(true);
   });
 
   it("spotlights a present target and falls back to a centered dim when missing", async () => {

@@ -13,6 +13,7 @@ import { parseEmail } from "@/lib/parsers/email";
 import { emlToText } from "@/lib/parsers/eml";
 import { parseMeetingNotes } from "@/lib/parsers/meeting-notes";
 import { subtitlesToText } from "@/lib/parsers/subtitles";
+import { TOUR_CAPTURE_DONE_EVENT, TOUR_CAPTURE_PREFILL_EVENT } from "@/lib/tour/steps";
 
 const SOURCES = ["email", "meeting_note", "manual_import", "field_note"] as const;
 
@@ -122,6 +123,30 @@ export function CaptureIngest({
 
   const busy = phase.name === "saving" || phase.name === "extracting";
 
+  // K7 demo tour — the slip act's "Load the …" popover buttons prefill the
+  // paste box (and source select) via the capture-prefill event. Mirrors
+  // AskKennyBar's TOUR_PREFILL_EVENT listener; the visitor still presses
+  // Capture themselves.
+  React.useEffect(() => {
+    const onPrefill = (e: Event) => {
+      const detail = (e as CustomEvent<{ text?: unknown; source?: unknown }>).detail;
+      if (typeof detail?.text !== "string") {
+        return;
+      }
+      setBody(detail.text);
+      if (
+        typeof detail.source === "string" &&
+        (SOURCES as readonly string[]).includes(detail.source)
+      ) {
+        setSource(detail.source);
+      }
+      setPreviewMode(false);
+      setPhase({ name: "idle" });
+    };
+    window.addEventListener(TOUR_CAPTURE_PREFILL_EVENT, onPrefill);
+    return () => window.removeEventListener(TOUR_CAPTURE_PREFILL_EVENT, onPrefill);
+  }, []);
+
   const readFile = React.useCallback(async (file: File) => {
     try {
       // FileReader over File.text(): identical result, and it exists in
@@ -207,6 +232,11 @@ export function CaptureIngest({
       const pending = proposals.filter((p) => p.status === "pending").length;
       setBody("");
       setPhase({ name: "done", proposalCount: pending });
+      // K7 demo tour — capture steps advance on the real state change (the
+      // extract round-trip finishing), never on a timer or a faked click.
+      window.dispatchEvent(
+        new CustomEvent(TOUR_CAPTURE_DONE_EVENT, { detail: { proposalCount: pending } }),
+      );
       if (onChanged) {
         await onChanged();
       }

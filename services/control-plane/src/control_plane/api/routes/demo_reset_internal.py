@@ -64,8 +64,18 @@ ACME_CUSTOMER_ACCOUNT = "Acme Robotics, Inc."
 ACME_ENGAGEMENT_ID = uuid.UUID("acacacac-acac-4aca-8aca-acacacacacac")
 ACME_PHASE = "P2_discovery"
 
-# Engagement-scoped rows that do NOT cascade from the engagement row.
+# Engagement-scoped rows deleted explicitly before the engagement row.
 # (table, engagement-id column) — all deletes also pin tenant_id.
+#
+# Most entries do NOT cascade from the engagement row (RESTRICT or no FK).
+# The Wave 5 tables at the tail (gap_ask_dismissals,
+# engagement_intake_addresses, slack_channel_mappings) DO carry
+# ``ondelete=CASCADE`` engagement FKs and would go with the engagement —
+# they are wiped explicitly anyway so this list stays the one authoritative
+# inventory of engagement-scoped state and the reset does not silently
+# depend on each new table's FK choice. (slack_staging_messages /
+# slack_pending_channels are tenant+channel-scoped with no engagement
+# column, so they are out of scope for an engagement wipe.)
 _MANUAL_DELETE_TABLES: tuple[tuple[str, str], ...] = (
     ("oracle_conversations", "engagement_id"),  # chat turns cascade off this
     ("ledger_events", "engagement_id"),  # causes/affects cascade off this
@@ -76,6 +86,10 @@ _MANUAL_DELETE_TABLES: tuple[tuple[str, str], ...] = (
     ("identity_supersessions", "engagement_id"),
     ("identity_nodes", "engagement_id"),
     ("tombstones", "engagement_id"),
+    # Wave 5 (GA1 / IN1 / SL1) — CASCADE FKs, wiped explicitly (see above).
+    ("gap_ask_dismissals", "engagement_id"),
+    ("engagement_intake_addresses", "engagement_id"),
+    ("slack_channel_mappings", "engagement_id"),
 )
 
 
