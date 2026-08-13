@@ -288,7 +288,7 @@ async def test_anthropic_chat_complete_async_retries_429_then_ok() -> None:
             return httpx.Response(429, headers={"retry-after": "0"}, text="rate")
         return httpx.Response(200, json=_ANTHROPIC_OK)
 
-    p = AnthropicProvider(api_key="sk-test", transport=httpx.MockTransport(handler))
+    p = AnthropicProvider(api_key="sk-test", transport=httpx.MockTransport(handler), _rand=lambda: 0.0)
     out = await p.chat_complete_async([{"role": "user", "content": "hi"}])
     await p.aclose()
     assert out == "hello from claude"
@@ -311,7 +311,7 @@ async def test_stream_retries_initial_connection_on_429() -> None:
             return httpx.Response(429, headers={"retry-after": "0"}, text="rate")
         return httpx.Response(200, content=sse)
 
-    p = AnthropicProvider(api_key="sk-test", transport=httpx.MockTransport(handler))
+    p = AnthropicProvider(api_key="sk-test", transport=httpx.MockTransport(handler), _rand=lambda: 0.0)
     out: list[StreamChunk] = []
     async for c in p.chat_complete_stream([{"role": "user", "content": "x"}]):
         out.append(c)
