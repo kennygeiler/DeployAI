@@ -8,6 +8,16 @@ covers the same beats for self-serve visitors; this runbook is for when *you* dr
 (read-only guest on the demo workspace; sessions last ~1 hour; the guided tour
 auto-starts — hit **Skip** when you're presenting live).
 
+**Sandbox-per-visitor**: every View-live-demo click mints its own cold-start
+"Acme Robotics — Pilot Deployment" engagement (a private sandbox — visitors
+never see each other's, and each one's slip act starts empty). **No manual
+reset is needed for the public link**; sandboxes older than 24h are cleaned
+up automatically on later visits. `make demo-reset` still exists, but only
+for the *presenter* flow below — it recycles the stable Acme engagement
+(`acacacac-…`) and never touches live visitor sandboxes. If a guest session
+expires mid-tour, clicking View live demo again simply starts a fresh
+sandbox.
+
 ## Before the meeting (2 minutes)
 
 - Fresh/incognito window, click View live demo, confirm the portfolio renders.
@@ -57,8 +67,10 @@ builds trust, midweek a commitment quietly moves, Friday the record answers
 for it. The guided tour runs this act self-serve (steps `slip-week-intro` …
 `slip-friday-answer`, after the graph-tab step); this section is the
 presenter version. **Run `make demo-reset` first** — the act needs the
-cold-start Acme engagement, and its route step keys off the stable id the
-reset guarantees.
+cold-start Acme engagement, and the reset guarantees the stable id
+(`acacacac-…`). (Guest sessions via **View live demo** don't need this: the
+tour targets each visitor's own freshly minted sandbox instead of the stable
+engagement; the reset is for presenter-driven, non-guest sessions.)
 
 ### Turn 1 — Monday, the trust beat (~2 min)
 
