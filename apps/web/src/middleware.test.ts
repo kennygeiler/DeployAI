@@ -297,3 +297,24 @@ describe("unauthenticated browser redirect (bootstrap login)", () => {
     expect(noAccept.status).toBe(403);
   });
 });
+
+describe("account surface (self-serve accounts)", () => {
+  it("is covered by the matcher", () => {
+    expect(config.matcher).toEqual(expect.arrayContaining(["/account", "/account/:path*"]));
+  });
+
+  it("redirects anonymous browsers to /login?next=/account", async () => {
+    const res = await middleware(req("/account", { accept: "text/html" }));
+    expect(res.status).toBe(307);
+    const loc = new URL(res.headers.get("location") ?? "", "http://localhost");
+    expect(loc.pathname).toBe("/login");
+    expect(loc.searchParams.get("next")).toBe("/account");
+  });
+
+  it("allows any signed-in role with canonical:read (e.g. deployment_strategist)", async () => {
+    const res = await middleware(
+      req("/account", { "x-deployai-role": "deployment_strategist", "x-deployai-tenant": T_A }),
+    );
+    expect(res.status).toBe(200);
+  });
+});

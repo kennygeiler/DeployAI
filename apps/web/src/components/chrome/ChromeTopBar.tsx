@@ -34,6 +34,13 @@ export function ChromeTopBar({ className }: ChromeTopBarProps) {
       >
         DeployAI
       </Link>
+      {/* Self-serve accounts: profile / password / invites / sign-out. */}
+      <Link
+        href="/account"
+        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring ml-auto text-sm focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+      >
+        Account
+      </Link>
     </header>
   );
 }

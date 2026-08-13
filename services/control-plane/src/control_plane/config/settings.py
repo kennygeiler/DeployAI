@@ -48,6 +48,14 @@ class ControlPlaneSettings(BaseSettings):
     (still behind the internal key) mints short-TTL ``demo_guest`` sessions onto the demo tenant.
     NEVER enable on a deployment that hosts customer tenants — see docs/ops/cloud-deploy.md §7.1."""
 
+    self_serve_signup_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("DEPLOYAI_SELF_SERVE_SIGNUP", "self_serve_signup_enabled"),
+    )
+    """``DEPLOYAI_SELF_SERVE_SIGNUP=1`` opens ``POST /api/v1/auth/signup`` (public
+    workspace creation). Default OFF: customer deploys keep provisioning
+    admin-only (``/platform/accounts``); enable on the public demo deploy."""
+
     demo_tenant_id: str | None = None
     """UUID of the disposable, pre-seeded demo tenant every guest session is scoped to."""
 
@@ -181,6 +189,7 @@ class ControlPlaneSettings(BaseSettings):
 
     @field_validator(
         "allow_test_session_mint",
+        "self_serve_signup_enabled",
         "demo_guest_enabled",
         "break_glass_bypass_webauthn",
         "slack_allow_unsigned",

@@ -1,13 +1,17 @@
 /**
- * Minimal sign-in page (ticket A1). Entry point for the OIDC flow and the
- * target of auth-failure redirects (`/login?error=...`). Intentionally plain —
- * the auth routes own this page; a styled version can replace it later
- * without touching the flow. Wave 4S adds the design-system "View live demo"
- * button (guest demo access) when NEXT_PUBLIC_DEMO_MODE=1.
+ * Sign-in page (ticket A1; self-serve accounts). Native email/password is the
+ * primary form; OIDC SSO stays the enterprise option (shown only when the
+ * OIDC envs are configured), and the Wave 4S design-system "View live demo"
+ * button (guest demo access) renders when NEXT_PUBLIC_DEMO_MODE=1. A link to
+ * /signup appears only when NEXT_PUBLIC_SELF_SERVE_SIGNUP=1.
  */
 
 import { Button } from "@/components/ui/button";
 
+import { selfServeSignupEnabled } from "@/lib/internal/account-auth";
+import { oidcWebLoginConfigured } from "@/lib/internal/oidc-web-flow";
+
+import { PasswordLoginForm } from "./PasswordLoginForm.client";
 import { TokenForm } from "./TokenForm.client";
 
 export const metadata = { title: "Sign in — DeployAI" };
@@ -64,6 +68,15 @@ export default async function LoginPage({
             {message}
           </p>
         ) : null}
+        <PasswordLoginForm next={next ?? "/engagements"} />
+        {selfServeSignupEnabled() ? (
+          <p style={{ marginBottom: "1.5rem", fontSize: "0.875rem" }}>
+            New here?{" "}
+            <a href="/signup" style={{ textDecoration: "underline", fontWeight: 500 }}>
+              Create a workspace
+            </a>
+          </p>
+        ) : null}
         {demoModeEnabled() ? (
           <div style={{ marginBottom: "1.5rem" }}>
             <Button asChild size="lg">
@@ -75,19 +88,21 @@ export default async function LoginPage({
             </p>
           </div>
         ) : null}
-        <a
-          href="/api/auth/login"
-          style={{
-            display: "inline-block",
-            padding: "0.625rem 1.5rem",
-            borderRadius: "0.5rem",
-            border: "1px solid currentColor",
-            textDecoration: "none",
-            fontWeight: 500,
-          }}
-        >
-          Sign in with SSO
-        </a>
+        {oidcWebLoginConfigured() ? (
+          <a
+            href="/api/auth/login"
+            style={{
+              display: "inline-block",
+              padding: "0.625rem 1.5rem",
+              borderRadius: "0.5rem",
+              border: "1px solid currentColor",
+              textDecoration: "none",
+              fontWeight: 500,
+            }}
+          >
+            Sign in with SSO
+          </a>
+        ) : null}
         {bootstrapLoginEnabled() ? <TokenForm next={next ?? "/engagements"} /> : null}
       </div>
     </main>

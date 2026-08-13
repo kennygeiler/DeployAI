@@ -24,6 +24,7 @@ from control_plane.api.routes.agent_kenny_dashboard_internal import (
 )
 from control_plane.api.routes.audit_internal import router as audit_internal_router
 from control_plane.api.routes.auth import router as auth_router
+from control_plane.api.routes.auth_account import router as auth_account_router
 from control_plane.api.routes.auth_oidc import auth_entry_router, oidc_router
 from control_plane.api.routes.auth_saml import router as auth_saml_router
 from control_plane.api.routes.break_glass import router as break_glass_router
@@ -166,6 +167,7 @@ if tracing_enabled():
 # ContextVar before tracing/prometheus observe the request.
 app.add_middleware(RequestIdMiddleware)
 app.include_router(auth_router)
+app.include_router(auth_account_router)
 app.include_router(oidc_router)
 app.include_router(auth_entry_router)
 app.include_router(auth_saml_router)
