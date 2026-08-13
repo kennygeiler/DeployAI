@@ -14,6 +14,12 @@ import { SignupForm } from "./SignupForm.client";
 
 export const metadata = { title: "Create a workspace — DeployAI" };
 
+// Without this the page is statically prerendered at image-build time, where
+// the env gate is unset — the notFound() gets baked into the build and the
+// route 404s forever regardless of the runtime env. Force per-request
+// rendering so the gate reads the deploy's actual configuration.
+export const dynamic = "force-dynamic";
+
 export default function SignupPage() {
   if (!selfServeSignupEnabled()) {
     notFound();
