@@ -129,8 +129,8 @@ the ledger is the wiki, Kenny is its disciplined librarian, every claim cites it
 
 ## Testing & quality gates
 
-- **~1,700 tests**: 663 control-plane unit + 562 integration (real Postgres testcontainers, Alembic to
-  head), 432 web (vitest + RTL), plus contract, authz, tenancy, provider, and MCP-server suites.
+- **~2,000 tests**: 800+ control-plane unit + ~600 integration (real Postgres testcontainers, Alembic to
+  head), ~570 web (vitest + RTL), plus contract, authz, tenancy, provider, and MCP-server suites.
 - **Runtime parity gate** — key agent integration suites run against *both* drivers; a golden-question
   parity test gates the LangGraph cutover.
 - **Cross-tenant fuzz** — 10,000 attack attempts per CI run across 20 tables, with an anti-test that
@@ -145,6 +145,24 @@ the ledger is the wiki, Kenny is its disciplined librarian, every claim cites it
 pnpm turbo run lint typecheck test build && pnpm -w run format:check
 cd services/control-plane && uv run mypy && uv run pytest tests/unit
 ```
+
+---
+
+## Production hardening
+
+Reliability and governance are built in, not aspirational — each mechanism links to the code that
+implements it and the doc or test that proves it:
+
+| Concern | Mechanism |
+|---|---|
+| **Idempotency** | Canonical-event writes are [idempotent inserts](./services/control-plane/src/control_plane/infra/canonical_idempotent_write.py) keyed by dedup key; the XL scenario generator is uuid5-deterministic; re-running extraction on an event returns the same proposals without a second LLM call (pinned by [latency/idempotency tests](./services/control-plane/tests/integration/test_demo_capture_latency.py)) |
+| **Retry** | Provider-level [backoff + full jitter](./packages/llm-provider-py/src/llm_provider_py/util.py) on 429/5xx/529 and transport errors, `Retry-After` honored; streaming requests retry only until the first chunk is delivered — a partial stream is never replayed |
+| **Rate limiting** | Inbound [per-principal token bucket](./services/control-plane/src/control_plane/infra/rate_limit.py) (Redis-backed or in-memory, [docs](./docs/ops/rate-limiting.md)), outbound MCP rate limiter, and per-tenant daily LLM token budgets charged *before* the turn |
+| **Role scoping** | OIDC → control-plane-minted RS256 JWTs, a [role/action matrix](./packages/authz) with TS + Python twins, per-tenant service tokens, RLS `FORCE`'d on all tenant tables, and a read-only `demo_guest` role for the public demo |
+| **Distributed tracing** | [OpenTelemetry spans](./services/control-plane/src/control_plane/infra/tracing.py) from the web BFF through the control plane to LLM, tool, and MCP calls (W3C `traceparent` end to end); `trace_id` joins `request_id` in every structured log line ([docs](./docs/ops/tracing.md)) |
+| **Self-healing** | [Circuit breakers](./services/control-plane/src/control_plane/infra/circuit_breaker.py) per MCP connector and on the embedder (half-open probes, automatic recovery); checkpointed agent turns [resume across process death](./services/control-plane/tests/integration/test_agent_durability.py); salvage paths keep turns legible (synthesized tool results, final answer after tool-cap, zero-citation revision). Fail-open/fail-closed policy per dependency: [docs/ops/resilience.md](./docs/ops/resilience.md) |
+| **Policy as code** | The CI gates *are* the policy engine: an unconditional cross-engagement leak gate, an RLS catalog test (a new tenant table without a policy fails the build), WCAG-AA-asserted design tokens, SHA-pinned actions, SBOM + CVE scanning with Criticals blocking, and a [zero-secret daily canary](./.github/workflows/prod-canary.yml) against production |
+| **Compliance trail** | Ledger is append-only **by database trigger**; every guard denial writes a distinct audit kind; CVE triage decisions are [recorded with dispositions](./docs/security/) awaiting human sign-off |
 
 ---
 
@@ -194,13 +212,12 @@ cd services/control-plane && uv run mypy && uv run pytest tests/unit
 
 ## Maturity
 
-Honest status, code-verified (2026-08-11): the full loop — ingest → extract → review → matrix → ask
-Kenny → audit — runs end-to-end on the local stack against seeded engagements, on the checkpointed
-LangGraph runtime, with OIDC login, full-coverage RLS, HITL review, and CI eval gates in place.
-M365/Gmail/Slack ingest connectors are real; HubSpot/Notion/GitHub are not yet built. The legacy agent
-driver remains the default in production config until the parity gate has soaked. The stack is deployed
-to Railway (see the cloud runbook), but hosted auth is still a bootstrap-JWT shim — wiring real OIDC on
-the hosted deploy is a pre-pilot blocker. **No paying customers yet** — the next milestone is a pilot
+Honest status, code-verified (2026-08-12): the full loop — ingest → extract → review → matrix → ask
+Kenny → audit — runs end-to-end on the checkpointed LangGraph runtime (now the production default,
+parity-gated against the legacy driver), with OIDC login, full-coverage RLS, HITL review, and CI eval
+gates in place. M365/Gmail/Slack ingest connectors are real; HubSpot/Notion/GitHub are not yet built.
+The stack is deployed to Railway with a public guided demo and a daily zero-secret canary, but hosted
+auth is still a bootstrap-JWT shim — wiring real OIDC on the hosted deploy is a pre-pilot blocker. **No paying customers yet** — the next milestone is a pilot
 with a real team's engagement data (Wave 3 of the backlog: delta digest, commitment tracking,
 Kenny-in-Slack).
 
