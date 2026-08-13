@@ -3,13 +3,16 @@ from __future__ import annotations
 import asyncio
 import email.utils
 import hashlib
+import logging
 import random
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC
-from typing import Any
+from typing import Any, NoReturn
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_CAPS: dict[str, bool] = {
     "extraction": True,
@@ -22,14 +25,44 @@ DEFAULT_CAPS: dict[str, bool] = {
 UsageCallback = Callable[[dict[str, Any]], None]
 
 # Retry policy defaults, shared by the sync and async helpers.
-DEFAULT_MAX_ATTEMPTS = 4
-DEFAULT_BASE_DELAY_S = 0.15
+# Attempts, not retries-after-first: 3 attempts == up to 2 retries.
+DEFAULT_MAX_ATTEMPTS = 3
+DEFAULT_BASE_DELAY_S = 1.0
 DEFAULT_MAX_DELAY_S = 30.0
 DEFAULT_MAX_ELAPSED_S = 120.0
 
-# Connect-phase failures are safe to retry: the request never reached the
-# server, so retrying cannot duplicate work.
-CONNECT_ERRORS = (httpx.ConnectError, httpx.ConnectTimeout)
+# Transient network failures. Chat requests are idempotent from the caller's
+# view (a duplicated completion wastes tokens, never corrupts state), so
+# timeouts and dropped connections are retryable alongside connect-phase
+# errors. LocalProtocolError / UnsupportedProtocol stay non-retryable: those
+# are client bugs a retry would only hide. Streaming callers additionally
+# gate retries on the first body chunk — see httpx_stream_bytes_with_retries.
+RETRYABLE_TRANSPORT_ERRORS: tuple[type[httpx.TransportError], ...] = (
+    httpx.ConnectError,
+    httpx.ConnectTimeout,
+    httpx.ReadTimeout,
+    httpx.ReadError,
+    httpx.WriteTimeout,
+    httpx.WriteError,
+    httpx.PoolTimeout,
+    httpx.RemoteProtocolError,
+)
+
+
+def _log_retry(
+    attempt: int,
+    delay: float,
+    *,
+    status: int | None = None,
+    exc: BaseException | None = None,
+) -> None:
+    cause = f"status {status}" if status is not None else repr(exc)
+    logger.warning(
+        "retrying LLM HTTP request: attempt %d failed (%s), sleeping %.2fs",
+        attempt + 1,
+        cause,
+        delay,
+    )
 
 
 def record_usage(
@@ -50,7 +83,11 @@ def pseudo_embed(text: str, dim: int = 256) -> list[float]:
 
 
 def is_retryable_status(status: int) -> bool:
-    """429 (rate limit) and 5xx (transient server failure) are retryable."""
+    """429 (rate limit) and 5xx — incl. 529 overloaded_error — are retryable.
+
+    Other 4xx are never retried: the request itself is invalid, so a retry
+    burns quota and hides the bug.
+    """
     return status == 429 or status >= 500
 
 
@@ -115,28 +152,39 @@ def httpx_post_with_retries(
     rand: Callable[[], float] = random.random,
     sleep: Callable[[float], None] = time.sleep,
 ) -> httpx.Response:
-    """Sync POST with retries on 429/5xx.
+    """Sync POST with retries on 429/5xx and retryable transport errors.
 
     Exponential backoff with full jitter; honors ``Retry-After``. Other
-    statuses (and the final failing attempt) return immediately.
+    statuses (and the final failing attempt) return immediately; on
+    transport-error exhaustion the last error is re-raised.
     """
+    attempts = max(max_retries, 1)
+    last_exc: httpx.TransportError | None = None
     last: httpx.Response | None = None
-    for attempt in range(max_retries):
-        r = client.post(url, headers=headers, json=json)
-        last = r
-        if not is_retryable_status(r.status_code):
-            return r
-        if attempt >= max_retries - 1:
-            return r
-        sleep(
-            compute_backoff_delay(
-                attempt,
-                retry_after_s=parse_retry_after(r.headers.get("retry-after")),
-                rand=rand,
-            )
-        )
-    assert last is not None
-    return last
+    for attempt in range(attempts):
+        retry_after: float | None = None
+        status: int | None = None
+        try:
+            r = client.post(url, headers=headers, json=json)
+        except RETRYABLE_TRANSPORT_ERRORS as exc:
+            last_exc = exc
+            last = None
+        else:
+            last_exc = None
+            last = r
+            status = r.status_code
+            if not is_retryable_status(status):
+                return r
+            retry_after = parse_retry_after(r.headers.get("retry-after"))
+        if attempt >= attempts - 1:
+            break
+        delay = compute_backoff_delay(attempt, retry_after_s=retry_after, rand=rand)
+        _log_retry(attempt, delay, status=status, exc=last_exc)
+        sleep(delay)
+    if last is not None:
+        return last
+    assert last_exc is not None
+    raise last_exc
 
 
 async def httpx_post_with_retries_async(
@@ -150,35 +198,39 @@ async def httpx_post_with_retries_async(
     rand: Callable[[], float] = random.random,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
 ) -> httpx.Response:
-    """Async POST with retries on 429/5xx and connect-phase errors.
+    """Async POST with retries on 429/5xx and retryable transport errors.
 
     Exponential backoff with full jitter; honors ``Retry-After``; gives up
     when attempts are exhausted or when the next sleep would push the total
     elapsed time past ``max_elapsed_s``. On give-up the last response is
-    returned (caller inspects the status) or the last connect error is
+    returned (caller inspects the status) or the last transport error is
     re-raised.
     """
     started = time.monotonic()
+    attempts = max(max_retries, 1)
     last_exc: httpx.TransportError | None = None
     last: httpx.Response | None = None
-    for attempt in range(max_retries):
+    for attempt in range(attempts):
         retry_after: float | None = None
+        status: int | None = None
         try:
             r = await client.post(url, headers=headers, json=json)
-        except CONNECT_ERRORS as exc:
+        except RETRYABLE_TRANSPORT_ERRORS as exc:
             last_exc = exc
             last = None
         else:
             last_exc = None
             last = r
-            if not is_retryable_status(r.status_code):
+            status = r.status_code
+            if not is_retryable_status(status):
                 return r
             retry_after = parse_retry_after(r.headers.get("retry-after"))
-        if attempt >= max_retries - 1:
+        if attempt >= attempts - 1:
             break
         delay = compute_backoff_delay(attempt, retry_after_s=retry_after, rand=rand)
         if (time.monotonic() - started) + delay > max_elapsed_s:
             break
+        _log_retry(attempt, delay, status=status, exc=last_exc)
         await sleep(delay)
     if last is not None:
         return last
@@ -186,7 +238,21 @@ async def httpx_post_with_retries_async(
     raise last_exc
 
 
-async def httpx_stream_open_with_retries(
+async def _raise_http_error(resp: httpx.Response, err_prefix: str) -> NoReturn:
+    err_body = await resp.aread()
+    await resp.aclose()
+    msg = f"{err_prefix} error {resp.status_code}: {err_body[:500]!r}"
+    raise OSError(msg)
+
+
+async def _prepend_chunk(first: bytes | None, rest: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
+    if first is not None:
+        yield first
+    async for chunk in rest:
+        yield chunk
+
+
+async def httpx_stream_bytes_with_retries(
     client: httpx.AsyncClient,
     url: str,
     *,
@@ -194,48 +260,64 @@ async def httpx_stream_open_with_retries(
     json: Any,
     max_retries: int = DEFAULT_MAX_ATTEMPTS,
     max_elapsed_s: float = DEFAULT_MAX_ELAPSED_S,
+    err_prefix: str = "HTTP",
     rand: Callable[[], float] = random.random,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
-) -> httpx.Response:
-    """Open a streaming POST, retrying ONLY the initial connection.
+) -> tuple[httpx.Response, AsyncIterator[bytes]]:
+    """Open a streaming POST, retrying until the FIRST body chunk is secured.
 
-    Retries cover connect-phase errors and 429/5xx statuses observed
-    before any body bytes reach the caller. Once a response is returned
-    from here and the caller starts consuming the stream, NO retry is
-    possible: SSE events already yielded downstream may have had side
-    effects (partial text shown to a user, usage telemetry emitted), so
-    replaying the request would duplicate them. Mid-stream failures must
-    surface to the caller as errors instead.
+    The retry window covers connection setup, retryable HTTP statuses, and
+    transport errors while acquiring the first body chunk. Once any chunk
+    has been handed to the caller, NO retry is possible: SSE events already
+    yielded downstream may have had side effects (partial text shown to a
+    user, usage telemetry emitted), so replaying the request would duplicate
+    them. Later failures surface from the returned iterator instead.
 
-    The returned response has an open stream; the caller owns closing it
-    (``await resp.aclose()``). A still-failing final response is returned
-    open so the caller can ``aread()`` the error body.
+    A non-retryable (or still-failing final) HTTP status raises ``OSError``
+    carrying the response body, prefixed with ``err_prefix``. On success the
+    caller owns closing the returned response (``await resp.aclose()``).
     """
     started = time.monotonic()
+    attempts = max(max_retries, 1)
     last_exc: httpx.TransportError | None = None
     resp: httpx.Response | None = None
-    for attempt in range(max_retries):
+    for attempt in range(attempts):
         retry_after: float | None = None
+        status: int | None = None
         try:
             request = client.build_request("POST", url, headers=headers, json=json)
             resp = await client.send(request, stream=True)
-        except CONNECT_ERRORS as exc:
+        except RETRYABLE_TRANSPORT_ERRORS as exc:
             last_exc = exc
             resp = None
         else:
             last_exc = None
-            if not is_retryable_status(resp.status_code):
-                return resp
-            retry_after = parse_retry_after(resp.headers.get("retry-after"))
-        if attempt >= max_retries - 1:
+            status = resp.status_code
+            if is_retryable_status(status):
+                retry_after = parse_retry_after(resp.headers.get("retry-after"))
+            elif status >= 400:
+                await _raise_http_error(resp, err_prefix)
+            else:
+                body = resp.aiter_bytes()
+                try:
+                    first = await anext(body, None)
+                except RETRYABLE_TRANSPORT_ERRORS as exc:
+                    last_exc = exc
+                    await resp.aclose()
+                    resp = None
+                else:
+                    return resp, _prepend_chunk(first, body)
+        if attempt >= attempts - 1:
             break
         delay = compute_backoff_delay(attempt, retry_after_s=retry_after, rand=rand)
         if (time.monotonic() - started) + delay > max_elapsed_s:
             break
         if resp is not None:
             await resp.aclose()
+            resp = None
+        _log_retry(attempt, delay, status=status, exc=last_exc)
         await sleep(delay)
     if resp is not None:
-        return resp
+        await _raise_http_error(resp, err_prefix)
     assert last_exc is not None
     raise last_exc
