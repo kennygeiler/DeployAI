@@ -105,6 +105,7 @@ from control_plane.api.routes.tools_internal import router as tools_internal_rou
 from control_plane.api.routes.upload_artifacts import router as upload_artifacts_router
 from control_plane.api.routes.webhooks_internal import router as webhooks_internal_router
 from control_plane.infra.metrics import PrometheusMiddleware
+from control_plane.infra.rate_limit import RateLimitMiddleware
 from control_plane.infra.request_context import RequestIdMiddleware
 
 try:
@@ -148,6 +149,10 @@ async def _lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="DeployAI Control Plane", version=_version, lifespan=_lifespan)
+# Innermost of the three middlewares — a 429 still flows out through
+# PrometheusMiddleware (histogram records it) and RequestIdMiddleware.
+# No-op unless DEPLOYAI_API_RATE_LIMIT_PER_MINUTE is set (> 0).
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(PrometheusMiddleware)
 # Added last so it wraps PrometheusMiddleware — the request_id is set in the
 # ContextVar before prometheus observes the request.

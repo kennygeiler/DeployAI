@@ -18,6 +18,11 @@ _ingest_runs = Counter(
     "Ingestion run completion",
     ("integration", "status"),
 )
+_rate_limited = Counter(
+    "deployai_rate_limited_total",
+    "Requests rejected with 429 by the inbound API rate limiter",
+    ("route",),
+)
 
 
 def observe_events_written(integration: str, n: int) -> None:
@@ -28,6 +33,12 @@ def observe_events_written(integration: str, n: int) -> None:
 
 def observe_ingestion_run(integration: str, status: str) -> None:
     _ingest_runs.labels(integration, status).inc()
+
+
+def observe_rate_limited(route: str) -> None:
+    # Label is the route template (or "unknown"), never the raw path —
+    # raw paths would explode cardinality on ids and 404 probes.
+    _rate_limited.labels(route).inc()
 
 
 def metrics_payload() -> tuple[bytes, str]:
