@@ -37,6 +37,7 @@ from control_plane.agents.agent_kenny.types import (
     MAX_REVISION_ATTEMPTS,
     AgentState,
 )
+from control_plane.infra.tracing import tracer
 
 # Conservative refusal/IDK heuristic (mirrors the golden runner's
 # ``_detect_idk`` patterns — kept independent because production code must
@@ -162,25 +163,29 @@ async def revise_if_unverified(
     """Append a corrective message + re-call the LLM."""
     if not should_revise(state):
         return state
-    state.messages.append({"role": "user", "content": _corrective_message(state)})
-    state.revision_attempts += 1
-    # Wipe the last draft so the LLM is forced to recompute.
-    state.accumulated_text = ""
-    state.last_text = ""
-    await call_llm_with_tools(provider, state, emit=emit)
-    if state.pending_tool_calls:
-        # Both drivers route revise -> extract_citations, never back to
-        # dispatch — any tool_use blocks the revision call emitted would
-        # dangle in state.messages and 400 the next LLM call. Answer them
-        # with is_error tool_results and drain the intents.
-        await synthesize_unexecuted_tool_results(
-            state,
-            state.pending_tool_calls,
-            emit,
-            reason="tool calls are not available while revising; rewrite the reply with what you already have",
-            error_code="tool_call_unavailable_in_revision",
-        )
-        state.pending_tool_calls = []
+    # Span only when a revision actually happens — the early return above
+    # keeps no-op passes invisible in the trace.
+    with tracer().start_as_current_span("agent_kenny.revise") as span:
+        state.messages.append({"role": "user", "content": _corrective_message(state)})
+        state.revision_attempts += 1
+        span.set_attribute("revision.attempt", state.revision_attempts)
+        # Wipe the last draft so the LLM is forced to recompute.
+        state.accumulated_text = ""
+        state.last_text = ""
+        await call_llm_with_tools(provider, state, emit=emit)
+        if state.pending_tool_calls:
+            # Both drivers route revise -> extract_citations, never back to
+            # dispatch — any tool_use blocks the revision call emitted would
+            # dangle in state.messages and 400 the next LLM call. Answer them
+            # with is_error tool_results and drain the intents.
+            await synthesize_unexecuted_tool_results(
+                state,
+                state.pending_tool_calls,
+                emit,
+                reason="tool calls are not available while revising; rewrite the reply with what you already have",
+                error_code="tool_call_unavailable_in_revision",
+            )
+            state.pending_tool_calls = []
     return state
 
 

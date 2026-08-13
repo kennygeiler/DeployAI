@@ -106,6 +106,8 @@ from control_plane.api.routes.upload_artifacts import router as upload_artifacts
 from control_plane.api.routes.webhooks_internal import router as webhooks_internal_router
 from control_plane.infra.metrics import PrometheusMiddleware
 from control_plane.infra.request_context import RequestIdMiddleware
+from control_plane.infra.tracing import TracingMiddleware
+from control_plane.otel import tracing_enabled
 
 try:
     _version = metadata.version("control-plane")
@@ -149,8 +151,14 @@ async def _lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="DeployAI Control Plane", version=_version, lifespan=_lifespan)
 app.add_middleware(PrometheusMiddleware)
-# Added last so it wraps PrometheusMiddleware — the request_id is set in the
-# ContextVar before prometheus observes the request.
+# Only when trace export is configured — the no-trace default pays zero
+# per-request cost. Added after PrometheusMiddleware and before
+# RequestIdMiddleware so the server span both wraps the prometheus timing
+# and sees the request_id ContextVar already populated.
+if tracing_enabled():
+    app.add_middleware(TracingMiddleware)
+# Added last so it wraps everything above — the request_id is set in the
+# ContextVar before tracing/prometheus observe the request.
 app.add_middleware(RequestIdMiddleware)
 app.include_router(auth_router)
 app.include_router(oidc_router)

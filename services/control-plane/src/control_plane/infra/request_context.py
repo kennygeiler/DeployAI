@@ -14,6 +14,12 @@ REQUEST_ID_HEADER = "X-Request-ID"
 
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 
+# Hex trace id of the active server span; set by ``infra.tracing.TracingMiddleware``
+# (only when trace export is configured) and read by the JSON log formatter.
+# Lives here rather than in ``infra.tracing`` so ``infra.logging`` never has
+# to import anything OpenTelemetry-shaped.
+trace_id_var: ContextVar[str | None] = ContextVar("trace_id", default=None)
+
 
 def _coerce_or_generate(raw: str | None) -> str:
     if raw is None:

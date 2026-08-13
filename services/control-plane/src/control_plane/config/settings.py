@@ -147,6 +147,14 @@ class ControlPlaneSettings(BaseSettings):
     session_refresh_cookie: str = "dep_refresh"
     """HttpOnly cookies set on OIDC callback (browser clients); `POST /auth/refresh` still uses JSON body too."""
 
+    # --- Observability: OpenTelemetry tracing (docs/ops/tracing.md) ---
+    otel_exporter_otlp_endpoint: str | None = None
+    """OTLP/HTTP collector base URL (``/v1/traces`` + ``/v1/metrics`` are appended).
+    Unset → the SDK pipeline is never installed and every span helper is a no-op."""
+
+    otel_service_name: str = "deployai-control-plane"
+    """``service.name`` resource attribute on exported telemetry."""
+
     @field_validator("demo_session_ttl_seconds", mode="after")
     @classmethod
     def _clamp_demo_session_ttl(cls, v: int) -> int:

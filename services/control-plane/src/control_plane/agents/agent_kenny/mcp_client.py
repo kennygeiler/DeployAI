@@ -46,6 +46,7 @@ from datetime import UTC, datetime
 from typing import Any, Protocol, runtime_checkable
 
 import httpx
+from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.agents.agent_kenny.mcp_types import (
@@ -60,13 +61,14 @@ from control_plane.agents.agent_kenny.mcp_types import (
     McpTransportError,
 )
 from control_plane.domain.mcp_outbound import TenantMcpConfig
-from control_plane.ledger import emit_ledger_event
 
 # Re-use the canonical secret scrubber so the needle list stays in one
 # place (threat-model §3.4.2). Module-private import is intentional —
 # this is the SAME function the ledger emitter applies as a backstop;
 # we apply it eagerly here so the redacted shape is also what the unit
 # tests assert on.
+from control_plane.infra.tracing import inject_trace_context, traced
+from control_plane.ledger import emit_ledger_event
 from control_plane.ledger.emitter import _scrub_secrets
 from control_plane.services.egress_guard import (
     EgressBlockedError,
@@ -251,6 +253,7 @@ class McpOutboundClient:
             )
         return out
 
+    @traced("agent_kenny.mcp_call")
     async def call_tool(
         self,
         config: TenantMcpConfig,
@@ -272,9 +275,16 @@ class McpOutboundClient:
         blocks at audit time.
         """
         started = time.monotonic()
+        # Span opened by @traced (no-op without a tracer provider). Each
+        # guard stamps its denial reason before raising; the wrapper
+        # records the raised exception on the span.
+        span = trace.get_current_span()
+        span.set_attribute("mcp.connector_kind", config.connector_kind)
+        span.set_attribute("mcp.tool", tool_name)
 
         # 1. Kill switch — threat-model §5.5.
         if await self._kill.is_outbound_disabled(tenant_id):
+            span.set_attribute("mcp.denial_reason", "kill_switch_engaged")
             await self._emit_guard_audit(
                 source_kind="mcp_outbound_blocked",
                 tenant_id=tenant_id,
@@ -290,6 +300,7 @@ class McpOutboundClient:
 
         # 2. Allow-list — scope-v2 §9.4 row 4.3.
         if config.allowed_tools is not None and tool_name not in config.allowed_tools:
+            span.set_attribute("mcp.denial_reason", "not_in_allow_list")
             await self._emit_guard_audit(
                 source_kind="mcp_outbound_denied",
                 tenant_id=tenant_id,
@@ -309,6 +320,7 @@ class McpOutboundClient:
 
         # 3. Rate limit — threat-model §5.3.
         if not await self._rate.acquire(tenant_id, tool_name):
+            span.set_attribute("mcp.denial_reason", "rate_limit_exceeded")
             await self._emit_guard_audit(
                 source_kind="mcp_outbound_rate_limited",
                 tenant_id=tenant_id,
@@ -345,8 +357,10 @@ class McpOutboundClient:
                     "arguments": _scrub_secrets(args) if isinstance(args, dict) else {},
                 },
             )
-        except McpOutboundError:
+        except McpOutboundError as exc:
             await self._rate.release(tenant_id, tool_name)
+            if isinstance(exc, McpEgressBlocked):
+                span.set_attribute("mcp.denial_reason", f"egress_blocked:{exc.reason or 'unknown'}")
             raise
         except Exception as exc:  # pragma: no cover — defensive belt
             await self._rate.release(tenant_id, tool_name)
@@ -360,6 +374,7 @@ class McpOutboundClient:
             content_field = []
         is_tool_error = bool(envelope.get("isError", False))
         latency_ms = int((time.monotonic() - started) * 1000)
+        span.set_attribute("mcp.status", "error" if is_tool_error else "ok")
         result = McpToolResult(
             status="error" if is_tool_error else "ok",
             content=[c for c in content_field if isinstance(c, dict)],
@@ -422,6 +437,8 @@ class McpOutboundClient:
             "Accept": "text/event-stream, application/json",
             "Content-Type": "application/json",
         }
+        # W3C traceparent so the upstream MCP server can join the trace.
+        inject_trace_context(headers)
         body = {
             "jsonrpc": "2.0",
             "id": str(uuid.uuid4()),

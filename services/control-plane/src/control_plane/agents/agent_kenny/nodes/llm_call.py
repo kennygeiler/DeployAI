@@ -36,6 +36,7 @@ from llm_provider_py.types import (
     ToolUseEnd,
     ToolUseStart,
 )
+from opentelemetry import trace
 
 from control_plane.agents.agent_kenny.types import (
     AgentState,
@@ -44,6 +45,7 @@ from control_plane.agents.agent_kenny.types import (
     ToolCallChunk,
 )
 from control_plane.agents.tools import TOOL_REGISTRY
+from control_plane.infra.tracing import traced
 
 _LLM_TEMPERATURE = 0.2
 _LLM_MAX_OUTPUT_TOKENS = 800
@@ -251,6 +253,7 @@ def _build_messages(state: AgentState) -> list[ChatMessage]:
     return _native_messages(state)
 
 
+@traced("agent_kenny.llm_call")
 async def call_llm_with_tools(
     provider: LLMProvider,
     state: AgentState,
@@ -274,6 +277,9 @@ async def call_llm_with_tools(
     tool_use_blocks: list[dict[str, Any]] = []
     pending: dict[str, dict[str, Any]] = {}
     tokens = 0
+    input_tokens = 0
+    output_tokens = 0
+    stop_reason = ""
     stream: AsyncIterator[ToolStreamChunk]
     if state.tools_exhausted:
         # Cap-final answer (2026-08-12 prod fix): the tool budget is gone,
@@ -345,9 +351,22 @@ async def call_llm_with_tools(
             entry["input"] = chunk.input or {}
             tool_use_blocks.append(entry)
         elif isinstance(chunk, StopReason):
+            stop_reason = chunk.reason
             usage = chunk.usage or {}
-            tokens = int(usage.get("input_tokens", 0) or 0) + int(usage.get("output_tokens", 0) or 0)
+            input_tokens = int(usage.get("input_tokens", 0) or 0)
+            output_tokens = int(usage.get("output_tokens", 0) or 0)
+            tokens = input_tokens + output_tokens
     await _flush_native_thinking()
+
+    # Span opened by the @traced wrapper; a no-op NonRecordingSpan when
+    # tracing is not configured.
+    span = trace.get_current_span()
+    span.set_attribute("llm.model", str(getattr(provider, "id", "")))
+    span.set_attribute("llm.input_tokens", input_tokens)
+    span.set_attribute("llm.output_tokens", output_tokens)
+    if stop_reason:
+        span.set_attribute("llm.stop_reason", stop_reason)
+    span.set_attribute("llm.tool_use_count", len(tool_use_blocks))
 
     raw_text = "".join(text_buf)
     thinking = [m.group(1).strip() for m in _THINKING_RE.finditer(raw_text) if m.group(1).strip()]

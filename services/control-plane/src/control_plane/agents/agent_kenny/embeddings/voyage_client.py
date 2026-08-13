@@ -31,6 +31,8 @@ from typing import Any
 
 import httpx
 
+from control_plane.infra.tracing import inject_trace_context
+
 _log = logging.getLogger(__name__)
 
 VOYAGE_URL = "https://api.voyageai.com/v1/embeddings"
@@ -88,10 +90,13 @@ class VoyageEmbedder:
         self._client = client
 
     def _headers(self, key: str) -> dict[str, str]:
-        return {
+        headers = {
             "Authorization": f"Bearer {key}",
             "Content-Type": "application/json",
         }
+        # W3C traceparent (no-op when tracing is not configured).
+        inject_trace_context(headers)
+        return headers
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         """Embed ``texts`` → list of 1024-dim vectors, one per input.

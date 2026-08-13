@@ -56,7 +56,13 @@ export async function POST(request: NextRequest, ctx: Ctx) {
   }
 
   try {
-    const upstream = await cpStreamOracleChatV2(tid, engagementId, actorId, parsed.data);
+    const upstream = await cpStreamOracleChatV2(
+      tid,
+      engagementId,
+      actorId,
+      parsed.data,
+      request.headers.get("traceparent"),
+    );
     if (upstream.status === 404) {
       return new NextResponse("not found", { status: 404 });
     }

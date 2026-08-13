@@ -8,7 +8,7 @@ import os
 import sys
 from typing import Any
 
-from control_plane.infra.request_context import request_id_var
+from control_plane.infra.request_context import request_id_var, trace_id_var
 
 _STANDARD_RECORD_ATTRS: frozenset[str] = frozenset(
     {
@@ -61,6 +61,9 @@ class JsonFormatter(logging.Formatter):
         request_id = request_id_var.get()
         if request_id is not None:
             payload.setdefault("request_id", request_id)
+        trace_id = trace_id_var.get()
+        if trace_id is not None:
+            payload.setdefault("trace_id", trace_id)
         if record.exc_info:
             payload["exc_info"] = self.formatException(record.exc_info)
         return json.dumps(payload, default=str)

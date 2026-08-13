@@ -22,6 +22,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from llm_provider_py.types import LLMProvider
+from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from control_plane.agents.agent_kenny.budget import charge_turn
@@ -80,6 +81,7 @@ from control_plane.agents.agent_kenny.types import (
     McpOutboundSkippedDisabledChunk,
     StreamChunk,
 )
+from control_plane.infra.tracing import traced
 from control_plane.ledger import emit_ledger_event
 
 _log = logging.getLogger(__name__)
@@ -221,6 +223,7 @@ class KennyAgentService:
             if not task.done():
                 task.cancel()
 
+    @traced("agent_kenny.turn")
     async def _run_graph(
         self,
         session: AsyncSession,
@@ -232,6 +235,12 @@ class KennyAgentService:
         emit: Any,
     ) -> None:
         use_langgraph = agent_runtime() == RUNTIME_LANGGRAPH
+        # Shared choke point of both drivers → ONE parent span regardless of
+        # runtime; the node functions hang their child spans off it.
+        span = trace.get_current_span()
+        span.set_attribute("deployai.tenant_id", str(state.tenant_id))
+        span.set_attribute("deployai.engagement_id", str(state.engagement_id))
+        span.set_attribute("agent.runtime", RUNTIME_LANGGRAPH if use_langgraph else "legacy")
 
         # 0. retrieve + per-turn rate-limit context + external MCP discovery.
         # Under the LangGraph runtime, retrieve is the graph's first node.
@@ -244,6 +253,7 @@ class KennyAgentService:
         # turn_id argument. We always open + close so accounting stays
         # symmetric even when no MCP is configured.
         turn_id = uuid.uuid4()
+        span.set_attribute("deployai.turn_id", str(turn_id))
         ctx_token = current_turn_id_var.set(turn_id)
         if self._mcp_rate_limiter is not None:
             self._mcp_rate_limiter.open_turn(turn_id, state.tenant_id)
@@ -280,6 +290,11 @@ class KennyAgentService:
                     turn_id=turn_id,
                 )
         finally:
+            # Stamped in the finally so timeouts / crashes still carry the
+            # partial counters.
+            span.set_attribute("turn.tool_calls", state.tool_calls_made)
+            span.set_attribute("turn.revision_attempts", state.revision_attempts)
+            span.set_attribute("turn.tokens", state.final_tokens)
             current_turn_id_var.reset(ctx_token)
             if self._mcp_rate_limiter is not None:
                 self._mcp_rate_limiter.close_turn(turn_id)
@@ -321,6 +336,7 @@ class KennyAgentService:
                 external_tools = []
         return kill_switched, external_tools
 
+    @traced("agent_kenny.turn")
     async def resume_approval(
         self,
         session: AsyncSession,
@@ -344,6 +360,10 @@ class KennyAgentService:
         tenant_id, _engagement_id, conversation_key = parsed
         moment = now or datetime.now(UTC)
         turn_id = uuid.uuid4()
+        span = trace.get_current_span()
+        span.set_attribute("deployai.tenant_id", str(tenant_id))
+        span.set_attribute("deployai.turn_id", str(turn_id))
+        span.set_attribute("turn.resumed", True)
         ctx_token = current_turn_id_var.set(turn_id)
         if self._mcp_rate_limiter is not None:
             self._mcp_rate_limiter.open_turn(turn_id, tenant_id)
