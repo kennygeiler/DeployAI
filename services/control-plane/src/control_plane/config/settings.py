@@ -124,6 +124,15 @@ class ControlPlaneSettings(BaseSettings):
     graph_ingest_rps: float = 1000.0
     """Token-bucket rate for Microsoft Graph (Story 3-7); default 1000 req/s, configurable (NFR19)."""
 
+    # --- Inbound API rate limiting (public surface; /internal + probes exempt) ---
+    api_rate_limit_per_minute: int = 0
+    """Sustained per-principal request budget for the public API surface.
+    0 (default) disables the limiter entirely — existing deployments and test
+    suites are untouched until an operator sets ``DEPLOYAI_API_RATE_LIMIT_PER_MINUTE``."""
+
+    api_rate_limit_burst: int | None = None
+    """Token-bucket capacity (max burst). Defaults to ``api_rate_limit_per_minute``."""
+
     # --- Gmail / Slack (Epic 3+): optional; stub routes work without these ---
     google_gmail_client_id: str | None = None
     google_gmail_client_secret: str | None = None
