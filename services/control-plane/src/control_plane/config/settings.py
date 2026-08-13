@@ -170,6 +170,17 @@ class ControlPlaneSettings(BaseSettings):
     """Dev-only escape hatch (``DEPLOYAI_SLACK_ALLOW_UNSIGNED=1``): process unsigned
     ``event_callback`` payloads when ``slack_signing_secret`` is unset. Never enable in production."""
 
+    # --- Wave 5 IN1: inbound engagement email intake ---
+    intake_webhook_secret: str | None = None
+    """Shared secret the inbound-email provider sends as ``X-DeployAI-Intake-Secret``
+    (env ``DEPLOYAI_INTAKE_WEBHOOK_SECRET``). Unset → ``POST /internal/v1/intake/email``
+    404s — a probe cannot distinguish "disabled" from "absent" (same posture as demo mode)."""
+
+    intake_email_domain: str | None = None
+    """Domain rendered into intake addresses (env ``DEPLOYAI_INTAKE_EMAIL_DOMAIN``,
+    e.g. ``intake.example.com``). Unset → address reads return the local part with a
+    null ``email``; the webhook matches recipients on local part only either way."""
+
     session_access_cookie: str = "dep_access"
     session_refresh_cookie: str = "dep_refresh"
     """HttpOnly cookies set on OIDC callback (browser clients); `POST /auth/refresh` still uses JSON body too."""

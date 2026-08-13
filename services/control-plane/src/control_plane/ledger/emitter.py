@@ -143,6 +143,12 @@ ALLOWED_SOURCE_KINDS: frozenset[str] = frozenset(
         "password_changed",
         "invite_created",
         "invite_accepted",
+        # Wave 5 IN1 — inbound engagement email intake. One row per accepted
+        # webhook delivery (the canonical event id travels in source_ref) and
+        # one per admin address rotation, so the timeline shows what arrived
+        # by mail and who rotated the address it arrived on.
+        "intake_email_received",
+        "intake_address_regenerated",
     }
 )
 

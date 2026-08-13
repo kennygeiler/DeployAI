@@ -42,6 +42,12 @@ from control_plane.api.routes.eval_runs_internal import router as eval_runs_inte
 from control_plane.api.routes.event_search import router as event_search_router
 from control_plane.api.routes.extract_preview import router as extract_preview_router
 from control_plane.api.routes.ingestion_runs import router as ingestion_runs_internal_router
+from control_plane.api.routes.intake_email_internal import (
+    router as intake_address_internal_router,
+)
+from control_plane.api.routes.intake_email_internal import (
+    webhook_router as intake_email_webhook_router,
+)
 from control_plane.api.routes.integrations import router as integrations_router
 from control_plane.api.routes.integrations_google_gmail import (
     router as integrations_google_gmail_router,
@@ -194,6 +200,8 @@ app.include_router(strategist_overrides_internal_router, prefix="/internal/v1")
 app.include_router(strategist_integration_records_internal_router, prefix="/internal/v1")
 app.include_router(strategist_queues_internal_router, prefix="/internal/v1")
 app.include_router(engagements_internal_router, prefix="/internal/v1")
+app.include_router(intake_address_internal_router, prefix="/internal/v1")
+app.include_router(intake_email_webhook_router, prefix="/internal/v1")
 app.include_router(engagement_summary_internal_router, prefix="/internal/v1")
 app.include_router(engagement_events_router, prefix="/internal/v1")
 app.include_router(engagement_recommendations_router, prefix="/internal/v1")
