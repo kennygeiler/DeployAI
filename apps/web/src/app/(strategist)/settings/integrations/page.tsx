@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { IntegrationsClient } from "@/components/settings/IntegrationsClient";
+import { SlackChannelsCard } from "@/components/settings/SlackChannelsCard.client";
 import {
   cpGetMcpKillSwitch,
   cpListMcpConfigs,
@@ -79,6 +80,8 @@ export default async function IntegrationsSettingsPage() {
         initialKillSwitch={initial.killSwitch}
         initialLoadError={initial.loadError}
       />
+      {/* Wave 5 SL1 — Slack channel-scoped intake (channel → engagement consent). */}
+      <SlackChannelsCard />
     </div>
   );
 }
