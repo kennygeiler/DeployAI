@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ACME_ENGAGEMENT_PATH,
   KNOWN_TOUR_TARGETS,
+  TOUR_CAPTURE_DONE_EVENT,
   TOUR_CHAT_OPENED_EVENT,
   TOUR_STEPS,
   TOUR_TURN_DONE_EVENT,
@@ -10,7 +12,7 @@ import {
 
 describe("TOUR_STEPS integrity", () => {
   it("has the expected step count", () => {
-    expect(TOUR_STEPS).toHaveLength(11);
+    expect(TOUR_STEPS).toHaveLength(20);
   });
 
   it("has unique ids", () => {
@@ -68,6 +70,63 @@ describe("TOUR_STEPS integrity", () => {
     const last = TOUR_STEPS[TOUR_STEPS.length - 1]!;
     expect(last.id).toBe("finale");
     expect(last.advanceOn.type).toBe("manual");
+  });
+});
+
+describe("catch-the-slip act (K7)", () => {
+  const ids = TOUR_STEPS.map((s) => s.id);
+
+  it("sits between the graph tab and the finale, in week order", () => {
+    const act = [
+      "slip-week-intro",
+      "slip-monday-kickoff",
+      "slip-monday-gate",
+      "slip-midweek-email",
+      "slip-midweek-caught",
+      "slip-thursday-standup",
+      "slip-friday-digest",
+      "slip-friday-ask",
+      "slip-friday-answer",
+    ];
+    const start = ids.indexOf("slip-week-intro");
+    expect(ids[start - 1]).toBe("graph-tab");
+    expect(ids.slice(start, start + act.length)).toEqual(act);
+    expect(ids[start + act.length]).toBe("finale");
+  });
+
+  it("opens by routing to the stable Acme engagement (reset keeps the id)", () => {
+    const intro = TOUR_STEPS.find((s) => s.id === "slip-week-intro");
+    expect(intro?.advanceOn).toEqual({ type: "route", pattern: ACME_ENGAGEMENT_PATH });
+    expect(ACME_ENGAGEMENT_PATH).toBe("/engagements/acacacac-acac-4aca-8aca-acacacacacac");
+  });
+
+  it("capture steps prefill a real artifact and advance on the capture-done event", () => {
+    const expected: Record<string, { url: string; source: string }> = {
+      "slip-monday-kickoff": { url: "/demo/kickoff-transcript.txt", source: "meeting_note" },
+      "slip-midweek-email": { url: "/demo/slip-email.txt", source: "email" },
+    };
+    for (const [id, want] of Object.entries(expected)) {
+      const step = TOUR_STEPS.find((s) => s.id === id);
+      expect(step?.target, id).toBe("capture-input");
+      expect(step?.capturePrefill?.url, id).toBe(want.url);
+      expect(step?.capturePrefill?.source, id).toBe(want.source);
+      expect(step?.advanceOn, id).toEqual({ type: "event", name: TOUR_CAPTURE_DONE_EVENT });
+    }
+  });
+
+  it("the standup step offers the .vtt download for the drag-drop beat", () => {
+    const step = TOUR_STEPS.find((s) => s.id === "slip-thursday-standup");
+    expect(step?.download?.href).toBe("/demo/acme-standup.vtt");
+    expect(step?.capturePrefill).toBeUndefined();
+    expect(step?.advanceOn).toEqual({ type: "event", name: TOUR_CAPTURE_DONE_EVENT });
+  });
+
+  it("the Friday ask prefills the payoff question", () => {
+    const ask = TOUR_STEPS.find((s) => s.id === "slip-friday-ask");
+    expect(ask?.advanceOn).toEqual({ type: "event", name: TOUR_CHAT_OPENED_EVENT });
+    expect(ask?.prefill).toBe("Are we on track for the safety certification?");
+    const answer = TOUR_STEPS.find((s) => s.id === "slip-friday-answer");
+    expect(answer?.advanceOn).toEqual({ type: "event", name: TOUR_TURN_DONE_EVENT });
   });
 });
 

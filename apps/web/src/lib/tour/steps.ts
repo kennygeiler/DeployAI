@@ -28,6 +28,14 @@ export type TourStep = {
   advanceOn: TourAdvance;
   /** Optional question the "Use this question" button prefills. */
   prefill?: string;
+  /**
+   * Optional artifact the popover's button loads into the Capture box
+   * (fetched from `url`, dispatched via the capture-prefill event so the
+   * visitor still presses Capture themselves — the tour never fakes a click).
+   */
+  capturePrefill?: { url: string; source: string; label: string };
+  /** Optional file download link rendered in the popover (drag-drop beats). */
+  download?: { href: string; label: string };
 };
 
 /** Non-httpOnly cookie set by /api/auth/demo — the tour's mount switch. */
@@ -46,6 +54,24 @@ export const TOUR_STEP_KEY = "deployai:tour-step";
 export const TOUR_PREFILL_EVENT = "deployai:tour-prefill";
 export const TOUR_CHAT_OPENED_EVENT = "deployai:tour-chat-opened";
 export const TOUR_TURN_DONE_EVENT = "deployai:turn-done";
+
+/**
+ * Catch-the-slip act (K7): `tour-capture-prefill` is dispatched by the tour
+ * popover's artifact button and handled by CaptureIngest (detail:
+ * `{ text: string; source: string }`); `tour-capture-done` is emitted by
+ * CaptureIngest when a capture finishes extracting (detail:
+ * `{ proposalCount: number }`) so capture steps advance on the real
+ * state change, not on a timer.
+ */
+export const TOUR_CAPTURE_PREFILL_EVENT = "deployai:tour-capture-prefill";
+export const TOUR_CAPTURE_DONE_EVENT = "deployai:tour-capture-done";
+
+/**
+ * The stable Acme engagement id (mirrors ACME_ENGAGEMENT_ID in the CP's
+ * demo_reset_internal.py) — the slip act's route advance keys off it so the
+ * act only starts once the visitor is on the cold-start deal.
+ */
+export const ACME_ENGAGEMENT_PATH = "/engagements/acacacac-acac-4aca-8aca-acacacacacac";
 
 /**
  * Every `data-tour` value that exists in the codebase. The steps-integrity
@@ -191,6 +217,122 @@ export const TOUR_STEPS: readonly TourStep[] = [
       "risks, and commitments — every node traceable to the event that created it.",
     action: "Head back into the deal and click the Graph tab.",
     advanceOn: { type: "click-target" },
+  },
+  // --- Catch-the-slip act (K7): one week of a deal, played by the visitor.
+  // Monday feeds the record, midweek a commitment quietly moves, Friday the
+  // record answers for it — over artifacts the visitor captured themselves.
+  {
+    id: "slip-week-intro",
+    target: null,
+    title: "Now play a week for real",
+    body:
+      "You've seen the loop — now live it. You're the deployment strategist on Acme " +
+      "Robotics. It's Monday, the kickoff just ended, and by Friday something in this deal " +
+      "will quietly move. Your job is to catch it.",
+    action: "Open Engagements in the left nav and click Acme Robotics — Pilot Deployment.",
+    advanceOn: { type: "route", pattern: ACME_ENGAGEMENT_PATH },
+  },
+  {
+    id: "slip-monday-kickoff",
+    target: "capture-input",
+    title: "Monday — feed it the kickoff",
+    body:
+      "This deal is empty: no record, no memory. This morning's kickoff transcript is your " +
+      "first artifact. Load it, hit Capture, and watch extraction turn 45 minutes of talk " +
+      "into proposed memory — Saving, then Extracting, then a queue of proposals.",
+    action: 'Open the Capture tab, click "Load the kickoff transcript", then hit Capture.',
+    capturePrefill: {
+      url: "/demo/kickoff-transcript.txt",
+      source: "meeting_note",
+      label: "Load the kickoff transcript",
+    },
+    advanceOn: { type: "event", name: TOUR_CAPTURE_DONE_EVENT },
+  },
+  {
+    id: "slip-monday-gate",
+    target: "brief-needs-you",
+    title: "Nothing enters without you",
+    body:
+      "Every decision, risk, and commitment extraction found now waits on your accept or " +
+      "reject — the record holds only what a human let in. And Kenny is already asking for " +
+      "what's missing: the record knows its own gaps before you do.",
+    action: "Accept a few proposals, glance at what Kenny asks for, then hit Next.",
+    advanceOn: { type: "manual" },
+  },
+  {
+    id: "slip-midweek-email",
+    target: "capture-input",
+    title: "Wednesday — a routine email lands",
+    body:
+      "An end-of-day roundup from ops: AP installs, visitor-day logistics, a dashboard " +
+      "request. Ordinary — except one sentence, buried mid-paragraph, quietly moves a " +
+      "committed date. Would you catch it on a busy Wednesday?",
+    action: 'Back on the Capture tab, click "Load Wednesday\'s email", then Capture it.',
+    capturePrefill: {
+      url: "/demo/slip-email.txt",
+      source: "email",
+      label: "Load Wednesday's email",
+    },
+    advanceOn: { type: "event", name: TOUR_CAPTURE_DONE_EVENT },
+  },
+  {
+    id: "slip-midweek-caught",
+    target: "brief-needs-you",
+    title: "It caught the slip",
+    body:
+      "There it is in the queue: the safety certification package moved October 3 → " +
+      "October 17, extracted from one buried sentence and standing right next to the " +
+      "original commitment it contradicts. Accept it — the slip is now on the record, with " +
+      "evidence.",
+    action: "Accept the date-change proposal, then hit Next.",
+    advanceOn: { type: "manual" },
+  },
+  {
+    id: "slip-thursday-standup",
+    target: "capture-input",
+    title: "Thursday — drop in the standup notes",
+    body:
+      "Thursday's standup recording produced a .vtt transcript — the kind of file that " +
+      "usually dies in a folder. Download it and drag it straight into the Capture box: it " +
+      "lands as clean text, and extraction flags a blocker threatening the very milestone " +
+      "that just slipped.",
+    action: "Download the standup notes, drag the file into Capture, then Capture it.",
+    download: { href: "/demo/acme-standup.vtt", label: "Download acme-standup.vtt" },
+    advanceOn: { type: "event", name: TOUR_CAPTURE_DONE_EVENT },
+  },
+  {
+    id: "slip-friday-digest",
+    target: "brief-delta",
+    title: "Friday — the week, replayed",
+    body:
+      '"Since you last looked" now tells the story you just lived: a kickoff\'s worth of ' +
+      "memory, a slipped date, a new blocker — every entry traceable to an artifact you fed " +
+      "in yourself. This is what a returning strategist sees instead of re-reading threads.",
+    action: "Scan the week's changes, then hit Next.",
+    advanceOn: { type: "manual" },
+  },
+  {
+    id: "slip-friday-ask",
+    target: "ask-kenny-bar",
+    title: "The Friday question",
+    body:
+      "Now the payoff. Ask the question a VP would ask you — and watch Kenny weave the " +
+      "kickoff's original date, Wednesday's buried slip, and Thursday's blocker into one " +
+      "answer, every claim carrying a citation chip back to what you captured.",
+    action: 'Click "Use this question", then hit Ask.',
+    advanceOn: { type: "event", name: TOUR_CHAT_OPENED_EVENT },
+    prefill: "Are we on track for the safety certification?",
+  },
+  {
+    id: "slip-friday-answer",
+    target: null,
+    title: "Caught, cited, on the record",
+    body:
+      "The answer isn't a vibe — it's the record: committed for October 3, moved to " +
+      "October 17 by a buried sentence, now blocked by firmware faults. Three artifacts you " +
+      "captured yourself, woven into one cited answer. That's the product.",
+    action: "Wait for the answer, then click a citation chip to inspect the evidence.",
+    advanceOn: { type: "event", name: TOUR_TURN_DONE_EVENT },
   },
   {
     id: "finale",

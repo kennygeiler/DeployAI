@@ -1,0 +1,49 @@
+Subject: RE: RE: RE: RE: RE: Fremont site survey — network assessment results
+From: Marcus Webb <mwebb@acmerobotics.com>
+To: Kenny Geiler <kenny@deployai.dev>
+Cc: Dana Ruiz <druiz@acmerobotics.com>; Priya Shah <pshah@acmerobotics.com>
+Date: Wed, Oct 1, 5:52 PM
+
+Kenny,
+
+End-of-day roundup so nothing waits for tomorrow's call.
+
+AP install crew wrapped aisles 1 through 6 today — the north zone mesh is
+live and the re-survey passed on the first walk. Facilities signed off on
+the cable dressing, so no rework there. Visitor day agenda is locked:
+robots demo at 10:30 and 2:00 on the 20th, staging cage tour in between.
+Dana would like your one-page fleet-dashboard summary for the investor
+packet by Friday. On the certification package, the consultant's R15.08
+reviewer is out on a family emergency and their backup starts Monday, so
+I'm now committing to have the safety certification package to you by
+October 17 instead of October 3 — everything downstream in the plan
+holds as-is. Also, can you resend the
+charging-bay layout sketch? The copy Priya has still shows the old rack
+numbering from before the north-zone changes.
+
+Marcus
+
+-----Original Message-----
+Subject: RE: RE: RE: RE: Fremont site survey — network assessment results
+From: Marcus Webb <mwebb@acmerobotics.com>
+To: Kenny Geiler <kenny@deployai.dev>
+Cc: Dana Ruiz <druiz@acmerobotics.com>; Priya Shah <pshah@acmerobotics.com>
+Date: Mon, Sep 22, 4:47 PM
+
+Kenny,
+
+Confirming what I told Dana this morning: the electricians finish the north
+zone drops on the 26th, so your access-point install can start the following
+Monday. Facilities will badge your contractor for the week.
+
+On the insurance question from two emails ago — I spoke with the safety
+consultant Friday. It's slower than I wanted, but it's committed: we'll have
+the safety-cert documentation package to you by October 3. That includes the
+R15.08 risk assessment and the floor-marking plan, which is everything your
+side needs for the deployment runbook. If the insurer kicks anything back
+after that it's on me to chase.
+
+Also, please tell Priya the WMS vendor finally scheduled the integration
+call — Thursday 2pm, invite coming from Dana's assistant.
+
+Marcus

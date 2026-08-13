@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
+  TOUR_CAPTURE_PREFILL_EVENT,
   TOUR_COOKIE,
   TOUR_DISMISSED_KEY,
   TOUR_PREFILL_EVENT,
@@ -253,6 +254,28 @@ export function TourProvider() {
     );
   }, [step]);
 
+  // K7 slip act — fetch the step's artifact and hand it to CaptureIngest via
+  // the capture-prefill event. The visitor still presses Capture themselves;
+  // the tour never fakes a click.
+  const [artifactLoading, setArtifactLoading] = React.useState(false);
+  const capturePrefill = React.useCallback(async () => {
+    const cp = step?.capturePrefill;
+    if (!cp) return;
+    setArtifactLoading(true);
+    try {
+      const res = await fetch(cp.url);
+      if (!res.ok) return;
+      const text = await res.text();
+      window.dispatchEvent(
+        new CustomEvent(TOUR_CAPTURE_PREFILL_EVENT, { detail: { text, source: cp.source } }),
+      );
+    } catch {
+      // Network hiccup — the visitor can paste manually; the popover stays up.
+    } finally {
+      setArtifactLoading(false);
+    }
+  }, [step]);
+
   if (!active || !step) return null;
 
   const spot: Rect | null = rect
@@ -338,6 +361,33 @@ export function TourProvider() {
           >
             Use this question
           </Button>
+        ) : null}
+
+        {step.capturePrefill ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => void capturePrefill()}
+            disabled={artifactLoading}
+            data-testid="demo-tour-capture-prefill"
+            className="mt-2 h-7 px-2.5 text-xs"
+          >
+            {artifactLoading ? "Loading…" : step.capturePrefill.label}
+          </Button>
+        ) : null}
+
+        {step.download ? (
+          <p className="mt-2 text-xs">
+            <a
+              href={step.download.href}
+              download
+              data-testid="demo-tour-download"
+              className="font-medium text-accent-ink underline-offset-2 hover:underline"
+            >
+              {step.download.label}
+            </a>
+          </p>
         ) : null}
 
         {isFinale ? (
