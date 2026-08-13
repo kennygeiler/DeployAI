@@ -16,7 +16,14 @@ def test_retries_on_429_then_ok() -> None:
 
     transport = httpx.MockTransport(handler)
     with httpx.Client(transport=transport) as client:
-        r = httpx_post_with_retries(client, "https://example.com/x", headers={}, json={})
+        r = httpx_post_with_retries(
+            client,
+            "https://example.com/x",
+            headers={},
+            json={},
+            rand=lambda: 0.0,
+            sleep=lambda _d: None,
+        )
     assert r.status_code == 200
     assert calls["n"] == 2
 
@@ -36,6 +43,8 @@ def test_retries_5xx_exhausts_attempts() -> None:
             headers={},
             json={},
             max_retries=4,
+            rand=lambda: 0.0,
+            sleep=lambda _d: None,
         )
     assert r.status_code == 502
     assert calls["n"] == 4

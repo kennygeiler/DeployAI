@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
-from collections.abc import AsyncGenerator, AsyncIterator
+import random
+import time
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
 from typing import Any
 
 import httpx
@@ -25,10 +28,11 @@ from llm_provider_py.types import (
 )
 from llm_provider_py.util import (
     DEFAULT_CAPS,
+    DEFAULT_MAX_ATTEMPTS,
     UsageCallback,
     httpx_post_with_retries,
     httpx_post_with_retries_async,
-    httpx_stream_open_with_retries,
+    httpx_stream_bytes_with_retries,
     pseudo_embed,
     record_usage,
 )
@@ -39,6 +43,11 @@ DEFAULT_MODEL = "claude-sonnet-5"
 # Extended-thinking token budget for tool-use streaming. Unset / 0 /
 # non-numeric → thinking disabled (the pre-existing behaviour).
 THINKING_BUDGET_ENV = "DEPLOYAI_ANTHROPIC_THINKING_BUDGET"
+
+# HTTP attempt cap per request (attempts, not retries-after-first; 3 == up to
+# 2 retries). Constructor arg wins over the env var, same pattern as
+# thinking_budget_tokens / THINKING_BUDGET_ENV.
+MAX_RETRIES_ENV = "DEPLOYAI_LLM_MAX_RETRIES"
 
 # Claude 5-family models reject the `temperature` parameter
 # (invalid_request_error: "`temperature` is deprecated for this model").
@@ -94,6 +103,17 @@ def _thinking_budget_from_env() -> int:
         return 0
 
 
+def _max_retries_from_env() -> int:
+    raw = os.environ.get(MAX_RETRIES_ENV, "").strip()
+    if not raw:
+        return DEFAULT_MAX_ATTEMPTS
+    try:
+        # At least one attempt always happens; non-numeric → package default.
+        return max(int(raw), 1)
+    except ValueError:
+        return DEFAULT_MAX_ATTEMPTS
+
+
 class AnthropicProvider:
     def __init__(
         self,
@@ -106,6 +126,10 @@ class AnthropicProvider:
         on_usage: UsageCallback | None = None,
         transport: httpx.AsyncBaseTransport | httpx.BaseTransport | None = None,
         thinking_budget_tokens: int | None = None,
+        max_retries: int | None = None,
+        _rand: Callable[[], float] = random.random,
+        _sleep: Callable[[float], None] = time.sleep,
+        _async_sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self._key = (api_key or resolve_anthropic_api_key()).strip()
         self._model = (model or os.environ.get("ANTHROPIC_MODEL") or DEFAULT_MODEL).strip()
@@ -114,6 +138,14 @@ class AnthropicProvider:
         self._thinking_budget = (
             max(thinking_budget_tokens, 0) if thinking_budget_tokens is not None else _thinking_budget_from_env()
         )
+        # HTTP attempt cap: explicit constructor value wins, else the
+        # DEPLOYAI_LLM_MAX_RETRIES env var, else the package default (3).
+        # _rand / _sleep / _async_sleep are injection seams so retry tests
+        # run deterministically without real sleeping.
+        self._max_retries = max(max_retries, 1) if max_retries is not None else _max_retries_from_env()
+        self._rand = _rand
+        self._sleep = _sleep
+        self._async_sleep = _async_sleep
         self._timeout = timeout_s
         self._tenant_id = tenant_id
         self._agent_name = agent_name
@@ -230,7 +262,15 @@ class AnthropicProvider:
         body = self._build_complete_body(messages, temperature=temperature, max_output_tokens=max_output_tokens)
         sync_transport = self._transport if isinstance(self._transport, httpx.BaseTransport) else None
         with httpx.Client(timeout=self._timeout, transport=sync_transport) as client:
-            r = httpx_post_with_retries(client, ANTHROPIC_URL, headers=self._headers(), json=body)
+            r = httpx_post_with_retries(
+                client,
+                ANTHROPIC_URL,
+                headers=self._headers(),
+                json=body,
+                max_retries=self._max_retries,
+                rand=self._rand,
+                sleep=self._sleep,
+            )
         return self._parse_complete_response(r)
 
     async def chat_complete_async(
@@ -252,6 +292,9 @@ class AnthropicProvider:
             ANTHROPIC_URL,
             headers=self._headers(),
             json=body,
+            max_retries=self._max_retries,
+            rand=self._rand,
+            sleep=self._async_sleep,
         )
         return self._parse_complete_response(r)
 
@@ -434,21 +477,21 @@ class AnthropicProvider:
         )
 
     async def _iter_sse_events(self, body: dict[str, Any]) -> AsyncGenerator[dict[str, Any]]:
-        # Retries cover the initial connection only. Once events start
-        # flowing they are yielded to the caller (and may trigger side
-        # effects there), so a mid-stream failure surfaces as an error —
-        # see httpx_stream_open_with_retries for the full rationale.
-        resp = await httpx_stream_open_with_retries(
+        # Retries cover connection setup + first-chunk acquisition only. Once
+        # events start flowing they are yielded to the caller (and may trigger
+        # side effects there), so a mid-stream failure surfaces as an error —
+        # see httpx_stream_bytes_with_retries for the full rationale.
+        resp, raw_bytes = await httpx_stream_bytes_with_retries(
             self._get_async_client(),
             ANTHROPIC_URL,
             headers=self._headers(),
             json=body,
+            max_retries=self._max_retries,
+            err_prefix="Anthropic",
+            rand=self._rand,
+            sleep=self._async_sleep,
         )
         try:
-            if resp.status_code >= 400:
-                err_body = await resp.aread()
-                msg = f"Anthropic error {resp.status_code}: {err_body[:500]!r}"
-                raise OSError(msg)
             buf = b""
 
             def _parse_line(line: bytes) -> dict[str, Any] | None | str:
@@ -463,7 +506,7 @@ class AnthropicProvider:
                     return None
                 return parsed if isinstance(parsed, dict) else None
 
-            async for chunk in resp.aiter_bytes():
+            async for chunk in raw_bytes:
                 buf += chunk
                 while b"\n" in buf:
                     line, buf = buf.split(b"\n", 1)
@@ -492,21 +535,21 @@ class AnthropicProvider:
             await resp.aclose()
 
     async def _iter_sse(self, body: dict[str, Any]) -> AsyncGenerator[str]:
-        # Same transport rules as _iter_sse_events: retry the initial
-        # connection only, never after bytes were yielded downstream.
-        resp = await httpx_stream_open_with_retries(
+        # Same transport rules as _iter_sse_events: retry through first-chunk
+        # acquisition only, never after bytes were yielded downstream.
+        resp, raw_bytes = await httpx_stream_bytes_with_retries(
             self._get_async_client(),
             ANTHROPIC_URL,
             headers=self._headers(),
             json=body,
+            max_retries=self._max_retries,
+            err_prefix="Anthropic",
+            rand=self._rand,
+            sleep=self._async_sleep,
         )
         try:
-            if resp.status_code >= 400:
-                err_body = await resp.aread()
-                msg = f"Anthropic error {resp.status_code}: {err_body[:500]!r}"
-                raise OSError(msg)
             buf = b""
-            async for chunk in resp.aiter_bytes():
+            async for chunk in raw_bytes:
                 buf += chunk
                 while b"\n" in buf:
                     line, buf = buf.split(b"\n", 1)
