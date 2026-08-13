@@ -132,6 +132,12 @@ _ALLOWED: Final[frozenset[tuple[str, str]]] = frozenset(
         ("deployment_strategist", "internal:proxy"),
         ("deployment_strategist", "canonical:read"),
         ("deployment_strategist", "override:submit"),
+        # The /admin pages (MCP activity, Agent Kenny dashboard) are
+        # tenant-scoped read-only telemetry, and strategists already hold
+        # the stronger internal:proxy that serves those pages their data —
+        # withholding the page-level action was an inconsistency, not a
+        # security boundary.
+        ("deployment_strategist", "admin:read"),
         # fde — Forward Deployed Engineer; operationally equivalent to a
         # deployment strategist (both run the engagement).
         ("fde", "ingest:view_runs"),
@@ -140,6 +146,7 @@ _ALLOWED: Final[frozenset[tuple[str, str]]] = frozenset(
         ("fde", "internal:proxy"),
         ("fde", "canonical:read"),
         ("fde", "override:submit"),
+        ("fde", "admin:read"),
         # biz_dev — business development; reads the engagement memory.
         ("biz_dev", "canonical:read"),
         # demo_guest — auto-logged-in public demo sessions (Wave 4S showcase).

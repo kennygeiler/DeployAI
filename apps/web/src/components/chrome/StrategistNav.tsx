@@ -77,9 +77,28 @@ function useOpenReviewCount(): number {
   return count;
 }
 
+/**
+ * Demo-guest sessions hold `canonical:read` only — the /admin pages would
+ * 403 at the middleware, so showing their links is a dead end. The role
+ * itself lives in an httpOnly JWT the client can't read; the non-httpOnly
+ * `demo_tour` cookie (set exclusively by the guest-login route) is the
+ * client-visible marker for those sessions.
+ */
+const noopSubscribe = () => () => {};
+const demoCookieSnapshot = () =>
+  document.cookie.split("; ").some((c) => c.startsWith("demo_tour="));
+
+function useIsDemoSession(): boolean {
+  // Server snapshot is false so SSR always renders the full nav; the client
+  // snapshot corrects it on hydration without a cascading-setState effect.
+  return React.useSyncExternalStore(noopSubscribe, demoCookieSnapshot, () => false);
+}
+
 export function StrategistNav() {
   const pathname = usePathname();
   const openReviewCount = useOpenReviewCount();
+  const isDemo = useIsDemoSession();
+  const items = isDemo ? primary.filter((i) => !i.href.startsWith("/admin/")) : primary;
   return (
     <nav
       aria-label="Primary strategist"
@@ -97,7 +116,7 @@ export function StrategistNav() {
           surface pill; inactive items are quiet ink-2 rows. */}
       <div className="flex flex-1 flex-col gap-4 px-1.5 py-3 xl:px-2">
         <ul className="flex flex-col gap-0.5">
-          {primary.map((item) => {
+          {items.map((item) => {
             const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
             const showBadge = item.href === "/review" && openReviewCount > 0;
             return (
