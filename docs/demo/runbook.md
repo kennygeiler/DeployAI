@@ -17,7 +17,13 @@ answer.
 
 **Sandbox-per-visitor**: every View-live-demo click mints its own cold-start
 "Acme Robotics — Pilot Deployment" engagement (a private sandbox — visitors
-never see each other's, and each one's slip act starts empty). **No manual
+never see each other's, and each one's slip act starts empty). Guests see
+exactly ONE Acme row — their own sandbox; the presenter's stable Acme
+(`acacacac-…`) is hidden from demo sessions so the portfolio never shows two
+identical rows. Agent Kenny chat history is also private per guest session:
+each View-live-demo click gets its own conversation thread on every
+engagement (including the seeded BlueState fixture), and stale guest threads
+are cleaned up automatically after 24h alongside the sandboxes. **No manual
 reset is needed for the public link**; sandboxes older than 24h are cleaned
 up automatically on later visits. `make demo-reset` still exists, but only
 for the *presenter* flow below — it recycles the stable Acme engagement
@@ -89,8 +95,13 @@ engagement; the reset is for presenter-driven, non-guest sessions.)
    > "Forty-five minutes of kickoff just became proposed memory — decisions,
    > risks, commitments, owners. Proposed, not written: nothing enters the
    > record without a human."
-4. Accept a few in **Needs you** — including the commitment
-   *"safety certification package submitted by October"* (it matters later).
+4. Accept a few in **Needs you** on camera — including the commitment
+   *"safety certification package submitted by October"* (it matters later) —
+   then hit **Accept all pending** to let the rest of the batch in. Narrate:
+   per-item review is the real workflow; the batch accept is demo speed AND
+   what makes Friday's answer rich (partial accepts leave the record thin
+   and the payoff hedged). The guided tour directs self-serve visitors to
+   the same batch accept at this step and again before the Friday ask.
    Point at the **Kenny asks** cards: *"the record already knows what it's
    missing — it asks for the artifact, you don't guess."*
 
@@ -113,8 +124,10 @@ engagement; the reset is for presenter-driven, non-guest sessions.)
    wants the raw file. Extraction (**7–10s measured**) proposes
    the risk *"e-stop faults blocking safety certification test logs"* —
    a blocker aimed at the very milestone that just slipped. Accept.
-8. Scroll to **Since you last looked**: the week replayed — new memory, a
-   slipped date, a new blocker, each entry traceable to an artifact.
+8. **Accept all pending** once more so Thursday's standup findings are on
+   the record (the tour directs this too), then scroll to **Since you last
+   looked**: the week replayed — new memory, a slipped date, a new blocker,
+   each entry traceable to an artifact.
 
 ### Turn 3 — Friday, the payoff (~2 min)
 
