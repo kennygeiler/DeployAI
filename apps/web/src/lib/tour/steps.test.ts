@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ACME_ENGAGEMENT_PATH,
+  BLUESTATE_ENGAGEMENT_PATH,
   DEMO_ENGAGEMENT_COOKIE,
   KNOWN_TOUR_TARGETS,
   TOUR_CAPTURE_DONE_EVENT,
@@ -91,7 +92,7 @@ describe("TOUR_STEPS integrity", () => {
     ];
     for (const id of actOne) {
       const step = TOUR_STEPS.find((s) => s.id === id);
-      expect(step?.route, id).toBe("/engagements/:engagementId");
+      expect(step?.route, id).toBe(BLUESTATE_ENGAGEMENT_PATH);
     }
     for (const step of TOUR_STEPS.filter((s) => s.id.startsWith("slip-"))) {
       if (step.id === "slip-week-intro") continue; // the intro card works anywhere
