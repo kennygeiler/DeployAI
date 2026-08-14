@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TourProvider } from "@/components/tour/TourProvider.client";
 import {
   ACME_ENGAGEMENT_PATH,
+  BLUESTATE_ENGAGEMENT_PATH,
   TOUR_CAPTURE_DONE_EVENT,
   TOUR_CAPTURE_PREFILL_EVENT,
   TOUR_CHAT_OPENED_EVENT,
@@ -220,11 +221,12 @@ describe("TourProvider", () => {
     render(<TourProvider />);
     await screen.findByTestId("demo-tour-popover");
     await user.click(screen.getByTestId("demo-tour-next"));
-    // Advanced AND navigated: no sandbox cookie → the stable Acme path.
+    // Advanced AND navigated: the corpus beats live on the seeded BlueState
+    // fixture, never the visitor's empty sandbox.
     expect(screen.getByTestId("demo-tour-popover").getAttribute("data-tour-step")).toBe(
       "brief-delta",
     );
-    expect(pushMock).toHaveBeenCalledWith(ACME_ENGAGEMENT_PATH);
+    expect(pushMock).toHaveBeenCalledWith(BLUESTATE_ENGAGEMENT_PATH);
   });
 
   it("Next pushes the visitor's OWN sandbox path when the cookie is present", async () => {
@@ -246,7 +248,7 @@ describe("TourProvider", () => {
   });
 
   it("Next does not navigate when the incoming step's route already matches", async () => {
-    mockPathname = "/engagements/deal-123";
+    mockPathname = BLUESTATE_ENGAGEMENT_PATH;
     window.sessionStorage.setItem(TOUR_STEP_KEY, String(stepIndexOf("brief-delta")));
     const user = userEvent.setup();
     render(<TourProvider />);
@@ -259,7 +261,7 @@ describe("TourProvider", () => {
   });
 
   it("activating a tab-scoped step dispatches the open-tab event for the Capture tab", async () => {
-    mockPathname = "/engagements/deal-123";
+    mockPathname = BLUESTATE_ENGAGEMENT_PATH;
     window.sessionStorage.setItem(TOUR_STEP_KEY, String(stepIndexOf("brief-needs-you")));
     const user = userEvent.setup();
     const seen: string[] = [];

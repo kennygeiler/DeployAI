@@ -110,6 +110,15 @@ export const TOUR_OPEN_TAB_EVENT = "deployai:tour-open-tab";
  */
 export const ACME_ENGAGEMENT_PATH = "/engagements/acacacac-acac-4aca-8aca-acacacacacac";
 
+/**
+ * The seeded BlueState fixture — the corpus the early tour beats (delta,
+ * ask, citations, trap) rely on. These steps must route HERE, not to the
+ * visitor's empty sandbox: pushing the parameterized pattern through the
+ * sandbox fallback sent Next to an engagement with no ledger, where every
+ * corpus beat degrades to a refusal.
+ */
+export const BLUESTATE_ENGAGEMENT_PATH = "/engagements/dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+
 /** Loose UUID shape — guards against a mangled cookie becoming a path segment. */
 const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -198,7 +207,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "brief-delta",
     target: "brief-delta",
-    route: "/engagements/:engagementId",
+    route: BLUESTATE_ENGAGEMENT_PATH,
     title: "Since you last looked",
     body:
       "The Brief opens with what changed while you were gone — new decisions, risks, and " +
@@ -209,7 +218,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "brief-needs-you",
     target: "brief-needs-you",
-    route: "/engagements/:engagementId",
+    route: BLUESTATE_ENGAGEMENT_PATH,
     title: "Needs you — the human gate",
     body:
       "Nothing enters the deal record without a human. Extraction proposals wait here for " +
@@ -220,7 +229,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "capture-paste",
     target: "capture-input",
-    route: "/engagements/:engagementId",
+    route: BLUESTATE_ENGAGEMENT_PATH,
     tab: "capture",
     title: "Feed it",
     body:
@@ -233,7 +242,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "ask-kenny",
     target: "ask-kenny-bar",
-    route: "/engagements/:engagementId",
+    route: BLUESTATE_ENGAGEMENT_PATH,
     title: "Ask Agent Kenny",
     body:
       "This bar is the front door to an agent that answers only from this deal's ledger — " +
@@ -245,7 +254,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "watch-it-think",
     target: null,
-    route: "/engagements/:engagementId",
+    route: BLUESTATE_ENGAGEMENT_PATH,
     title: "Watch it think",
     body:
       "Kenny is querying the deal ledger right now — the trace shows each thinking step and " +
@@ -256,7 +265,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "click-citation",
     target: "oracle-citations",
-    route: "/engagements/:engagementId",
+    route: BLUESTATE_ENGAGEMENT_PATH,
     title: "Every claim carries a citation",
     body:
       "The chips below the answer are verified citations — each one was checked against the " +
@@ -268,7 +277,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "the-trap",
     target: null,
-    route: "/engagements/:engagementId",
+    route: BLUESTATE_ENGAGEMENT_PATH,
     title: "The trap",
     body:
       "Ask something NOT in this deal — watch it refuse instead of invent. There is no Active " +
@@ -293,7 +302,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "graph-tab",
     target: "brief-graph-tab",
-    route: "/engagements/:engagementId",
+    route: BLUESTATE_ENGAGEMENT_PATH,
     title: "The deployment matrix",
     body:
       "Back on a deal, the Graph tab is the accumulated map: stakeholders, systems, decisions, " +
