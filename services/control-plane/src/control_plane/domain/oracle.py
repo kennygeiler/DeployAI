@@ -20,7 +20,6 @@ from sqlalchemy import (
     Index,
     Integer,
     Text,
-    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
@@ -52,6 +51,13 @@ class OracleConversation(Base):
         nullable=False,
     )
     title: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    # demo-polish fix 5 — per-guest chat privacy. Every demo guest shares the
+    # single configured demo user, so keying conversations by actor alone
+    # made all guests share one thread on the fixture engagements. Demo
+    # sessions stamp their access-token jti here (forwarded by the BFF as
+    # X-DeployAI-Demo-Session); NULL means a normal, non-demo conversation.
+    # The marker also lets the demo reaper identify guest threads cheaply.
+    demo_session_jti: Mapped[str | None] = mapped_column(Text(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,
@@ -70,11 +76,28 @@ class OracleConversation(Base):
             ondelete="CASCADE",
             name="fk_oracle_conversations_engagement_tenant",
         ),
-        UniqueConstraint(
+        # demo-polish fix 5 — the old three-column UNIQUE became two partial
+        # unique indexes: normal sessions keep exactly one conversation per
+        # (tenant, engagement, actor); each demo session (jti) gets its own.
+        # Two indexes (not one four-column UNIQUE) because Postgres treats
+        # NULLs as distinct — a plain UNIQUE would let normal sessions
+        # accumulate duplicate rows.
+        Index(
+            "uq_oracle_conversations_tenant_engagement_actor",
             "tenant_id",
             "engagement_id",
             "actor_user_id",
-            name="uq_oracle_conversations_tenant_engagement_actor",
+            unique=True,
+            postgresql_where=text("demo_session_jti IS NULL"),
+        ),
+        Index(
+            "uq_oracle_conversations_demo_session",
+            "tenant_id",
+            "engagement_id",
+            "actor_user_id",
+            "demo_session_jti",
+            unique=True,
+            postgresql_where=text("demo_session_jti IS NOT NULL"),
         ),
     )
 

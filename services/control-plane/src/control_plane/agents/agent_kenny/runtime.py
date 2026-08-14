@@ -406,6 +406,7 @@ async def _persist_and_finish(ctx: KennyRuntime, state: AgentState) -> None:
                 engagement_id=state.engagement_id,
                 actor_user_id=state.actor_user_id,
                 conversation_id=ctx.conversation_id,
+                demo_session_jti=state.demo_session_jti,
             )
         except _ConversationNotFound as exc:
             raise ConversationNotFoundError from exc
@@ -426,6 +427,7 @@ async def _persist_and_finish(ctx: KennyRuntime, state: AgentState) -> None:
             engagement_id=state.engagement_id,
             actor_user_id=state.actor_user_id,
             conversation_id=ctx.conversation_id,
+            demo_session_jti=state.demo_session_jti,
         )
     except _ConversationNotFound as exc:
         raise ConversationNotFoundError from exc

@@ -2,7 +2,11 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { decideSync } from "@deployai/authz";
 
-import { getActorFromHeaders, getActorIdFromHeaders } from "@/lib/internal/actor";
+import {
+  getActorFromHeaders,
+  getActorIdFromHeaders,
+  getDemoSessionJtiFromHeaders,
+} from "@/lib/internal/actor";
 import {
   cpStreamOracleChat,
   OracleBudgetExhaustedError,
@@ -55,8 +59,11 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     );
   }
 
+  // demo-polish fix 5 — per-session conversation scope for demo guests.
+  const demoJti = actor.role === "demo_guest" ? await getDemoSessionJtiFromHeaders() : null;
+
   try {
-    const upstream = await cpStreamOracleChat(tid, engagementId, actorId, parsed.data);
+    const upstream = await cpStreamOracleChat(tid, engagementId, actorId, parsed.data, demoJti);
     if (!upstream.body) {
       return NextResponse.json({ error: "empty upstream stream" }, { status: 502 });
     }

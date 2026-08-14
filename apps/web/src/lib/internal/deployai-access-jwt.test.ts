@@ -87,6 +87,28 @@ describe("deployai-access-jwt", () => {
     });
   });
 
+  it("verifyDeployaiAccessJwt surfaces the token jti (demo-session conversation scope)", async () => {
+    const { publicKey, privateKey } = await jose.generateKeyPair("RS256");
+    vi.stubEnv("DEPLOYAI_WEB_JWT_PUBLIC_KEY_PEM", await jose.exportSPKI(publicKey));
+    const now = Math.floor(Date.now() / 1000);
+    const jwt = await new jose.SignJWT({
+      sub: "user-1",
+      tid: "11111111-1111-4111-8111-111111111111",
+      roles: ["demo_guest"],
+      token_use: "access",
+    })
+      .setProtectedHeader({ alg: "RS256" })
+      .setIssuer("deployai-control-plane")
+      .setAudience("deployai")
+      .setJti("jti-demo-session")
+      .setIssuedAt(now)
+      .setExpirationTime(now + 120)
+      .sign(privateKey);
+
+    const claims = await verifyDeployaiAccessJwt(jwt);
+    expect(claims?.jti).toBe("jti-demo-session");
+  });
+
   it("verifyDeployaiAccessJwt rejects wrong token_use when set", async () => {
     const { publicKey, privateKey } = await jose.generateKeyPair("RS256");
     vi.stubEnv("DEPLOYAI_WEB_JWT_PUBLIC_KEY_PEM", await jose.exportSPKI(publicKey));

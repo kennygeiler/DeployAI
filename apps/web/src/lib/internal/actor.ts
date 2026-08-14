@@ -70,6 +70,32 @@ export async function getActorFromHeaders(): Promise<AuthActor | null> {
 const DEV_ACTOR_FALLBACK = "00000000-0000-7000-8000-0000000000aa";
 
 /**
+ * demo-polish fix 5 — the demo session's access-token jti, or null.
+ *
+ * Oracle conversations are keyed per demo session on the CP (all guests
+ * share the single demo user, so actor-keyed threads leaked chat history
+ * between visitors). The oracle BFF routes call this ONLY for demo_guest
+ * actors and forward the value as X-DeployAI-Demo-Session. Requires the
+ * JWT-trust path (the demo mint always sets the access-token cookie);
+ * header-injected roles have no token and degrade to null — the CP then
+ * behaves as before this fix (shared thread), never an error.
+ */
+export async function getDemoSessionJtiFromHeaders(): Promise<string | null> {
+  if (process.env.DEPLOYAI_WEB_TRUST_JWT !== "1") {
+    return null;
+  }
+  const h = await headers();
+  const c = await cookies();
+  const name = accessTokenCookieNameFromEnv();
+  const token = extractBearerToken(h.get("authorization")) ?? c.get(name)?.value ?? null;
+  if (!token) {
+    return null;
+  }
+  const claims = await verifyDeployaiAccessJwt(token);
+  return claims?.jti?.trim() || null;
+}
+
+/**
  * Stable subject id for CP internal calls (JWT `sub`, header override, or dev fallback).
  */
 export async function getActorIdFromHeaders(): Promise<string | null> {

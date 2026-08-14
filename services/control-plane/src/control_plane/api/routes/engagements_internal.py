@@ -78,6 +78,7 @@ from control_plane.domain.review_inbox import ReviewItem
 from control_plane.domain.strategist_queues import StrategistActionQueueItem
 from control_plane.ledger import emit_ledger_event
 from control_plane.phases.machine import DEPLOYMENT_PHASES, default_phase
+from control_plane.services.demo_sandbox import ACME_ENGAGEMENT_ID
 from control_plane.services.engagement_legibility import attention_score, user_display_name
 from control_plane.services.proposal_auto_accept import (
     AutoAcceptSettings,
@@ -152,6 +153,13 @@ async def list_engagements(
             query = query.where(Engagement.demo_sandbox_at.is_(None) | (Engagement.id == visible_sandbox_id))
         else:
             query = query.where(Engagement.demo_sandbox_at.is_(None))
+        # demo-polish fix 4: the stable presenter fixture carries
+        # demo_sandbox_at NULL, so the sandbox filter keeps it — and it
+        # shares its display name with the guest's own sandbox, showing two
+        # identical Acme rows. It is the presenter's engagement, not the
+        # guest's: hide it whenever the demo filter is on. Non-demo sessions
+        # never pass exclude_demo_sandboxes and still see everything.
+        query = query.where(Engagement.id != ACME_ENGAGEMENT_ID)
     r = await session.execute(query.order_by(Engagement.created_at.desc()))
     engagements = list(r.scalars().all())
 

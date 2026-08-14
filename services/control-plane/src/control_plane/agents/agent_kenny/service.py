@@ -133,6 +133,7 @@ class KennyAgentService:
         conversation_id: uuid.UUID | None,
         message: str,
         now: datetime | None = None,
+        demo_session_jti: str | None = None,
     ) -> AsyncIterator[StreamChunk]:
         """Pre-flight (budget + conversation) runs eagerly; the rest streams lazily."""
         moment = now or datetime.now(UTC)
@@ -157,6 +158,7 @@ class KennyAgentService:
             conversation_id=conversation_id,
             message=message,
             moment=moment,
+            demo_session_jti=demo_session_jti,
         )
 
     async def _drive(
@@ -169,6 +171,7 @@ class KennyAgentService:
         conversation_id: uuid.UUID | None,
         message: str,
         moment: datetime,
+        demo_session_jti: str | None = None,
     ) -> AsyncIterator[StreamChunk]:
         queue: asyncio.Queue[StreamChunk] = asyncio.Queue()
         sentinel: Any = object()
@@ -181,6 +184,7 @@ class KennyAgentService:
             engagement_id=engagement_id,
             actor_user_id=actor_user_id,
             conversation_id=conversation_id,
+            demo_session_jti=demo_session_jti,
             user_message=message,
             started_at=moment,
         )
@@ -485,6 +489,7 @@ class KennyAgentService:
                     engagement_id=state.engagement_id,
                     actor_user_id=actor_user_id,
                     conversation_id=conversation_id,
+                    demo_session_jti=state.demo_session_jti,
                 )
             except _ConversationNotFound as exc:
                 raise ConversationNotFoundError from exc
@@ -533,6 +538,7 @@ class KennyAgentService:
                 engagement_id=state.engagement_id,
                 actor_user_id=actor_user_id,
                 conversation_id=conversation_id,
+                demo_session_jti=state.demo_session_jti,
             )
         except _ConversationNotFound as exc:
             raise ConversationNotFoundError from exc

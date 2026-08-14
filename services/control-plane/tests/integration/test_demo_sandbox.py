@@ -63,6 +63,62 @@ def _ins_tenant(engine: Engine, tid: uuid.UUID) -> None:
         )
 
 
+def _ins_user(engine: Engine, tenant_id: uuid.UUID, user_id: uuid.UUID) -> None:
+    with engine.begin() as c:
+        c.execute(
+            text(
+                "INSERT INTO app_users (id, tenant_id, user_name, email) "
+                "VALUES (:u, :t, :n, :e) ON CONFLICT (id) DO NOTHING"
+            ),
+            {
+                "u": str(user_id),
+                "t": str(tenant_id),
+                "n": f"demo-user-{user_id}",
+                "e": f"{user_id}@example.test",
+            },
+        )
+
+
+def _ins_conversation(
+    engine: Engine,
+    *,
+    tenant_id: uuid.UUID,
+    engagement_id: str,
+    user_id: uuid.UUID,
+    jti: str | None,
+    age_hours: int,
+) -> uuid.UUID:
+    cid = uuid.uuid4()
+    with engine.begin() as c:
+        c.execute(
+            text(
+                "INSERT INTO oracle_conversations "
+                "  (id, tenant_id, engagement_id, actor_user_id, demo_session_jti, last_turn_at) "
+                "VALUES (CAST(:c AS uuid), CAST(:t AS uuid), CAST(:e AS uuid), CAST(:u AS uuid), "
+                "        :jti, now() - make_interval(hours => :h))"
+            ),
+            {
+                "c": str(cid),
+                "t": str(tenant_id),
+                "e": engagement_id,
+                "u": str(user_id),
+                "jti": jti,
+                "h": age_hours,
+            },
+        )
+    return cid
+
+
+def _conversation_exists(engine: Engine, cid: uuid.UUID) -> bool:
+    with engine.connect() as c:
+        return bool(
+            c.execute(
+                text("SELECT 1 FROM oracle_conversations WHERE id = CAST(:c AS uuid)"),
+                {"c": str(cid)},
+            ).scalar_one_or_none()
+        )
+
+
 def _backdate_sandbox(engine: Engine, engagement_id: str, hours: int) -> None:
     with engine.begin() as c:
         c.execute(
@@ -286,16 +342,66 @@ async def test_list_filter_shows_fixtures_plus_own_sandbox_only(client: AsyncCli
     assert {str(ACME_ENGAGEMENT_ID), mine, other} <= everything
 
     # A guest session: fixtures + its own sandbox, never the other visitor's.
+    # demo-polish fix 4: the stable presenter Acme (same display name as the
+    # guest's sandbox) is hidden too — one Acme row, the guest's own.
     guest = await list_ids(f"&exclude_demo_sandboxes=true&visible_sandbox_id={mine}")
-    assert str(ACME_ENGAGEMENT_ID) in guest
+    assert str(ACME_ENGAGEMENT_ID) not in guest
     assert mine in guest
     assert other not in guest
 
-    # Expired cookie (no sandbox id): fixtures only.
+    # Expired cookie (no sandbox id): remaining fixtures only — neither the
+    # presenter Acme nor any sandbox.
     no_cookie = await list_ids("&exclude_demo_sandboxes=true")
-    assert str(ACME_ENGAGEMENT_ID) in no_cookie
+    assert str(ACME_ENGAGEMENT_ID) not in no_cookie
     assert mine not in no_cookie
     assert other not in no_cookie
+
+
+@pytest.mark.asyncio
+async def test_mint_reaps_stale_demo_conversations_on_fixture_engagements(
+    client: AsyncClient, postgres_engine: Engine
+) -> None:
+    """demo-polish fix 5 — per-guest chat threads on the FIXTURE engagements
+    (which the engagement reaper never deletes) are bounded by the mint-time
+    conversation reaper: demo threads (demo_session_jti set) older than the
+    24h cutoff go; fresh demo threads and normal (jti NULL) conversations
+    are never candidates, whatever their age.
+    """
+    r = await client.post(f"/internal/v1/admin/demo/reset-acme?tenant_id={TENANT_ID}")
+    assert r.status_code == 200, r.text
+    _ins_user(postgres_engine, TENANT_ID, DEMO_USER_ID)
+    fixture = str(ACME_ENGAGEMENT_ID)
+
+    stale_demo = _ins_conversation(
+        postgres_engine,
+        tenant_id=TENANT_ID,
+        engagement_id=fixture,
+        user_id=DEMO_USER_ID,
+        jti="jti-stale",
+        age_hours=25,
+    )
+    fresh_demo = _ins_conversation(
+        postgres_engine,
+        tenant_id=TENANT_ID,
+        engagement_id=fixture,
+        user_id=DEMO_USER_ID,
+        jti="jti-fresh",
+        age_hours=1,
+    )
+    old_normal = _ins_conversation(
+        postgres_engine,
+        tenant_id=TENANT_ID,
+        engagement_id=fixture,
+        user_id=DEMO_USER_ID,
+        jti=None,
+        age_hours=100,
+    )
+
+    await _mint(client)
+
+    assert not _conversation_exists(postgres_engine, stale_demo)
+    assert _conversation_exists(postgres_engine, fresh_demo)
+    assert _conversation_exists(postgres_engine, old_normal)
 
 
 @pytest.mark.asyncio

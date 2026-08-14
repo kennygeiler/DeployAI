@@ -46,6 +46,13 @@ export type DeployaiAccessClaims = {
   sub: string;
   tid: string;
   roles: string[];
+  /**
+   * Access-token id (always minted by the CP). demo-polish fix 5: for
+   * demo_guest sessions the BFF forwards it to the CP oracle routes as the
+   * per-session conversation scope, so concurrent guests never share a
+   * chat thread on the fixture engagements.
+   */
+  jti?: string;
 };
 
 export function v1RoleFromJwtRoles(roles: string[]): V1Role | null {
@@ -103,7 +110,8 @@ export async function verifyDeployaiAccessJwt(token: string): Promise<DeployaiAc
       if (!sub || !tid || !roles.length) {
         continue;
       }
-      return { sub, tid, roles };
+      const jti = typeof payload.jti === "string" && payload.jti.trim() ? payload.jti : undefined;
+      return { sub, tid, roles, ...(jti ? { jti } : {}) };
     } catch {
       continue;
     }

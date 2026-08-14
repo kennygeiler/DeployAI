@@ -78,6 +78,22 @@ def _actor_uuid(
         ) from exc
 
 
+def _demo_session_jti(
+    x_deployai_demo_session: str | None = Header(default=None, alias="X-DeployAI-Demo-Session"),
+) -> str | None:
+    """demo-polish fix 5 — per-guest conversation scoping for demo sessions.
+
+    All demo guests authenticate as ONE configured demo user, so keying
+    conversations by actor alone shared a single thread (and its history)
+    across every visitor of a fixture engagement. The BFF forwards the demo
+    session's access-token jti in this header (demo_guest sessions only);
+    the chat/history services then scope the conversation per session.
+    Absent (every normal session) → unchanged single-conversation behavior.
+    """
+    v = (x_deployai_demo_session or "").strip()
+    return v or None
+
+
 class OracleChatRequest(BaseModel):
     conversation_id: uuid.UUID | None = None
     message: str = Field(min_length=1, max_length=_MAX_MESSAGE_CHARS)
@@ -118,6 +134,7 @@ async def post_oracle_chat(
     tenant_id: Annotated[uuid.UUID, Query()],
     actor_id: Annotated[uuid.UUID, Depends(_actor_uuid)],
     llm: Annotated[LLMProvider, Depends(get_llm_provider)],
+    demo_session_jti: Annotated[str | None, Depends(_demo_session_jti)] = None,
 ) -> OracleChatResponse:
     engagement = await _require_engagement(session, tenant_id, engagement_id)
     resolved = await resolve_tenant_llm_provider(session, tenant_id, llm)
@@ -132,6 +149,7 @@ async def post_oracle_chat(
                 conversation_id=body.conversation_id,
                 message=body.message,
                 now=datetime.now(UTC),
+                demo_session_jti=demo_session_jti,
             )
         )
     except BudgetExhaustedError as exc:
@@ -168,6 +186,7 @@ async def post_oracle_chat_stream(
     tenant_id: Annotated[uuid.UUID, Query()],
     actor_id: Annotated[uuid.UUID, Depends(_actor_uuid)],
     llm: Annotated[LLMProvider, Depends(get_llm_provider)],
+    demo_session_jti: Annotated[str | None, Depends(_demo_session_jti)] = None,
 ) -> StreamingResponse:
     engagement = await _require_engagement(session, tenant_id, engagement_id)
     resolved = await resolve_tenant_llm_provider(session, tenant_id, llm)
@@ -184,6 +203,7 @@ async def post_oracle_chat_stream(
             conversation_id=body.conversation_id,
             message=body.message,
             now=datetime.now(UTC),
+            demo_session_jti=demo_session_jti,
         )
     except BudgetExhaustedError as exc:
         await session.rollback()
@@ -238,6 +258,7 @@ async def post_oracle_chat_stream_v2(
     tenant_id: Annotated[uuid.UUID, Query()],
     actor_id: Annotated[uuid.UUID, Depends(_actor_uuid)],
     llm: Annotated[LLMProvider, Depends(get_llm_provider)],
+    demo_session_jti: Annotated[str | None, Depends(_demo_session_jti)] = None,
 ) -> StreamingResponse:
     if not _kenny_v2_enabled():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
@@ -274,6 +295,7 @@ async def post_oracle_chat_stream_v2(
             conversation_id=body.conversation_id,
             message=body.message,
             now=datetime.now(UTC),
+            demo_session_jti=demo_session_jti,
         )
     except KennyBudgetExhaustedError as exc:
         await session.rollback()
@@ -448,13 +470,24 @@ async def get_oracle_history(
     session: Annotated[AsyncSession, Depends(get_tenant_db_session)],
     tenant_id: Annotated[uuid.UUID, Query()],
     actor_id: Annotated[uuid.UUID, Depends(_actor_uuid)],
+    demo_session_jti: Annotated[str | None, Depends(_demo_session_jti)] = None,
 ) -> OracleHistoryResponse:
     await _require_engagement(session, tenant_id, engagement_id)
+    # demo-polish fix 5 — the scope filter is load-bearing in BOTH modes:
+    # a demo session sees only its own thread, and a normal session must
+    # never pick up demo threads (all guests share the demo actor user, so
+    # an unscoped query would also stop being unique).
+    scope = (
+        OracleConversation.demo_session_jti.is_(None)
+        if demo_session_jti is None
+        else OracleConversation.demo_session_jti == demo_session_jti
+    )
     convo_q = await session.execute(
         select(OracleConversation).where(
             OracleConversation.tenant_id == tenant_id,
             OracleConversation.engagement_id == engagement_id,
             OracleConversation.actor_user_id == actor_id,
+            scope,
         )
     )
     convo = convo_q.scalar_one_or_none()

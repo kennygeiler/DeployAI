@@ -42,6 +42,15 @@ export type TourStep = {
    * tab panels are switched + scrolled into view without the visitor hunting.
    */
   tab?: string;
+  /**
+   * demo-polish fix 3 — steps whose target the Agent Kenny chat overlay
+   * would cover. On activation the tour dispatches TOUR_CLOSE_CHAT_EVENT;
+   * AskKennyBar listens and closes the overlay (a no-op when it's closed).
+   * Needed because the Brief keeps its overlay state across client-side
+   * engagement navigation, so a chat opened on the ask beats can still be
+   * covering the Brief many steps later.
+   */
+  closeChat?: boolean;
   /** Optional question the "Use this question" button prefills. */
   prefill?: string;
   /**
@@ -98,6 +107,15 @@ export const TOUR_CAPTURE_DONE_EVENT = "deployai:tour-capture-done";
  * the layout, outside the Brief's tree.
  */
 export const TOUR_OPEN_TAB_EVENT = "deployai:tour-open-tab";
+
+/**
+ * demo-polish fix 3 — `tour-close-chat` is dispatched by the TourProvider
+ * when a step with `closeChat: true` activates and handled by AskKennyBar
+ * (which owns the chat overlay state): the overlay closes so the step's
+ * Brief target is visible and clickable. Same tour→Brief signalling pattern
+ * as TOUR_OPEN_TAB_EVENT.
+ */
+export const TOUR_CLOSE_CHAT_EVENT = "deployai:tour-close-chat";
 
 /**
  * The stable Acme engagement id (mirrors ACME_ENGAGEMENT_ID in the CP's
@@ -246,10 +264,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     title: "Ask Agent Kenny",
     body:
       "This bar is the front door to an agent that answers only from this deal's ledger — " +
-      "every claim is grounded in a real event. Try a question about a decision it has evidence for.",
+      "every claim is grounded in a real event. Try a question about the people and " +
+      "decisions it has evidence for.",
     action: 'Click "Use this question" below, then hit Ask.',
     advanceOn: { type: "event", name: TOUR_CHAT_OPENED_EVENT },
-    prefill: 'What led to the decision "Engagement model: 26-week phased build"?',
+    // Live-proven on the BlueState corpus (sponsors-edge + the Okta decision
+    // node): produces a fully cited answer. The honest-refusal beat belongs
+    // to "the-trap", never here.
+    prefill: "Who is the executive sponsor and what did we decide about the identity provider?",
   },
   {
     id: "watch-it-think",
@@ -303,6 +325,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "graph-tab",
     target: "brief-graph-tab",
     route: BLUESTATE_ENGAGEMENT_PATH,
+    // The trap's chat overlay is still open when the visitor stays on
+    // BlueState through the review-inbox step — close it or the Graph tab
+    // sits behind the backdrop.
+    closeChat: true,
     title: "The deployment matrix",
     body:
       "Back on a deal, the Graph tab is the accumulated map: stakeholders, systems, decisions, " +
@@ -331,6 +357,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "capture-input",
     route: ACME_ENGAGEMENT_PATH,
     tab: "capture",
+    closeChat: true,
     title: "Monday — feed it the kickoff",
     body:
       "This deal is empty: no record, no memory. This morning's kickoff transcript is your " +
@@ -348,12 +375,17 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "slip-monday-gate",
     target: "brief-needs-you",
     route: ACME_ENGAGEMENT_PATH,
+    closeChat: true,
     title: "Nothing enters without you",
     body:
       "Every decision, risk, and commitment extraction found now waits on your accept or " +
-      "reject — the record holds only what a human let in. And Kenny is already asking for " +
-      "what's missing: the record knows its own gaps before you do.",
-    action: "Accept a few proposals, glance at what Kenny asks for, then hit Next.",
+      "reject — the record holds only what a human let in. In real work you'd weigh each " +
+      "one; for the demo, let the whole batch in so Friday's answer has the full kickoff " +
+      "to draw on. And Kenny is already asking for what's missing.",
+    // Deterministic Friday beat: partial accepts leave the record thin and
+    // the payoff answer hedged — the batch accept guarantees a rich corpus.
+    action:
+      'Click "Accept all pending" (and confirm), glance at what Kenny asks for, then hit Next.',
     advanceOn: { type: "manual" },
   },
   {
@@ -361,6 +393,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "capture-input",
     route: ACME_ENGAGEMENT_PATH,
     tab: "capture",
+    closeChat: true,
     title: "Wednesday — a routine email lands",
     body:
       "An end-of-day roundup from ops: AP installs, visitor-day logistics, a dashboard " +
@@ -378,6 +411,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "slip-midweek-caught",
     target: "brief-needs-you",
     route: ACME_ENGAGEMENT_PATH,
+    closeChat: true,
     title: "It caught the slip",
     body:
       "There it is in the queue: the safety certification package moved October 3 → " +
@@ -392,6 +426,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "capture-input",
     route: ACME_ENGAGEMENT_PATH,
     tab: "capture",
+    closeChat: true,
     title: "Thursday — attach the standup notes",
     body:
       "Thursday's standup recording produced a .vtt transcript — the kind of file that " +
@@ -411,12 +446,19 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "slip-friday-digest",
     target: "brief-delta",
     route: ACME_ENGAGEMENT_PATH,
+    // Also needs the Brief clickable: this step directs the standup batch's
+    // "Accept all pending" in Needs you.
+    closeChat: true,
     title: "Friday — the week, replayed",
     body:
       '"Since you last looked" now tells the story you just lived: a kickoff\'s worth of ' +
       "memory, a slipped date, a new blocker — every entry traceable to an artifact you fed " +
       "in yourself. This is what a returning strategist sees instead of re-reading threads.",
-    action: "Scan the week's changes, then hit Next.",
+    // Thursday's standup proposals are still queued — batch them in here so
+    // the Friday ask can cite the blocker, not just the kickoff and the slip.
+    action:
+      'First hit "Accept all pending" in Needs you to let Thursday\'s findings in, ' +
+      "then scan the week's changes and hit Next.",
     advanceOn: { type: "manual" },
   },
   {

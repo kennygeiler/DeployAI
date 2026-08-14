@@ -7,7 +7,11 @@ import { Button } from "@/components/ui/button";
 import type { EngagementSummaryChange } from "@/lib/bff/summary-types";
 import type { MatrixNode } from "@/lib/bff/matrix-types";
 import { stripRedundantKindPrefix } from "@/lib/labels";
-import { TOUR_CHAT_OPENED_EVENT, TOUR_PREFILL_EVENT } from "@/lib/tour/steps";
+import {
+  TOUR_CHAT_OPENED_EVENT,
+  TOUR_CLOSE_CHAT_EVENT,
+  TOUR_PREFILL_EVENT,
+} from "@/lib/tour/steps";
 
 /**
  * Wave 2.5 U4 — Kenny's front door on the Brief.
@@ -100,6 +104,16 @@ export function AskKennyBar({
     };
     window.addEventListener(TOUR_PREFILL_EVENT, onPrefill);
     return () => window.removeEventListener(TOUR_PREFILL_EVENT, onPrefill);
+  }, []);
+
+  // demo-polish fix 3 — steps that spotlight Brief content (graph tab, the
+  // slip act's capture/needs-you beats) declare `closeChat`; the tour
+  // dispatches this event on their activation so a chat overlay left open
+  // from an earlier ask beat never hides the target. No-op when closed.
+  React.useEffect(() => {
+    const onCloseChat = () => setOverlay(null);
+    window.addEventListener(TOUR_CLOSE_CHAT_EVENT, onCloseChat);
+    return () => window.removeEventListener(TOUR_CLOSE_CHAT_EVENT, onCloseChat);
   }, []);
 
   React.useEffect(() => {

@@ -97,6 +97,11 @@ class AgentState:
     user_message: str
     started_at: datetime
     conversation_id: uuid.UUID | None = None
+    # demo-polish fix 5 — demo sessions scope their conversation by the
+    # access-token jti (all guests share one actor user). Checkpointed with
+    # the rest of the state so an approval-resume persists into the same
+    # per-session thread. None = normal session.
+    demo_session_jti: str | None = None
     history: list[dict[str, str]] = field(default_factory=list)
     initial_context: dict[str, Any] = field(default_factory=dict)
     messages: list[dict[str, Any]] = field(default_factory=list)

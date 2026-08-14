@@ -193,12 +193,48 @@ async def reap_expired_sandboxes(
     return expired
 
 
+async def reap_expired_demo_conversations(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    *,
+    max_age_hours: int = SANDBOX_MAX_AGE_HOURS,
+    limit: int = SANDBOX_REAP_LIMIT,
+) -> int:
+    """Delete up to ``limit`` stale demo-guest oracle conversations.
+
+    demo-polish fix 5 — demo sessions stamp their token jti on the
+    conversations they create (``oracle_conversations.demo_session_jti``),
+    including on the seeded FIXTURE engagements, which the engagement reaper
+    never touches. Without this they accumulate one thread per guest mint
+    forever. ``demo_session_jti IS NOT NULL`` is the clean identification
+    handle; normal conversations (jti NULL) can never be a candidate. Turns
+    cascade off the conversation FK. Oldest first, bounded per mint, same
+    posture as the sandbox reaper. Does not commit.
+    """
+    r = await session.execute(
+        text(
+            "DELETE FROM oracle_conversations WHERE id IN ("
+            "  SELECT id FROM oracle_conversations "
+            "  WHERE tenant_id = CAST(:tid AS uuid) "
+            "    AND demo_session_jti IS NOT NULL "
+            "    AND last_turn_at < now() - make_interval(hours => :hours) "
+            "  ORDER BY last_turn_at ASC "
+            "  LIMIT :lim"
+            ")"
+        ),
+        {"tid": str(tenant_id), "hours": max_age_hours, "lim": limit},
+    )
+    return int(getattr(r, "rowcount", 0) or 0)
+
+
 async def provision_sandbox_engagement(session: AsyncSession, tenant_id: uuid.UUID) -> uuid.UUID:
-    """One demo mint's DB work: reap expired sandboxes, create a fresh one.
+    """One demo mint's DB work: reap expired sandboxes + stale demo chat
+    threads, create a fresh sandbox.
 
     Commits — the caller (the mint route) treats this as a single unit.
     """
     await reap_expired_sandboxes(session, tenant_id)
+    await reap_expired_demo_conversations(session, tenant_id)
     eid = await create_demo_engagement(session, tenant_id, sandbox=True)
     await session.commit()
     return eid

@@ -8,6 +8,7 @@ import {
   TOUR_CAPTURE_DONE_EVENT,
   TOUR_CAPTURE_PREFILL_EVENT,
   TOUR_CHAT_OPENED_EVENT,
+  TOUR_CLOSE_CHAT_EVENT,
   TOUR_DISMISSED_KEY,
   TOUR_OPEN_TAB_EVENT,
   TOUR_PREFILL_EVENT,
@@ -171,7 +172,9 @@ describe("TourProvider", () => {
     try {
       render(<TourProvider />);
       await user.click(await screen.findByTestId("demo-tour-prefill"));
-      expect(seen).toEqual(['What led to the decision "Engagement model: 26-week phased build"?']);
+      expect(seen).toEqual([
+        "Who is the executive sponsor and what did we decide about the identity provider?",
+      ]);
     } finally {
       window.removeEventListener(TOUR_PREFILL_EVENT, onPrefill);
     }
@@ -280,6 +283,44 @@ describe("TourProvider", () => {
       expect(pushMock).not.toHaveBeenCalled();
     } finally {
       window.removeEventListener(TOUR_OPEN_TAB_EVENT, onOpenTab);
+    }
+  });
+
+  it("activating a closeChat step dispatches the close-chat event (fix 3)", async () => {
+    // review-inbox → Next → graph-tab: the trap's chat overlay may still be
+    // covering the Brief; graph-tab declares closeChat and the activation
+    // must signal AskKennyBar.
+    mockPathname = BLUESTATE_ENGAGEMENT_PATH;
+    window.sessionStorage.setItem(TOUR_STEP_KEY, String(stepIndexOf("review-inbox")));
+    const user = userEvent.setup();
+    const closed = vi.fn();
+    window.addEventListener(TOUR_CLOSE_CHAT_EVENT, closed);
+    try {
+      render(<TourProvider />);
+      await screen.findByTestId("demo-tour-popover");
+      expect(closed).not.toHaveBeenCalled();
+      await user.click(screen.getByTestId("demo-tour-next"));
+      expect(screen.getByTestId("demo-tour-popover").getAttribute("data-tour-step")).toBe(
+        "graph-tab",
+      );
+      await waitFor(() => expect(closed).toHaveBeenCalled());
+    } finally {
+      window.removeEventListener(TOUR_CLOSE_CHAT_EVENT, closed);
+    }
+  });
+
+  it("steps without closeChat never dispatch the close-chat event", async () => {
+    // The ask step opens the chat — dispatching close here would fight the
+    // very overlay the step is about.
+    window.sessionStorage.setItem(TOUR_STEP_KEY, String(stepIndexOf("ask-kenny")));
+    const closed = vi.fn();
+    window.addEventListener(TOUR_CLOSE_CHAT_EVENT, closed);
+    try {
+      render(<TourProvider />);
+      await screen.findByTestId("demo-tour-popover");
+      expect(closed).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(TOUR_CLOSE_CHAT_EVENT, closed);
     }
   });
 
