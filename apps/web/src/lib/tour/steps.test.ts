@@ -59,10 +59,16 @@ describe("TOUR_STEPS integrity", () => {
     expect(capture.advanceOn).toEqual({ type: "manual" });
   });
 
-  it("wires the ask step to the chat-opened event with the decision prefill", () => {
+  it("wires the ask step to the chat-opened event with the live-proven prefill", () => {
     const ask = TOUR_STEPS.find((s) => s.id === "ask-kenny");
     expect(ask?.advanceOn).toEqual({ type: "event", name: TOUR_CHAT_OPENED_EVENT });
-    expect(ask?.prefill).toBe('What led to the decision "Engagement model: 26-week phased build"?');
+    // Verified on prod to yield a fully cited answer (Raj Patel sponsors-edge
+    // + the "Identity provider: Okta over Auth0" decision). The refusal beat
+    // is the-trap's job — this step must never prefill a question the corpus
+    // cannot answer.
+    expect(ask?.prefill).toBe(
+      "Who is the executive sponsor and what did we decide about the identity provider?",
+    );
   });
 
   it("wires the trap step to turn-done with the out-of-corpus prefill", () => {
@@ -97,6 +103,30 @@ describe("TOUR_STEPS integrity", () => {
     for (const step of TOUR_STEPS.filter((s) => s.id.startsWith("slip-"))) {
       if (step.id === "slip-week-intro") continue; // the intro card works anywhere
       expect(step.route, step.id).toBe(ACME_ENGAGEMENT_PATH);
+    }
+  });
+
+  // demo-polish fix 3 — the chat overlay survives navigation; steps whose
+  // Brief target it would cover must declare closeChat so the tour can ask
+  // AskKennyBar to close it on activation.
+  it("Brief-spotlight steps after the ask beats declare closeChat", () => {
+    const needClose = [
+      "graph-tab",
+      "slip-monday-kickoff",
+      "slip-monday-gate",
+      "slip-midweek-email",
+      "slip-midweek-caught",
+      "slip-thursday-standup",
+      "slip-friday-digest",
+    ];
+    for (const step of TOUR_STEPS) {
+      if (needClose.includes(step.id)) {
+        expect(step.closeChat, step.id).toBe(true);
+      } else {
+        // Ask/trap steps must NOT close the chat they just opened; the
+        // review-inbox beat keeps its "close the chat yourself" copy.
+        expect(step.closeChat, step.id).toBeUndefined();
+      }
     }
   });
 
@@ -162,6 +192,19 @@ describe("catch-the-slip act (K7)", () => {
     expect(step?.capturePrefill?.source).toBe("meeting_note");
     expect(step?.download?.href).toBe("/demo/acme-standup.vtt");
     expect(step?.advanceOn).toEqual({ type: "event", name: TOUR_CAPTURE_DONE_EVENT });
+  });
+
+  it("directs the batch accept on the Monday gate and Friday digest (deterministic record)", () => {
+    // Partial accepts starve the Friday answer (live QA: "3 commitments,
+    // no descriptive detail, 0 edges"). The gate and digest beats both
+    // direct "Accept all pending" so the record is deterministically rich.
+    for (const id of ["slip-monday-gate", "slip-friday-digest"]) {
+      const step = TOUR_STEPS.find((s) => s.id === id);
+      expect(step?.action, id).toContain("Accept all pending");
+    }
+    // The midweek catch stays an explicit single accept — the catch IS the beat.
+    const caught = TOUR_STEPS.find((s) => s.id === "slip-midweek-caught");
+    expect(caught?.action).toContain("Accept the date-change proposal");
   });
 
   it("the Friday ask prefills the payoff question", () => {

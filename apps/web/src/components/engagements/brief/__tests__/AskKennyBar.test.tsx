@@ -7,7 +7,11 @@ import {
   deriveSuggestedQuestions,
 } from "@/components/engagements/brief/AskKennyBar.client";
 import type { MatrixNode } from "@/lib/bff/matrix-types";
-import { TOUR_CHAT_OPENED_EVENT, TOUR_PREFILL_EVENT } from "@/lib/tour/steps";
+import {
+  TOUR_CHAT_OPENED_EVENT,
+  TOUR_CLOSE_CHAT_EVENT,
+  TOUR_PREFILL_EVENT,
+} from "@/lib/tour/steps";
 
 function mkNode(id: string, node_type: string, title: string, status: string | null): MatrixNode {
   return {
@@ -158,6 +162,25 @@ describe("AskKennyBar", () => {
     expect(screen.getByLabelText<HTMLInputElement>("Ask Agent Kenny").value).toBe(
       "What led to the decision?",
     );
+  });
+
+  it("closes an open overlay on the tour close-chat event (fix 3)", async () => {
+    stubOracleFetch();
+    const user = userEvent.setup();
+    render(<AskKennyBar engagementId="e1" nodes={[]} changes={[]} />);
+
+    await user.click(screen.getByTestId("ask-kenny-open-chat"));
+    await screen.findByTestId("ask-kenny-overlay");
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(TOUR_CLOSE_CHAT_EVENT));
+    });
+    await waitFor(() => expect(screen.queryByTestId("ask-kenny-overlay")).toBeNull());
+    // Harmless when the overlay is already closed.
+    act(() => {
+      window.dispatchEvent(new CustomEvent(TOUR_CLOSE_CHAT_EVENT));
+    });
+    expect(screen.queryByTestId("ask-kenny-overlay")).toBeNull();
   });
 
   it("emits the tour chat-opened event when the overlay mounts", async () => {

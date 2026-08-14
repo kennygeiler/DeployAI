@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { fileTextToPaste } from "@/lib/parsers/file-to-paste";
 import {
   TOUR_CAPTURE_PREFILL_EVENT,
+  TOUR_CLOSE_CHAT_EVENT,
   TOUR_COOKIE,
   TOUR_DISMISSED_KEY,
   TOUR_OPEN_TAB_EVENT,
@@ -180,6 +181,16 @@ export function TourProvider() {
     }, 300);
     return () => window.clearInterval(interval);
   }, [active, step, pathname]);
+
+  // demo-polish fix 3 — steps that need the Brief visible declare
+  // `closeChat`: on activation, ask AskKennyBar to close the chat overlay
+  // (it survives client-side engagement navigation and would otherwise sit
+  // over the step's target). One-shot: if the bar isn't mounted yet the
+  // overlay can't be open either, and a fresh mount starts closed.
+  React.useEffect(() => {
+    if (!active || !step?.closeChat) return;
+    window.dispatchEvent(new CustomEvent(TOUR_CLOSE_CHAT_EVENT));
+  }, [active, step]);
 
   // --- Target measurement (tour-ux defect 2): rAF-throttled on
   // scroll/resize, a ResizeObserver on the target + body (content growth and
