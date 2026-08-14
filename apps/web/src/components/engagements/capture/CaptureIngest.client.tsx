@@ -10,9 +10,8 @@ import { PixelLoader } from "@/components/ui/shimmer";
 import type { MatrixProposal } from "@/lib/bff/matrix-types";
 import { readStrategistBffErrorDescription } from "@/lib/bff/read-strategist-bff-error";
 import { parseEmail } from "@/lib/parsers/email";
-import { emlToText } from "@/lib/parsers/eml";
+import { fileTextToPaste } from "@/lib/parsers/file-to-paste";
 import { parseMeetingNotes } from "@/lib/parsers/meeting-notes";
-import { subtitlesToText } from "@/lib/parsers/subtitles";
 import { TOUR_CAPTURE_DONE_EVENT, TOUR_CAPTURE_PREFILL_EVENT } from "@/lib/tour/steps";
 
 const SOURCES = ["email", "meeting_note", "manual_import", "field_note"] as const;
@@ -29,22 +28,6 @@ const EXTRACT_HINT = "usually 10–25s";
 
 /** File types the picker/drop accepts (IN3). All are read as text client-side. */
 const ACCEPTED_FILE_TYPES = ".txt,.eml,.vtt,.srt,.md,text/plain";
-
-/**
- * Convert a picked/dropped file's text by extension: .eml keeps
- * Subject/From/Date and strips the rest of the headers, .vtt/.srt strip cue
- * timing machinery, .txt/.md (and anything unknown) pass through as-is.
- */
-function fileTextToPaste(fileName: string, text: string): string {
-  const ext = fileName.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? "";
-  if (ext === "eml") {
-    return emlToText(text);
-  }
-  if (ext === "vtt" || ext === "srt") {
-    return subtitlesToText(text);
-  }
-  return text;
-}
 
 type Phase =
   | { name: "idle" }
@@ -92,7 +75,8 @@ function buildContent(
  * One large paste box (email thread / meeting notes / Slack excerpt), a
  * source-type select, an occurred-at picker defaulting to now, and drag-drop
  * or file-pick of a .txt/.md/.eml/.vtt/.srt that lands in the same box
- * (converted to plain text client-side — see `fileTextToPaste`). Below the
+ * (converted to plain text client-side — see `lib/parsers/file-to-paste`,
+ * shared with the tour's one-click attach button). Below the
  * paste card, the IN2 intake-address block offers the CC-a-deal-address
  * alternative. Submit runs the staged
  * flow — POST /ingest with `extract: false`, then POST /extract — so the

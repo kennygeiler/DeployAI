@@ -4,18 +4,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TourProvider } from "@/components/tour/TourProvider.client";
 import {
+  ACME_ENGAGEMENT_PATH,
   TOUR_CAPTURE_DONE_EVENT,
   TOUR_CAPTURE_PREFILL_EVENT,
   TOUR_CHAT_OPENED_EVENT,
   TOUR_DISMISSED_KEY,
+  TOUR_OPEN_TAB_EVENT,
   TOUR_PREFILL_EVENT,
   TOUR_STEP_KEY,
   TOUR_STEPS,
 } from "@/lib/tour/steps";
 
 let mockPathname = "/engagements";
+const pushMock = vi.fn();
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
+  useRouter: () => ({ push: pushMock }),
 }));
 
 function setTourCookie(on: boolean) {
@@ -31,6 +35,7 @@ function stepIndexOf(id: string): number {
 describe("TourProvider", () => {
   beforeEach(() => {
     mockPathname = "/engagements";
+    pushMock.mockClear();
     window.sessionStorage.clear();
     setTourCookie(true);
   });
@@ -210,6 +215,112 @@ describe("TourProvider", () => {
     expect(screen.getByTestId("demo-tour-back")).toHaveProperty("disabled", true);
   });
 
+  it("Next on the route-gated first step navigates into the demo deal itself", async () => {
+    const user = userEvent.setup();
+    render(<TourProvider />);
+    await screen.findByTestId("demo-tour-popover");
+    await user.click(screen.getByTestId("demo-tour-next"));
+    // Advanced AND navigated: no sandbox cookie → the stable Acme path.
+    expect(screen.getByTestId("demo-tour-popover").getAttribute("data-tour-step")).toBe(
+      "brief-delta",
+    );
+    expect(pushMock).toHaveBeenCalledWith(ACME_ENGAGEMENT_PATH);
+  });
+
+  it("Next pushes the visitor's OWN sandbox path when the cookie is present", async () => {
+    const sandbox = "55555555-5555-4555-8555-555555555555";
+    document.cookie = `demo_engagement=${sandbox}; path=/`;
+    window.sessionStorage.setItem(TOUR_STEP_KEY, String(stepIndexOf("slip-week-intro")));
+    const user = userEvent.setup();
+    try {
+      render(<TourProvider />);
+      await screen.findByTestId("demo-tour-popover");
+      await user.click(screen.getByTestId("demo-tour-next"));
+      expect(screen.getByTestId("demo-tour-popover").getAttribute("data-tour-step")).toBe(
+        "slip-monday-kickoff",
+      );
+      expect(pushMock).toHaveBeenCalledWith(`/engagements/${sandbox}`);
+    } finally {
+      document.cookie = "demo_engagement=; path=/; max-age=0";
+    }
+  });
+
+  it("Next does not navigate when the incoming step's route already matches", async () => {
+    mockPathname = "/engagements/deal-123";
+    window.sessionStorage.setItem(TOUR_STEP_KEY, String(stepIndexOf("brief-delta")));
+    const user = userEvent.setup();
+    render(<TourProvider />);
+    await screen.findByTestId("demo-tour-popover");
+    await user.click(screen.getByTestId("demo-tour-next"));
+    expect(screen.getByTestId("demo-tour-popover").getAttribute("data-tour-step")).toBe(
+      "brief-needs-you",
+    );
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("activating a tab-scoped step dispatches the open-tab event for the Capture tab", async () => {
+    mockPathname = "/engagements/deal-123";
+    window.sessionStorage.setItem(TOUR_STEP_KEY, String(stepIndexOf("brief-needs-you")));
+    const user = userEvent.setup();
+    const seen: string[] = [];
+    const onOpenTab = (e: Event) => {
+      seen.push(String((e as CustomEvent<{ tab?: string }>).detail?.tab));
+    };
+    window.addEventListener(TOUR_OPEN_TAB_EVENT, onOpenTab);
+    try {
+      render(<TourProvider />);
+      await screen.findByTestId("demo-tour-popover");
+      await user.click(screen.getByTestId("demo-tour-next"));
+      expect(screen.getByTestId("demo-tour-popover").getAttribute("data-tour-step")).toBe(
+        "capture-paste",
+      );
+      await waitFor(() => expect(seen).toContain("capture"));
+      // Same page — Next switched the tab, not the route.
+      expect(pushMock).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(TOUR_OPEN_TAB_EVENT, onOpenTab);
+    }
+  });
+
+  it("re-dispatches the open-tab event until the target mounts (retry, not one-shot)", async () => {
+    mockPathname = "/engagements/acacacac-acac-4aca-8aca-acacacacacac";
+    window.sessionStorage.setItem(TOUR_STEP_KEY, String(stepIndexOf("slip-midweek-email")));
+    const seen: string[] = [];
+    const onOpenTab = (e: Event) => {
+      seen.push(String((e as CustomEvent<{ tab?: string }>).detail?.tab));
+    };
+    window.addEventListener(TOUR_OPEN_TAB_EVENT, onOpenTab);
+    try {
+      render(<TourProvider />);
+      await screen.findByTestId("demo-tour-popover");
+      // No capture-input in the DOM — the dispatch keeps retrying.
+      await waitFor(() => expect(seen.length).toBeGreaterThan(1), { timeout: 2000 });
+      expect(seen.every((t) => t === "capture")).toBe(true);
+    } finally {
+      window.removeEventListener(TOUR_OPEN_TAB_EVENT, onOpenTab);
+    }
+  });
+
+  it("re-resolves a late-mounting target: centered dim first, spotlight once it appears", async () => {
+    window.sessionStorage.setItem(TOUR_STEP_KEY, String(stepIndexOf("brief-delta")));
+    render(<TourProvider />);
+    await screen.findByTestId("demo-tour-popover");
+    await waitFor(() => expect(screen.getByTestId("demo-tour-dim")).toBeTruthy());
+    // Target mounts late (tab switch / navigation) — the re-query interval
+    // must pick it up without a step change.
+    const late = document.createElement("section");
+    late.setAttribute("data-tour", "brief-delta");
+    late.textContent = "Since you last looked";
+    document.body.appendChild(late);
+    try {
+      await waitFor(() => expect(screen.getByTestId("demo-tour-spotlight")).toBeTruthy(), {
+        timeout: 2000,
+      });
+    } finally {
+      late.remove();
+    }
+  });
+
   it("finale shows overview/repo links and Restart returns to step 1", async () => {
     window.sessionStorage.setItem(TOUR_STEP_KEY, String(stepIndexOf("finale")));
     const user = userEvent.setup();
@@ -281,13 +392,56 @@ describe("TourProvider", () => {
     );
   });
 
-  it("the standup step renders the .vtt download link", async () => {
+  it("the standup attach button parses the .vtt through the drop-path parser", async () => {
+    window.sessionStorage.setItem(TOUR_STEP_KEY, String(stepIndexOf("slip-thursday-standup")));
+    const user = userEvent.setup();
+    const vtt = [
+      "WEBVTT",
+      "",
+      "1",
+      "00:00:01.000 --> 00:00:04.000",
+      "<v Priya>E-stop faults are blocking the cert test logs.",
+      "",
+      "2",
+      "00:00:05.000 --> 00:00:08.000",
+      "We need firmware rev B before Friday.",
+    ].join("\n");
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve(vtt) });
+    vi.stubGlobal("fetch", fetchMock);
+    const seen: Array<{ text?: string; source?: string }> = [];
+    const onPrefill = (e: Event) => {
+      seen.push((e as CustomEvent<{ text?: string; source?: string }>).detail ?? {});
+    };
+    window.addEventListener(TOUR_CAPTURE_PREFILL_EVENT, onPrefill);
+    try {
+      render(<TourProvider />);
+      await user.click(await screen.findByTestId("demo-tour-capture-prefill"));
+      await waitFor(() => expect(seen).toHaveLength(1));
+      expect(fetchMock).toHaveBeenCalledWith("/demo/acme-standup.vtt");
+      // Cue machinery stripped, voice tag kept as a speaker prefix — the
+      // exact output a drag of the same file produces.
+      expect(seen[0]!.text).toBe(
+        "Priya: E-stop faults are blocking the cert test logs.\n\n" +
+          "We need firmware rev B before Friday.",
+      );
+      expect(seen[0]!.source).toBe("meeting_note");
+    } finally {
+      window.removeEventListener(TOUR_CAPTURE_PREFILL_EVENT, onPrefill);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("the standup step keeps the .vtt download link as the secondary path", async () => {
     window.sessionStorage.setItem(TOUR_STEP_KEY, String(stepIndexOf("slip-thursday-standup")));
     render(<TourProvider />);
     await screen.findByTestId("demo-tour-popover");
     const link = screen.getByTestId("demo-tour-download");
     expect(link.getAttribute("href")).toBe("/demo/acme-standup.vtt");
     expect(link.hasAttribute("download")).toBe(true);
+    // The one-click attach button renders above it as the primary path.
+    expect(screen.getByTestId("demo-tour-capture-prefill").textContent).toBe(
+      "Attach the standup notes",
+    );
   });
 
   it("spotlights a present target and falls back to a centered dim when missing", async () => {

@@ -2,10 +2,12 @@
  * Wave 3 K6 — guided demo tour: the typed step list.
  *
  * The tour spotlights the next action on the real product (no screenshots,
- * no fake data) and advances when the visitor actually performs it. Steps
- * reference `data-tour` attributes placed on the live components; a step
- * whose target is `null` (or whose target is not currently in the DOM)
- * renders as a centered popover with a manual Next escape hatch.
+ * no fake data) and advances when the visitor actually performs it — but
+ * performing it is never required: Next always advances, navigating to the
+ * incoming step's `route` and activating its Brief `tab` when needed
+ * (tour-ux). Steps reference `data-tour` attributes placed on the live
+ * components; a step whose target is `null` (or whose target is not
+ * currently in the DOM) renders as a centered popover.
  */
 
 /** How a step advances to the next one. */
@@ -26,6 +28,20 @@ export type TourStep = {
   /** Imperative one-liner: the next thing to do. */
   action: string;
   advanceOn: TourAdvance;
+  /**
+   * Route pattern this step's content lives on. When Next activates the step
+   * and the current pathname doesn't match, the tour itself navigates there
+   * (see `resolveTourStepPushPath`) — Next always advances, never dead-ends.
+   * The Acme sentinel resolves to the visitor's sandbox; absent → the step
+   * works from wherever the visitor already is.
+   */
+  route?: string;
+  /**
+   * Brief tab that owns this step's target. On activation the tour dispatches
+   * TOUR_OPEN_TAB_EVENT (retrying until the target mounts) so below-the-fold
+   * tab panels are switched + scrolled into view without the visitor hunting.
+   */
+  tab?: string;
   /** Optional question the "Use this question" button prefills. */
   prefill?: string;
   /**
@@ -75,6 +91,15 @@ export const TOUR_CAPTURE_PREFILL_EVENT = "deployai:tour-capture-prefill";
 export const TOUR_CAPTURE_DONE_EVENT = "deployai:tour-capture-done";
 
 /**
+ * tour-ux — `tour-open-tab` is dispatched by the TourProvider when a
+ * tab-scoped step activates and handled by EngagementBrief (detail:
+ * `{ tab: string }`). It drives the same controlled-Tabs setter the KennyAsks
+ * "Open Capture" remedy uses, exposed as an event because the tour lives in
+ * the layout, outside the Brief's tree.
+ */
+export const TOUR_OPEN_TAB_EVENT = "deployai:tour-open-tab";
+
+/**
  * The stable Acme engagement id (mirrors ACME_ENGAGEMENT_ID in the CP's
  * demo_reset_internal.py). Used as a route-pattern SENTINEL in TOUR_STEPS
  * and as the fallback when no per-guest sandbox cookie is present (presenter
@@ -112,6 +137,19 @@ export function resolveTourRoutePattern(pattern: string, cookieString: string): 
 }
 
 /**
+ * The concrete path Next pushes when a step's `route` doesn't match the
+ * current pathname: the Acme sentinel becomes the visitor's sandbox, and a
+ * parameterized pattern (`:engagementId`) also falls back to the sandbox path
+ * — the engagement Brief is the only parameterized route the tour visits, and
+ * the sandbox is the one deal every guest is guaranteed to have.
+ */
+export function resolveTourStepPushPath(route: string, cookieString: string): string {
+  const resolved = resolveTourRoutePattern(route, cookieString);
+  const hasParam = resolved.split("/").some((seg) => seg.startsWith(":"));
+  return hasParam ? resolveDemoEngagementPath(cookieString) : resolved;
+}
+
+/**
  * Every `data-tour` value that exists in the codebase. The steps-integrity
  * test asserts each step target is one of these, so a renamed attribute
  * fails loudly instead of silently degrading every spotlight to a centered
@@ -127,9 +165,6 @@ export const KNOWN_TOUR_TARGETS = [
   "nav-review",
   "brief-graph-tab",
   "nav-overview",
-  // Wave 3 K2 — the Capture tab's paste box (CaptureIngest). No step
-  // references it yet; a parallel change adds the capture act to the tour.
-  "capture-input",
 ] as const;
 
 export type KnownTourTarget = (typeof KNOWN_TOUR_TARGETS)[number];
@@ -157,12 +192,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
       "Every deal your team is running, ranked by what needs attention — pending proposals, " +
       "open escalations, and silence float a deal to the top. This demo workspace is seeded " +
       "with a real 26-week deployment corpus.",
-    action: "Click the top deal to open its Brief.",
+    action: "Click the top deal to open its Brief — or press Next and the tour takes you there.",
     advanceOn: { type: "route", pattern: "/engagements/:engagementId" },
   },
   {
     id: "brief-delta",
     target: "brief-delta",
+    route: "/engagements/:engagementId",
     title: "Since you last looked",
     body:
       "The Brief opens with what changed while you were gone — new decisions, risks, and " +
@@ -173,6 +209,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "brief-needs-you",
     target: "brief-needs-you",
+    route: "/engagements/:engagementId",
     title: "Needs you — the human gate",
     body:
       "Nothing enters the deal record without a human. Extraction proposals wait here for " +
@@ -183,17 +220,20 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "capture-paste",
     target: "capture-input",
+    route: "/engagements/:engagementId",
+    tab: "capture",
     title: "Feed it",
     body:
       "This is where raw reality enters the record. Paste a real email thread or a meeting " +
       "note and watch extraction propose memory — decisions, risks, commitments — each one " +
       "queued for the human gate you just saw.",
-    action: "Open the Capture tab and paste any thread — or press Next to continue the tour.",
+    action: "Paste any thread and hit Capture — or press Next to continue the tour.",
     advanceOn: { type: "manual" },
   },
   {
     id: "ask-kenny",
     target: "ask-kenny-bar",
+    route: "/engagements/:engagementId",
     title: "Ask Agent Kenny",
     body:
       "This bar is the front door to an agent that answers only from this deal's ledger — " +
@@ -205,6 +245,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "watch-it-think",
     target: null,
+    route: "/engagements/:engagementId",
     title: "Watch it think",
     body:
       "Kenny is querying the deal ledger right now — the trace shows each thinking step and " +
@@ -215,6 +256,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "click-citation",
     target: "oracle-citations",
+    route: "/engagements/:engagementId",
     title: "Every claim carries a citation",
     body:
       "The chips below the answer are verified citations — each one was checked against the " +
@@ -226,6 +268,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "the-trap",
     target: null,
+    route: "/engagements/:engagementId",
     title: "The trap",
     body:
       "Ask something NOT in this deal — watch it refuse instead of invent. There is no Active " +
@@ -243,17 +286,19 @@ export const TOUR_STEPS: readonly TourStep[] = [
       "Everything waiting on a human decision — extraction proposals, escalated questions, " +
       "citation disputes — queues in one place. An empty inbox means the record is caught up; " +
       "open items are exactly the deals that need you.",
-    action: "Close the chat, then open Review inbox from the left nav.",
+    action:
+      "Close the chat, then open Review inbox from the left nav — or press Next to skip ahead.",
     advanceOn: { type: "route", pattern: "/review" },
   },
   {
     id: "graph-tab",
     target: "brief-graph-tab",
+    route: "/engagements/:engagementId",
     title: "The deployment matrix",
     body:
       "Back on a deal, the Graph tab is the accumulated map: stakeholders, systems, decisions, " +
       "risks, and commitments — every node traceable to the event that created it.",
-    action: "Head back into the deal and click the Graph tab.",
+    action: "Click the Graph tab on the Brief — or press Next to move on.",
     advanceOn: { type: "click-target" },
   },
   // --- Catch-the-slip act (K7): one week of a deal, played by the visitor.
@@ -267,18 +312,22 @@ export const TOUR_STEPS: readonly TourStep[] = [
       "You've seen the loop — now live it. You're the deployment strategist on Acme " +
       "Robotics. It's Monday, the kickoff just ended, and by Friday something in this deal " +
       "will quietly move. Your job is to catch it.",
-    action: "Open Engagements in the left nav and click Acme Robotics — Pilot Deployment.",
+    action:
+      "Open Engagements in the left nav and click Acme Robotics — Pilot Deployment — " +
+      "or press Next to jump straight in.",
     advanceOn: { type: "route", pattern: ACME_ENGAGEMENT_PATH },
   },
   {
     id: "slip-monday-kickoff",
     target: "capture-input",
+    route: ACME_ENGAGEMENT_PATH,
+    tab: "capture",
     title: "Monday — feed it the kickoff",
     body:
       "This deal is empty: no record, no memory. This morning's kickoff transcript is your " +
       "first artifact. Load it, hit Capture, and watch extraction turn 45 minutes of talk " +
       "into proposed memory — Saving, then Extracting, then a queue of proposals.",
-    action: 'Open the Capture tab, click "Load the kickoff transcript", then hit Capture.',
+    action: 'Click "Load the kickoff transcript", then hit Capture.',
     capturePrefill: {
       url: "/demo/kickoff-transcript.txt",
       source: "meeting_note",
@@ -289,6 +338,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "slip-monday-gate",
     target: "brief-needs-you",
+    route: ACME_ENGAGEMENT_PATH,
     title: "Nothing enters without you",
     body:
       "Every decision, risk, and commitment extraction found now waits on your accept or " +
@@ -300,12 +350,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "slip-midweek-email",
     target: "capture-input",
+    route: ACME_ENGAGEMENT_PATH,
+    tab: "capture",
     title: "Wednesday — a routine email lands",
     body:
       "An end-of-day roundup from ops: AP installs, visitor-day logistics, a dashboard " +
       "request. Ordinary — except one sentence, buried mid-paragraph, quietly moves a " +
       "committed date. Would you catch it on a busy Wednesday?",
-    action: 'Back on the Capture tab, click "Load Wednesday\'s email", then Capture it.',
+    action: 'Click "Load Wednesday\'s email", then Capture it.',
     capturePrefill: {
       url: "/demo/slip-email.txt",
       source: "email",
@@ -316,6 +368,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "slip-midweek-caught",
     target: "brief-needs-you",
+    route: ACME_ENGAGEMENT_PATH,
     title: "It caught the slip",
     body:
       "There it is in the queue: the safety certification package moved October 3 → " +
@@ -328,19 +381,27 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "slip-thursday-standup",
     target: "capture-input",
-    title: "Thursday — drop in the standup notes",
+    route: ACME_ENGAGEMENT_PATH,
+    tab: "capture",
+    title: "Thursday — attach the standup notes",
     body:
       "Thursday's standup recording produced a .vtt transcript — the kind of file that " +
-      "usually dies in a folder. Download it and drag it straight into the Capture box: it " +
-      "lands as clean text, and extraction flags a blocker threatening the very milestone " +
-      "that just slipped.",
-    action: "Download the standup notes, drag the file into Capture, then Capture it.",
-    download: { href: "/demo/acme-standup.vtt", label: "Download acme-standup.vtt" },
+      "usually dies in a folder. One click attaches it: the cue-timing machinery strips " +
+      "away, it lands as clean text, and extraction flags a blocker threatening the very " +
+      "milestone that just slipped.",
+    action: 'Click "Attach the standup notes", then hit Capture.',
+    capturePrefill: {
+      url: "/demo/acme-standup.vtt",
+      source: "meeting_note",
+      label: "Attach the standup notes",
+    },
+    download: { href: "/demo/acme-standup.vtt", label: "or download acme-standup.vtt yourself" },
     advanceOn: { type: "event", name: TOUR_CAPTURE_DONE_EVENT },
   },
   {
     id: "slip-friday-digest",
     target: "brief-delta",
+    route: ACME_ENGAGEMENT_PATH,
     title: "Friday — the week, replayed",
     body:
       '"Since you last looked" now tells the story you just lived: a kickoff\'s worth of ' +
@@ -352,6 +413,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "slip-friday-ask",
     target: "ask-kenny-bar",
+    route: ACME_ENGAGEMENT_PATH,
     title: "The Friday question",
     body:
       "Now the payoff. Ask the question a VP would ask you — and watch Kenny weave the " +
@@ -364,6 +426,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "slip-friday-answer",
     target: null,
+    route: ACME_ENGAGEMENT_PATH,
     title: "Caught, cited, on the record",
     body:
       "The answer isn't a vibe — it's the record: committed for October 3, moved to " +
