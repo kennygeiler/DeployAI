@@ -11,6 +11,7 @@ import {
   matchesRoutePattern,
   resolveDemoEngagementPath,
   resolveTourRoutePattern,
+  resolveTourStepPushPath,
 } from "@/lib/tour/steps";
 
 describe("TOUR_STEPS integrity", () => {
@@ -74,6 +75,40 @@ describe("TOUR_STEPS integrity", () => {
     expect(last.id).toBe("finale");
     expect(last.advanceOn.type).toBe("manual");
   });
+
+  // tour-ux defect 1 — Next must never dead-end: every step whose content
+  // lives on the Brief declares the route Next navigates to.
+  it("Brief-bound steps declare a route for Next-navigation", () => {
+    const actOne = [
+      "brief-delta",
+      "brief-needs-you",
+      "capture-paste",
+      "ask-kenny",
+      "watch-it-think",
+      "click-citation",
+      "the-trap",
+      "graph-tab",
+    ];
+    for (const id of actOne) {
+      const step = TOUR_STEPS.find((s) => s.id === id);
+      expect(step?.route, id).toBe("/engagements/:engagementId");
+    }
+    for (const step of TOUR_STEPS.filter((s) => s.id.startsWith("slip-"))) {
+      if (step.id === "slip-week-intro") continue; // the intro card works anywhere
+      expect(step.route, step.id).toBe(ACME_ENGAGEMENT_PATH);
+    }
+  });
+
+  // tour-ux defect 3 — steps targeting the Capture panel switch its tab.
+  it("capture-scoped steps declare the capture tab", () => {
+    for (const step of TOUR_STEPS) {
+      if (step.target === "capture-input") {
+        expect(step.tab, step.id).toBe("capture");
+      } else {
+        expect(step.tab, step.id).toBeUndefined();
+      }
+    }
+  });
 });
 
 describe("catch-the-slip act (K7)", () => {
@@ -117,10 +152,14 @@ describe("catch-the-slip act (K7)", () => {
     }
   });
 
-  it("the standup step offers the .vtt download for the drag-drop beat", () => {
+  it("the standup step attaches the .vtt with one click, download as the secondary path", () => {
     const step = TOUR_STEPS.find((s) => s.id === "slip-thursday-standup");
+    // tour-ux defect 4 — the primary path is the one-click attach button
+    // (fetched + run through the drop path's parser); the download link
+    // stays for visitors who want the file itself.
+    expect(step?.capturePrefill?.url).toBe("/demo/acme-standup.vtt");
+    expect(step?.capturePrefill?.source).toBe("meeting_note");
     expect(step?.download?.href).toBe("/demo/acme-standup.vtt");
-    expect(step?.capturePrefill).toBeUndefined();
     expect(step?.advanceOn).toEqual({ type: "event", name: TOUR_CAPTURE_DONE_EVENT });
   });
 
@@ -160,6 +199,20 @@ describe("per-guest sandbox path resolution", () => {
       "/engagements/:engagementId",
     );
     expect(resolveTourRoutePattern("/review", cookie)).toBe("/review");
+  });
+
+  it("resolveTourStepPushPath always yields a concrete, pushable path", () => {
+    const cookie = `${DEMO_ENGAGEMENT_COOKIE}=${SANDBOX}`;
+    // Sentinel → the visitor's sandbox.
+    expect(resolveTourStepPushPath(ACME_ENGAGEMENT_PATH, cookie)).toBe(`/engagements/${SANDBOX}`);
+    // Parameterized Brief pattern → the sandbox too (the one deal every
+    // guest is guaranteed to have).
+    expect(resolveTourStepPushPath("/engagements/:engagementId", cookie)).toBe(
+      `/engagements/${SANDBOX}`,
+    );
+    expect(resolveTourStepPushPath("/engagements/:engagementId", "")).toBe(ACME_ENGAGEMENT_PATH);
+    // Literal routes pass through.
+    expect(resolveTourStepPushPath("/review", cookie)).toBe("/review");
   });
 });
 

@@ -8,6 +8,13 @@ covers the same beats for self-serve visitors; this runbook is for when *you* dr
 (read-only guest on the demo workspace; sessions last ~1 hour; the guided tour
 auto-starts — hit **Skip** when you're presenting live).
 
+**Tour navigation (tour-ux)**: in the guided tour, **Next always advances** —
+when the next beat lives on another page or Brief tab, Next itself navigates
+there (and capture beats auto-open the Capture tab and scroll it into view).
+Performing the highlighted action still advances too; it's an alternative,
+never a requirement. If a visitor says they're "stuck", Next is always the
+answer.
+
 **Sandbox-per-visitor**: every View-live-demo click mints its own cold-start
 "Acme Robotics — Pilot Deployment" engagement (a private sandbox — visitors
 never see each other's, and each one's slip act starts empty). **No manual
@@ -100,7 +107,10 @@ engagement; the reset is for presenter-driven, non-guest sessions.)
    > record caught it on a Wednesday afternoon. Would you have?"
 7. Second beat: download/open `demo/artifacts/acme-standup.vtt` and **drag
    the file into the Capture box** (the drop is the demo moment — raw
-   meeting exhaust, straight in). Extraction (**7–10s measured**) proposes
+   meeting exhaust, straight in). Self-serve tour visitors get a one-click
+   **"Attach the standup notes"** button instead — same parser, same clean
+   text — with the download link kept as the secondary path for anyone who
+   wants the raw file. Extraction (**7–10s measured**) proposes
    the risk *"e-stop faults blocking safety certification test logs"* —
    a blocker aimed at the very milestone that just slipped. Accept.
 8. Scroll to **Since you last looked**: the week replayed — new memory, a

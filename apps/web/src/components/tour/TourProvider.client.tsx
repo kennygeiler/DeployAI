@@ -2,19 +2,22 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { fileTextToPaste } from "@/lib/parsers/file-to-paste";
 import {
   TOUR_CAPTURE_PREFILL_EVENT,
   TOUR_COOKIE,
   TOUR_DISMISSED_KEY,
+  TOUR_OPEN_TAB_EVENT,
   TOUR_PREFILL_EVENT,
   TOUR_REPO_URL,
   TOUR_STEP_KEY,
   TOUR_STEPS,
   matchesRoutePattern,
   resolveTourRoutePattern,
+  resolveTourStepPushPath,
   type TourStep,
 } from "@/lib/tour/steps";
 
@@ -30,8 +33,15 @@ import {
  * clickable and the tour never traps the visitor. When a step's target is
  * missing from the DOM (e.g. no citations rendered), the popover centers
  * itself and Next remains the escape hatch. Step index and dismissal live
- * in sessionStorage; positions are rAF-throttled on scroll/resize plus a
- * slow re-query interval so late-mounting targets get picked up.
+ * in sessionStorage; positions are rAF-throttled on scroll/resize, a
+ * ResizeObserver on the target + body (layout shifts), plus a re-query
+ * interval so late-mounting targets get picked up.
+ *
+ * tour-ux: Next ALWAYS advances — when the incoming step's `route` doesn't
+ * match the current pathname, Next itself performs the navigation (sandbox
+ * path via resolveTourStepPushPath); tab-scoped steps get their Brief tab
+ * activated on step activation. Performing the described action stays an
+ * alternative advance path, never the only one.
  */
 
 type Rect = { top: number; left: number; width: number; height: number };
@@ -59,12 +69,15 @@ const POP_MARGIN = 12;
 
 export function TourProvider() {
   const pathname = usePathname();
+  const router = useRouter();
   const [active, setActive] = React.useState(false);
   const [stepIndex, setStepIndex] = React.useState(0);
   const [rect, setRect] = React.useState<Rect | null>(null);
   const [popPos, setPopPos] = React.useState<{ top: number; left: number } | null>(null);
   const popRef = React.useRef<HTMLDivElement>(null);
-  const scrolledStepRef = React.useRef<number>(-1);
+  // Keyed by step + pathname so the target is re-centered after a navigation
+  // (or tab switch that remounts it), not just on the first sighting.
+  const scrolledKeyRef = React.useRef<string>("");
 
   const step: TourStep | undefined = TOUR_STEPS[stepIndex];
   const lastIndex = TOUR_STEPS.length - 1;
@@ -115,26 +128,86 @@ export function TourProvider() {
     });
   }, []);
 
+  // tour-ux defect 1 — the Next button: ALWAYS advances, and when the
+  // incoming step's content lives on another page, performs the navigation
+  // itself (client router push; the sandbox path comes from
+  // resolveTourStepPushPath). Tab activation + scrollIntoView for the new
+  // step are handled by the activation/measure effects below.
+  const goNext = React.useCallback(() => {
+    if (stepIndex >= TOUR_STEPS.length - 1) {
+      window.sessionStorage.setItem(TOUR_DISMISSED_KEY, "1");
+      setActive(false);
+      return;
+    }
+    const incoming = TOUR_STEPS[stepIndex + 1];
+    goTo(stepIndex + 1);
+    if (incoming?.route) {
+      const resolved = resolveTourRoutePattern(incoming.route, document.cookie);
+      if (!pathname || !matchesRoutePattern(pathname, resolved)) {
+        router.push(resolveTourStepPushPath(incoming.route, document.cookie));
+      }
+    }
+  }, [stepIndex, pathname, goTo, router]);
+
   const restart = React.useCallback(() => {
     window.sessionStorage.removeItem(TOUR_DISMISSED_KEY);
     goTo(0);
     setActive(true);
   }, [goTo]);
 
-  // --- Target measurement: rAF-throttled on scroll/resize + a slow
-  // re-query interval so targets that mount late (citations, tab panels)
-  // get spotlighted without a navigation.
+  // tour-ux defect 3 — tab-scoped steps: activate the owning Brief tab when
+  // the step activates (Next or auto-advance) and keep re-dispatching until
+  // the target mounts — after a navigation the Brief mounts later than this
+  // effect, so a one-shot dispatch can fire before the listener exists.
+  React.useEffect(() => {
+    if (!active || !step?.tab) return;
+    const tab = step.tab;
+    const targetMounted = () =>
+      step.target ? document.querySelector(`[data-tour="${step.target}"]`) !== null : true;
+    const dispatch = () =>
+      window.dispatchEvent(new CustomEvent(TOUR_OPEN_TAB_EVENT, { detail: { tab } }));
+    dispatch();
+    let tries = 0;
+    const interval = window.setInterval(() => {
+      // 40 × 300ms ≈ 12s — covers the Brief's data-dependent mount, then
+      // stops rather than fighting a visitor who switched tabs on purpose.
+      tries += 1;
+      if (targetMounted() || tries > 40) {
+        window.clearInterval(interval);
+        return;
+      }
+      dispatch();
+    }, 300);
+    return () => window.clearInterval(interval);
+  }, [active, step, pathname]);
+
+  // --- Target measurement (tour-ux defect 2): rAF-throttled on
+  // scroll/resize, a ResizeObserver on the target + body (content growth and
+  // layout shifts move the box without any scroll event), plus a re-query
+  // interval so targets that mount late — tab panels after a switch, the
+  // Brief after a navigation, citations after a turn — get re-resolved
+  // instead of a one-shot lookup going stale.
   React.useEffect(() => {
     if (!active || !step) return;
     let raf = 0;
     let queued = false;
-    const measure = () => {
+    let observed: HTMLElement | null = null;
+    function measure() {
       queued = false;
-      const el = step.target
+      const el = step?.target
         ? document.querySelector<HTMLElement>(`[data-tour="${step.target}"]`)
         : null;
-      if (el && scrolledStepRef.current !== stepIndex) {
-        scrolledStepRef.current = stepIndex;
+      if (el !== observed) {
+        observed = el;
+        ro?.disconnect();
+        if (ro) {
+          ro.observe(document.body);
+          if (el) ro.observe(el);
+        }
+      }
+      const scrollKey = `${stepIndex}:${pathname ?? ""}`;
+      if (el && scrolledKeyRef.current !== scrollKey) {
+        scrolledKeyRef.current = scrollKey;
         // Optional call: jsdom has no scrollIntoView.
         el.scrollIntoView?.({ block: "center", behavior: "smooth" });
       }
@@ -148,21 +221,24 @@ export function TourProvider() {
           }
         : null;
       setRect((prev) => (sameRect(prev, next) ? prev : next));
-    };
-    const schedule = () => {
+    }
+    function schedule() {
       if (queued) return;
       queued = true;
       raf = window.requestAnimationFrame(measure);
-    };
+    }
+    // Guarded: jsdom has no ResizeObserver.
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(schedule) : null;
     measure();
     window.addEventListener("scroll", schedule, true);
     window.addEventListener("resize", schedule);
-    const interval = window.setInterval(schedule, 500);
+    const interval = window.setInterval(schedule, 300);
     return () => {
       window.removeEventListener("scroll", schedule, true);
       window.removeEventListener("resize", schedule);
       window.clearInterval(interval);
       window.cancelAnimationFrame(raf);
+      ro?.disconnect();
     };
   }, [active, step, stepIndex, pathname]);
 
@@ -198,8 +274,12 @@ export function TourProvider() {
     return () => window.clearTimeout(t);
   }, [active, step, pathname, advance]);
 
-  // --- Popover placement: below the target when it fits, else above;
-  // clamped to the viewport. No target → centered.
+  // --- Popover placement: below / above / right / left of the spotlight —
+  // first candidate that fits the viewport WITHOUT covering the spotlight
+  // wins (tour-ux defect 2: the popover is the only interactive layer, so a
+  // card sitting on the target is what swallows its clicks). No clear
+  // position → clamped below/above (the card may cover part of a huge
+  // target, but never leaves the viewport). No target → centered.
   React.useLayoutEffect(() => {
     if (!active) return;
     const el = popRef.current;
@@ -215,11 +295,37 @@ export function TourProvider() {
       });
       return;
     }
-    let top = rect.top + rect.height + SPOT_PAD + POP_GAP;
-    if (top + h > vh - POP_MARGIN) top = rect.top - SPOT_PAD - POP_GAP - h;
+    const spotTop = rect.top - SPOT_PAD;
+    const spotLeft = rect.left - SPOT_PAD;
+    const spotW = rect.width + SPOT_PAD * 2;
+    const spotH = rect.height + SPOT_PAD * 2;
+    const fits = (p: { top: number; left: number }) =>
+      p.top >= POP_MARGIN &&
+      p.left >= POP_MARGIN &&
+      p.top + h <= vh - POP_MARGIN &&
+      p.left + w <= vw - POP_MARGIN;
+    const clearsSpot = (p: { top: number; left: number }) =>
+      p.left + w <= spotLeft ||
+      p.left >= spotLeft + spotW ||
+      p.top + h <= spotTop ||
+      p.top >= spotTop + spotH;
+    const alignedLeft = clamp(rect.left, POP_MARGIN, vw - w - POP_MARGIN);
+    const alignedTop = clamp(rect.top, POP_MARGIN, vh - h - POP_MARGIN);
+    const candidates = [
+      { top: spotTop + spotH + POP_GAP, left: alignedLeft }, // below
+      { top: spotTop - POP_GAP - h, left: alignedLeft }, // above
+      { top: alignedTop, left: spotLeft + spotW + POP_GAP }, // right
+      { top: alignedTop, left: spotLeft - POP_GAP - w }, // left
+    ];
+    const clear = candidates.find((p) => fits(p) && clearsSpot(p));
+    if (clear) {
+      setPopPos(clear);
+      return;
+    }
+    let top = spotTop + spotH + POP_GAP;
+    if (top + h > vh - POP_MARGIN) top = spotTop - POP_GAP - h;
     top = clamp(top, POP_MARGIN, vh - h - POP_MARGIN);
-    const left = clamp(rect.left, POP_MARGIN, vw - w - POP_MARGIN);
-    setPopPos({ top, left });
+    setPopPos({ top, left: alignedLeft });
   }, [active, rect, stepIndex]);
 
   // --- Focus + keyboard. Focus moves to the popover on each step; Esc
@@ -242,7 +348,7 @@ export function TourProvider() {
       if (!pop || !(e.target instanceof Node) || !pop.contains(e.target)) return;
       if (e.key === "ArrowRight") {
         e.preventDefault();
-        advance();
+        goNext();
       } else if (e.key === "ArrowLeft") {
         e.preventDefault();
         back();
@@ -250,7 +356,7 @@ export function TourProvider() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [active, dismiss, advance, back]);
+  }, [active, dismiss, goNext, back]);
 
   const prefill = React.useCallback(() => {
     if (!step?.prefill) return;
@@ -261,7 +367,10 @@ export function TourProvider() {
 
   // K7 slip act — fetch the step's artifact and hand it to CaptureIngest via
   // the capture-prefill event. The visitor still presses Capture themselves;
-  // the tour never fakes a click.
+  // the tour never fakes a click. tour-ux defect 4: the fetched text runs
+  // through the SAME per-extension conversion the file drop/pick path uses
+  // (fileTextToPaste — .vtt/.srt cues stripped, .txt passthrough), so the
+  // one-click attach lands exactly what a drag of the file would.
   const [artifactLoading, setArtifactLoading] = React.useState(false);
   const capturePrefill = React.useCallback(async () => {
     const cp = step?.capturePrefill;
@@ -270,7 +379,7 @@ export function TourProvider() {
     try {
       const res = await fetch(cp.url);
       if (!res.ok) return;
-      const text = await res.text();
+      const text = fileTextToPaste(cp.url, await res.text());
       window.dispatchEvent(
         new CustomEvent(TOUR_CAPTURE_PREFILL_EVENT, { detail: { text, source: cp.source } }),
       );
@@ -465,7 +574,7 @@ export function TourProvider() {
                 <Button
                   type="button"
                   size="sm"
-                  onClick={advance}
+                  onClick={goNext}
                   data-testid="demo-tour-next"
                   className="h-7 px-2.5 text-xs"
                 >
@@ -476,7 +585,7 @@ export function TourProvider() {
               <Button
                 type="button"
                 size="sm"
-                onClick={advance}
+                onClick={goNext}
                 data-testid="demo-tour-next"
                 className="h-7 px-2.5 text-xs"
               >

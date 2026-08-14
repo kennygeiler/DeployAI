@@ -30,6 +30,7 @@ import type { Section } from "@/lib/bff/temporal-filter";
 import { invalidateCachedFetch, useCachedFetch } from "@/lib/hooks/useCachedFetch";
 import { displayNameForPerson, initialsFor } from "@/lib/labels";
 import { applyRoleLens, type RoleLens } from "@/lib/matrix/role-lens";
+import { TOUR_OPEN_TAB_EVENT } from "@/lib/tour/steps";
 
 const PHASE_LABEL: Record<string, string> = {
   P1_pre_engagement: "Pre-engagement",
@@ -48,6 +49,9 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 type MemberRoleOption = { name: string; label: string };
+
+/** Valid values for the Brief's controlled Tabs — guards the tour-open-tab event. */
+const BRIEF_TAB_VALUES = ["graph", "timeline", "chat", "people", "capture"] as const;
 
 const MATRIX_NODE_TYPES = [
   "stakeholder",
@@ -231,6 +235,20 @@ export function EngagementBrief({ engagementId }: { engagementId: string }) {
   const [matrixView, setMatrixView] = React.useState<"table" | "graph">("table");
   // GA2: controlled so a "Kenny asks" remedy can jump to the Capture tab.
   const [activeTab, setActiveTab] = React.useState("graph");
+
+  // tour-ux — the guided tour switches Brief tabs from the layout: same
+  // setter the KennyAsks "Open Capture" remedy uses, driven by an event
+  // because the TourProvider lives outside this tree.
+  React.useEffect(() => {
+    const onOpenTab = (e: Event) => {
+      const tab = (e as CustomEvent<{ tab?: unknown }>).detail?.tab;
+      if (typeof tab === "string" && (BRIEF_TAB_VALUES as readonly string[]).includes(tab)) {
+        setActiveTab(tab);
+      }
+    };
+    window.addEventListener(TOUR_OPEN_TAB_EVENT, onOpenTab);
+    return () => window.removeEventListener(TOUR_OPEN_TAB_EVENT, onOpenTab);
+  }, []);
   const [roleLens, setRoleLens] = React.useState<RoleLens>("all");
   const [citation, setCitation] = React.useState<{
     open: boolean;

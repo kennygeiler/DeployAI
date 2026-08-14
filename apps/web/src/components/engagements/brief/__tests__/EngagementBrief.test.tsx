@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,6 +15,7 @@ vi.mock("next/navigation", () => ({
 
 import { EngagementBrief } from "@/components/engagements/brief/EngagementBrief.client";
 import { clearCachedFetchForTests } from "@/lib/hooks/useCachedFetch";
+import { TOUR_OPEN_TAB_EVENT } from "@/lib/tour/steps";
 
 const ENGAGEMENT = {
   id: "e1",
@@ -294,5 +295,22 @@ describe("EngagementBrief", () => {
     expect(screen.getByText("threatens → LiDAR ingest")).toBeTruthy();
     // The matrix-capture form stays wired into the Graph tab.
     expect(screen.getByText("Add to the matrix")).toBeTruthy();
+  });
+
+  it("switches to the Capture tab on the tour's open-tab event (tour-ux)", async () => {
+    stubFetch();
+    render(<EngagementBrief engagementId="e1" />);
+    await waitFor(() => screen.getByText("NYC DOT LiDAR"));
+    // Graph is the default tab; the capture panel is not mounted.
+    expect(screen.queryByTestId("capture-dropzone")).toBeNull();
+    act(() => {
+      window.dispatchEvent(new CustomEvent(TOUR_OPEN_TAB_EVENT, { detail: { tab: "capture" } }));
+    });
+    await waitFor(() => expect(screen.getByTestId("capture-dropzone")).toBeTruthy());
+    // Unknown tab values are ignored — the Tabs value never goes invalid.
+    act(() => {
+      window.dispatchEvent(new CustomEvent(TOUR_OPEN_TAB_EVENT, { detail: { tab: "nope" } }));
+    });
+    expect(screen.getByTestId("capture-dropzone")).toBeTruthy();
   });
 });
