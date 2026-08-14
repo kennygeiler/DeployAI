@@ -74,7 +74,11 @@ export class OracleBudgetExhaustedError extends Error {
   }
 }
 
-function cpHeaders(actorId: string, traceparent?: string | null): Record<string, string> {
+function cpHeaders(
+  actorId: string,
+  traceparent?: string | null,
+  demoSessionJti?: string | null,
+): Record<string, string> {
   const key = getControlPlaneInternalKey();
   if (!key) {
     throw new Error("DEPLOYAI_INTERNAL_API_KEY not set");
@@ -85,6 +89,10 @@ function cpHeaders(actorId: string, traceparent?: string | null): Record<string,
     // Forward the caller's traceparent (or mint one) so the CP server span
     // joins this request's trace — see docs/ops/tracing.md.
     traceparent: ensureTraceparent(traceparent),
+    // demo-polish fix 5 — demo_guest sessions scope their oracle
+    // conversation per session (every guest shares the demo user; without
+    // this all guests share one chat thread on the fixture engagements).
+    ...(demoSessionJti ? { "X-DeployAI-Demo-Session": demoSessionJti } : {}),
   };
 }
 
@@ -101,13 +109,14 @@ export async function cpPostOracleChat(
   engagementId: string,
   actorId: string,
   body: OracleChatRequest,
+  demoSessionJti?: string | null,
 ): Promise<OracleChatResponse> {
   const url =
     `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}/oracle/chat` +
     `?tenant_id=${encodeURIComponent(tenantId)}`;
   const r = await fetch(url, {
     method: "POST",
-    headers: { ...cpHeaders(actorId), "Content-Type": "application/json" },
+    headers: { ...cpHeaders(actorId, null, demoSessionJti), "Content-Type": "application/json" },
     body: JSON.stringify(body),
     cache: "no-store",
   });
@@ -142,6 +151,7 @@ export async function cpStreamOracleChat(
   engagementId: string,
   actorId: string,
   body: OracleChatRequest,
+  demoSessionJti?: string | null,
 ): Promise<Response> {
   const url =
     `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}/oracle/chat/stream` +
@@ -149,7 +159,7 @@ export async function cpStreamOracleChat(
   const r = await fetch(url, {
     method: "POST",
     headers: {
-      ...cpHeaders(actorId),
+      ...cpHeaders(actorId, null, demoSessionJti),
       "Content-Type": "application/json",
       Accept: "text/event-stream",
     },
@@ -181,6 +191,7 @@ export async function cpStreamOracleChatV2(
   actorId: string,
   body: OracleChatRequest,
   traceparent?: string | null,
+  demoSessionJti?: string | null,
 ): Promise<Response> {
   const url =
     `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}/oracle/chat/stream-v2` +
@@ -188,7 +199,7 @@ export async function cpStreamOracleChatV2(
   const r = await fetch(url, {
     method: "POST",
     headers: {
-      ...cpHeaders(actorId, traceparent),
+      ...cpHeaders(actorId, traceparent, demoSessionJti),
       "Content-Type": "application/json",
       Accept: "text/event-stream",
     },
@@ -279,11 +290,16 @@ export async function cpGetOracleHistory(
   tenantId: string,
   engagementId: string,
   actorId: string,
+  demoSessionJti?: string | null,
 ): Promise<OracleHistory> {
   const url =
     `${cpBase()}/internal/v1/engagements/${encodeURIComponent(engagementId)}/oracle/history` +
     `?tenant_id=${encodeURIComponent(tenantId)}`;
-  const r = await fetch(url, { method: "GET", headers: cpHeaders(actorId), cache: "no-store" });
+  const r = await fetch(url, {
+    method: "GET",
+    headers: cpHeaders(actorId, null, demoSessionJti),
+    cache: "no-store",
+  });
   if (!r.ok) {
     throw new Error(`cp oracle history ${r.status}: ${await r.text()}`);
   }

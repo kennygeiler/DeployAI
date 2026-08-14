@@ -2,7 +2,11 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { decideSync } from "@deployai/authz";
 
-import { getActorFromHeaders, getActorIdFromHeaders } from "@/lib/internal/actor";
+import {
+  getActorFromHeaders,
+  getActorIdFromHeaders,
+  getDemoSessionJtiFromHeaders,
+} from "@/lib/internal/actor";
 import {
   cpPostOracleChat,
   OracleBudgetExhaustedError,
@@ -57,8 +61,13 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     );
   }
 
+  // demo-polish fix 5 — demo guests share one actor user, so their oracle
+  // conversation is scoped per session (token jti) on the CP. Non-demo
+  // sessions never send the header and keep their single thread.
+  const demoJti = actor.role === "demo_guest" ? await getDemoSessionJtiFromHeaders() : null;
+
   try {
-    const reply = await cpPostOracleChat(tid, engagementId, actorId, parsed.data);
+    const reply = await cpPostOracleChat(tid, engagementId, actorId, parsed.data, demoJti);
     return NextResponse.json({ ...reply, source: "cp" }, { status: 200 });
   } catch (e) {
     if (e instanceof OracleBudgetExhaustedError) {

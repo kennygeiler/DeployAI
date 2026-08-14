@@ -26,18 +26,29 @@ async def get_or_create_conversation(
     engagement_id: uuid.UUID,
     actor_user_id: uuid.UUID,
     conversation_id: uuid.UUID | None,
+    demo_session_jti: str | None = None,
 ) -> tuple[OracleConversation, bool]:
     if conversation_id is not None:
         existing = await session.get(OracleConversation, conversation_id)
         if existing is None or existing.tenant_id != tenant_id or existing.engagement_id != engagement_id:
             raise _ConversationNotFoundError
         return existing, False
+    # demo-polish fix 5 — demo guests all share one actor (the configured
+    # demo user), so demo sessions additionally scope by their token jti:
+    # each guest mint gets a private thread. NULL scope = normal sessions,
+    # unchanged (one conversation per tenant/engagement/actor).
+    scope = (
+        OracleConversation.demo_session_jti.is_(None)
+        if demo_session_jti is None
+        else OracleConversation.demo_session_jti == demo_session_jti
+    )
     existing_for_actor = (
         await session.execute(
             select(OracleConversation).where(
                 OracleConversation.tenant_id == tenant_id,
                 OracleConversation.engagement_id == engagement_id,
                 OracleConversation.actor_user_id == actor_user_id,
+                scope,
             )
         )
     ).scalar_one_or_none()
@@ -47,6 +58,7 @@ async def get_or_create_conversation(
         tenant_id=tenant_id,
         engagement_id=engagement_id,
         actor_user_id=actor_user_id,
+        demo_session_jti=demo_session_jti,
     )
     session.add(convo)
     await session.flush()

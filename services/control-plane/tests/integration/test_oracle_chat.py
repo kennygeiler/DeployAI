@@ -328,6 +328,73 @@ async def test_history_endpoint_returns_turns_in_order(
     assert body["turns"][0]["content"] == "ping"
 
 
+@pytest.mark.asyncio
+async def test_demo_session_header_scopes_conversations_per_guest(
+    o_client: AsyncClient, postgres_engine: Engine, fake_llm: _FakeLLM
+) -> None:
+    """demo-polish fix 5 — X-DeployAI-Demo-Session gives each guest a private thread.
+
+    Every demo guest authenticates as the same actor user, so without the
+    header they would all share one conversation (and see each other's
+    turns). Two jtis → two conversations; history is scoped per jti; a
+    session without the header (normal users) neither sees nor joins the
+    demo threads.
+    """
+    tid, eid, user_id = await _new_engagement(o_client, postgres_engine)
+
+    def _demo_headers(jti: str) -> dict[str, str]:
+        return {**_actor_headers(user_id), "X-DeployAI-Demo-Session": jti}
+
+    for jti, message in (("jti-guest-a", "hello from A"), ("jti-guest-b", "hello from B")):
+        r = await o_client.post(
+            f"/internal/v1/engagements/{eid}/oracle/chat?tenant_id={tid}",
+            json={"conversation_id": None, "message": message},
+            headers=_demo_headers(jti),
+        )
+        assert r.status_code == 200, r.text
+    # Same actor + engagement, distinct sessions → distinct conversations.
+    assert _count(postgres_engine, "oracle_conversations", tenant_id=tid, engagement_id=eid) == 2
+
+    # History is private per session: guest B never sees guest A's turns.
+    h_a = await o_client.get(
+        f"/internal/v1/engagements/{eid}/oracle/history?tenant_id={tid}",
+        headers=_demo_headers("jti-guest-a"),
+    )
+    h_b = await o_client.get(
+        f"/internal/v1/engagements/{eid}/oracle/history?tenant_id={tid}",
+        headers=_demo_headers("jti-guest-b"),
+    )
+    assert h_a.status_code == 200 and h_b.status_code == 200
+    assert h_a.json()["conversation_id"] != h_b.json()["conversation_id"]
+    assert [t["content"] for t in h_a.json()["turns"] if t["role"] == "user"] == ["hello from A"]
+    assert [t["content"] for t in h_b.json()["turns"] if t["role"] == "user"] == ["hello from B"]
+
+    # A repeat turn on the same session reuses its thread, not a new one.
+    r = await o_client.post(
+        f"/internal/v1/engagements/{eid}/oracle/chat?tenant_id={tid}",
+        json={"conversation_id": None, "message": "second turn from A"},
+        headers=_demo_headers("jti-guest-a"),
+    )
+    assert r.status_code == 200, r.text
+    assert _count(postgres_engine, "oracle_conversations", tenant_id=tid, engagement_id=eid) == 2
+
+    # No header (a normal session): sees none of the demo threads and
+    # creates its own NULL-scoped conversation — pre-fix behavior intact.
+    h_none = await o_client.get(
+        f"/internal/v1/engagements/{eid}/oracle/history?tenant_id={tid}",
+        headers=_actor_headers(user_id),
+    )
+    assert h_none.status_code == 200, h_none.text
+    assert h_none.json() == {"conversation_id": None, "turns": []}
+    r = await o_client.post(
+        f"/internal/v1/engagements/{eid}/oracle/chat?tenant_id={tid}",
+        json={"conversation_id": None, "message": "normal session"},
+        headers=_actor_headers(user_id),
+    )
+    assert r.status_code == 200, r.text
+    assert _count(postgres_engine, "oracle_conversations", tenant_id=tid, engagement_id=eid) == 3
+
+
 def test_migration_round_trip_drops_oracle_tables_clean(postgres_engine: Engine) -> None:
     """0040 down → up leaves no leftover tables and restores the indexes.
 

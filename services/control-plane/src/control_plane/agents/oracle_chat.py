@@ -129,6 +129,7 @@ class OracleChatService:
         conversation_id: uuid.UUID | None,
         message: str,
         now: datetime | None = None,
+        demo_session_jti: str | None = None,
     ) -> OracleReply:
         moment = now or datetime.now(UTC)
         # Validate references before charging budget or inserting state so a
@@ -151,6 +152,7 @@ class OracleChatService:
             engagement_id=engagement.id,
             actor_user_id=actor_user_id,
             conversation_id=conversation_id,
+            demo_session_jti=demo_session_jti,
         )
         if started_new:
             await emit_ledger_event(
@@ -232,6 +234,7 @@ class OracleChatService:
         conversation_id: uuid.UUID | None,
         message: str,
         now: datetime | None = None,
+        demo_session_jti: str | None = None,
     ) -> AsyncIterator[OracleStreamChunk]:
         """Pre-flight (validate/budget/setup) runs eagerly so 404/429 surface
         before any SSE frame; the LLM stream + post-stream persist run lazily
@@ -245,6 +248,7 @@ class OracleChatService:
             conversation_id=conversation_id,
             message=message,
             moment=moment,
+            demo_session_jti=demo_session_jti,
         )
         return self._drive_stream(
             session,
@@ -266,6 +270,7 @@ class OracleChatService:
         conversation_id: uuid.UUID | None,
         message: str,
         moment: datetime,
+        demo_session_jti: str | None = None,
     ) -> tuple[list[dict[str, str]], OracleConversation, list[uuid.UUID]]:
         if conversation_id is not None:
             await _require_conversation(
@@ -285,6 +290,7 @@ class OracleChatService:
             engagement_id=engagement.id,
             actor_user_id=actor_user_id,
             conversation_id=conversation_id,
+            demo_session_jti=demo_session_jti,
         )
         if started_new:
             await emit_ledger_event(
@@ -402,21 +408,31 @@ async def _get_or_create_conversation(
     engagement_id: uuid.UUID,
     actor_user_id: uuid.UUID,
     conversation_id: uuid.UUID | None,
+    demo_session_jti: str | None = None,
 ) -> tuple[OracleConversation, bool]:
     if conversation_id is not None:
         existing = await session.get(OracleConversation, conversation_id)
         if existing is None or existing.tenant_id != tenant_id or existing.engagement_id != engagement_id:
             raise ConversationNotFoundError
         return existing, False
-    # Unique constraint on (tenant_id, engagement_id, actor_user_id) — reuse
-    # an existing conversation when the actor opens chat for the same
-    # engagement again, rather than letting INSERT raise.
+    # Partial unique indexes on (tenant_id, engagement_id, actor_user_id
+    # [, demo_session_jti]) — reuse the actor's existing conversation for
+    # this scope rather than letting INSERT raise. demo-polish fix 5: every
+    # demo guest shares one actor (the configured demo user), so demo
+    # sessions additionally key on their token jti — each guest mint gets a
+    # private thread instead of inheriting previous visitors' turns.
+    scope = (
+        OracleConversation.demo_session_jti.is_(None)
+        if demo_session_jti is None
+        else OracleConversation.demo_session_jti == demo_session_jti
+    )
     existing_for_actor = (
         await session.execute(
             select(OracleConversation).where(
                 OracleConversation.tenant_id == tenant_id,
                 OracleConversation.engagement_id == engagement_id,
                 OracleConversation.actor_user_id == actor_user_id,
+                scope,
             )
         )
     ).scalar_one_or_none()
@@ -426,6 +442,7 @@ async def _get_or_create_conversation(
         tenant_id=tenant_id,
         engagement_id=engagement_id,
         actor_user_id=actor_user_id,
+        demo_session_jti=demo_session_jti,
     )
     session.add(convo)
     await session.flush()

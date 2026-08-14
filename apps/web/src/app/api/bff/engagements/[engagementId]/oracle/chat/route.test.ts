@@ -25,6 +25,20 @@ const { cpPostOracleChatMock, OracleBudgetExhaustedErrorMock } = vi.hoisted(() =
   };
 });
 
+const { demoJtiMock } = vi.hoisted(() => ({ demoJtiMock: vi.fn() }));
+
+// Partial mock: the route's actor lookup stays real (driven by the mocked
+// next/headers); only the demo-session jti resolution (which needs a real
+// verified JWT) is stubbed.
+vi.mock("@/lib/internal/actor", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/internal/actor")>("@/lib/internal/actor");
+  return {
+    ...actual,
+    getDemoSessionJtiFromHeaders: demoJtiMock,
+  };
+});
+
 vi.mock("@/lib/internal/oracle-cp", async () => {
   const actual = await vi.importActual<typeof import("@/lib/internal/oracle-cp")>(
     "@/lib/internal/oracle-cp",
@@ -42,9 +56,9 @@ const TURN_ID = "00000000-0000-4000-8000-000000000aaa";
 const CONVO_ID = "00000000-0000-4000-8000-000000000bbb";
 const ACTOR_ID = "00000000-0000-4000-8000-0000000000aa";
 
-function authedHeaders(): Headers {
+function authedHeaders(role = "fde"): Headers {
   return new Headers({
-    "x-deployai-role": "fde",
+    "x-deployai-role": role,
     "x-deployai-tenant": "t1",
     "x-deployai-actor-id": ACTOR_ID,
   });
@@ -66,6 +80,7 @@ describe("POST /api/bff/engagements/[engagementId]/oracle/chat", () => {
   beforeEach(() => {
     headersMock.mockResolvedValue(authedHeaders());
     cookiesMock.mockResolvedValue({ get: () => undefined });
+    demoJtiMock.mockResolvedValue("jti-from-token");
     vi.stubEnv("DEPLOYAI_CONTROL_PLANE_URL", "http://cp.test");
     vi.stubEnv("DEPLOYAI_INTERNAL_API_KEY", "k");
   });
@@ -73,6 +88,7 @@ describe("POST /api/bff/engagements/[engagementId]/oracle/chat", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     cpPostOracleChatMock.mockReset();
+    demoJtiMock.mockReset();
   });
 
   it("forwards the validated body to CP and returns the JSON reply", async () => {
@@ -92,16 +108,49 @@ describe("POST /api/bff/engagements/[engagementId]/oracle/chat", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(cpPostOracleChatMock).toHaveBeenCalledWith("t1", "e1", ACTOR_ID, {
-      conversation_id: null,
-      message: "what should I worry about?",
-    });
+    // Non-demo roles never carry a demo-session scope (fifth arg null) —
+    // and the jti lookup is not even attempted.
+    expect(cpPostOracleChatMock).toHaveBeenCalledWith(
+      "t1",
+      "e1",
+      ACTOR_ID,
+      {
+        conversation_id: null,
+        message: "what should I worry about?",
+      },
+      null,
+    );
+    expect(demoJtiMock).not.toHaveBeenCalled();
     const body = await res.json();
     expect(body.turn_id).toBe(TURN_ID);
     expect(body.conversation_id).toBe(CONVO_ID);
     expect(body.content).toContain("two open risks");
     expect(body.tokens_used).toBe(412);
     expect(body.source).toBe("cp");
+  });
+
+  it("forwards the demo-session jti for demo_guest actors (fix 5 chat privacy)", async () => {
+    headersMock.mockResolvedValue(authedHeaders("demo_guest"));
+    cpPostOracleChatMock.mockResolvedValue({
+      turn_id: TURN_ID,
+      conversation_id: CONVO_ID,
+      content: "scoped reply",
+      tokens_used: 5,
+    });
+
+    const res = await POST(
+      postReq({ conversation_id: null, message: "hi" }) as unknown as Parameters<typeof POST>[0],
+      { params: params() },
+    );
+
+    expect(res.status).toBe(200);
+    expect(cpPostOracleChatMock).toHaveBeenCalledWith(
+      "t1",
+      "e1",
+      ACTOR_ID,
+      { conversation_id: null, message: "hi" },
+      "jti-from-token",
+    );
   });
 
   it("rejects an empty message at the BFF boundary", async () => {

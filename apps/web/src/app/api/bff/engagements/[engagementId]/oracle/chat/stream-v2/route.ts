@@ -2,7 +2,11 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { decideSync } from "@deployai/authz";
 
-import { getActorFromHeaders, getActorIdFromHeaders } from "@/lib/internal/actor";
+import {
+  getActorFromHeaders,
+  getActorIdFromHeaders,
+  getDemoSessionJtiFromHeaders,
+} from "@/lib/internal/actor";
 import {
   cpStreamOracleChatV2,
   OracleBudgetExhaustedError,
@@ -55,6 +59,9 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     );
   }
 
+  // demo-polish fix 5 — per-session conversation scope for demo guests.
+  const demoJti = actor.role === "demo_guest" ? await getDemoSessionJtiFromHeaders() : null;
+
   try {
     const upstream = await cpStreamOracleChatV2(
       tid,
@@ -62,6 +69,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       actorId,
       parsed.data,
       request.headers.get("traceparent"),
+      demoJti,
     );
     if (upstream.status === 404) {
       return new NextResponse("not found", { status: 404 });
