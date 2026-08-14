@@ -197,8 +197,10 @@ export function MatrixProposals({
     }
     setBulkBusy(true);
     try {
+      // BFF route (not the /api/internal proxy): the Needs-you queue is a
+      // demo-tour surface and demo_guest cannot reach internal:proxy paths.
       const r = await fetch(
-        `/api/internal/v1/engagements/${encodeURIComponent(engagementId)}/proposals/accept-bulk`,
+        `/api/bff/engagements/${encodeURIComponent(engagementId)}/proposals/accept-bulk`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

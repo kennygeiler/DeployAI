@@ -15,9 +15,12 @@ Security posture (be honest about it):
   ``/admin`` and ``/api/internal/v1`` proxy surfaces are denied at the web
   middleware, and the authz cross-tenant rule pins every call to the demo tenant.
 - Residual risk (accepted for wave 1 of this feature): BFF mutation routes that
-  gate with ``canonical:read`` today (single proposal accept/reject, review-item
-  resolve/dismiss, insight actions, onboarding seeds) remain callable by a
-  demo_guest session. Mitigation: the demo tenant is disposable and isolated by
+  gate with ``canonical:read`` today (single + bulk proposal accept/reject,
+  review-item resolve/dismiss, insight actions, onboarding seeds) remain
+  callable by a demo_guest session. Bulk accept moved into this family
+  deliberately (demo-polish): the tour's Monday-gate / Friday-digest beats
+  direct guests to "Accept all pending", which the ``internal:proxy``-gated
+  surface would 403. Mitigation: the demo tenant is disposable and isolated by
   tenancy/RLS; reseed it at will. Never enable demo mode on a deployment that
   hosts customer tenants.
 - Sessions use a demo-specific TTL: ``DEPLOYAI_DEMO_SESSION_TTL`` (seconds,

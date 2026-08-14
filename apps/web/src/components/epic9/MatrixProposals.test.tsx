@@ -319,7 +319,9 @@ describe("MatrixProposals", () => {
     await user.click(screen.getByRole("button", { name: /Accept all pending/ }));
     await waitFor(() => expect(calls.length).toBeGreaterThan(0));
     const posted = calls[0]!;
-    expect(posted.url).toBe("/api/internal/v1/engagements/eng-42/proposals/accept-bulk");
+    // The BFF route, not /api/internal/v1 — demo_guest sessions (the tour's
+    // "Accept all pending" beats) are denied the internal proxy surface.
+    expect(posted.url).toBe("/api/bff/engagements/eng-42/proposals/accept-bulk");
     expect(posted.method).toBe("POST");
     expect(posted.body).toContain('"filter"');
     expect(posted.body).toContain('"status":"pending"');
