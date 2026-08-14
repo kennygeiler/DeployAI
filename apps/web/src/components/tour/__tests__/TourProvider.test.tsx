@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TourProvider } from "@/components/tour/TourProvider.client";
 import {
-  ACME_ENGAGEMENT_PATH,
   BLUESTATE_ENGAGEMENT_PATH,
   TOUR_CAPTURE_DONE_EVENT,
   TOUR_CAPTURE_PREFILL_EVENT,
